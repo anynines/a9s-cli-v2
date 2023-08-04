@@ -2,17 +2,26 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"errors"
+	"flag"
 	"fmt"
 	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	//TODO Use this instead: https://github.com/charmbracelet/lipgloss
+
 	"github.com/fatih/color"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/util/homedir"
 	"sigs.k8s.io/yaml"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type Config struct {
@@ -23,6 +32,11 @@ type Config struct {
 // TODO make configurable / cli param
 const kind_demo_cluster_name = "a8s-demo"
 const configFileName = ".a8s"
+const demoGitRepo = "git@github.com:anynines/a8s-deployment.git"
+const demoNamespace = "default"
+const certManagerNamespace = "cert-manager"
+const certManagerManifestUrl = "https://github.com/cert-manager/cert-manager/releases/download/v1.12.0/cert-manager.yaml"
+const default_waiting_time_in_s = 10
 
 var configFilePath string
 var cfg Config
@@ -63,6 +77,7 @@ func checkIfKindClusterExists() bool {
 
 	strOutput := string(output)
 
+	fmt.Println("\nKind clusters:")
 	fmt.Println(strOutput)
 
 	if strings.Contains(strOutput, kind_demo_cluster_name) {
@@ -76,7 +91,7 @@ func checkIfKindClusterExists() bool {
 		return false
 	}
 
-	color.Red("There appear to be kind clusters but none with the name: " + kind_demo_cluster_name + ".")
+	color.Red("There appears to be kind clusters but none with the name: " + kind_demo_cluster_name + ".")
 	return false
 }
 
@@ -97,9 +112,20 @@ func checkPrerequisites() {
 		allGood = false
 	}
 
-	if !checkIfKindClusterExists() {
+	if !isCommandAvailable("cmctl") {
+		color.Red("The cert-manager CLI isn't installed. Please visit: https://cert-manager.io/docs/reference/cmctl/#installation")
 		allGood = false
 	}
+
+	if !checkIfKindClusterExists() {
+		createKindCluster()
+
+		fmt.Println()
+		color.Blue("Rerunning prerequisite check ...")
+		checkPrerequisites()
+	}
+
+	checkSelectedCluster()
 
 	if !allGood {
 		color.Red("Sadly, mandatory prerequisited haven't been met. Aborting...")
@@ -238,6 +264,240 @@ func promptPath() string {
 	}
 }
 
+func checkoutGitRepository(repositoryURL, localDirectory string) error {
+	// Check if the local directory already exists
+	if _, err := os.Stat(localDirectory); !os.IsNotExist(err) {
+		return fmt.Errorf("local directory already exists")
+	}
+
+	// Run the git clone command to checkout the repository
+	cmd := exec.Command("git", "clone", repositoryURL, localDirectory)
+
+	color.Blue("Executing: " + cmd.String())
+
+	output, err := cmd.CombinedOutput()
+
+	if err != nil {
+		color.Red("Failed to checkout the git repository: %v", err.Error())
+		fmt.Println(string(output))
+		os.Exit(1)
+		return err
+	} else {
+		fmt.Println(string(output))
+		return nil
+	}
+}
+
+func checkoutDeploymentGitRepository() {
+	color.Blue("Checking out git repository with demo manifests...")
+	checkoutGitRepository(demoGitRepo, cfg.WorkingDir)
+}
+
+func createKindCluster() {
+	color.Blue("Let's create a Kubernetes cluster named " + kind_demo_cluster_name + " using Kind...")
+
+	// kind create cluster --name a8s-ds --config kind-cluster-3nodes.yaml
+	cmd := exec.Command("kind", "create", "cluster", "--name", kind_demo_cluster_name)
+
+	color.Blue("Executing: " + cmd.String())
+
+	output, err := cmd.CombinedOutput()
+
+	if err != nil {
+		color.Red("Failed to execute the command: %v", err.Error())
+		fmt.Println(string(output))
+		os.Exit(1)
+		return
+	} else {
+		fmt.Println(string(output))
+		return
+	}
+}
+
+func checkSelectedCluster() {
+	color.Blue("Checking whether the " + kind_demo_cluster_name + " cluster is selected...")
+	cmd := exec.Command("kubectl", "config", "current-context")
+
+	output, err := cmd.CombinedOutput()
+
+	if err != nil {
+		exitDueToFatalError(err, "Can't retrieve the currently selected cluster using the command: "+cmd.String())
+	}
+
+	current_context := strings.TrimSpace(string(output))
+
+	color.Blue("The currently selected Kubernetes context is: " + current_context)
+
+	desired_context_name := "kind-" + kind_demo_cluster_name
+
+	if strings.HasPrefix(current_context, desired_context_name) {
+		color.Green("It seems that the right context is selected: " + desired_context_name)
+	} else {
+		color.Red("The expected context is " + desired_context_name + " but the current context is: " + current_context + ". Please select the desired context! Try executing: ")
+		fmt.Println("kubectl config use-context " + desired_context_name)
+		os.Exit(1)
+	}
+}
+
+func getKubernetesConfigPath() string {
+	var kubeconfig string
+	if kubeconfig = os.Getenv("KUBECONFIG"); kubeconfig != "" {
+		color.Blue("Kubernetes configuration is set by the $KUBECONFIG env variable.")
+	} else if home := homedir.HomeDir(); home != "" {
+		color.Blue("Kubernetes configuration is set by $HOME/.kube/config.")
+		kubeconfig = *flag.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
+	} else {
+		color.Blue("Kubernetes configuration is set by config flag.")
+		kubeconfig = *flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
+	}
+
+	// Set the bool variable based on the flags passed in by the user
+	flag.Parse()
+
+	return kubeconfig
+}
+
+func countPodsInDemoNamespace() int {
+	return countPodsInNamespace(demoNamespace)
+}
+
+func getKubernetesClientSet() *kubernetes.Clientset {
+	kubeconfig := getKubernetesConfigPath()
+	color.Blue("Kubernetes config located at: " + kubeconfig)
+
+	// use the current context in kubeconfig
+	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	// create the clientset
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	return clientset
+}
+
+// https://github.com/kubernetes/client-go/blob/master/examples/in-cluster-client-configuration/main.go
+func countPodsInNamespace(namespace string) int {
+
+	color.Blue("Checking whether there are pods in the cluster...")
+
+	clientset := getKubernetesClientSet()
+
+	//for {
+	pods, err := clientset.CoreV1().Pods(namespace).List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		panic(err.Error())
+	}
+
+	return len(pods.Items)
+}
+
+func kubectlApplyF(yamlFilepath string) {
+
+	cmd := exec.Command("kubectl", "apply", "-f", yamlFilepath)
+
+	output, err := cmd.CombinedOutput()
+
+	color.Blue(cmd.String())
+
+	if err != nil {
+		exitDueToFatalError(err, "Can't retrieve the currently selected cluster using the command: "+cmd.String())
+	}
+
+	fmt.Println(string(output))
+}
+
+func waitForCertManagerToBecomeReady() {
+	color.Blue("Waiting for the cert-manager API to become ready.")
+	cmd := exec.Command("cmctl", "check", "api")
+
+	for {
+		output, err := cmd.CombinedOutput()
+
+		color.Blue(cmd.String())
+
+		if err != nil {
+			exitDueToFatalError(err, "Can't verify the cert-manager's API: "+cmd.String())
+		}
+
+		strOutput := string(output)
+
+		fmt.Println(strOutput)
+
+		if strings.TrimSpace(strOutput) == "The cert-manager API is ready" {
+			color.Green("The cert-manager is ready")
+			break
+		} else {
+			color.Yellow("Continuing to wait for the cert-manager API...")
+		}
+
+		time.Sleep(30 * time.Second)
+	}
+
+	// var namespace = flag.String("namespace", certManagerNamespace)
+	// var selector = flag.String("selector", "app=cert-manager", "pod selector")
+	// var timeout = flag.Int("timeout", default_waiting_time_in_s, "timeout in seconds")
+	// flag.Parse()
+
+	// kubeconfig := getKubernetesConfigPath()
+
+	// config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// clientSet, err := kubernetes.NewForConfig(config)
+	// if err != nil {
+	// 	panic(err)
+	// }
+
+	// // Block up to timeout seconds for listed pods in namespace/selector to enter running state
+	// err = k8sutils.WaitForPodBySelectorRunning(clientSet, *namespace, *selector, *timeout)
+	// if err != nil {
+	// 	log.Errorf("\nThe pod never entered running phase\n")
+	// 	os.Exit(1)
+	// }
+	// fmt.Printf("\nAll pods in namespace=\"%s\" with selector=\"%s\" are running!\n", *namespace, *selector)
+}
+
+// for {
+// 	count := countPodsInNamespace(certManagerNamespace)
+
+// 	// There should be 3 pods
+// 	if count == 3 {
+// 		// Check if they are ready
+
+// 		pods, err := clientset.CoreV1().Pods(certManagerNamespace).List(context.TODO(), metav1.ListOptions{})
+
+// 		if err != nil {
+// 			panic(err.Error())
+// 		}
+
+// 		for _, pod := range pods.Items {
+// 			pod.Status.Conditions
+// 			fmt.Println(pod.Name + ": " + pod.Status.String())
+// 			fmt.Println("\n")
+// 		}
+// 	}
+
+// 	time.Sleep(default_waiting_time_in_s * time.Second)
+// }
+
+func applyCertManagerManifests() {
+	count := countPodsInNamespace(certManagerNamespace)
+
+	if count > 0 {
+		color.Blue("Found %d pods in the %s namespace", count, certManagerNamespace)
+	}
+
+	kubectlApplyF(certManagerManifestUrl)
+
+	waitForCertManagerToBecomeReady()
+}
+
 func main() {
 	printWelcomeScreen()
 
@@ -248,4 +508,12 @@ func main() {
 	}
 
 	checkPrerequisites()
+
+	checkoutDeploymentGitRepository()
+
+	if countPodsInDemoNamespace() == 0 {
+		color.Green("Kubernetes cluster has no pods in " + demoNamespace + " namespace.")
+	}
+
+	applyCertManagerManifests()
 }
