@@ -1,5 +1,19 @@
 package main
 
+/*
+Next: Resolve error:
+
+error: accumulating resources: accumulation err='accumulating resources from
+'../backup-config': '/Users/jfischer/Dropbox/workspace/a8s-pg/demo/deploy/a8s/backup-config'
+must resolve to a file': recursed accumulation of path '/Users/jfischer/Dropbox/workspace/a8s-pg/demo/deploy/a8s/backup-config': loading KV pairs: file sources: [./backup-store-config.yaml]: evalsymlink failure on '/Users/jfischer/Dropbox/workspace/a8s-pg/demo/deploy/a8s/backup-config/backup-store-config.yaml' : lstat /Users/jfischer/Dropbox/workspace/a8s-pg/demo/deploy/a8s/backup-config/backup-store-config.yaml: no such file or directory
+
+
+TODO:
+- Create S3 bucket with configs
+- waitForA8sToBecomeReady
+
+*/
+
 import (
 	"bufio"
 	"context"
@@ -405,10 +419,33 @@ func kubectlApplyF(yamlFilepath string) {
 	color.Blue(cmd.String())
 
 	if err != nil {
-		exitDueToFatalError(err, "Can't retrieve the currently selected cluster using the command: "+cmd.String())
+		exitDueToFatalError(err, "Can't kubectl apply with command: "+cmd.String())
 	}
 
 	fmt.Println(string(output))
+}
+
+func kubectlApplyKustomize(kustomizeFilepath string) {
+
+	cmd := exec.Command("kubectl", "apply", "--kustomize", kustomizeFilepath)
+
+	output, err := cmd.CombinedOutput()
+
+	color.Blue(cmd.String())
+
+	fmt.Println(string(output))
+
+	if err != nil {
+		exitDueToFatalError(err, "Can't kubectl kustomize with using the command: "+cmd.String())
+	}
+
+}
+
+func applyA8sManifests() {
+	color.Magenta("Applying the a8s Data Service manifests...")
+	kustomizePath := filepath.Join(cfg.WorkingDir, "deploy", "a8s", "manifests")
+	kubectlApplyKustomize(kustomizePath)
+	color.Magenta("Done applying a8s manifests.")
 }
 
 func waitForCertManagerToBecomeReady() {
@@ -516,4 +553,7 @@ func main() {
 	}
 
 	applyCertManagerManifests()
+
+	applyA8sManifests()
+
 }
