@@ -606,6 +606,11 @@ func saveStringToFile(filePath, content string) {
 	f.Sync()
 }
 
+/*
+Checks if there's an access key id file.
+If not it prompts to read the access key id from STDIN.
+Skips if the access key id file is already present
+*/
 func establishAccessKeyId() {
 	color.Blue("In order to store backups on an object store such as S3, we need an ACCESS KEY ID.")
 
