@@ -561,6 +561,7 @@ func backupConfigEncryptionPasswordFilePath() string {
 	  Does nothing if the file already exists.
 */
 func establishEncryptionPasswordFile() {
+	color.Blue("In order to encrypt backups we need an encryption password.")
 	color.Blue("Checking if encryption password file for backups already exists...")
 
 	filePath := backupConfigEncryptionPasswordFilePath()
@@ -578,6 +579,15 @@ func establishEncryptionPasswordFile() {
 		exitDueToFatalError(err, "Couldn't generate encryption password for backup config.")
 	}
 
+	saveStringToFile(filePath, backupPassword)
+}
+
+/*
+Writes content to a file.
+Doesn't check if file exists.
+Replaces its content if it does exist.
+*/
+func saveStringToFile(filePath, content string) {
 	// Store password in file
 	f, err := os.Create(filePath)
 
@@ -587,7 +597,7 @@ func establishEncryptionPasswordFile() {
 
 	defer f.Close()
 
-	f.WriteString(backupPassword)
+	f.WriteString(content)
 
 	if err != nil {
 		exitDueToFatalError(err, "Couldn't write password to file to store encryption password for backup config to filepath: "+filePath)
@@ -596,8 +606,35 @@ func establishEncryptionPasswordFile() {
 	f.Sync()
 }
 
+func establishAccessKeyId() {
+	color.Blue("In order to store backups on an object store such as S3, we need an ACCESS KEY ID.")
+
+	filePath := backupConfigAccessKeyIdFilePath()
+
+	if _, err := os.Stat(filePath); !os.IsNotExist(err) {
+		color.Magenta("There's already an access key id file...")
+		return
+	}
+
+	// Enter access key id as the access-key-id-file doesnt exist, yet.
+	reader := bufio.NewReader(os.Stdin)
+	fmt.Print("Enter your ACCESS KEY ID: ")
+
+	accessKeyId, err := reader.ReadString('\n')
+
+	if err != nil {
+		exitDueToFatalError(err, "Can't read ACCESS KEY ID from STDIN.")
+	}
+
+	color.Blue("ACCESS KEY ID: " + accessKeyId)
+
+	// Write file
+	saveStringToFile(filePath, accessKeyId)
+}
+
 func establishBackupStoreCredentials() {
 	establishEncryptionPasswordFile()
+	establishAccessKeyId()
 	// accessKeyId
 	// secretAccessKey
 }
