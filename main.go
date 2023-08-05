@@ -30,6 +30,7 @@ import (
 	//TODO Use this instead: https://github.com/charmbracelet/lipgloss
 
 	"github.com/fatih/color"
+	"github.com/sethvargo/go-password/password"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/homedir"
@@ -535,6 +536,67 @@ func applyCertManagerManifests() {
 	waitForCertManagerToBecomeReady()
 }
 
+func checkIfFileExists(filePath string) bool {
+	if _, err := os.Stat(filePath); err == nil {
+		return true
+	} else {
+		return false
+	}
+}
+
+func backupConfigAccessKeyIdFilePath() string {
+	return filepath.Join(cfg.WorkingDir, "deploy", "a8s", "backup-config", "access-key-id")
+}
+
+func backupConfigSecretAccessKeyFilePath() string {
+	return filepath.Join(cfg.WorkingDir, "deploy", "a8s", "backup-config", "secret-access-key")
+}
+
+func backupConfigEncryptionPasswordFilePath() string {
+	return filepath.Join(cfg.WorkingDir, "deploy", "a8s", "backup-config", "encryption-password")
+}
+
+func establishEncryptionPasswordFile() {
+	color.Blue("Checking if encryption password file for backups already exists...")
+
+	filePath := backupConfigEncryptionPasswordFilePath()
+
+	if _, err := os.Stat(filePath); !os.IsNotExist(err) {
+		color.Magenta("There's already an encryption password file. Skipping password generation...")
+		return
+	}
+
+	// Generate a password that is 64 characters long with 10 digits, 10 symbols,
+	// allowing upper and lower case letters, disallowing repeat characters.
+	backupPassword, err := password.Generate(64, 10, 10, false, false)
+
+	if err != nil {
+		exitDueToFatalError(err, "Couldn't generate encryption password for backup config.")
+	}
+
+	// Store password in file
+	f, err := os.Create(filePath)
+	defer f.Close()
+
+	if err != nil {
+		exitDueToFatalError(err, "Couldn't create file to store  encryption password for backup config to filepath: "+filePath)
+	}
+
+	f.WriteString(backupPassword)
+
+	if err != nil {
+		exitDueToFatalError(err, "Couldn't write password to file to store encryption password for backup config to filepath: "+filePath)
+	}
+
+	f.Sync()
+}
+
+func establishBackupStoreCredentials() {
+	establishEncryptionPasswordFile()
+	// accessKeyId
+	// secretAccessKey
+}
+
 func main() {
 	printWelcomeScreen()
 
@@ -551,6 +613,8 @@ func main() {
 	if countPodsInDemoNamespace() == 0 {
 		color.Green("Kubernetes cluster has no pods in " + demoNamespace + " namespace.")
 	}
+
+	establishBackupStoreCredentials()
 
 	applyCertManagerManifests()
 
