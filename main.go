@@ -212,7 +212,7 @@ func saveConfig() {
 		exitDueToFatalError(err, "Couldn't save config file. Aborting...")
 	}
 
-	err = os.WriteFile(configFilePath, yamlData, 0644)
+	err = os.WriteFile(configFilePath, yamlData, 0600)
 
 	if err != nil {
 		exitDueToFatalError(err, "Couldn't save config file. Aborting...")
@@ -556,6 +556,10 @@ func backupConfigEncryptionPasswordFilePath() string {
 	return filepath.Join(cfg.WorkingDir, "deploy", "a8s", "backup-config", "encryption-password")
 }
 
+/*
+		Generates an encryption password file for backups if it doesnt exist.
+	  Does nothing if the file already exists.
+*/
 func establishEncryptionPasswordFile() {
 	color.Blue("Checking if encryption password file for backups already exists...")
 
@@ -576,11 +580,12 @@ func establishEncryptionPasswordFile() {
 
 	// Store password in file
 	f, err := os.Create(filePath)
-	defer f.Close()
 
 	if err != nil {
 		exitDueToFatalError(err, "Couldn't create file to store  encryption password for backup config to filepath: "+filePath)
 	}
+
+	defer f.Close()
 
 	f.WriteString(backupPassword)
 
