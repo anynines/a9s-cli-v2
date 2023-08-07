@@ -9,6 +9,7 @@ must resolve to a file': recursed accumulation of path '/Users/jfischer/Dropbox/
 
 
 TODO:
+- deploy/a8s/backup-config/backup-store-config.yaml.template
 - Create S3 bucket with configs
 - waitForA8sToBecomeReady
 
@@ -43,6 +44,20 @@ type Config struct {
 	WorkingDir string `yaml:"WorkingDir"`
 }
 
+type BlobStore struct {
+	Config BlobStoreConfig `yaml:"config"`
+}
+
+type BlobStoreConfig struct {
+	CloudConfig BlobStoreCloudConfiguration `yaml:"cloud_configuration"`
+}
+
+type BlobStoreCloudConfiguration struct {
+	Provider  string `yaml:"provider"`
+	Container string `yaml:"container"`
+	Region    string `yaml:"region"`
+}
+
 // Settings
 // TODO make configurable / cli param
 const kind_demo_cluster_name = "a8s-demo"
@@ -51,7 +66,8 @@ const demoGitRepo = "git@github.com:anynines/a8s-deployment.git"
 const demoNamespace = "default"
 const certManagerNamespace = "cert-manager"
 const certManagerManifestUrl = "https://github.com/cert-manager/cert-manager/releases/download/v1.12.0/cert-manager.yaml"
-const default_waiting_time_in_s = 10
+
+// const default_waiting_time_in_s = 10
 
 var configFilePath string
 var cfg Config
@@ -266,7 +282,7 @@ func promptPath() string {
 		// Retrieve the entered path
 		path := scanner.Text()
 
-		fmt.Print("Awesome. We got " + path + " as a working directory. Is this ok? (y/n)")
+		fmt.Print("Awesome. We got " + path + " as a working directory. Is this ok? (y/n): ")
 		choice, _ := reader.ReadString('\n')
 
 		if strings.HasPrefix(choice, "y") {
@@ -460,6 +476,7 @@ func waitForCertManagerToBecomeReady() {
 
 		if err != nil {
 			exitDueToFatalError(err, "Can't verify the cert-manager's API: "+cmd.String())
+			color.Red("Continuing to wait for the cert-manager API...")
 		}
 
 		strOutput := string(output)
@@ -557,8 +574,8 @@ func backupConfigEncryptionPasswordFilePath() string {
 }
 
 /*
-		Generates an encryption password file for backups if it doesnt exist.
-	  Does nothing if the file already exists.
+Generates an encryption password file for backups if it doesnt exist.
+Does nothing if the file already exists.
 */
 func establishEncryptionPasswordFile() {
 	color.Blue("In order to encrypt backups we need an encryption password.")
@@ -607,6 +624,36 @@ func saveStringToFile(filePath, content string) {
 }
 
 /*
+Checks if there's a file.
+If not it prompts to read the file content from STDIN.
+Skips if the file is already present
+*/
+func readStringFromFileOrConsole(filePath, contentType string, showContent bool) {
+
+	if _, err := os.Stat(filePath); !os.IsNotExist(err) {
+		color.Magenta("There's already an " + contentType + " file...")
+		return
+	}
+
+	// Enter access key id as the access-key-id-file doesnt exist, yet.
+	reader := bufio.NewReader(os.Stdin)
+	fmt.Print("Enter your " + contentType + ": ")
+
+	accessKeyId, err := reader.ReadString('\n')
+
+	if err != nil {
+		exitDueToFatalError(err, "Can't read  "+contentType+"  from STDIN.")
+	}
+
+	if showContent {
+		color.Blue(contentType + " : " + accessKeyId)
+	}
+
+	// Write file
+	saveStringToFile(filePath, accessKeyId)
+}
+
+/*
 Checks if there's an access key id file.
 If not it prompts to read the access key id from STDIN.
 Skips if the access key id file is already present
@@ -616,32 +663,62 @@ func establishAccessKeyId() {
 
 	filePath := backupConfigAccessKeyIdFilePath()
 
-	if _, err := os.Stat(filePath); !os.IsNotExist(err) {
-		color.Magenta("There's already an access key id file...")
-		return
+	readStringFromFileOrConsole(filePath, "ACCESS KEY ID", true)
+}
+
+func establishSecretAccessKey() {
+	color.Blue("In order to store backups on an object store such as S3, we need a SECRET KEY.")
+
+	filePath := backupConfigSecretAccessKeyFilePath()
+
+	readStringFromFileOrConsole(filePath, "SECRET KEY", false)
+}
+
+func backupStoreConfigFilePath() string {
+	return filepath.Join(cfg.WorkingDir, "deploy", "a8s", "backup-config", "backup-store-config.yaml")
+}
+
+func establishBackupStoreConfigYaml() {
+	color.Blue("Checking the backup-store-config.yaml file...")
+
+	filePath := backupStoreConfigFilePath()
+
+	if checkIfFileExists(filePath) {
+		color.Green("There's already a backup-store-config.yaml file at %s. Trusting that the file is ok.", filePath)
+	} else {
+		color.Blue("Writing a backup-store-config.yaml with defaults to " + filePath)
+		blobStoreConfig := BlobStore{
+			Config: BlobStoreConfig{
+				CloudConfig: BlobStoreCloudConfiguration{
+					Provider:  "AWS",
+					Container: "a8s-backups",
+					Region:    "eu-central-0",
+				},
+			},
+		}
+
+		yamlData, err := yaml.Marshal(&blobStoreConfig)
+
+		if err != nil {
+			exitDueToFatalError(err, "Couldn't generate backup-store-config.yaml file. Aborting...")
+		}
+
+		err = os.WriteFile(filePath, yamlData, 0644)
+
+		if err != nil {
+			exitDueToFatalError(err, "Couldn't save backup-store-config.yaml file. Aborting...")
+		}
 	}
-
-	// Enter access key id as the access-key-id-file doesnt exist, yet.
-	reader := bufio.NewReader(os.Stdin)
-	fmt.Print("Enter your ACCESS KEY ID: ")
-
-	accessKeyId, err := reader.ReadString('\n')
-
-	if err != nil {
-		exitDueToFatalError(err, "Can't read ACCESS KEY ID from STDIN.")
-	}
-
-	color.Blue("ACCESS KEY ID: " + accessKeyId)
-
-	// Write file
-	saveStringToFile(filePath, accessKeyId)
 }
 
 func establishBackupStoreCredentials() {
 	establishEncryptionPasswordFile()
 	establishAccessKeyId()
-	// accessKeyId
-	// secretAccessKey
+	establishSecretAccessKey()
+
+	establishBackupStoreConfigYaml()
+
+	//TODO deploy/a8s/backup-config/backup-store-config.yaml.template
 }
 
 func main() {
