@@ -126,7 +126,7 @@ func CheckIfKindClusterExists() bool {
 func CheckPrerequisites() {
 	allGood := true
 
-	color.Blue("Checking Prerequisites...")
+	PrintH1("Checking Prerequisites...")
 
 	if !IsCommandAvailable("docker") {
 		allGood = false
@@ -153,7 +153,7 @@ func CheckPrerequisites() {
 		CreateKindCluster()
 
 		fmt.Println()
-		color.Blue("Rerunning prerequisite check ...")
+		PrintH2("Rerunning prerequisite check ...")
 		CheckPrerequisites()
 	}
 
@@ -173,7 +173,7 @@ func PrintWelcomeScreen() {
 
 	title := "Welcome to the a8s Data Service demos"
 
-	color.Blue("Currently the a8s PostgreSQL or short a8s-pg demo is selected.")
+	PrintH2("Currently the a8s PostgreSQL or short a8s-pg demo is selected.")
 
 	var style = lipgloss.NewStyle().
 		Bold(true).
@@ -192,7 +192,7 @@ func PrintWelcomeScreen() {
 }
 
 func EstablishConfigFilePath() {
-	color.Blue("Setting a config file path in order to persist settings...")
+	PrintH2("Setting a config file path in order to persist settings...")
 
 	homeDir, err := os.UserHomeDir()
 
@@ -203,7 +203,7 @@ func EstablishConfigFilePath() {
 
 	configFilePath = filepath.Join(homeDir, configFileName)
 
-	color.Blue("Settings will be stored at " + configFilePath)
+	PrintH2("Settings will be stored at " + configFilePath)
 
 }
 
@@ -265,7 +265,7 @@ func LoadConfig() bool {
 
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			color.Blue("No config file found.")
+			PrintH2("No config file found.")
 			return false
 		}
 
@@ -278,7 +278,7 @@ func LoadConfig() bool {
 		PrintFail("Coudln't parse config file.")
 	}
 
-	color.Blue("Using the following working directory: " + cfg.WorkingDir)
+	PrintH2("Using the following working directory: " + cfg.WorkingDir)
 
 	return true
 }
@@ -329,7 +329,7 @@ func CheckoutGitRepository(repositoryURL, localDirectory string) error {
 	// Run the git clone command to checkout the repository
 	cmd := exec.Command("git", "clone", repositoryURL, localDirectory)
 
-	color.Blue("Executing: " + cmd.String())
+	PrintH2("Executing: " + cmd.String())
 
 	output, err := cmd.CombinedOutput()
 
@@ -345,17 +345,17 @@ func CheckoutGitRepository(repositoryURL, localDirectory string) error {
 }
 
 func CheckoutDeploymentGitRepository() {
-	color.Blue("Checking out git repository with demo manifests...")
+	PrintH2("Checking out git repository with demo manifests...")
 	CheckoutGitRepository(demoGitRepo, cfg.WorkingDir)
 }
 
 func CreateKindCluster() {
-	color.Blue("Let's create a Kubernetes cluster named " + kind_demo_cluster_name + " using Kind...")
+	PrintH2("Let's create a Kubernetes cluster named " + kind_demo_cluster_name + " using Kind...")
 
 	// kind create cluster --name a8s-ds --config kind-cluster-3nodes.yaml
 	cmd := exec.Command("kind", "create", "cluster", "--name", kind_demo_cluster_name)
 
-	color.Blue("Executing: " + cmd.String())
+	PrintH2("Executing: " + cmd.String())
 
 	output, err := cmd.CombinedOutput()
 
@@ -371,7 +371,7 @@ func CreateKindCluster() {
 }
 
 func CheckSelectedCluster() {
-	color.Blue("Checking whether the " + kind_demo_cluster_name + " cluster is selected...")
+	PrintH2("Checking whether the " + kind_demo_cluster_name + " cluster is selected...")
 	cmd := exec.Command("kubectl", "config", "current-context")
 
 	output, err := cmd.CombinedOutput()
@@ -382,7 +382,7 @@ func CheckSelectedCluster() {
 
 	current_context := strings.TrimSpace(string(output))
 
-	color.Blue("The currently selected Kubernetes context is: " + current_context)
+	PrintH2("The currently selected Kubernetes context is: " + current_context)
 
 	desired_context_name := "kind-" + kind_demo_cluster_name
 
@@ -398,12 +398,12 @@ func CheckSelectedCluster() {
 func GetKubernetesConfigPath() string {
 	var kubeconfig string
 	if kubeconfig = os.Getenv("KUBECONFIG"); kubeconfig != "" {
-		color.Blue("Kubernetes configuration is set by the $KUBECONFIG env variable.")
+		PrintH2("Kubernetes configuration is set by the $KUBECONFIG env variable.")
 	} else if home := homedir.HomeDir(); home != "" {
-		color.Blue("Kubernetes configuration is set by $HOME/.kube/config.")
+		PrintH2("Kubernetes configuration is set by $HOME/.kube/config.")
 		kubeconfig = *flag.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
 	} else {
-		color.Blue("Kubernetes configuration is set by config flag.")
+		PrintH2("Kubernetes configuration is set by config flag.")
 		kubeconfig = *flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
 	}
 
@@ -419,7 +419,7 @@ func CountPodsInDemoNamespace() int {
 
 func GetKubernetesClientSet() *kubernetes.Clientset {
 	kubeconfig := GetKubernetesConfigPath()
-	color.Blue("Kubernetes config located at: " + kubeconfig)
+	PrintH2("Kubernetes config located at: " + kubeconfig)
 
 	// use the current context in kubeconfig
 	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
@@ -439,7 +439,7 @@ func GetKubernetesClientSet() *kubernetes.Clientset {
 // https://github.com/kubernetes/client-go/blob/master/examples/in-cluster-client-configuration/main.go
 func countPodsInNamespace(namespace string) int {
 
-	color.Blue("Checking whether there are pods in the cluster...")
+	PrintH2("Checking whether there are pods in the cluster...")
 
 	clientset := GetKubernetesClientSet()
 
@@ -458,7 +458,7 @@ func KubectlApplyF(yamlFilepath string) {
 
 	output, err := cmd.CombinedOutput()
 
-	color.Blue(cmd.String())
+	PrintH2(cmd.String())
 
 	if err != nil {
 		ExitDueToFatalError(err, "Can't kubectl apply with command: "+cmd.String())
@@ -473,7 +473,7 @@ func KubectlApplyKustomize(kustomizeFilepath string) {
 
 	output, err := cmd.CombinedOutput()
 
-	color.Blue(cmd.String())
+	PrintH2(cmd.String())
 
 	fmt.Println(string(output))
 
@@ -491,13 +491,13 @@ func ApplyA8sManifests() {
 }
 
 func WaitForCertManagerToBecomeReady() {
-	color.Blue("Waiting for the cert-manager API to become ready.")
+	PrintH2("Waiting for the cert-manager API to become ready.")
 	cmd := exec.Command("cmctl", "check", "api")
 
 	for {
 		output, err := cmd.CombinedOutput()
 
-		color.Blue(cmd.String())
+		PrintH2(cmd.String())
 
 		if err != nil {
 			ExitDueToFatalError(err, "Can't verify the cert-manager's API: "+cmd.String())
@@ -570,7 +570,7 @@ func ApplyCertManagerManifests() {
 	count := countPodsInNamespace(certManagerNamespace)
 
 	if count > 0 {
-		color.Blue("Found %d pods in the %s namespace", count, certManagerNamespace)
+		PrintH2(fmt.Sprintf("Found %d pods in the %s namespace", count, certManagerNamespace))
 	}
 
 	KubectlApplyF(certManagerManifestUrl)
@@ -603,8 +603,8 @@ Generates an encryption password file for backups if it doesnt exist.
 Does nothing if the file already exists.
 */
 func EstablishEncryptionPasswordFile() {
-	color.Blue("In order to encrypt backups we need an encryption password.")
-	color.Blue("Checking if encryption password file for backups already exists...")
+	PrintH2("In order to encrypt backups we need an encryption password.")
+	PrintH2("Checking if encryption password file for backups already exists...")
 
 	filePath := BackupConfigEncryptionPasswordFilePath()
 
@@ -671,7 +671,7 @@ func ReadStringFromFileOrConsole(filePath, contentType string, showContent bool)
 	}
 
 	if showContent {
-		color.Blue(contentType + " : " + accessKeyId)
+		PrintH2(contentType + " : " + accessKeyId)
 	}
 
 	// Write file
@@ -684,7 +684,7 @@ If not it prompts to read the access key id from STDIN.
 Skips if the access key id file is already present
 */
 func EstablishAccessKeyId() {
-	color.Blue("In order to store backups on an object store such as S3, we need an ACCESS KEY ID.")
+	PrintH2("In order to store backups on an object store such as S3, we need an ACCESS KEY ID.")
 
 	filePath := BackupConfigAccessKeyIdFilePath()
 
@@ -692,7 +692,7 @@ func EstablishAccessKeyId() {
 }
 
 func establishSecretAccessKey() {
-	color.Blue("In order to store backups on an object store such as S3, we need a SECRET KEY.")
+	PrintH2("In order to store backups on an object store such as S3, we need a SECRET KEY.")
 
 	filePath := BackupConfigSecretAccessKeyFilePath()
 
@@ -704,14 +704,14 @@ func backupStoreConfigFilePath() string {
 }
 
 func establishBackupStoreConfigYaml() {
-	color.Blue("Checking the backup-store-config.yaml file...")
+	PrintH2("Checking the backup-store-config.yaml file...")
 
 	filePath := backupStoreConfigFilePath()
 
 	if CheckIfFileExists(filePath) {
 		color.Green("There's already a backup-store-config.yaml file at %s. Trusting that the file is ok.", filePath)
 	} else {
-		color.Blue("Writing a backup-store-config.yaml with defaults to " + filePath)
+		PrintH2("Writing a backup-store-config.yaml with defaults to " + filePath)
 		blobStoreConfig := BlobStore{
 			Config: BlobStoreConfig{
 				CloudConfig: BlobStoreCloudConfiguration{
