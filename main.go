@@ -40,7 +40,7 @@ func main() {
 	// demo.CheckoutDeploymentGitRepository()
 
 	// if demo.CountPodsInDemoNamespace() == 0 {
-	// 	color.Green("Kubernetes cluster has no pods in " + demo.GetConfig().DemoSpace + " namespace.")
+	// 	PrintCheckmark("Kubernetes cluster has no pods in " + demo.GetConfig().DemoSpace + " namespace.")
 	// }
 
 	// demo.EstablishBackupStoreCredentials()

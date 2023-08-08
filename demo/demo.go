@@ -109,7 +109,7 @@ func CheckIfKindClusterExists() bool {
 	fmt.Println(strOutput)
 
 	if strings.Contains(strOutput, kind_demo_cluster_name) {
-		color.Green("There is a suitable Kind cluster with the name " + kind_demo_cluster_name + " running.")
+		PrintCheckmark("There is a suitable Kind cluster with the name " + kind_demo_cluster_name + " running.")
 		return true
 	}
 
@@ -163,7 +163,7 @@ func CheckPrerequisites() {
 		PrintFail("Sadly, mandatory prerequisited haven't been met. Aborting...")
 		os.Exit(1)
 	} else {
-		color.Green("Is all good man! Let's proceed...")
+		PrintCheckmark("Is all good man! Let's proceed...")
 	}
 }
 func PrintWelcomeScreen() {
@@ -208,7 +208,8 @@ func EstablishConfigFilePath() {
 }
 
 func EstablishWorkingDir() {
-	color.Magenta("We will need a working directory for the demo. Let's find one..")
+	PrintH1("Setting up a Working Directory")
+	PrintH2("We will need a working directory for the demo. Let's find one..")
 
 	reader := bufio.NewReader(os.Stdin)
 
@@ -387,7 +388,7 @@ func CheckSelectedCluster() {
 	desired_context_name := "kind-" + kind_demo_cluster_name
 
 	if strings.HasPrefix(current_context, desired_context_name) {
-		color.Green("It seems that the right context is selected: " + desired_context_name)
+		PrintCheckmark("It seems that the right context is selected: " + desired_context_name)
 	} else {
 		PrintFail("The expected context is " + desired_context_name + " but the current context is: " + current_context + ". Please select the desired context! Try executing: ")
 		fmt.Println("kubectl config use-context " + desired_context_name)
@@ -484,10 +485,10 @@ func KubectlApplyKustomize(kustomizeFilepath string) {
 }
 
 func ApplyA8sManifests() {
-	color.Magenta("Applying the a8s Data Service manifests...")
+	PrintH1("Applying the a8s Data Service manifests...")
 	kustomizePath := filepath.Join(cfg.WorkingDir, "deploy", "a8s", "manifests")
 	KubectlApplyKustomize(kustomizePath)
-	color.Magenta("Done applying a8s manifests.")
+	PrintCheckmark("Done applying a8s manifests.")
 }
 
 func WaitForCertManagerToBecomeReady() {
@@ -609,7 +610,7 @@ func EstablishEncryptionPasswordFile() {
 	filePath := BackupConfigEncryptionPasswordFilePath()
 
 	if _, err := os.Stat(filePath); !os.IsNotExist(err) {
-		color.Magenta("There's already an encryption password file. Skipping password generation...")
+		PrintH2("There's already an encryption password file. Skipping password generation...")
 		return
 	}
 
@@ -656,7 +657,7 @@ Skips if the file is already present
 func ReadStringFromFileOrConsole(filePath, contentType string, showContent bool) {
 
 	if _, err := os.Stat(filePath); !os.IsNotExist(err) {
-		color.Magenta("There's already an " + contentType + " file...")
+		PrintH2("There's already an " + contentType + " file...")
 		return
 	}
 
@@ -709,7 +710,7 @@ func establishBackupStoreConfigYaml() {
 	filePath := backupStoreConfigFilePath()
 
 	if CheckIfFileExists(filePath) {
-		color.Green("There's already a backup-store-config.yaml file at %s. Trusting that the file is ok.", filePath)
+		PrintCheckmark(fmt.Sprintf("There's already a backup-store-config.yaml file at %s. Trusting that the file is ok.", filePath))
 	} else {
 		PrintH2("Writing a backup-store-config.yaml with defaults to " + filePath)
 		blobStoreConfig := BlobStore{
