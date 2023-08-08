@@ -13,8 +13,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/fatih/color"
 	"github.com/sethvargo/go-password/password"
+	"golang.org/x/term"
 	"gopkg.in/yaml.v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -59,11 +61,12 @@ func IsCommandAvailable(name string) bool {
 	//	cmd := exec.Command("/bin/sh", "-c", "command -v "+name)
 	cmd := exec.Command("command", "-v", name)
 	if err := cmd.Run(); err != nil {
-		color.Red("Couldn't find " + name + " command.")
+		PrintFail("Couldn't find " + name + " command.")
 		return false
 	}
 
-	color.Green("Found " + name + ".")
+	PrintCheckmark("Found " + name + ".")
+
 	return true
 }
 
@@ -71,10 +74,10 @@ func checkIfDockerIsRunning() bool {
 	cmd := exec.Command("docker", "info")
 	err := cmd.Run()
 	if err != nil {
-		color.Red("Docker is not running")
+		PrintFail("Docker is not running")
 		return false
 	}
-	color.Green("Docker is running")
+	PrintCheckmark("Docker is running")
 	return true
 }
 
@@ -82,10 +85,10 @@ func checkIfKubernetesIsRunning() bool {
 	cmd := exec.Command("kubectl", "api-versions")
 	err := cmd.Run()
 	if err != nil {
-		color.Red("Kubernetes is not running")
+		PrintFail("Kubernetes is not running")
 		return false
 	}
-	color.Green("Kubernetes is running")
+	PrintCheckmark("Kubernetes is running")
 	return true
 }
 
@@ -95,7 +98,7 @@ func CheckIfKindClusterExists() bool {
 	// Capture the command output
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		color.Red("Couldn't capture output of 'kind get clusters' command.")
+		PrintFail("Couldn't capture output of 'kind get clusters' command.")
 		log.Fatal(err)
 		return false
 	}
@@ -112,11 +115,11 @@ func CheckIfKindClusterExists() bool {
 
 	// Check if the output contains the string "No kind clusters found."
 	if strings.Contains(strOutput, "No kind clusters found.") {
-		color.Red("There are no kind clusters. A cluster with the name: " + kind_demo_cluster_name + " is needed.")
+		PrintFail("There are no kind clusters. A cluster with the name: " + kind_demo_cluster_name + " is needed.")
 		return false
 	}
 
-	color.Red("There appears to be kind clusters but none with the name: " + kind_demo_cluster_name + ".")
+	PrintFail("There appears to be kind clusters but none with the name: " + kind_demo_cluster_name + ".")
 	return false
 }
 
@@ -142,7 +145,7 @@ func CheckPrerequisites() {
 	}
 
 	if !IsCommandAvailable("cmctl") {
-		color.Red("The cert-manager CLI isn't installed. Please visit: https://cert-manager.io/docs/reference/cmctl/#installation")
+		PrintFail("The cert-manager CLI isn't installed. Please visit: https://cert-manager.io/docs/reference/cmctl/#installation")
 		allGood = false
 	}
 
@@ -157,11 +160,35 @@ func CheckPrerequisites() {
 	CheckSelectedCluster()
 
 	if !allGood {
-		color.Red("Sadly, mandatory prerequisited haven't been met. Aborting...")
+		PrintFail("Sadly, mandatory prerequisited haven't been met. Aborting...")
 		os.Exit(1)
 	} else {
 		color.Green("Is all good man! Let's proceed...")
 	}
+}
+func PrintWelcomeScreen() {
+	physicalWidth, _, _ := term.GetSize(int(os.Stdout.Fd()))
+
+	fmt.Println()
+
+	title := "Welcome to the a8s Data Service demos"
+
+	color.Blue("Currently the a8s PostgreSQL or short a8s-pg demo is selected.")
+
+	var style = lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("#f8f8f8")).
+		Background(lipgloss.Color("#505d78")).
+		PaddingTop(1).
+		PaddingBottom(1).
+		PaddingLeft(0).
+		Width(physicalWidth - 2).
+		Align(lipgloss.Center).
+		//AlignVertical(lipgloss.Top).
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("5a6987")).
+		BorderBackground(lipgloss.Color("e4833e"))
+	fmt.Println(style.Render(title))
 }
 
 func EstablishConfigFilePath() {
@@ -248,7 +275,7 @@ func LoadConfig() bool {
 	err = yaml.Unmarshal(yamlFile, &cfg)
 
 	if err != nil {
-		color.Red("Coudln't parse config file.")
+		PrintFail("Coudln't parse config file.")
 	}
 
 	color.Blue("Using the following working directory: " + cfg.WorkingDir)
@@ -257,7 +284,7 @@ func LoadConfig() bool {
 }
 
 func ExitDueToFatalError(err error, msg string) {
-	color.Red(msg)
+	PrintFail(msg)
 	fmt.Print(err)
 	os.Exit(1)
 }
@@ -307,7 +334,7 @@ func CheckoutGitRepository(repositoryURL, localDirectory string) error {
 	output, err := cmd.CombinedOutput()
 
 	if err != nil {
-		color.Red("Failed to checkout the git repository: %v", err.Error())
+		PrintFail("Failed to checkout the git repository: " + err.Error())
 		fmt.Println(string(output))
 		os.Exit(1)
 		return err
@@ -333,7 +360,7 @@ func CreateKindCluster() {
 	output, err := cmd.CombinedOutput()
 
 	if err != nil {
-		color.Red("Failed to execute the command: %v", err.Error())
+		PrintFail("Failed to execute the command: " + err.Error())
 		fmt.Println(string(output))
 		os.Exit(1)
 		return
@@ -362,7 +389,7 @@ func CheckSelectedCluster() {
 	if strings.HasPrefix(current_context, desired_context_name) {
 		color.Green("It seems that the right context is selected: " + desired_context_name)
 	} else {
-		color.Red("The expected context is " + desired_context_name + " but the current context is: " + current_context + ". Please select the desired context! Try executing: ")
+		PrintFail("The expected context is " + desired_context_name + " but the current context is: " + current_context + ". Please select the desired context! Try executing: ")
 		fmt.Println("kubectl config use-context " + desired_context_name)
 		os.Exit(1)
 	}
@@ -474,7 +501,7 @@ func WaitForCertManagerToBecomeReady() {
 
 		if err != nil {
 			ExitDueToFatalError(err, "Can't verify the cert-manager's API: "+cmd.String())
-			color.Red("Continuing to wait for the cert-manager API...")
+			PrintFail("Continuing to wait for the cert-manager API...")
 		}
 
 		strOutput := string(output)
@@ -482,7 +509,7 @@ func WaitForCertManagerToBecomeReady() {
 		fmt.Println(strOutput)
 
 		if strings.TrimSpace(strOutput) == "The cert-manager API is ready" {
-			color.Green("The cert-manager is ready")
+			PrintCheckmark("The cert-manager is ready")
 			break
 		} else {
 			color.Yellow("Continuing to wait for the cert-manager API...")
