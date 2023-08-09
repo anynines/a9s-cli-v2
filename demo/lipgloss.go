@@ -13,7 +13,40 @@ var (
 	subtle    = lipgloss.AdaptiveColor{Light: "#D9DCCF", Dark: "#383838"}
 	highlight = lipgloss.AdaptiveColor{Light: "#874BFD", Dark: "#7D56F4"}
 	special   = lipgloss.AdaptiveColor{Light: "#43BF6D", Dark: "#73F59F"}
+
+	list = lipgloss.NewStyle().
+		Border(lipgloss.NormalBorder(), true, true, true, true).
+		BorderForeground(subtle).
+		MarginRight(2).
+		MarginLeft(1).
+		MarginTop(1).
+		Height(8).
+		Width(30)
+
+	listHeader = lipgloss.NewStyle().
+			BorderStyle(lipgloss.NormalBorder()).
+			BorderBottom(true).
+			BorderForeground(subtle).
+			MarginRight(2).
+			MarginLeft(1).
+			Render
+
+	listItem = lipgloss.NewStyle().PaddingLeft(2).Render
 )
+
+func PrintListFromMultilineString(header, multiLineString string) {
+
+	// lines := strings.Builder{}
+
+	// strings.ea
+
+	myList := lipgloss.JoinVertical(lipgloss.Left,
+		listHeader(header),
+		multiLineString,
+	)
+
+	fmt.Println(list.Render(myList))
+}
 
 func ListCheckmark(s string) string {
 

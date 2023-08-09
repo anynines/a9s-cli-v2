@@ -26,7 +26,7 @@ import (
 
 // Settings
 // TODO make configurable / cli param
-const kind_demo_cluster_name = "a8s-demo"
+const kindDemoClusterName = "a8s-demo"
 const configFileName = ".a8s"
 const demoGitRepo = "git@github.com:anynines/a8s-deployment.git"
 const certManagerNamespace = "cert-manager"
@@ -105,21 +105,23 @@ func CheckIfKindClusterExists() bool {
 
 	strOutput := string(output)
 
-	fmt.Println("\nKind clusters:")
-	fmt.Println(strOutput)
+	PrintListFromMultilineString("Kind Clusters", strOutput)
 
-	if strings.Contains(strOutput, kind_demo_cluster_name) {
-		PrintCheckmark("There is a suitable Kind cluster with the name " + kind_demo_cluster_name + " running.")
+	// fmt.Println("\nKind clusters:")
+	// fmt.Println(strOutput)
+
+	if strings.Contains(strOutput, kindDemoClusterName) {
+		PrintCheckmark("There is a suitable Kind cluster with the name " + kindDemoClusterName + " running.")
 		return true
 	}
 
 	// Check if the output contains the string "No kind clusters found."
 	if strings.Contains(strOutput, "No kind clusters found.") {
-		PrintFail("There are no kind clusters. A cluster with the name: " + kind_demo_cluster_name + " is needed.")
+		PrintFail("There are no kind clusters. A cluster with the name: " + kindDemoClusterName + " is needed.")
 		return false
 	}
 
-	PrintFail("There appears to be kind clusters but none with the name: " + kind_demo_cluster_name + ".")
+	PrintFail("There appears to be kind clusters but none with the name: " + kindDemoClusterName + ".")
 	return false
 }
 
@@ -155,6 +157,7 @@ func CheckPrerequisites() {
 		fmt.Println()
 		PrintH2("Rerunning prerequisite check ...")
 		CheckPrerequisites()
+		allGood = true
 	}
 
 	CheckSelectedCluster()
@@ -351,10 +354,10 @@ func CheckoutDeploymentGitRepository() {
 }
 
 func CreateKindCluster() {
-	PrintH2("Let's create a Kubernetes cluster named " + kind_demo_cluster_name + " using Kind...")
+	PrintH2("Let's create a Kubernetes cluster named " + kindDemoClusterName + " using Kind...")
 
 	// kind create cluster --name a8s-ds --config kind-cluster-3nodes.yaml
-	cmd := exec.Command("kind", "create", "cluster", "--name", kind_demo_cluster_name)
+	cmd := exec.Command("kind", "create", "cluster", "--name", kindDemoClusterName)
 
 	PrintH2("Executing: " + cmd.String())
 
@@ -372,7 +375,7 @@ func CreateKindCluster() {
 }
 
 func CheckSelectedCluster() {
-	PrintH2("Checking whether the " + kind_demo_cluster_name + " cluster is selected...")
+	PrintH2("Checking whether the " + kindDemoClusterName + " cluster is selected...")
 	cmd := exec.Command("kubectl", "config", "current-context")
 
 	output, err := cmd.CombinedOutput()
@@ -385,7 +388,7 @@ func CheckSelectedCluster() {
 
 	PrintH2("The currently selected Kubernetes context is: " + current_context)
 
-	desired_context_name := "kind-" + kind_demo_cluster_name
+	desired_context_name := "kind-" + kindDemoClusterName
 
 	if strings.HasPrefix(current_context, desired_context_name) {
 		PrintCheckmark("It seems that the right context is selected: " + desired_context_name)

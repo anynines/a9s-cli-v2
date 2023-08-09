@@ -37,15 +37,15 @@ func main() {
 
 	demo.CheckPrerequisites()
 
-	// demo.CheckoutDeploymentGitRepository()
+	demo.CheckoutDeploymentGitRepository()
 
-	// if demo.CountPodsInDemoNamespace() == 0 {
-	// 	PrintCheckmark("Kubernetes cluster has no pods in " + demo.GetConfig().DemoSpace + " namespace.")
-	// }
+	if demo.CountPodsInDemoNamespace() == 0 {
+		demo.PrintCheckmark("Kubernetes cluster has no pods in " + demo.GetConfig().DemoSpace + " namespace.")
+	}
 
-	// demo.EstablishBackupStoreCredentials()
+	demo.EstablishBackupStoreCredentials()
 
-	// demo.ApplyCertManagerManifests()
+	demo.ApplyCertManagerManifests()
 
-	// demo.ApplyA8sManifests()
+	demo.ApplyA8sManifests()
 }
