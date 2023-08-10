@@ -8,9 +8,15 @@ Ask for details for backup store config instead of using defaults.
 
 TODO:
 
-- Create S3 bucket with configs
-- waitForA8sToBecomeReady
 
+- Use Cases:
+	- Pre-Create
+		- Create S3 bucket with configs
+	- Create
+		- waitForA8sToBecomeReady
+	- Delete
+		- Remove cluster
+		- Remove everything (incl. config files)
 */
 
 import (

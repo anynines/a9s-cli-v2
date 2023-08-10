@@ -503,8 +503,8 @@ func WaitForCertManagerToBecomeReady() {
 
 		PrintH2(cmd.String())
 
+		//TODO Crash loop detection / timeout
 		if err != nil {
-			ExitDueToFatalError(err, "Can't verify the cert-manager's API: "+cmd.String())
 			PrintFail("Continuing to wait for the cert-manager API...")
 		}
 
