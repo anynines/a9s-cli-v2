@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -57,15 +58,24 @@ type BlobStoreCloudConfiguration struct {
 var configFilePath string
 var cfg Config
 
-func IsCommandAvailable(name string) bool {
+func IsCommandAvailable(cmdName string) bool {
 	//	cmd := exec.Command("/bin/sh", "-c", "command -v "+name)
-	cmd := exec.Command("command", "-v", name)
+	cmd := exec.Command("command", "-v", cmdName)
 	if err := cmd.Run(); err != nil {
-		PrintFail("Couldn't find " + name + " command.")
+		requiredCmds := RequiredCommands()
+
+		msg := "Couldn't find " + cmdName + " command."
+
+		if requiredCmds[cmdName][runtime.GOOS] != "" {
+			msg += " Try running: " + requiredCmds[cmdName][runtime.GOOS]
+		}
+
+		PrintFail(msg)
+
 		return false
 	}
 
-	PrintCheckmark("Found " + name + ".")
+	PrintCheckmark("Found " + cmdName + ".")
 
 	return true
 }
@@ -125,29 +135,40 @@ func CheckIfKindClusterExists() bool {
 	return false
 }
 
+func CheckCommandAvailability() {
+
+	allGood := true
+
+	requiredCmds := RequiredCommands()
+
+	// cmdDetails
+	for cmdName, _ := range requiredCmds {
+
+		if !IsCommandAvailable(cmdName) {
+			allGood = false
+		}
+	}
+
+	if !allGood {
+		PrintFailSummary("Sadly, mandatory commands are missing. Aborting...")
+		os.Exit(1)
+	} else {
+		PrintCheckmark("Is all good man! Let's proceed...")
+	}
+}
+
 func CheckPrerequisites() {
 	allGood := true
 
 	PrintH1("Checking Prerequisites...")
 
-	if !IsCommandAvailable("docker") {
-		allGood = false
-	}
+	CheckCommandAvailability()
 
 	if !checkIfDockerIsRunning() {
 		allGood = false
 	}
 
 	if !checkIfKubernetesIsRunning() {
-		allGood = false
-	}
-
-	if !IsCommandAvailable("kind") {
-		allGood = false
-	}
-
-	if !IsCommandAvailable("cmctl") {
-		PrintFail("The cert-manager CLI isn't installed. Please visit: https://cert-manager.io/docs/reference/cmctl/#installation")
 		allGood = false
 	}
 
@@ -163,7 +184,7 @@ func CheckPrerequisites() {
 	CheckSelectedCluster()
 
 	if !allGood {
-		PrintFail("Sadly, mandatory prerequisited haven't been met. Aborting...")
+		PrintFailSummary("Sadly, mandatory prerequisited haven't been met. Aborting...")
 		os.Exit(1)
 	} else {
 		PrintCheckmark("Is all good man! Let's proceed...")

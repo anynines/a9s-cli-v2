@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/enescakir/emoji"
 )
 
 var (
@@ -75,6 +76,22 @@ func ListFail(s string) string {
 		Render(s)
 }
 
+func ListFailSummary(s string) string {
+	// TODO DRY for style
+	checkMark := lipgloss.NewStyle().SetString(fmt.Sprintf("%v", emoji.PoliceCarLight)).
+		// Foreground(special).
+		PaddingRight(1).
+		PaddingLeft(1).
+		Underline(true).
+		Blink(true).
+		String()
+
+	return checkMark + lipgloss.NewStyle().
+		// Strikethrough(true).
+		//Foreground(lipgloss.AdaptiveColor{Light: "#969B86", Dark: "#696969"}).
+		Render(s)
+}
+
 func H1(s string) string {
 	return lipgloss.NewStyle().
 		Underline(true).
@@ -102,6 +119,10 @@ func PrintH2(s string) {
 
 func PrintFail(s string) {
 	fmt.Println(ListFail(s))
+}
+
+func PrintFailSummary(s string) {
+	fmt.Println(ListFailSummary(s))
 }
 
 func PrintCheckmark(s string) {
