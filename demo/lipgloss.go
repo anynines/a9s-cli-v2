@@ -85,6 +85,10 @@ func ListFlexedBiceps(s string) string {
 	return ListEmoji(s, emoji.Emoji(emoji.FlexedBiceps.Tone(emoji.Default)))
 }
 
+func ListParty(s string) string {
+	return ListEmoji(s, emoji.Emoji(emoji.PartyPopper))
+}
+
 func ListFailSummary(s string) string {
 	// TODO DRY for style
 	checkMark := lipgloss.NewStyle().SetString(fmt.Sprintf("%v", emoji.PoliceCarLight)).
@@ -158,6 +162,10 @@ func PrintFlexedBiceps(s string) {
 
 func Print(s string) {
 	fmt.Println(RegularText(s))
+}
+
+func PrintSuccessSummary(s string) {
+	fmt.Println(ListParty(s))
 }
 
 func WaitForUser() {

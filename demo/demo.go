@@ -153,7 +153,7 @@ func CheckCommandAvailability() {
 		PrintFailSummary("Sadly, mandatory commands are missing. Aborting...")
 		os.Exit(1)
 	} else {
-		PrintCheckmark("Is all good man! Let's proceed...")
+		PrintSuccessSummary("All necessary commands are present.")
 	}
 }
 
