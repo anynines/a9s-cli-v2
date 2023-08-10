@@ -43,6 +43,8 @@ func main() {
 
 	demo.CheckPrerequisites()
 
+	demo.WaitForUser()
+
 	demo.CheckoutDeploymentGitRepository()
 
 	if demo.CountPodsInDemoNamespace() == 0 {

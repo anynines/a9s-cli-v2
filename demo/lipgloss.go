@@ -3,8 +3,8 @@ package demo
 import (
 	"fmt"
 
+	"github.com/NilPointer-Software/emoji"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/enescakir/emoji"
 )
 
 var (
@@ -49,31 +49,38 @@ func PrintListFromMultilineString(header, multiLineString string) {
 	fmt.Println(list.Render(myList))
 }
 
-func ListCheckmark(s string) string {
-
-	checkMark := lipgloss.NewStyle().SetString("\u2705").
-		Foreground(special).
+func ListBaseStyle() lipgloss.Style {
+	return lipgloss.NewStyle().
 		PaddingRight(1).
-		PaddingLeft(1).
+		PaddingLeft(1)
+}
+
+func ListEmoji(s string, theEmoji emoji.Emoji) string {
+	symbolStr := ListBaseStyle().SetString(fmt.Sprintf("%v", theEmoji)).
+		// Foreground(special).
 		String()
 
-	return checkMark + lipgloss.NewStyle().
-		// Strikethrough(true).
-		//Foreground(lipgloss.AdaptiveColor{Light: "#969B86", Dark: "#696969"}).
-		Render(s)
+	return symbolStr + lipgloss.NewStyle().Render(s)
+}
+
+func ListCheckmark(s string) string {
+	return ListEmoji(s, emoji.CheckMarkButton)
+}
+
+func ListWait(s string) string {
+	return ListEmoji(s, emoji.HourglassNotDone)
 }
 
 func ListFail(s string) string {
-	checkMark := lipgloss.NewStyle().SetString("\u274C").
-		// Foreground(special).
-		PaddingRight(1).
-		PaddingLeft(1).
-		String()
+	return ListEmoji(s, emoji.CrossMark)
+}
 
-	return checkMark + lipgloss.NewStyle().
-		// Strikethrough(true).
-		//Foreground(lipgloss.AdaptiveColor{Light: "#969B86", Dark: "#696969"}).
-		Render(s)
+func ListWarning(s string) string {
+	return ListEmoji(s, emoji.Warning)
+}
+
+func ListFlexedBiceps(s string) string {
+	return ListEmoji(s, emoji.Emoji(emoji.FlexedBiceps.Tone(emoji.Default)))
 }
 
 func ListFailSummary(s string) string {
@@ -121,10 +128,21 @@ func PrintFail(s string) {
 	fmt.Println(ListFail(s))
 }
 
+func PrintWait(s string) {
+	fmt.Println(ListWait(s))
+}
+
+func PrintWarning(s string) {
+	fmt.Println(ListWarning(s))
+}
+
 func PrintFailSummary(s string) {
 	fmt.Println(ListFailSummary(s))
 }
 
 func PrintCheckmark(s string) {
 	fmt.Println(ListCheckmark(s))
+}
+func PrintFlexedBiceps(s string) {
+	fmt.Println(ListFlexedBiceps(s))
 }

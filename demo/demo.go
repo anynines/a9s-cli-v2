@@ -127,7 +127,7 @@ func CheckIfKindClusterExists() bool {
 
 	// Check if the output contains the string "No kind clusters found."
 	if strings.Contains(strOutput, "No kind clusters found.") {
-		PrintFail("There are no kind clusters. A cluster with the name: " + kindDemoClusterName + " is needed.")
+		PrintWarning(" There are no kind clusters. A cluster with the name: " + kindDemoClusterName + " is needed.")
 		return false
 	}
 
@@ -186,8 +186,6 @@ func CheckPrerequisites() {
 	if !allGood {
 		PrintFailSummary("Sadly, mandatory prerequisited haven't been met. Aborting...")
 		os.Exit(1)
-	} else {
-		PrintCheckmark("Is all good man! Let's proceed...")
 	}
 }
 func PrintWelcomeScreen() {
@@ -375,7 +373,7 @@ func CheckoutDeploymentGitRepository() {
 }
 
 func CreateKindCluster() {
-	PrintH2("Let's create a Kubernetes cluster named " + kindDemoClusterName + " using Kind...")
+	PrintFlexedBiceps("Let's create a Kubernetes cluster named " + kindDemoClusterName + " using Kind...")
 
 	// kind create cluster --name a8s-ds --config kind-cluster-3nodes.yaml
 	cmd := exec.Command("kind", "create", "cluster", "--name", kindDemoClusterName)
@@ -517,16 +515,17 @@ func ApplyA8sManifests() {
 
 func WaitForCertManagerToBecomeReady() {
 	PrintH2("Waiting for the cert-manager API to become ready.")
-	cmd := exec.Command("cmctl", "check", "api")
+	crashLoopBackoffCount := 10
 
-	for {
+	for i := 1; i <= crashLoopBackoffCount; i++ {
+		cmd := exec.Command("cmctl", "check", "api")
 		output, err := cmd.CombinedOutput()
 
 		PrintH2(cmd.String())
 
 		//TODO Crash loop detection / timeout
 		if err != nil {
-			PrintFail("Continuing to wait for the cert-manager API...")
+			PrintWait("Continuing to wait for the cert-manager API...")
 		}
 
 		strOutput := string(output)
@@ -535,61 +534,16 @@ func WaitForCertManagerToBecomeReady() {
 
 		if strings.TrimSpace(strOutput) == "The cert-manager API is ready" {
 			PrintCheckmark("The cert-manager is ready")
-			break
+			return
 		} else {
-			color.Yellow("Continuing to wait for the cert-manager API...")
+			PrintWait("Continuing to wait for the cert-manager API...")
 		}
 
 		time.Sleep(30 * time.Second)
 	}
 
-	// var namespace = flag.String("namespace", certManagerNamespace)
-	// var selector = flag.String("selector", "app=cert-manager", "pod selector")
-	// var timeout = flag.Int("timeout", default_waiting_time_in_s, "timeout in seconds")
-	// flag.Parse()
-
-	// kubeconfig := getKubernetesConfigPath()
-
-	// config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
-	// if err != nil {
-	// 	panic(err)
-	// }
-	// clientSet, err := kubernetes.NewForConfig(config)
-	// if err != nil {
-	// 	panic(err)
-	// }
-
-	// // Block up to timeout seconds for listed pods in namespace/selector to enter running state
-	// err = k8sutils.WaitForPodBySelectorRunning(clientSet, *namespace, *selector, *timeout)
-	// if err != nil {
-	// 	log.Errorf("\nThe pod never entered running phase\n")
-	// 	os.Exit(1)
-	// }
-	// fmt.Printf("\nAll pods in namespace=\"%s\" with selector=\"%s\" are running!\n", *namespace, *selector)
+	PrintFailSummary("The cert-manager did not become ready within reasonable time.")
 }
-
-// for {
-// 	count := countPodsInNamespace(certManagerNamespace)
-
-// 	// There should be 3 pods
-// 	if count == 3 {
-// 		// Check if they are ready
-
-// 		pods, err := clientset.CoreV1().Pods(certManagerNamespace).List(context.TODO(), metav1.ListOptions{})
-
-// 		if err != nil {
-// 			panic(err.Error())
-// 		}
-
-// 		for _, pod := range pods.Items {
-// 			pod.Status.Conditions
-// 			fmt.Println(pod.Name + ": " + pod.Status.String())
-// 			fmt.Println("\n")
-// 		}
-// 	}
-
-// 	time.Sleep(default_waiting_time_in_s * time.Second)
-// }
 
 func ApplyCertManagerManifests() {
 	count := countPodsInNamespace(certManagerNamespace)
