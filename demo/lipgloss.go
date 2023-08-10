@@ -1,7 +1,9 @@
 package demo
 
 import (
+	"bufio"
 	"fmt"
+	"os"
 
 	"github.com/NilPointer-Software/emoji"
 	"github.com/charmbracelet/lipgloss"
@@ -12,7 +14,7 @@ var (
 	// General.
 
 	subtle    = lipgloss.AdaptiveColor{Light: "#D9DCCF", Dark: "#383838"}
-	highlight = lipgloss.AdaptiveColor{Light: "#874BFD", Dark: "#7D56F4"}
+	highlight = lipgloss.AdaptiveColor{Light: "#e4833e", Dark: "#e4833e"}
 	special   = lipgloss.AdaptiveColor{Light: "#43BF6D", Dark: "#73F59F"}
 
 	list = lipgloss.NewStyle().
@@ -112,6 +114,13 @@ func H1(s string) string {
 func H2(s string) string {
 	return lipgloss.NewStyle().
 		PaddingLeft(1).
+		Foreground(lipgloss.AdaptiveColor{Light: "#5a6987", Dark: "#505d78"}).
+		Render(s)
+}
+
+func RegularText(s string) string {
+	return lipgloss.NewStyle().
+		PaddingLeft(1).
 		Foreground(lipgloss.AdaptiveColor{Light: "#969B86", Dark: "#696969"}).
 		Render(s)
 }
@@ -145,4 +154,25 @@ func PrintCheckmark(s string) {
 }
 func PrintFlexedBiceps(s string) {
 	fmt.Println(ListFlexedBiceps(s))
+}
+
+func Print(s string) {
+	fmt.Println(RegularText(s))
+}
+
+func WaitForUser() {
+
+	msg := "Press ENTER key to continue"
+	style := lipgloss.NewStyle().
+		MarginTop(1).
+		MarginBottom(1).
+		MarginLeft(1).
+		Foreground(highlight).
+		Underline(true).
+		Render(msg)
+
+	fmt.Println(style)
+
+	reader := bufio.NewReader(os.Stdin)
+	reader.ReadString('\n')
 }

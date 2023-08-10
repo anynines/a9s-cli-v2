@@ -368,7 +368,9 @@ func CheckoutGitRepository(repositoryURL, localDirectory string) error {
 }
 
 func CheckoutDeploymentGitRepository() {
-	PrintH2("Checking out git repository with demo manifests...")
+	PrintH1("Checking out git repository with demo manifests...")
+	Print("Remote Repository is at: " + demoGitRepo)
+	Print("Local working dir: " + cfg.WorkingDir)
 	CheckoutGitRepository(demoGitRepo, cfg.WorkingDir)
 }
 
@@ -394,7 +396,7 @@ func CreateKindCluster() {
 }
 
 func CheckSelectedCluster() {
-	PrintH2("Checking whether the " + kindDemoClusterName + " cluster is selected...")
+	Print("Checking whether the " + kindDemoClusterName + " cluster is selected...")
 	cmd := exec.Command("kubectl", "config", "current-context")
 
 	output, err := cmd.CombinedOutput()
@@ -405,7 +407,7 @@ func CheckSelectedCluster() {
 
 	current_context := strings.TrimSpace(string(output))
 
-	PrintH2("The currently selected Kubernetes context is: " + current_context)
+	Print("The currently selected Kubernetes context is: " + current_context)
 
 	desired_context_name := "kind-" + kindDemoClusterName
 
@@ -421,12 +423,12 @@ func CheckSelectedCluster() {
 func GetKubernetesConfigPath() string {
 	var kubeconfig string
 	if kubeconfig = os.Getenv("KUBECONFIG"); kubeconfig != "" {
-		PrintH2("Kubernetes configuration is set by the $KUBECONFIG env variable.")
+		Print("Kubernetes configuration is set by the $KUBECONFIG env variable.")
 	} else if home := homedir.HomeDir(); home != "" {
-		PrintH2("Kubernetes configuration is set by $HOME/.kube/config.")
+		Print("Kubernetes configuration is set by $HOME/.kube/config.")
 		kubeconfig = *flag.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
 	} else {
-		PrintH2("Kubernetes configuration is set by config flag.")
+		Print("Kubernetes configuration is set by config flag.")
 		kubeconfig = *flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
 	}
 
@@ -442,7 +444,7 @@ func CountPodsInDemoNamespace() int {
 
 func GetKubernetesClientSet() *kubernetes.Clientset {
 	kubeconfig := GetKubernetesConfigPath()
-	PrintH2("Kubernetes config located at: " + kubeconfig)
+	Print("Kubernetes config located at: " + kubeconfig)
 
 	// use the current context in kubeconfig
 	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
@@ -481,7 +483,7 @@ func KubectlApplyF(yamlFilepath string) {
 
 	output, err := cmd.CombinedOutput()
 
-	PrintH2(cmd.String())
+	Print(cmd.String())
 
 	if err != nil {
 		ExitDueToFatalError(err, "Can't kubectl apply with command: "+cmd.String())
@@ -496,7 +498,7 @@ func KubectlApplyKustomize(kustomizeFilepath string) {
 
 	output, err := cmd.CombinedOutput()
 
-	PrintH2(cmd.String())
+	Print(cmd.String())
 
 	fmt.Println(string(output))
 
@@ -514,14 +516,14 @@ func ApplyA8sManifests() {
 }
 
 func WaitForCertManagerToBecomeReady() {
-	PrintH2("Waiting for the cert-manager API to become ready.")
+	PrintH1("Waiting for the cert-manager API to become ready.")
 	crashLoopBackoffCount := 10
 
 	for i := 1; i <= crashLoopBackoffCount; i++ {
 		cmd := exec.Command("cmctl", "check", "api")
 		output, err := cmd.CombinedOutput()
 
-		PrintH2(cmd.String())
+		Print(cmd.String())
 
 		//TODO Crash loop detection / timeout
 		if err != nil {
@@ -549,7 +551,7 @@ func ApplyCertManagerManifests() {
 	count := countPodsInNamespace(certManagerNamespace)
 
 	if count > 0 {
-		PrintH2(fmt.Sprintf("Found %d pods in the %s namespace", count, certManagerNamespace))
+		Print(fmt.Sprintf("Found %d pods in the %s namespace", count, certManagerNamespace))
 	}
 
 	KubectlApplyF(certManagerManifestUrl)
@@ -583,12 +585,12 @@ Does nothing if the file already exists.
 */
 func EstablishEncryptionPasswordFile() {
 	PrintH2("In order to encrypt backups we need an encryption password.")
-	PrintH2("Checking if encryption password file for backups already exists...")
+	Print("Checking if encryption password file for backups already exists...")
 
 	filePath := BackupConfigEncryptionPasswordFilePath()
 
 	if _, err := os.Stat(filePath); !os.IsNotExist(err) {
-		PrintH2("There's already an encryption password file. Skipping password generation...")
+		Print("There's already an encryption password file. Skipping password generation...")
 		return
 	}
 
@@ -635,7 +637,7 @@ Skips if the file is already present
 func ReadStringFromFileOrConsole(filePath, contentType string, showContent bool) {
 
 	if _, err := os.Stat(filePath); !os.IsNotExist(err) {
-		PrintH2("There's already an " + contentType + " file...")
+		Print("There's already an " + contentType + " file...")
 		return
 	}
 
@@ -650,7 +652,7 @@ func ReadStringFromFileOrConsole(filePath, contentType string, showContent bool)
 	}
 
 	if showContent {
-		PrintH2(contentType + " : " + accessKeyId)
+		Print(contentType + " : " + accessKeyId)
 	}
 
 	// Write file
@@ -690,7 +692,7 @@ func establishBackupStoreConfigYaml() {
 	if CheckIfFileExists(filePath) {
 		PrintCheckmark(fmt.Sprintf("There's already a backup-store-config.yaml file at %s. Trusting that the file is ok.", filePath))
 	} else {
-		PrintH2("Writing a backup-store-config.yaml with defaults to " + filePath)
+		Print("Writing a backup-store-config.yaml with defaults to " + filePath)
 		blobStoreConfig := BlobStore{
 			Config: BlobStoreConfig{
 				CloudConfig: BlobStoreCloudConfiguration{
