@@ -352,7 +352,7 @@ func CheckoutGitRepository(repositoryURL, localDirectory string) error {
 	// Run the git clone command to checkout the repository
 	cmd := exec.Command("git", "clone", repositoryURL, localDirectory)
 
-	PrintH2("Executing: " + cmd.String())
+	PrintCommandBox(cmd.String())
 
 	output, err := cmd.CombinedOutput()
 
@@ -362,7 +362,10 @@ func CheckoutGitRepository(repositoryURL, localDirectory string) error {
 		os.Exit(1)
 		return err
 	} else {
+		WaitForUser()
+
 		fmt.Println(string(output))
+
 		return nil
 	}
 }
@@ -380,7 +383,7 @@ func CreateKindCluster() {
 	// kind create cluster --name a8s-ds --config kind-cluster-3nodes.yaml
 	cmd := exec.Command("kind", "create", "cluster", "--name", kindDemoClusterName)
 
-	PrintH2("Executing: " + cmd.String())
+	PrintCommandBox(cmd.String())
 
 	output, err := cmd.CombinedOutput()
 
@@ -390,6 +393,7 @@ func CreateKindCluster() {
 		os.Exit(1)
 		return
 	} else {
+		WaitForUser()
 		fmt.Println(string(output))
 		return
 	}
@@ -483,12 +487,13 @@ func KubectlApplyF(yamlFilepath string) {
 
 	output, err := cmd.CombinedOutput()
 
-	Print(cmd.String())
+	PrintCommandBox(cmd.String())
 
 	if err != nil {
 		ExitDueToFatalError(err, "Can't kubectl apply with command: "+cmd.String())
 	}
 
+	WaitForUser()
 	fmt.Println(string(output))
 }
 
@@ -498,8 +503,9 @@ func KubectlApplyKustomize(kustomizeFilepath string) {
 
 	output, err := cmd.CombinedOutput()
 
-	Print(cmd.String())
+	PrintCommandBox(cmd.String())
 
+	WaitForUser()
 	fmt.Println(string(output))
 
 	if err != nil {
