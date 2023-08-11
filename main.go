@@ -56,4 +56,6 @@ func main() {
 	demo.ApplyCertManagerManifests()
 
 	demo.ApplyA8sManifests()
+
+	demo.PrintDemoSummary()
 }

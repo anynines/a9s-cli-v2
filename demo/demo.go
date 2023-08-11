@@ -555,6 +555,7 @@ func WaitForCertManagerToBecomeReady() {
 }
 
 func ApplyCertManagerManifests() {
+	PrintH1("Installing the cert-manager")
 	count := countPodsInNamespace(certManagerNamespace)
 
 	if count > 0 {
@@ -736,4 +737,14 @@ func EstablishBackupStoreCredentials() {
 	establishBackupStoreConfigYaml()
 
 	//TODO deploy/a8s/backup-config/backup-store-config.yaml.template
+}
+
+func PrintDemoSummary() {
+	PrintH1("Summary")
+	Print("You've successfully accomplished the followings steps:")
+	PrintCheckmark("Created a Kubernetes Cluster with Kind named: " + kindDemoClusterName + ".")
+	PrintCheckmark("Installed cert-manager on the Kubernetes cluster.")
+	PrintCheckmark("Created a configuration for the backup object store.")
+	PrintCheckmark("Installed the a8s Postgres control plane.\n")
+	PrintSuccessSummary("You are now ready to a8s Postgres create service instances.")
 }
