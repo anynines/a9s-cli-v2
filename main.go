@@ -35,6 +35,8 @@ func main() {
 
 	demo.PrintWelcomeScreen()
 
+	demo.PrintCommandBox("What is the meaning of life?")
+
 	demo.EstablishConfigFilePath()
 
 	if !demo.LoadConfig() {

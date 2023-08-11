@@ -7,6 +7,7 @@ import (
 
 	"github.com/NilPointer-Software/emoji"
 	"github.com/charmbracelet/lipgloss"
+	"golang.org/x/term"
 )
 
 var (
@@ -35,6 +36,27 @@ var (
 			Render
 
 	listItem = lipgloss.NewStyle().PaddingLeft(2).Render
+
+	buttonStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#FFF7DB")).
+			Background(lipgloss.Color("#5a6987")).
+			Padding(0, 3).
+			MarginTop(1)
+
+	activeButtonStyle = buttonStyle.Copy().
+				Foreground(lipgloss.Color("#FFF7DB")).
+				Background(lipgloss.Color("#e4833e")).
+				MarginRight(2).
+				Underline(true)
+
+	dialogBoxStyle = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("#505d7a")).
+			Padding(1, 0).
+			BorderTop(true).
+			BorderLeft(true).
+			BorderRight(true).
+			BorderBottom(true)
 )
 
 func PrintListFromMultilineString(header, multiLineString string) {
@@ -127,6 +149,34 @@ func RegularText(s string) string {
 		PaddingLeft(1).
 		Foreground(lipgloss.AdaptiveColor{Light: "#969B86", Dark: "#696969"}).
 		Render(s)
+}
+
+func CommandBox(s string) string {
+	width, _, _ := term.GetSize(int(os.Stdout.Fd()))
+	// okButton := activeButtonStyle.Render("Yes")
+	// cancelButton := buttonStyle.Render("Maybe")
+
+	//	buttons := lipgloss.JoinHorizontal(lipgloss.Top, okButton, cancelButton)
+	heading := lipgloss.NewStyle().Width(50).
+		Align(lipgloss.Center).Foreground(highlight).Render("Executing the following command:")
+
+	command := lipgloss.NewStyle().PaddingTop(1).
+		Width(50).Align(lipgloss.Center).Render(s)
+
+	ui := lipgloss.JoinVertical(lipgloss.Center, heading, command)
+
+	dialog := lipgloss.Place(width, 9,
+		lipgloss.Center, lipgloss.Center,
+		dialogBoxStyle.Render(ui),
+		lipgloss.WithWhitespaceChars("任何尼宁"),
+		lipgloss.WithWhitespaceForeground(subtle),
+	)
+
+	return dialog
+}
+
+func PrintCommandBox(s string) {
+	fmt.Println(CommandBox(s))
 }
 
 func PrintH1(s string) {
