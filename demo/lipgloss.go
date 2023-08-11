@@ -127,6 +127,10 @@ func ListFailSummary(s string) string {
 		Render(s)
 }
 
+func PrintEmoji(s string, theEmoji emoji.Emoji) {
+	fmt.Println(ListEmoji(s, theEmoji))
+}
+
 func H1(s string) string {
 	return lipgloss.NewStyle().
 		Underline(true).
@@ -161,7 +165,7 @@ func CommandBox(s string) string {
 		Align(lipgloss.Center).Foreground(highlight).Render("Executing the following command:")
 
 	command := lipgloss.NewStyle().PaddingTop(1).
-		Width(50).Align(lipgloss.Center).Render(s)
+		Width(width - 4).Align(lipgloss.Center).Render(s)
 
 	ui := lipgloss.JoinVertical(lipgloss.Center, heading, command)
 
@@ -233,4 +237,6 @@ func WaitForUser() {
 
 	reader := bufio.NewReader(os.Stdin)
 	reader.ReadString('\n')
+
+	PrintEmoji("...", emoji.Emoji(emoji.ManRunning.Tone(emoji.Default)))
 }

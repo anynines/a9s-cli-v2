@@ -353,6 +353,7 @@ func CheckoutGitRepository(repositoryURL, localDirectory string) error {
 	cmd := exec.Command("git", "clone", repositoryURL, localDirectory)
 
 	PrintCommandBox(cmd.String())
+	WaitForUser()
 
 	output, err := cmd.CombinedOutput()
 
@@ -362,7 +363,6 @@ func CheckoutGitRepository(repositoryURL, localDirectory string) error {
 		os.Exit(1)
 		return err
 	} else {
-		WaitForUser()
 
 		fmt.Println(string(output))
 
@@ -384,6 +384,7 @@ func CreateKindCluster() {
 	cmd := exec.Command("kind", "create", "cluster", "--name", kindDemoClusterName)
 
 	PrintCommandBox(cmd.String())
+	WaitForUser()
 
 	output, err := cmd.CombinedOutput()
 
@@ -393,7 +394,6 @@ func CreateKindCluster() {
 		os.Exit(1)
 		return
 	} else {
-		WaitForUser()
 		fmt.Println(string(output))
 		return
 	}
@@ -488,12 +488,12 @@ func KubectlApplyF(yamlFilepath string) {
 	output, err := cmd.CombinedOutput()
 
 	PrintCommandBox(cmd.String())
+	WaitForUser()
 
 	if err != nil {
 		ExitDueToFatalError(err, "Can't kubectl apply with command: "+cmd.String())
 	}
 
-	WaitForUser()
 	fmt.Println(string(output))
 }
 
@@ -501,11 +501,11 @@ func KubectlApplyKustomize(kustomizeFilepath string) {
 
 	cmd := exec.Command("kubectl", "apply", "--kustomize", kustomizeFilepath)
 
+	PrintCommandBox(cmd.String())
+	WaitForUser()
+
 	output, err := cmd.CombinedOutput()
 
-	PrintCommandBox(cmd.String())
-
-	WaitForUser()
 	fmt.Println(string(output))
 
 	if err != nil {
