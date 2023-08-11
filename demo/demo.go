@@ -95,10 +95,11 @@ func checkIfKubernetesIsRunning() bool {
 	cmd := exec.Command("kubectl", "api-versions")
 	err := cmd.Run()
 	if err != nil {
-		PrintFail("Kubernetes is not running")
+		PrintFail("Kubernetes is not running.")
+		PrintInfo("Try deleting the Kind cluster with: kind delete clusters " + kindDemoClusterName + ". Then recreate it.")
 		return false
 	}
-	PrintCheckmark("Kubernetes is running")
+	PrintCheckmark("Kubernetes is running.")
 	return true
 }
 

@@ -222,6 +222,10 @@ func PrintSuccessSummary(s string) {
 	fmt.Println(ListParty(s))
 }
 
+func PrintInfo(s string) {
+	PrintEmoji(" "+s, emoji.Information)
+}
+
 func WaitForUser() {
 
 	msg := "Press ENTER key to continue"
