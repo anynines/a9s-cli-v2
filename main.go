@@ -22,7 +22,7 @@ TODO:
 import (
 	"os"
 
-	"github.com/fischerjulian/a8s-demo/demo"
+	"github.com/fischerjulian/a8s-demo/cmd"
 )
 
 var debug bool
@@ -33,29 +33,5 @@ func main() {
 		debug = true
 	}
 
-	demo.PrintWelcomeScreen()
-
-	demo.EstablishConfigFilePath()
-
-	if !demo.LoadConfig() {
-		demo.EstablishWorkingDir()
-	}
-
-	demo.CheckPrerequisites()
-
-	demo.WaitForUser()
-
-	demo.CheckoutDeploymentGitRepository()
-
-	if demo.CountPodsInDemoNamespace() == 0 {
-		demo.PrintCheckmark("Kubernetes cluster has no pods in " + demo.GetConfig().DemoSpace + " namespace.")
-	}
-
-	demo.EstablishBackupStoreCredentials()
-
-	demo.ApplyCertManagerManifests()
-
-	demo.ApplyA8sManifests()
-
-	demo.PrintDemoSummary()
+	cmd.Execute()
 }

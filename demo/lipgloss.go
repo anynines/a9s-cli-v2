@@ -228,7 +228,7 @@ func PrintInfo(s string) {
 
 func WaitForUser() {
 
-	msg := "Press ENTER key to continue"
+	msg := "Press <ENTER> key to continue or <CTRL>+C to abort."
 	style := lipgloss.NewStyle().
 		MarginTop(1).
 		MarginBottom(1).
