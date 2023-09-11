@@ -86,10 +86,10 @@ func checkIfDockerIsRunning() bool {
 	cmd := exec.Command("docker", "info")
 	err := cmd.Run()
 	if err != nil {
-		PrintFail("Docker is not running")
+		PrintFail("Docker is not running. Please start the Docker daemon.")
 		return false
 	}
-	PrintCheckmark("Docker is running")
+	PrintCheckmark("Docker is running.")
 	return true
 }
 
