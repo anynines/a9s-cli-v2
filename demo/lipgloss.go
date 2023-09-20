@@ -162,7 +162,7 @@ func CommandBox(s string) string {
 
 	//	buttons := lipgloss.JoinHorizontal(lipgloss.Top, okButton, cancelButton)
 	heading := lipgloss.NewStyle().Width(width - 4).
-		Align(lipgloss.Center).Foreground(highlight).Render("Executing the following command:")
+		Align(lipgloss.Center).Foreground(highlight).Render("The following command will be executed for you:")
 
 	command := lipgloss.NewStyle().PaddingTop(1).
 		Width(width - 4).Align(lipgloss.Center).Render(s)

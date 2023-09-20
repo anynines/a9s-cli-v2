@@ -751,5 +751,5 @@ func PrintDemoSummary() {
 	PrintCheckmark("Installed cert-manager on the Kubernetes cluster.")
 	PrintCheckmark("Created a configuration for the backup object store.")
 	PrintCheckmark("Installed the a8s Postgres control plane.\n")
-	PrintSuccessSummary("You are now ready to a8s Postgres create service instances.")
+	PrintSuccessSummary("You are now ready to create a8s Postgres service instances.")
 }
