@@ -46,6 +46,8 @@ to quickly create a Cobra application.`,
 
 		demo.ApplyA8sManifests()
 
+		demo.WaitForSystemToBecomeReady()
+
 		demo.PrintDemoSummary()
 
 	},

@@ -19,6 +19,7 @@ import (
 	"github.com/sethvargo/go-password/password"
 	"golang.org/x/term"
 	"gopkg.in/yaml.v2"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
@@ -35,6 +36,7 @@ const demoGitRepo = "git@github.com:anynines/a8s-deployment.git"
 const certManagerNamespace = "cert-manager"
 const certManagerManifestUrl = "https://github.com/cert-manager/cert-manager/releases/download/v1.12.0/cert-manager.yaml"
 const defaultDemoSpace = "default"
+const systemName = "a8s Postgres control plane"
 
 // const default_waiting_time_in_s = 10
 
@@ -744,12 +746,102 @@ func EstablishBackupStoreCredentials() {
 	//TODO deploy/a8s/backup-config/backup-store-config.yaml.template
 }
 
+func checkIfPodHasStatusRunningInNamespace(podNameStartsWith string, namespace string) bool {
+	clientset := GetKubernetesClientSet()
+
+	//for {
+	pods, err := clientset.CoreV1().Pods(namespace).List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		panic(err.Error())
+	}
+
+	for _, pod := range pods.Items {
+		if strings.HasPrefix(pod.Name, podNameStartsWith) {
+			Print("Found pod with prefix " + podNameStartsWith)
+
+			// if debug {
+			// 	//pod.Status.Phase
+			// 	Print("Pod has status: " + pod.Status.String())
+			// }
+
+			switch phase := pod.Status.Phase; phase {
+			case v1.PodRunning:
+				PrintCheckmark("The Pod " + pod.Name + "h is running as expected.")
+				return true
+			case v1.PodFailed:
+				PrintFail("The Pod " + pod.Name + "h has failed but should be running.")
+				PrintFail("The " + systemName + " has not been installed successfully.")
+				os.Exit(1)
+
+			case v1.PodPending:
+				Print("The Pod " + pod.Name + "h in pending but should be running.")
+				return false
+			case v1.PodSucceeded:
+				Print("The Pod " + pod.Name + "h has succeeded but should be running.")
+				return false
+			case v1.PodUnknown:
+				Print("The Pod " + pod.Name + "h has an unknown status but should be running.")
+				return false
+			default:
+				return false
+			}
+		}
+	}
+	return false
+}
+
+func WaitForSystemToBecomeReady() {
+	PrintH1("Waiting for the " + systemName + " to become ready...")
+
+	allGood := true
+
+	//TODO Make configurable or move to beginning of file for better maintainability
+	expectedPodPrefixes := []struct {
+		name    string
+		running bool
+	}{
+		{"a8s-backup-controller-manager", false},
+		{"postgresql-controller-manager", false},
+		{"service-binding-controller-manager", false},
+	}
+	systemNamespace := "a8s-system"
+
+out:
+	for {
+		// We start optimistically that all pods are running
+		allGood = true
+		for _, expectedPodPrefix := range expectedPodPrefixes {
+			Print("Checking the " + expectedPodPrefix.name + "...")
+			if checkIfPodHasStatusRunningInNamespace(expectedPodPrefix.name, systemNamespace) {
+				PrintCheckmark("The " + expectedPodPrefix.name + " appears to be running.")
+				expectedPodPrefix.running = true
+			} else {
+				// Sadly, at least one pod isn't running so we need another loop iteration
+				PrintFail("The " + expectedPodPrefix.name + " is not ready (yet).")
+				allGood = false
+			}
+
+			if allGood {
+				PrintSuccessSummary("The " + systemName + " appears to be ready. All expected pods are running.")
+				break out
+			} else {
+				PrintWait("The " + systemNamespace + " is not ready (yet), let's try again in 5s ...")
+				time.Sleep(5 * time.Second)
+			}
+		}
+	}
+	WaitForUser()
+}
+
 func PrintDemoSummary() {
 	PrintH1("Summary")
 	Print("You've successfully accomplished the followings steps:")
 	PrintCheckmark("Created a Kubernetes Cluster with Kind named: " + kindDemoClusterName + ".")
 	PrintCheckmark("Installed cert-manager on the Kubernetes cluster.")
 	PrintCheckmark("Created a configuration for the backup object store.")
-	PrintCheckmark("Installed the a8s Postgres control plane.\n")
+	PrintCheckmark("Installing the a8s Postgres control plane.\n")
+
+	//TODO Check whether Pods- from the a8s-system are ready
+	//PrintCheckmark("Installed the a8s Postgres control plane.\n")
 	PrintSuccessSummary("You are now ready to create a8s Postgres service instances.")
 }
