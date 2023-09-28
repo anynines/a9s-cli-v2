@@ -438,6 +438,7 @@ func GetKubernetesConfigPath() string {
 		Print("Kubernetes configuration is set by the $KUBECONFIG env variable.")
 	} else if home := homedir.HomeDir(); home != "" {
 		Print("Kubernetes configuration is set by $HOME/.kube/config.")
+		flag.CommandLine = flag.NewFlagSet("kubeconfig", flag.ExitOnError)
 		kubeconfig = *flag.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
 	} else {
 		Print("Kubernetes configuration is set by config flag.")
