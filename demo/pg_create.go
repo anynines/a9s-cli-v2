@@ -709,12 +709,14 @@ func establishBackupStoreConfigYaml() {
 		PrintCheckmark(fmt.Sprintf("There's already a backup-store-config.yaml file at %s. Trusting that the file is ok.", filePath))
 	} else {
 		Print("Writing a backup-store-config.yaml with defaults to " + filePath)
+
+		// TODO Make backup store configurable
 		blobStoreConfig := BlobStore{
 			Config: BlobStoreConfig{
 				CloudConfig: BlobStoreCloudConfiguration{
 					Provider:  "AWS",
 					Container: "a8s-backups",
-					Region:    "eu-central-0",
+					Region:    "eu-central-1",
 				},
 			},
 		}

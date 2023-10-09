@@ -1,18 +1,14 @@
-/*
-Copyright © 2023 NAME HERE <EMAIL ADDRESS>
-*/
 package cmd
 
 import (
+	"fmt"
+
 	"github.com/fischerjulian/a8s-demo/demo"
 	"github.com/spf13/cobra"
 )
 
-var TheA8sPGProductName = "a8s Postgres"
-
-// runDemoCmd represents the runDemo command
-var a8sPGDemo = &cobra.Command{
-	Use:   "a8s-pg-demo",
+var cmdDemo = &cobra.Command{
+	Use:   "demo",
 	Short: "Create a local demo environment for " + TheA8sPGProductName + " using a Kind Kubernetes cluster and installs",
 	Long: `The demo assistent guides through the creation of Kind based Kubernetes cluster, 
 	helps to install all necessary prerequisites within the cluster and finally configures and installs
@@ -22,42 +18,26 @@ Cobra is a CLI library for Go that empowers applications.
 This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
+		fmt.Printf("\n")
+		demo.PrintWarning(" Please select a product by using a sub-command.\n")
+		fmt.Printf("Example: a9s demo a8s-pg\n")
+	},
+}
+
+var cmdDemoA8sPG = &cobra.Command{
+	Use:   "a8s-pg",
+	Short: "Handling a9s Platform demos.",
+	Long: `The demo assistent guides through the creation of a9s Platform demos, 
+	helps to install all necessary prerequisites and finally configures and installs
+	the chosen product.`,
+	Run: func(cmd *cobra.Command, args []string) {
 		ExecuteA8sPGDemo()
 	},
 }
 
-func ExecuteA8sPGDemo() {
-	demo.PrintWelcomeScreen()
-
-	demo.EstablishConfigFilePath()
-
-	if !demo.LoadConfig() {
-		demo.EstablishWorkingDir()
-	}
-
-	demo.CheckPrerequisites()
-
-	demo.WaitForUser()
-
-	demo.CheckoutDeploymentGitRepository()
-
-	if demo.CountPodsInDemoNamespace() == 0 {
-		demo.PrintCheckmark("Kubernetes cluster has no pods in " + demo.GetConfig().DemoSpace + " namespace.")
-	}
-
-	demo.EstablishBackupStoreCredentials()
-
-	demo.ApplyCertManagerManifests()
-
-	demo.ApplyA8sManifests()
-
-	demo.WaitForSystemToBecomeReady()
-
-	demo.PrintDemoSummary()
-}
-
 func init() {
-	rootCmd.AddCommand(a8sPGDemo)
+	cmdDemo.AddCommand(cmdDemoA8sPG)
+	rootCmd.AddCommand(cmdDemo)
 
 	// Here you will define your flags and configuration settings.
 
