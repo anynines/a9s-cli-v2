@@ -29,11 +29,7 @@ to quickly create a Cobra application.`,
 func ExecuteA8sPGDemo() {
 	demo.PrintWelcomeScreen()
 
-	demo.EstablishConfigFilePath()
-
-	if !demo.LoadConfig() {
-		demo.EstablishWorkingDir()
-	}
+	demo.EstablishConfig()
 
 	demo.CheckPrerequisites()
 

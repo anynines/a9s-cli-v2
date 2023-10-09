@@ -60,7 +60,7 @@ type BlobStoreCloudConfiguration struct {
 }
 
 var configFilePath string
-var cfg Config
+var DemoConfig Config
 
 func IsCommandAvailable(cmdName string) bool {
 	//	cmd := exec.Command("/bin/sh", "-c", "command -v "+name)
@@ -256,10 +256,10 @@ func EstablishWorkingDir() {
 
 		if strings.HasPrefix(choice, "y") {
 			fmt.Println("Yes")
-			cfg.WorkingDir = cwd
+			DemoConfig.WorkingDir = cwd
 			break
 		} else if strings.HasPrefix(choice, "n") {
-			cfg.WorkingDir = promptPath()
+			DemoConfig.WorkingDir = promptPath()
 			saveConfig()
 			break
 		} else {
@@ -270,15 +270,23 @@ func EstablishWorkingDir() {
 	saveConfig()
 }
 
+func EstablishConfig() {
+	EstablishConfigFilePath()
+
+	if !LoadConfig() {
+		EstablishWorkingDir()
+	}
+}
+
 // https://dev.to/sagartrimukhe/generate-yaml-files-in-golang-29h1
 func saveConfig() {
 
 	//TODO Make configurable / prompt from user
-	if cfg.DemoSpace == "" {
-		cfg.DemoSpace = defaultDemoSpace
+	if DemoConfig.DemoSpace == "" {
+		DemoConfig.DemoSpace = defaultDemoSpace
 	}
 
-	yamlData, err := yaml.Marshal(&cfg)
+	yamlData, err := yaml.Marshal(&DemoConfig)
 
 	if err != nil {
 		ExitDueToFatalError(err, "Couldn't save config file. Aborting...")
@@ -303,13 +311,13 @@ func LoadConfig() bool {
 		ExitDueToFatalError(err, "Couldn't open config file.")
 	}
 
-	err = yaml.Unmarshal(yamlFile, &cfg)
+	err = yaml.Unmarshal(yamlFile, &DemoConfig)
 
 	if err != nil {
 		PrintFail("Coudln't parse config file.")
 	}
 
-	PrintH2("Using the following working directory: " + cfg.WorkingDir)
+	PrintH2("Using the following working directory: " + DemoConfig.WorkingDir)
 
 	return true
 }
@@ -381,8 +389,8 @@ func CheckoutGitRepository(repositoryURL, localDirectory string) error {
 func CheckoutDeploymentGitRepository() {
 	PrintH1("Checking out git repository with demo manifests...")
 	Print("Remote Repository is at: " + demoGitRepo)
-	Print("Local working dir: " + cfg.WorkingDir)
-	CheckoutGitRepository(demoGitRepo, cfg.WorkingDir)
+	Print("Local working dir: " + DemoConfig.WorkingDir)
+	CheckoutGitRepository(demoGitRepo, DemoConfig.WorkingDir)
 }
 
 func CreateKindCluster() {
@@ -452,7 +460,7 @@ func GetKubernetesConfigPath() string {
 }
 
 func CountPodsInDemoNamespace() int {
-	return countPodsInNamespace(cfg.DemoSpace)
+	return countPodsInNamespace(DemoConfig.DemoSpace)
 }
 
 func GetKubernetesClientSet() *kubernetes.Clientset {
@@ -525,7 +533,7 @@ func KubectlApplyKustomize(kustomizeFilepath string) {
 
 func ApplyA8sManifests() {
 	PrintH1("Applying the a8s Data Service manifests...")
-	kustomizePath := filepath.Join(cfg.WorkingDir, "deploy", "a8s", "manifests")
+	kustomizePath := filepath.Join(DemoConfig.WorkingDir, "deploy", "a8s", "manifests")
 	KubectlApplyKustomize(kustomizePath)
 	PrintCheckmark("Done applying a8s manifests.")
 }
@@ -584,15 +592,15 @@ func CheckIfFileExists(filePath string) bool {
 }
 
 func BackupConfigAccessKeyIdFilePath() string {
-	return filepath.Join(cfg.WorkingDir, "deploy", "a8s", "backup-config", "access-key-id")
+	return filepath.Join(DemoConfig.WorkingDir, "deploy", "a8s", "backup-config", "access-key-id")
 }
 
 func BackupConfigSecretAccessKeyFilePath() string {
-	return filepath.Join(cfg.WorkingDir, "deploy", "a8s", "backup-config", "secret-access-key")
+	return filepath.Join(DemoConfig.WorkingDir, "deploy", "a8s", "backup-config", "secret-access-key")
 }
 
 func BackupConfigEncryptionPasswordFilePath() string {
-	return filepath.Join(cfg.WorkingDir, "deploy", "a8s", "backup-config", "encryption-password")
+	return filepath.Join(DemoConfig.WorkingDir, "deploy", "a8s", "backup-config", "encryption-password")
 }
 
 /*
@@ -697,7 +705,7 @@ func establishSecretAccessKey() {
 }
 
 func backupStoreConfigFilePath() string {
-	return filepath.Join(cfg.WorkingDir, "deploy", "a8s", "backup-config", "backup-store-config.yaml")
+	return filepath.Join(DemoConfig.WorkingDir, "deploy", "a8s", "backup-config", "backup-store-config.yaml")
 }
 
 func establishBackupStoreConfigYaml() {
@@ -736,7 +744,7 @@ func establishBackupStoreConfigYaml() {
 }
 
 func GetConfig() Config {
-	return cfg
+	return DemoConfig
 }
 
 func EstablishBackupStoreCredentials() {
