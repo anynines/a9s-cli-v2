@@ -22,7 +22,7 @@ TODO:
 import (
 	"os"
 
-	"github.com/fischerjulian/a8s-demo/cmd"
+	"github.com/anynines/a9s-cli-v2/cmd"
 )
 
 var debug bool

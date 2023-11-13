@@ -3,9 +3,11 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/fischerjulian/a8s-demo/demo"
+	"github.com/anynines/a9s-cli-v2/demo"
 	"github.com/spf13/cobra"
 )
+
+var TheA8sPGProductName = "a8s Postgres"
 
 var cmdDemo = &cobra.Command{
 	Use:   "demo",
@@ -47,6 +49,32 @@ var cmdDemoPwd = &cobra.Command{
 
 		fmt.Printf("\n%s\n\n", demo.DemoConfig.WorkingDir)
 	},
+}
+
+func ExecuteA8sPGDemo() {
+	demo.PrintWelcomeScreen()
+
+	demo.EstablishConfig()
+
+	demo.CheckPrerequisites()
+
+	demo.WaitForUser()
+
+	demo.CheckoutDeploymentGitRepository()
+
+	if demo.CountPodsInDemoNamespace() == 0 {
+		demo.PrintCheckmark("Kubernetes cluster has no pods in " + demo.GetConfig().DemoSpace + " namespace.")
+	}
+
+	demo.EstablishBackupStoreCredentials()
+
+	demo.ApplyCertManagerManifests()
+
+	demo.ApplyA8sManifests()
+
+	demo.WaitForSystemToBecomeReady()
+
+	demo.PrintDemoSummary()
 }
 
 func init() {

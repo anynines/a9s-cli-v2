@@ -1,4 +1,4 @@
-module github.com/fischerjulian/a8s-demo
+module github.com/anynines/a9s-cli-v2
 
 go 1.20
 
