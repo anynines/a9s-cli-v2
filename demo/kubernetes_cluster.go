@@ -120,9 +120,12 @@ func CheckIfMinkubeClusterExists(kindDemoClusterName string) bool {
 
 	PrintListFromMultilineString("Minikube Clusters:", clusterStatus.String())
 
-	slices.Contains(clusterStatus.Valid, desired_a8sDemoClusterStatus)
+	if slices.Contains(clusterStatus.Valid, desired_a8sDemoClusterStatus) {
+		PrintCheckmark("There is a suitable Minikube cluster with the name " + kindDemoClusterName + " running.")
+	} else {
+		PrintWarning(" There are no Minikube clusters. A cluster with the name: " + kindDemoClusterName + " is needed.")
+	}
 
-	os.Exit(1)
 	return false
 }
 
@@ -131,20 +134,22 @@ func CreateMinkubeCluster(kindDemoClusterName string) {
 	PrintFlexedBiceps("Let's create a Kubernetes cluster named " + kindDemoClusterName + " using minikube...")
 
 	// kind create cluster --name a8s-ds --config kind-cluster-3nodes.yaml
-	cmd := exec.Command("kind", "create", "cluster", "--name", kindDemoClusterName)
+	// cmd := exec.Command("kind", "create", "cluster", "--name", kindDemoClusterName)
 
-	PrintCommandBox(cmd.String())
-	WaitForUser()
+	// PrintCommandBox(cmd.String())
+	// WaitForUser()
 
-	output, err := cmd.CombinedOutput()
+	// output, err := cmd.CombinedOutput()
 
-	if err != nil {
-		PrintFail("Failed to execute the command: " + err.Error())
-		fmt.Println(string(output))
-		os.Exit(1)
-		return
-	} else {
-		fmt.Println(string(output))
-		return
-	}
+	// if err != nil {
+	// 	PrintFail("Failed to execute the command: " + err.Error())
+	// 	fmt.Println(string(output))
+	// 	os.Exit(1)
+	// 	return
+	// } else {
+	// 	fmt.Println(string(output))
+	// 	return
+	// }
+
+	os.Exit(1)
 }
