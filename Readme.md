@@ -18,6 +18,8 @@ Follow the instructions to learn about available sub commands.
 
 # Backlog
 
+* Use Minikube instead of kind
+
 * Don't use the `default` namespace, instead create a demo namespace, e.g. `a8s-demo`.
     * Provision a8s-pg into namespace
 * Question: Should the demo a8s-pg execute the entire demo or just install the operator? Other commands could be: 
