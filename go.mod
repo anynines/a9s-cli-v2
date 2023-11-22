@@ -7,8 +7,10 @@ require (
 	github.com/charmbracelet/lipgloss v0.7.1
 	github.com/fatih/color v1.15.0
 	github.com/sethvargo/go-password v0.2.0
+	github.com/spf13/cobra v1.7.0
 	golang.org/x/term v0.6.0
 	gopkg.in/yaml.v2 v2.4.0
+	k8s.io/api v0.27.4
 	k8s.io/apimachinery v0.27.4
 	k8s.io/client-go v0.27.4
 )
@@ -42,8 +44,8 @@ require (
 	github.com/muesli/termenv v0.15.1 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
-	github.com/spf13/cobra v1.7.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
+	github.com/stretchr/testify v1.8.2 // indirect
 	golang.org/x/net v0.8.0 // indirect
 	golang.org/x/oauth2 v0.0.0-20220223155221-ee480838109b // indirect
 	golang.org/x/sys v0.6.0 // indirect
@@ -53,7 +55,6 @@ require (
 	google.golang.org/protobuf v1.28.1 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	k8s.io/api v0.27.4 // indirect
 	k8s.io/klog/v2 v2.90.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20230501164219-8b0f38b5fd1f // indirect
 	k8s.io/utils v0.0.0-20230209194617-a36077c30491 // indirect
