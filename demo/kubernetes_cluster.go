@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"slices"
 	"strings"
 )
 
@@ -67,10 +68,6 @@ func CreateKindCluster(kindDemoClusterName string) {
 	}
 }
 
-type MinikubeClusterStatus struct {
-	Valid []MinikubeClusterStatusItem
-}
-
 /*
 Represents a single entry of the simplified list as returned by
 running the command 'minikube profile list -o json'.
@@ -78,6 +75,23 @@ running the command 'minikube profile list -o json'.
 type MinikubeClusterStatusItem struct {
 	Name   string
 	Status string
+}
+
+func (si *MinikubeClusterStatusItem) String() string {
+	return fmt.Sprintf("%s:\t\t%s\n", si.Name, si.Status)
+}
+
+type MinikubeClusterStatus struct {
+	Valid []MinikubeClusterStatusItem
+}
+
+func (s *MinikubeClusterStatus) String() string {
+	ret := ""
+
+	for _, status := range s.Valid {
+		ret += status.String()
+	}
+	return ret
 }
 
 func CheckIfMinkubeClusterExists(kindDemoClusterName string) bool {
@@ -95,10 +109,20 @@ func CheckIfMinkubeClusterExists(kindDemoClusterName string) bool {
 	// PrintListFromMultilineString("Minikube Clusters", strOutput)
 
 	var clusterStatus MinikubeClusterStatus
-	json.Unmarshal(output, &clusterStatus)
-	fmt.Printf("Status: %+v", clusterStatus.Valid)
-	os.Exit(0)
 
+	desired_a8sDemoClusterStatus := MinikubeClusterStatusItem{
+		Name:   kindDemoClusterName,
+		Status: "Running",
+	}
+
+	json.Unmarshal(output, &clusterStatus)
+	// fmt.Printf("Status: %+v", clusterStatus.Valid)
+
+	PrintListFromMultilineString("Minikube Clusters:", clusterStatus.String())
+
+	slices.Contains(clusterStatus.Valid, desired_a8sDemoClusterStatus)
+
+	os.Exit(1)
 	return false
 }
 
