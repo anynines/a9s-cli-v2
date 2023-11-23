@@ -19,6 +19,9 @@ Follow the instructions to learn about available sub commands.
 # Backlog
 
 * Use Minikube instead of kind
+    * Decide how minikube/kind selection is done: CLI params?
+    * Decide which k8s tool is the default
+    * Require minikube if minikube is selected and kind if kind is selected
 
 * Don't use the `default` namespace, instead create a demo namespace, e.g. `a8s-demo`.
     * Provision a8s-pg into namespace

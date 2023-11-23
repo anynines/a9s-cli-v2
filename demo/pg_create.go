@@ -100,7 +100,8 @@ func checkIfKubernetesIsRunning() bool {
 	err := cmd.Run()
 	if err != nil {
 		PrintFail("Kubernetes is not running.")
-		PrintInfo("Try deleting the Kind cluster with: kind delete clusters " + kindDemoClusterName + ". Then recreate it.")
+		PrintInfo("Please try to restart it or recreate it (delete and re-run the creation).")
+		// PrintInfo("Try deleting the Kubernetes cluster with: kind delete clusters " + kindDemoClusterName + ". Then recreate it.")
 		return false
 	}
 	PrintCheckmark("Kubernetes is running.")

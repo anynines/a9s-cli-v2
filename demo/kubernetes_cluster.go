@@ -95,7 +95,7 @@ func (s *MinikubeClusterStatus) String() string {
 }
 
 func CheckIfMinkubeClusterExists(kindDemoClusterName string) bool {
-
+	ret := false
 	// Output example: https://gist.github.com/fischerjulian/ae095c2848c5c9cd668a5c25bbd83a94s
 	cmd := exec.Command("minikube", "profile", "list", "-o", "json")
 
@@ -121,12 +121,14 @@ func CheckIfMinkubeClusterExists(kindDemoClusterName string) bool {
 	PrintListFromMultilineString("Minikube Clusters:", clusterStatus.String())
 
 	if slices.Contains(clusterStatus.Valid, desired_a8sDemoClusterStatus) {
+		ret = true
 		PrintCheckmark("There is a suitable Minikube cluster with the name " + kindDemoClusterName + " running.")
 	} else {
+		ret = false
 		PrintWarning(" There are no Minikube clusters. A cluster with the name: " + kindDemoClusterName + " is needed.")
 	}
 
-	return false
+	return ret
 }
 
 // TODO Remove code duplication with kind
@@ -136,20 +138,23 @@ func CreateMinkubeCluster(kindDemoClusterName string) {
 	// kind create cluster --name a8s-ds --config kind-cluster-3nodes.yaml
 	// cmd := exec.Command("kind", "create", "cluster", "--name", kindDemoClusterName)
 
-	// PrintCommandBox(cmd.String())
-	// WaitForUser()
+	memory := "8gb"
+	nr_of_nodes := "4"
 
-	// output, err := cmd.CombinedOutput()
+	cmd := exec.Command("minikube", "start", "--nodes", nr_of_nodes, "--memory", memory, "--profile", kindDemoClusterName)
 
-	// if err != nil {
-	// 	PrintFail("Failed to execute the command: " + err.Error())
-	// 	fmt.Println(string(output))
-	// 	os.Exit(1)
-	// 	return
-	// } else {
-	// 	fmt.Println(string(output))
-	// 	return
-	// }
+	PrintCommandBox(cmd.String())
+	WaitForUser()
 
-	os.Exit(1)
+	output, err := cmd.CombinedOutput()
+
+	if err != nil {
+		PrintFail("Failed to execute the command: " + err.Error())
+		fmt.Println(string(output))
+		os.Exit(1)
+		return
+	} else {
+		fmt.Println(string(output))
+		return
+	}
 }
