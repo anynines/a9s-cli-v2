@@ -23,10 +23,8 @@ Follow the instructions to learn about available sub commands.
 
 # Backlog
 
-* Also support Minikube next to kind
-    * Decide how minikube/kind selection is done: CLI params?
-    * Decide which k8s tool is the default
-    * Require minikube if minikube is selected and kind if kind is selected
+* Make minikube/kind memory configurable
+* Make minikube/kind nr of nodes configurable
 
 * Sub command to delete all demo resources.
     * Remove cluster
