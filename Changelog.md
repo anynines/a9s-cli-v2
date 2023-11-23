@@ -1,4 +1,11 @@
-# V0.3.0
+# v0.4.0
+
+* Minikube support added.
+* Minikube is the new default instead of kind.
+* Minikube creates a 4 node cluster while kind creates a single node cluster.
+* Minikube cluster is configured to use 8GB of memory.
+
+# v0.3.0
 
 * New command structure
 

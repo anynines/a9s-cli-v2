@@ -81,6 +81,7 @@ func init() {
 	cmdDemo.AddCommand(cmdDemoA8sPG)
 	cmdDemo.AddCommand(cmdDemoPwd)
 	rootCmd.AddCommand(cmdDemo)
+	rootCmd.PersistentFlags().StringVarP(&demo.KubernetesTool, "provider", "p", "minikube", "provider for creating the Kubernetes cluster. Valid options are \"minikube\" an \"kind\"")
 
 	// Here you will define your flags and configuration settings.
 

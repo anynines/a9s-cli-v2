@@ -12,16 +12,25 @@ The binary can be found in `bin/a9s`.
 
 ## Run
 
-    bin/a9s
+    a9s
+
+If you want to select a particular Kubernetes provider:
+
+    a9s -p kind
+    a9s -p minikube (default)
 
 Follow the instructions to learn about available sub commands.
 
 # Backlog
 
-* Use Minikube instead of kind
+* Also support Minikube next to kind
     * Decide how minikube/kind selection is done: CLI params?
     * Decide which k8s tool is the default
     * Require minikube if minikube is selected and kind if kind is selected
+
+* Sub command to delete all demo resources.
+    * Remove cluster
+    * Remove everything (incl. config files)
 
 * Don't use the `default` namespace, instead create a demo namespace, e.g. `a8s-demo`.
     * Provision a8s-pg into namespace
@@ -34,7 +43,3 @@ Follow the instructions to learn about available sub commands.
 * Create S3 bucket with configs
     * Alternatively: Install a local storage provider, e.g. minio.
         * Costly dependency: add the local storage provider to the backup agent.
-
-* Sub command to delete all demo resources.
-    * Remove cluster
-    * Remove everything (incl. config files)
