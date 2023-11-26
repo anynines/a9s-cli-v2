@@ -29,7 +29,6 @@ import (
 
 // Settings
 // TODO make configurable / cli param
-const kindDemoClusterName = "a8s-demo"
 const configFileName = ".a8s"
 const demoGitRepo = "git@github.com:anynines/a8s-deployment.git"
 const certManagerNamespace = "cert-manager"
@@ -105,7 +104,7 @@ func checkIfKubernetesIsRunning() bool {
 	if err != nil {
 		PrintFail("Kubernetes is not running.")
 		PrintInfo("Please try to restart it or recreate it (delete and re-run the creation).")
-		// PrintInfo("Try deleting the Kubernetes cluster with: kind delete clusters " + kindDemoClusterName + ". Then recreate it.")
+		PrintInfo("Try deleting the Kubernetes cluster with: \"a9s demo delete\". Then recreate it.")
 		return false
 	}
 	PrintCheckmark("Kubernetes is running.")
@@ -152,8 +151,8 @@ func CheckPrerequisites() {
 	// TODO Refactor: use polymorphism / interfaces, reduce repetition
 	if KubernetesTool == "kind" {
 
-		if !CheckIfKindClusterExists(kindDemoClusterName) {
-			CreateKindCluster(kindDemoClusterName)
+		if !CheckIfKindClusterExists(DemoClusterName) {
+			CreateKindCluster(DemoClusterName)
 
 			fmt.Println()
 			PrintH2("Rerunning prerequisite check ...")
@@ -161,8 +160,8 @@ func CheckPrerequisites() {
 			allGood = true
 		}
 	} else if KubernetesTool == "minikube" {
-		if !CheckIfMinkubeClusterExists(kindDemoClusterName) {
-			CreateMinkubeCluster(kindDemoClusterName)
+		if !CheckIfMinkubeClusterExists(DemoClusterName) {
+			CreateMinkubeCluster(DemoClusterName)
 
 			fmt.Println()
 			PrintH2("Rerunning prerequisite check ...")
@@ -380,7 +379,7 @@ func CheckoutDeploymentGitRepository() {
 }
 
 func CheckSelectedCluster() {
-	Print("Checking whether the " + kindDemoClusterName + " cluster is selected...")
+	Print("Checking whether the " + DemoClusterName + " cluster is selected...")
 	cmd := exec.Command("kubectl", "config", "current-context")
 
 	output, err := cmd.CombinedOutput()
@@ -398,9 +397,9 @@ func CheckSelectedCluster() {
 	// TODO Move to more central place to avoid distributing kind/minikube
 	// if/else ifs all over the place
 	if KubernetesTool == "kind" {
-		desired_context_name = "kind-" + kindDemoClusterName
+		desired_context_name = "kind-" + DemoClusterName
 	} else if KubernetesTool == "minikube" {
-		desired_context_name = kindDemoClusterName
+		desired_context_name = DemoClusterName
 	}
 
 	if strings.HasPrefix(current_context, desired_context_name) {
@@ -819,7 +818,7 @@ out:
 func PrintDemoSummary() {
 	PrintH1("Summary")
 	Print("You've successfully accomplished the followings steps:")
-	PrintCheckmark("Created a Kubernetes Cluster with Kind named: " + kindDemoClusterName + ".")
+	PrintCheckmark("Created a Kubernetes Cluster with Kind named: " + DemoClusterName + ".")
 	PrintCheckmark("Installed cert-manager on the Kubernetes cluster.")
 	PrintCheckmark("Created a configuration for the backup object store.")
 	PrintCheckmark("Installing the a8s Postgres control plane.\n")

@@ -12,6 +12,8 @@ import (
 
 // Valid options: "kind"
 var KubernetesTool string
+var DemoClusterName string
+var UnattendedMode bool // Ask yes-no questions or assume "yes"
 
 func CheckIfKindClusterExists(kindDemoClusterName string) bool {
 	cmd := exec.Command("kind", "get", "clusters")
@@ -94,7 +96,7 @@ func (s *MinikubeClusterStatus) String() string {
 	return ret
 }
 
-func CheckIfMinkubeClusterExists(kindDemoClusterName string) bool {
+func CheckIfMinkubeClusterExists(demoClusterName string) bool {
 	ret := false
 	// Output example: https://gist.github.com/fischerjulian/ae095c2848c5c9cd668a5c25bbd83a94s
 	cmd := exec.Command("minikube", "profile", "list", "-o", "json")
@@ -111,7 +113,7 @@ func CheckIfMinkubeClusterExists(kindDemoClusterName string) bool {
 	var clusterStatus MinikubeClusterStatus
 
 	desired_a8sDemoClusterStatus := MinikubeClusterStatusItem{
-		Name:   kindDemoClusterName,
+		Name:   demoClusterName,
 		Status: "Running",
 	}
 
@@ -122,26 +124,47 @@ func CheckIfMinkubeClusterExists(kindDemoClusterName string) bool {
 
 	if slices.Contains(clusterStatus.Valid, desired_a8sDemoClusterStatus) {
 		ret = true
-		PrintCheckmark("There is a suitable Minikube cluster with the name " + kindDemoClusterName + " running.")
+		PrintCheckmark("There is a suitable Minikube cluster with the name " + demoClusterName + " running.")
 	} else {
 		ret = false
-		PrintWarning(" There are no Minikube clusters. A cluster with the name: " + kindDemoClusterName + " is needed.")
+		PrintWarning(" There are no Minikube clusters. A cluster with the name: " + demoClusterName + " is needed.")
 	}
 
 	return ret
 }
 
 // TODO Remove code duplication with kind
-func CreateMinkubeCluster(kindDemoClusterName string) {
-	PrintFlexedBiceps("Let's create a Kubernetes cluster named " + kindDemoClusterName + " using minikube...")
-
-	// kind create cluster --name a8s-ds --config kind-cluster-3nodes.yaml
-	// cmd := exec.Command("kind", "create", "cluster", "--name", kindDemoClusterName)
+func CreateMinkubeCluster(demoClusterName string) {
+	PrintFlexedBiceps("Let's create a Kubernetes cluster named " + demoClusterName + " using minikube...")
 
 	memory := "8gb"
 	nr_of_nodes := "4"
 
-	cmd := exec.Command("minikube", "start", "--nodes", nr_of_nodes, "--memory", memory, "--profile", kindDemoClusterName)
+	cmd := exec.Command("minikube", "start", "--nodes", nr_of_nodes, "--memory", memory, "--profile", demoClusterName)
+
+	PrintCommandBox(cmd.String())
+	WaitForUser()
+
+	output, err := cmd.CombinedOutput()
+
+	if err != nil {
+		PrintFail("Failed to execute the command: " + err.Error())
+		fmt.Println(string(output))
+		os.Exit(1)
+		return
+	} else {
+		fmt.Println(string(output))
+		return
+	}
+}
+
+/*
+Deletes the given demo Kubernetes cluster.
+*/
+func DeleteKubernetesCluster() {
+	PrintWarning("Deleting the Demo Kubernetes Cluster " + DemoClusterName + "...")
+
+	cmd := exec.Command("minikube", "delete", "--profile", DemoClusterName)
 
 	PrintCommandBox(cmd.String())
 	WaitForUser()

@@ -32,15 +32,44 @@ your backup config, remove the existing `backup-config.yaml`, first:
 
     rm demo/deploy/a8s/backup-config/backup-store-config.yaml
 
+## Printing the Demo Working Directory
+
+    a9s demo pwd
+
+## Unattended Mode
+
+It is possible to skip all yes-no questions by **enabling the unattended mode** by passing the `-y` or `--yes` flag:
+
+    a9s demo a8s-pg --yes
+
+## Cleaning Up
+
+In order to delete the Demo cluster run:
+
+    a9s demo delete
+
+**Note**: This will not delete config files stored.
+
+Config files are stored in the demo working directory.
+
+They can be removed with:
+
+    rm -rf $( a9s demo pwd )
+
 # Backlog
+
+* Remove Kind.
+
+* Sub command to delete all demo resources.
+    * Remove cluster        
+        * `a9s demo delete`
+    * Remove everything (incl. config files)
 
 * Add `-y` / `--yes` flag to `demo a8s` to confirm all yes/no user dialogs with `yes`. This makes it faster when repeating the process several times.
 * Make minikube/kind memory configurable
 * Make minikube/kind nr of nodes configurable
 
-* Sub command to delete all demo resources.
-    * Remove cluster
-    * Remove everything (incl. config files)
+
 
 * Don't use the `default` namespace, instead create a demo namespace, e.g. `a8s-demo`.
     * Provision a8s-pg into namespace

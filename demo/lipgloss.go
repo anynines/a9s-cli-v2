@@ -227,20 +227,21 @@ func PrintInfo(s string) {
 }
 
 func WaitForUser() {
+	if !UnattendedMode {
+		msg := "Press <ENTER> key to continue or <CTRL>+C to abort."
+		style := lipgloss.NewStyle().
+			MarginTop(1).
+			MarginBottom(1).
+			MarginLeft(1).
+			Foreground(highlight).
+			Underline(true).
+			Render(msg)
 
-	msg := "Press <ENTER> key to continue or <CTRL>+C to abort."
-	style := lipgloss.NewStyle().
-		MarginTop(1).
-		MarginBottom(1).
-		MarginLeft(1).
-		Foreground(highlight).
-		Underline(true).
-		Render(msg)
+		fmt.Println(style)
 
-	fmt.Println(style)
+		reader := bufio.NewReader(os.Stdin)
+		reader.ReadString('\n')
 
-	reader := bufio.NewReader(os.Stdin)
-	reader.ReadString('\n')
-
-	PrintEmoji("...", emoji.Emoji(emoji.ManRunning.Tone(emoji.Default)))
+		PrintEmoji("...", emoji.Emoji(emoji.ManRunning.Tone(emoji.Default)))
+	}
 }

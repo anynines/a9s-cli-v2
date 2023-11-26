@@ -1,3 +1,9 @@
+# v0.5.0
+
+* Removes support for kind to focus exclusively on minikube for now.
+* Adds a command for deleting the demo kubernetes cluster `a9s demo delete`.
+* Adds unattended mode allowing to run demos faster by skipping yes-no-questions: `a9s demo a8s-pg --yes`
+
 # v0.4.1
 * Adds missing `Makefile`
 * Moves the `-p` or `--provider` flag to the subcommand `a9s demo a8s-pg`.
