@@ -1,3 +1,13 @@
+# v0.4.1
+* Adds missing `Makefile`
+* Moves the `-p` or `--provider` flag to the subcommand `a9s demo a8s-pg`.
+* The settings for the a8s Backup subsystem can now be configured:
+    * Settings:
+        * Infrastructure provider, e.g. `"AWS"`
+        * Bucket name, e.g. `"a8s-backups"`
+        * Infrastructure region, e.g. `"us-east-1"`
+    * See `a9s demo a8s-pg --help` for details.
+
 # v0.4.0
 
 * Minikube support added.

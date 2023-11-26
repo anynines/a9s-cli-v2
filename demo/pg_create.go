@@ -37,6 +37,10 @@ const certManagerManifestUrl = "https://github.com/cert-manager/cert-manager/rel
 const defaultDemoSpace = "default"
 const systemName = "a8s Postgres control plane"
 
+var BackupInfrastructureProvider string // e.g. AWS
+var BackupInfrastructureRegion string   // e.g. us-east-1
+var BackupInfrastructureBucket string   // e.g. a8s-backups
+
 // const default_waiting_time_in_s = 10
 
 type Config struct {
@@ -691,8 +695,8 @@ func establishBackupStoreConfigYaml() {
 			Config: BlobStoreConfig{
 				CloudConfig: BlobStoreCloudConfiguration{
 					Provider:  "AWS",
-					Container: "a8s-backups",
-					Region:    "eu-central-1",
+					Container: BackupInfrastructureBucket,
+					Region:    BackupInfrastructureRegion,
 				},
 			},
 		}

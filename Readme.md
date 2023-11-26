@@ -14,15 +14,27 @@ The binary can be found in `bin/a9s`.
 
     a9s
 
+### Kubernetes Provider
+
 If you want to select a particular Kubernetes provider:
 
-    a9s -p kind
-    a9s -p minikube (default)
+    a9s demo a8s-pg -p kind 
+    a9s demo a8s-pg -p minikube (default)
 
 Follow the instructions to learn about available sub commands.
 
+### Backup Infrastructure Region
+
+    a9s demo a8s-pg --backup-region us-east-1
+
+**Note**: By default, an existing `backup-config.yaml` will be used. Hence, if you intend to change
+your backup config, remove the existing `backup-config.yaml`, first:
+
+    rm demo/deploy/a8s/backup-config/backup-store-config.yaml
+
 # Backlog
 
+* Add `-y` / `--yes` flag to `demo a8s` to confirm all yes/no user dialogs with `yes`. This makes it faster when repeating the process several times.
 * Make minikube/kind memory configurable
 * Make minikube/kind nr of nodes configurable
 
