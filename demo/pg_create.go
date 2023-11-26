@@ -148,28 +148,13 @@ func CheckPrerequisites() {
 		allGood = false
 	}
 
-	// TODO Refactor: use polymorphism / interfaces, reduce repetition
-	if KubernetesTool == "kind" {
+	if !CheckIfMinkubeClusterExists(DemoClusterName) {
+		CreateMinkubeCluster(DemoClusterName)
 
-		if !CheckIfKindClusterExists(DemoClusterName) {
-			CreateKindCluster(DemoClusterName)
-
-			fmt.Println()
-			PrintH2("Rerunning prerequisite check ...")
-			CheckPrerequisites()
-			allGood = true
-		}
-	} else if KubernetesTool == "minikube" {
-		if !CheckIfMinkubeClusterExists(DemoClusterName) {
-			CreateMinkubeCluster(DemoClusterName)
-
-			fmt.Println()
-			PrintH2("Rerunning prerequisite check ...")
-			CheckPrerequisites()
-			allGood = true
-		}
-	} else {
-		ExitDueToFatalError(nil, "Invalid tool to create a Kubernetes cluster has been selected.")
+		fmt.Println()
+		PrintH2("Rerunning prerequisite check ...")
+		CheckPrerequisites()
+		allGood = true
 	}
 
 	CheckSelectedCluster()
@@ -394,13 +379,7 @@ func CheckSelectedCluster() {
 
 	var desired_context_name string
 
-	// TODO Move to more central place to avoid distributing kind/minikube
-	// if/else ifs all over the place
-	if KubernetesTool == "kind" {
-		desired_context_name = "kind-" + DemoClusterName
-	} else if KubernetesTool == "minikube" {
-		desired_context_name = DemoClusterName
-	}
+	desired_context_name = DemoClusterName
 
 	if strings.HasPrefix(current_context, desired_context_name) {
 		PrintCheckmark("It seems that the right context is selected: " + desired_context_name)

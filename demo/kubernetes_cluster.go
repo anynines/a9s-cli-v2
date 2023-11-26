@@ -11,7 +11,6 @@ import (
 )
 
 // Valid options: "kind"
-var KubernetesTool string
 var DemoClusterName string
 var UnattendedMode bool // Ask yes-no questions or assume "yes"
 
