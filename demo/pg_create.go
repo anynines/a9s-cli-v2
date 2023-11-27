@@ -672,7 +672,7 @@ func establishBackupStoreConfigYaml() {
 		blobStoreConfig := BlobStore{
 			Config: BlobStoreConfig{
 				CloudConfig: BlobStoreCloudConfiguration{
-					Provider:  "AWS",
+					Provider:  BackupInfrastructureProvider,
 					Container: BackupInfrastructureBucket,
 					Region:    BackupInfrastructureRegion,
 				},

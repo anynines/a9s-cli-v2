@@ -1,3 +1,7 @@
+# v0.5.1
+
+* Fixes bug in CLI params `--backup-bucket`, `--backup-region` and `backup-provider`. Backup region has also been used as a backup name and backup-provider was fixed to "AWS" instead of using the param.
+
 # v0.5.0
 
 * Removes support for kind to focus exclusively on minikube for now.
