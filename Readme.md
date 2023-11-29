@@ -58,18 +58,27 @@ They can be removed with:
 
 # Backlog
 
-* Remove Kind.
+* Instead of checking out a8s-deployment, the a8s-demo repo should be used as it also contains the a8s-deployment but also adds the demo-app
+    * Dir structure has changed
+        /Users/jfischer/Dropbox/workspace/a8s-demo/deploy/a8s/backup-config/encryption-password
+        is now at
+        /Users/jfischer/Dropbox/workspace/a8s-demo/a8s-deployment/deploy/a8s/backup-config/encryption-password
 
-* Sub command to delete all demo resources.
-    * Remove cluster        
-        * `a9s demo delete`
-    * Remove everything (incl. config files)
+* Install a local storage provider, e.g. minio.    
+    * Costly dependency: the a8s backup manager currently does not support setting
+        a custom s3 endpoint url
+        * The a9s backup agent does support it. See: https://docs.anynines.com/docs/platform-operator/a9s-po-data-services-installation/#10d-use-a-generic-s3-api
 
-* Add `-y` / `--yes` flag to `demo a8s` to confirm all yes/no user dialogs with `yes`. This makes it faster when repeating the process several times.
+
+* Create S3 bucket with configs
+
+
+* Sub command to delete all demo resources.    
+    * Remove to remove local artefacts
+    * Remove object store bucket with backups?
+
 * Make minikube/kind memory configurable
 * Make minikube/kind nr of nodes configurable
-
-
 
 * Don't use the `default` namespace, instead create a demo namespace, e.g. `a8s-demo`.
     * Provision a8s-pg into namespace
@@ -79,6 +88,3 @@ They can be removed with:
     * a8s-pg-app
     * Alternatively, the entire demo could be driven by the "assistent" asking the user questions, interactively.
 
-* Create S3 bucket with configs
-    * Alternatively: Install a local storage provider, e.g. minio.
-        * Costly dependency: add the local storage provider to the backup agent.

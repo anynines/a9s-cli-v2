@@ -30,7 +30,7 @@ import (
 // Settings
 // TODO make configurable / cli param
 const configFileName = ".a8s"
-const demoGitRepo = "git@github.com:anynines/a8s-deployment.git"
+const demoGitRepo = "https://github.com/anynines/a8s-demo.git" // "git@github.com:anynines/a8s-demo.git"
 const certManagerNamespace = "cert-manager"
 const certManagerManifestUrl = "https://github.com/cert-manager/cert-manager/releases/download/v1.12.0/cert-manager.yaml"
 const defaultDemoSpace = "default"
@@ -336,7 +336,7 @@ func CheckoutGitRepository(repositoryURL, localDirectory string) error {
 	}
 
 	// Run the git clone command to checkout the repository
-	cmd := exec.Command("git", "clone", repositoryURL, localDirectory)
+	cmd := exec.Command("git", "clone", "--recurse-submodules", repositoryURL, localDirectory)
 
 	PrintCommandBox(cmd.String())
 	WaitForUser()
@@ -483,7 +483,7 @@ func KubectlApplyKustomize(kustomizeFilepath string) {
 
 func ApplyA8sManifests() {
 	PrintH1("Applying the a8s Data Service manifests...")
-	kustomizePath := filepath.Join(DemoConfig.WorkingDir, "deploy", "a8s", "manifests")
+	kustomizePath := filepath.Join(DemoConfig.WorkingDir, "a8s-deployment", "deploy", "a8s", "manifests")
 	KubectlApplyKustomize(kustomizePath)
 	PrintCheckmark("Done applying a8s manifests.")
 }
@@ -542,15 +542,15 @@ func CheckIfFileExists(filePath string) bool {
 }
 
 func BackupConfigAccessKeyIdFilePath() string {
-	return filepath.Join(DemoConfig.WorkingDir, "deploy", "a8s", "backup-config", "access-key-id")
+	return filepath.Join(DemoConfig.WorkingDir, "a8s-deployment", "deploy", "a8s", "backup-config", "access-key-id")
 }
 
 func BackupConfigSecretAccessKeyFilePath() string {
-	return filepath.Join(DemoConfig.WorkingDir, "deploy", "a8s", "backup-config", "secret-access-key")
+	return filepath.Join(DemoConfig.WorkingDir, "a8s-deployment", "deploy", "a8s", "backup-config", "secret-access-key")
 }
 
 func BackupConfigEncryptionPasswordFilePath() string {
-	return filepath.Join(DemoConfig.WorkingDir, "deploy", "a8s", "backup-config", "encryption-password")
+	return filepath.Join(DemoConfig.WorkingDir, "a8s-deployment", "deploy", "a8s", "backup-config", "encryption-password")
 }
 
 /*
@@ -655,7 +655,7 @@ func establishSecretAccessKey() {
 }
 
 func backupStoreConfigFilePath() string {
-	return filepath.Join(DemoConfig.WorkingDir, "deploy", "a8s", "backup-config", "backup-store-config.yaml")
+	return filepath.Join(DemoConfig.WorkingDir, "a8s-deployment", "deploy", "a8s", "backup-config", "backup-store-config.yaml")
 }
 
 func establishBackupStoreConfigYaml() {
