@@ -66,11 +66,13 @@ var DemoConfig Config
 
 func IsCommandAvailable(cmdName string) bool {
 	//	cmd := exec.Command("/bin/sh", "-c", "command -v "+name)
-	cmd := exec.Command("command", "-v", cmdName)
-	if err := cmd.Run(); err != nil {
+        //	cmd := exec.Command("command", "-v", cmdName)
+	// if err := cmd.Run(); err != nil {
+	path, err := exec.LookPath(cmdName)
+	if err != nil {
 		requiredCmds := RequiredCommands()
 
-		msg := "Couldn't find " + cmdName + " command."
+		msg := "Couldn't find " + cmdName + " command: " + err.Error() + "."
 
 		if requiredCmds[cmdName][runtime.GOOS] != "" {
 			msg += " Try running: " + requiredCmds[cmdName][runtime.GOOS]
@@ -81,7 +83,7 @@ func IsCommandAvailable(cmdName string) bool {
 		return false
 	}
 
-	PrintCheckmark("Found " + cmdName + ".")
+	PrintCheckmark("Found " + cmdName + " at path " + path + ".")
 
 	return true
 }
