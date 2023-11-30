@@ -14,6 +14,7 @@ import (
 var DemoClusterName string
 var UnattendedMode bool // Ask yes-no questions or assume "yes"
 
+// TODO Remove
 func CheckIfKindClusterExists(kindDemoClusterName string) bool {
 	cmd := exec.Command("kind", "get", "clusters")
 
@@ -47,6 +48,7 @@ func CheckIfKindClusterExists(kindDemoClusterName string) bool {
 	return false
 }
 
+// TODO Remove
 func CreateKindCluster(kindDemoClusterName string) {
 	PrintFlexedBiceps("Let's create a Kubernetes cluster named " + kindDemoClusterName + " using Kind...")
 
@@ -136,6 +138,7 @@ func CheckIfMinkubeClusterExists(demoClusterName string) bool {
 func CreateMinkubeCluster(demoClusterName string) {
 	PrintFlexedBiceps("Let's create a Kubernetes cluster named " + demoClusterName + " using minikube...")
 
+	//TODO make configurable
 	memory := "8gb"
 	nr_of_nodes := "4"
 

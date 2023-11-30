@@ -379,9 +379,7 @@ func CheckSelectedCluster() {
 
 	Print("The currently selected Kubernetes context is: " + current_context)
 
-	var desired_context_name string
-
-	desired_context_name = DemoClusterName
+	desired_context_name := DemoClusterName
 
 	if strings.HasPrefix(current_context, desired_context_name) {
 		PrintCheckmark("It seems that the right context is selected: " + desired_context_name)
