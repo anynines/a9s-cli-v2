@@ -64,6 +64,12 @@ They can be removed with:
 
 # Backlog
 
+* Why do we check wether there's a Kubernetes running? We'll create one if not. Remove the check.
+
+* If there has never been a minikube cluster before, the app will fail:
+    ` ❌ Couldn't capture output of 'minikube profile list -o json' command.`
+    `{"error":{"Op":"open","Path":"/home/jfischer/.minikube/profiles","Err":2}`
+
 * Instead of checking out a8s-deployment, the a8s-demo repo should be used as it also contains the a8s-deployment but also adds the demo-app
     * Dir structure has changed
         /Users/jfischer/Dropbox/workspace/a8s-demo/deploy/a8s/backup-config/encryption-password
