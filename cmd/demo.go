@@ -91,7 +91,8 @@ func init() {
 
 	cmdDemoA8sPG.PersistentFlags().StringVar(&demo.BackupInfrastructureRegion, "backup-region", "us-east-1", "specify the infrastructure region to store backups such as \"us-east-1\".")
 	cmdDemoA8sPG.PersistentFlags().StringVar(&demo.BackupInfrastructureBucket, "backup-bucket", "a8s-backups", "specify the infrastructure object store bucket name.")
-	cmdDemoA8sPG.PersistentFlags().StringVar(&demo.BackupInfrastructureProvider, "backup-provider", "AWS", "specify the infrastructure provider as supported by the a8s Backup Manager.")
+	cmdDemoA8sPG.PersistentFlags().StringVar(&demo.BackupInfrastructureBucket, "backup-provider", "AWS", "specify the infrastructure provider as supported by the a8s Backup Manager.")
+	cmdDemoA8sPG.PersistentFlags().StringVar(&demo.DeploymentVersion, "deployment-version", "v0.3.0", "specify the version corresponding to the a8s-deployment git version tag. Use \"latest\" to get the untagged version.")
 	cmdDemo.AddCommand(cmdDemoA8sPG)
 	cmdDemo.PersistentFlags().StringVarP(&demo.DemoClusterName, "cluster-name", "c", "a8s-demo", "name of the demo Kubernetes cluster.")
 	cmdDemo.PersistentFlags().BoolVarP(&demo.UnattendedMode, "yes", "y", false, "skip yes-no questions by answering with \"yes\".")

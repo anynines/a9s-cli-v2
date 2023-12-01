@@ -56,6 +56,11 @@ They can be removed with:
 
     rm -rf $( a9s demo pwd )
 
+# Design Principles / Ideals
+
+* The CLI should not need a tight synchronization with product releases.
+    * The release of a new a8s Postgres version, for example, should be working with an existing CLI version.
+
 # Backlog
 
 * Remove Kind.

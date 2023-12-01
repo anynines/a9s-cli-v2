@@ -30,7 +30,7 @@ import (
 // Settings
 // TODO make configurable / cli param
 const configFileName = ".a8s"
-const demoGitRepo = "git@github.com:anynines/a8s-deployment.git"
+const demoGitRepo = "https://github.com/anynines/a8s-deployment.git" // "git@github.com:anynines/a8s-deployment.git"
 const certManagerNamespace = "cert-manager"
 const certManagerManifestUrl = "https://github.com/cert-manager/cert-manager/releases/download/v1.12.0/cert-manager.yaml"
 const defaultDemoSpace = "default"
@@ -39,6 +39,8 @@ const systemName = "a8s Postgres control plane"
 var BackupInfrastructureProvider string // e.g. AWS
 var BackupInfrastructureRegion string   // e.g. us-east-1
 var BackupInfrastructureBucket string   // e.g. a8s-backups
+
+var DeploymentVersion string // e.g. v0.3.0
 
 // const default_waiting_time_in_s = 10
 
@@ -66,7 +68,7 @@ var DemoConfig Config
 
 func IsCommandAvailable(cmdName string) bool {
 	//	cmd := exec.Command("/bin/sh", "-c", "command -v "+name)
-        //	cmd := exec.Command("command", "-v", cmdName)
+	//	cmd := exec.Command("command", "-v", cmdName)
 	// if err := cmd.Run(); err != nil {
 	path, err := exec.LookPath(cmdName)
 	if err != nil {
@@ -331,14 +333,20 @@ func promptPath() string {
 	}
 }
 
-func CheckoutGitRepository(repositoryURL, localDirectory string) error {
+func CheckoutGitRepository(repositoryURL, localDirectory string, tag string) error {
 	// Check if the local directory already exists
 	if _, err := os.Stat(localDirectory); !os.IsNotExist(err) {
 		return fmt.Errorf("local directory already exists")
 	}
 
+	var cmd *exec.Cmd
+
 	// Run the git clone command to checkout the repository
-	cmd := exec.Command("git", "clone", repositoryURL, localDirectory)
+	if tag == "latest" {
+		cmd = exec.Command("git", "clone", repositoryURL, localDirectory)
+	} else {
+		cmd = exec.Command("git", "clone", "--branch", tag, repositoryURL, localDirectory)
+	}
 
 	PrintCommandBox(cmd.String())
 	WaitForUser()
@@ -362,7 +370,7 @@ func CheckoutDeploymentGitRepository() {
 	PrintH1("Checking out git repository with demo manifests...")
 	Print("Remote Repository is at: " + demoGitRepo)
 	Print("Local working dir: " + DemoConfig.WorkingDir)
-	CheckoutGitRepository(demoGitRepo, DemoConfig.WorkingDir)
+	CheckoutGitRepository(demoGitRepo, DemoConfig.WorkingDir, DeploymentVersion)
 }
 
 func CheckSelectedCluster() {
