@@ -41,6 +41,7 @@ var BackupInfrastructureRegion string   // e.g. us-east-1
 var BackupInfrastructureBucket string   // e.g. a8s-backups
 
 var DeploymentVersion string // e.g. v0.3.0
+var NoPreCheck bool          // e.g. false -> Perform prechecks
 
 // const default_waiting_time_in_s = 10
 
@@ -163,7 +164,8 @@ func CheckPrerequisites() {
 
 	CheckSelectedCluster()
 
-	if !allGood {
+	// !NoPreCheck > Perform a pre-check
+	if !NoPreCheck && !allGood {
 		PrintFailSummary("Sadly, mandatory prerequisited haven't been met. Aborting...")
 		os.Exit(1)
 	}
