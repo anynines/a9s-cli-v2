@@ -16,9 +16,20 @@ There's a `Makefile` to help building and running the cli during development.
 
 The binary can be found in `bin/a9s`.
 
-## Run
+# Using the CLI
 
     a9s
+
+## Executing a Demo
+
+    a9s demo a8s-pg
+
+### Number of Kubernetes Nodes
+
+    a9s demo a8s-pg --cluster-nr-of-nodes 1
+
+### Cluster Memory
+    a9s demo a8s-pg --cluster-memory 12gb
 
 ### Deployment Version
 

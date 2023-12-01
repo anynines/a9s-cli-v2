@@ -153,7 +153,7 @@ func CheckPrerequisites() {
 	}
 
 	if !CheckIfMinkubeClusterExists(DemoClusterName) {
-		CreateMinkubeCluster(DemoClusterName)
+		CreateMinkubeCluster(DemoClusterName, ClusterMemory, ClusterNrOfNodes)
 
 		fmt.Println()
 		PrintH2("Rerunning prerequisite check ...")

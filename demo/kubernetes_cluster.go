@@ -13,6 +13,8 @@ import (
 // Valid options: "kind"
 var DemoClusterName string
 var UnattendedMode bool // Ask yes-no questions or assume "yes"
+var ClusterNrOfNodes string
+var ClusterMemory string
 
 func CheckIfKindClusterExists(kindDemoClusterName string) bool {
 	cmd := exec.Command("kind", "get", "clusters")
@@ -133,11 +135,8 @@ func CheckIfMinkubeClusterExists(demoClusterName string) bool {
 }
 
 // TODO Remove code duplication with kind
-func CreateMinkubeCluster(demoClusterName string) {
+func CreateMinkubeCluster(demoClusterName, memory, nr_of_nodes string) {
 	PrintFlexedBiceps("Let's create a Kubernetes cluster named " + demoClusterName + " using minikube...")
-
-	memory := "8gb"
-	nr_of_nodes := "4"
 
 	cmd := exec.Command("minikube", "start", "--nodes", nr_of_nodes, "--memory", memory, "--profile", demoClusterName)
 
