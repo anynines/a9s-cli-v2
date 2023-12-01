@@ -2,6 +2,12 @@
 
 # Development
 
+## Gitflow
+
+This repo is using [gitflow](https://nvie.com/posts/a-successful-git-branching-model/).
+
+## Makefile
+
 There's a `Makefile` to help building and running the cli during development.
 
 ## Build
