@@ -1,6 +1,6 @@
 # v0.6.0 
 
-* Adds a parameter to skip the verification of prerequisits `a9s demo a8s-pg --no-prechecks`
+* Adds a parameter to skip the verification of prerequisites `a9s demo a8s-pg --no-prechecks`
 * Adds parameters to set the nr of Kubernetes nodes as well as the cluster memory: `a9s demo a8s-pg --cluster-nr-of-nodes 1 --cluster-memory 12gb`
 * Adds parameter to select the version of the a8s-deployment manifests. See Readme.md for more details.
 
