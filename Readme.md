@@ -14,6 +14,18 @@ The binary can be found in `bin/a9s`.
 
     a9s
 
+### Deployment Version
+
+Select a particular release by providing the `--deployment-version` parameter:
+
+    a9s demo a8s-pg --deployment-version v0.3.0
+
+Use
+
+    a9s demo a8s-pg --deployment-version latest
+
+To get the latest, untagged version of the deployment manifests.
+
 ### Kubernetes Provider
 
 If you want to select a particular Kubernetes provider:

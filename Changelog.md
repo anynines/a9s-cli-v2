@@ -1,3 +1,7 @@
+# v0.6.0 
+
+* Adds parameter to select the version of the a8s-deployment manifests. See Readme.md for more details.
+
 # v0.5.1
 
 * Fixes bug in CLI params `--backup-bucket`, `--backup-region` and `backup-provider`. Backup region has also been used as a backup name and backup-provider was fixed to "AWS" instead of using the param.
