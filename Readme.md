@@ -24,6 +24,12 @@ The binary can be found in `bin/a9s`.
 
     a9s demo a8s-pg
 
+### Skip Checking Prerequisites
+
+In order to skip the verification of necessary commands, a running Docker daemon and a configured Kubernetes cluster:
+
+    a9s demo a8s-pg --no-precheck
+
 ### Number of Kubernetes Nodes
 
     a9s demo a8s-pg --cluster-nr-of-nodes 1

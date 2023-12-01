@@ -95,7 +95,9 @@ func init() {
 	cmdDemoA8sPG.PersistentFlags().StringVar(&demo.DeploymentVersion, "deployment-version", "v0.3.0", "specify the version corresponding to the a8s-deployment git version tag. Use \"latest\" to get the untagged version.")
 	cmdDemoA8sPG.PersistentFlags().StringVar(&demo.ClusterNrOfNodes, "cluster-nr-of-nodes", "4", "specify number of Kubernetes nodes.")
 	cmdDemoA8sPG.PersistentFlags().StringVar(&demo.ClusterMemory, "cluster-memory", "8gb", "specify memory of the Kubernetes cluster.")
+	cmdDemoA8sPG.PersistentFlags().BoolVar(&demo.NoPreCheck, "no-precheck", false, "skip the verification of prerequisites.")
 	cmdDemo.AddCommand(cmdDemoA8sPG)
+
 	cmdDemo.PersistentFlags().StringVarP(&demo.DemoClusterName, "cluster-name", "c", "a8s-demo", "name of the demo Kubernetes cluster.")
 	cmdDemo.PersistentFlags().BoolVarP(&demo.UnattendedMode, "yes", "y", false, "skip yes-no questions by answering with \"yes\".")
 	cmdDemo.AddCommand(cmdDemoPwd)
