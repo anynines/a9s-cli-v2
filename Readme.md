@@ -98,7 +98,7 @@ They can be removed with:
 
 # Backlog
 
-* BUG? --no-precheck also skips checking out the git repo?
+* Add k8s-creator
 
 * Remove Kind.
 
