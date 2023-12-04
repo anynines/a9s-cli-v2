@@ -98,6 +98,8 @@ They can be removed with:
 
 # Backlog
 
+* BUG? --no-precheck also skips checking out the git repo?
+
 * Remove Kind.
 
 * Sub command to delete all demo resources.
