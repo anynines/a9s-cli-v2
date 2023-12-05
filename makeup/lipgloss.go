@@ -1,7 +1,6 @@
-package demo
+package makeup
 
 import (
-	"bufio"
 	"fmt"
 	"os"
 
@@ -177,71 +176,4 @@ func CommandBox(s string) string {
 	)
 
 	return dialog
-}
-
-func PrintCommandBox(s string) {
-	fmt.Println(CommandBox(s))
-}
-
-func PrintH1(s string) {
-	fmt.Println(H1(s))
-}
-
-func PrintH2(s string) {
-	fmt.Println(H2(s))
-}
-
-func PrintFail(s string) {
-	fmt.Println(ListFail(s))
-}
-
-func PrintWait(s string) {
-	fmt.Println(ListWait(s))
-}
-
-func PrintWarning(s string) {
-	fmt.Println(ListWarning(s))
-}
-
-func PrintFailSummary(s string) {
-	fmt.Println(ListFailSummary(s))
-}
-
-func PrintCheckmark(s string) {
-	fmt.Println(ListCheckmark(s))
-}
-func PrintFlexedBiceps(s string) {
-	fmt.Println(ListFlexedBiceps(s))
-}
-
-func Print(s string) {
-	fmt.Println(RegularText(s))
-}
-
-func PrintSuccessSummary(s string) {
-	fmt.Println(ListParty(s))
-}
-
-func PrintInfo(s string) {
-	PrintEmoji(" "+s, emoji.Information)
-}
-
-func WaitForUser() {
-	if !UnattendedMode {
-		msg := "Press <ENTER> key to continue or <CTRL>+C to abort."
-		style := lipgloss.NewStyle().
-			MarginTop(1).
-			MarginBottom(1).
-			MarginLeft(1).
-			Foreground(highlight).
-			Underline(true).
-			Render(msg)
-
-		fmt.Println(style)
-
-		reader := bufio.NewReader(os.Stdin)
-		reader.ReadString('\n')
-
-		PrintEmoji("...", emoji.Emoji(emoji.ManRunning.Tone(emoji.Default)))
-	}
 }
