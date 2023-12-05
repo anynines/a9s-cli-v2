@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/anynines/a9s-cli-v2/demo"
+	"github.com/anynines/a9s-cli-v2/makeup"
 	"github.com/spf13/cobra"
 )
 
@@ -21,7 +22,7 @@ This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Printf("\n")
-		demo.PrintWarning(" Please select a demo sub-command.\n")
+		makeup.PrintWarning(" Please select a demo sub-command.\n")
 		fmt.Printf(" Examples: \n")
 		fmt.Printf("\ta9s demo pwd\t\tPrint the configured working directory.\n")
 		fmt.Printf("\ta9s demo a8s-pg\t\tExecute the a8s-pg product demo.")
@@ -62,18 +63,18 @@ var cmdDemoDelete = &cobra.Command{
 }
 
 func ExecuteA8sPGDemo() {
-	demo.PrintWelcomeScreen()
+	makeup.PrintWelcomeScreen(demo.UnattendedMode)
 
 	demo.EstablishConfig()
 
 	demo.CheckPrerequisites()
 
-	demo.WaitForUser()
+	makeup.WaitForUser(demo.UnattendedMode)
 
 	demo.CheckoutDeploymentGitRepository()
 
 	if demo.CountPodsInDemoNamespace() == 0 {
-		demo.PrintCheckmark("Kubernetes cluster has no pods in " + demo.GetConfig().DemoSpace + " namespace.")
+		makeup.PrintCheckmark("Kubernetes cluster has no pods in " + demo.GetConfig().DemoSpace + " namespace.")
 	}
 
 	demo.EstablishBackupStoreCredentials()
@@ -93,15 +94,18 @@ func init() {
 	cmdDemoA8sPG.PersistentFlags().StringVar(&demo.BackupInfrastructureBucket, "backup-bucket", "a8s-backups", "specify the infrastructure object store bucket name.")
 	cmdDemoA8sPG.PersistentFlags().StringVar(&demo.BackupInfrastructureBucket, "backup-provider", "AWS", "specify the infrastructure provider as supported by the a8s Backup Manager.")
 	cmdDemoA8sPG.PersistentFlags().StringVar(&demo.DeploymentVersion, "deployment-version", "v0.3.0", "specify the version corresponding to the a8s-deployment git version tag. Use \"latest\" to get the untagged version.")
-	cmdDemoA8sPG.PersistentFlags().StringVar(&demo.ClusterNrOfNodes, "cluster-nr-of-nodes", "4", "specify number of Kubernetes nodes.")
-	cmdDemoA8sPG.PersistentFlags().StringVar(&demo.ClusterMemory, "cluster-memory", "8gb", "specify memory of the Kubernetes cluster.")
+	cmdDemoA8sPG.PersistentFlags().StringVar(&demo.ClusterNrOfNodes, "cluster-nr-of-nodes", "3", "specify number of Kubernetes nodes.")
+	cmdDemoA8sPG.PersistentFlags().StringVar(&demo.ClusterMemory, "cluster-memory", "4gb", "specify memory of the Kubernetes cluster.")
 	cmdDemoA8sPG.PersistentFlags().BoolVar(&demo.NoPreCheck, "no-precheck", false, "skip the verification of prerequisites.")
 	cmdDemo.AddCommand(cmdDemoA8sPG)
 
+	cmdDemo.PersistentFlags().StringVarP(&demo.KubernetesTool, "provider", "p", "minikube", "provider for creating the Kubernetes cluster. Valid options are \"minikube\" an \"kind\"")
 	cmdDemo.PersistentFlags().StringVarP(&demo.DemoClusterName, "cluster-name", "c", "a8s-demo", "name of the demo Kubernetes cluster.")
 	cmdDemo.PersistentFlags().BoolVarP(&demo.UnattendedMode, "yes", "y", false, "skip yes-no questions by answering with \"yes\".")
 	cmdDemo.AddCommand(cmdDemoPwd)
+
 	cmdDemo.AddCommand(cmdDemoDelete)
+
 	rootCmd.AddCommand(cmdDemo)
 
 	// Here you will define your flags and configuration settings.
