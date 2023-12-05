@@ -99,7 +99,7 @@ func ListFail(s string) string {
 }
 
 func ListWarning(s string) string {
-	return ListEmoji(s, emoji.Warning)
+	return ListEmoji(" "+s, emoji.Warning)
 }
 
 func ListFlexedBiceps(s string) string {
