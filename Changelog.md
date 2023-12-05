@@ -1,3 +1,7 @@
+# Development
+
+* Introduces a multi-k8s-provider support with implementations for both `minikube` and `kind`.
+
 # v0.6.0 
 
 * Adds a parameter to skip the verification of prerequisites `a9s demo a8s-pg --no-prechecks`

@@ -165,9 +165,12 @@ func CheckPrerequisites() {
 		makeup.PrintH2("Rerunning prerequisite check ...")
 		CheckPrerequisites()
 		allGood = true
-	}
+	} else {
 
-	CheckSelectedCluster()
+		// Only if there's a suitable cluster, the cluster may also be selected.
+		// In any other case, the demo cluster has to be created, first.
+		CheckSelectedCluster()
+	}
 
 	// !NoPreCheck > Perform a pre-check
 	if !NoPreCheck && !allGood {

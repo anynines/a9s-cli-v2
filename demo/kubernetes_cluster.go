@@ -62,22 +62,12 @@ Deletes the given demo Kubernetes cluster.
 func DeleteKubernetesCluster() {
 	makeup.PrintWarning("Deleting the Demo Kubernetes Cluster using " + KubernetesTool + " named " + DemoClusterName + "...")
 
-	//TODO Make the k8sCreator a global variable or instanciate another one here
+	kCreator := GetKubernetesCreator()
 
-	// cmd := exec.Command("minikube", "delete", "--profile", DemoClusterName)
-
-	// makeup.PrintCommandBox(cmd.String())
-	// makeup.WaitForUser(UnattendedMode)
-
-	// output, err := cmd.CombinedOutput()
-
-	// if err != nil {
-	// 	makeup.PrintFail("Failed to execute the command: " + err.Error())
-	// 	fmt.Println(string(output))
-	// 	os.Exit(1)
-	// 	return
-	// } else {
-	// 	fmt.Println(string(output))
-	// 	return
-	// }
+	if kCreator.Exists(DemoClusterName) {
+		kCreator.Delete(DemoClusterName, UnattendedMode)
+	} else {
+		makeup.PrintInfo("There was no cluster using " + KubernetesTool + " named " + DemoClusterName + ". There's nothing to be done.")
+	}
+	makeup.PrintCheckmark("The Demo Kubernetes Cluster has been deleted.")
 }
