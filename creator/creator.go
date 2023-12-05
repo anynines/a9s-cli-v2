@@ -48,4 +48,11 @@ type KubernetesCreator interface {
 	*/
 	Running(clustername string) bool
 	Delete(clustername string, unattendedMode bool)
+
+	/*
+		Returns the context for a given clustername.
+		This name may vary among implementations, e.g.
+		a8s-demo vs. kind-a8s-demo.
+	*/
+	GetContext(clustername string) string
 }

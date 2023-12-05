@@ -35,9 +35,9 @@ func (c KindCreator) buildKindClusterConfig(nrOfNodes int) KindClusterConfig {
 	workerNode["role"] = "worker"
 
 	nodes := make([]map[string]string, 1)
-	nodes = append(nodes, controlPlaneNode)
+	nodes[0] = controlPlaneNode
 
-	for i := 1; i <= nrOfNodes; i++ {
+	for i := 1; i < nrOfNodes; i++ {
 		nodes = append(nodes, workerNode)
 	}
 
@@ -46,6 +46,9 @@ func (c KindCreator) buildKindClusterConfig(nrOfNodes int) KindClusterConfig {
 		ApiVersion: "kind.x-k8s.io/v1alpha4",
 		Nodes:      nodes,
 	}
+
+	makeup.Print(fmt.Sprintf("Kind number of nodes: %d", nrOfNodes))
+	makeup.Print(fmt.Sprintf("Kind Cluster Config:\n\t%v", config))
 
 	return config
 }
@@ -191,4 +194,8 @@ func (c KindCreator) Delete(name string, unattendedMode bool) {
 		fmt.Println(string(output))
 		return
 	}
+}
+
+func (c KindCreator) GetContext(name string) string {
+	return "kind-" + name
 }

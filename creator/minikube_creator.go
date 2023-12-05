@@ -157,3 +157,7 @@ func (c MinikubeCreator) Delete(name string, unattended bool) {
 		return
 	}
 }
+
+func (c MinikubeCreator) GetContext(name string) string {
+	return name
+}

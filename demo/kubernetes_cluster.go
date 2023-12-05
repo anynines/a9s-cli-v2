@@ -42,6 +42,7 @@ Adding a new KubernetesCreator requires to
 - implement a unit test for the creator type
 */
 func GetKubernetesCreator() creator.KubernetesCreator {
+
 	if kubernetesCreator == nil {
 		switch KubernetesTool {
 		case "kind":

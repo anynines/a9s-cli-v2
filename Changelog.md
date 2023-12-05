@@ -1,6 +1,8 @@
 # Development
 
 * Introduces a multi-k8s-provider support with implementations for both `minikube` and `kind`.
+* The Kubernetes Node memory is now `4gb` instead of `8gb` per default.
+* The number of Kubernetes Nodes is now `3` instead of `4` per default.
 
 # v0.6.0 
 
