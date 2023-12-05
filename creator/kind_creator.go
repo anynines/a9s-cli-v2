@@ -143,7 +143,7 @@ func (c KindCreator) Exists(clustername string) bool {
 
 	// Check if the output contains the string "No kind clusters found."
 	if strings.Contains(strOutput, "No kind clusters found.") {
-		makeup.PrintWarning(" There are no kind clusters. A cluster with the name: " + clustername + " is needed.")
+		makeup.PrintWarning(" There is no kind cluster with the name: " + clustername + ".")
 		return false
 	}
 

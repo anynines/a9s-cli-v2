@@ -106,7 +106,7 @@ func (c MinikubeCreator) Running(name string) bool {
 		makeup.PrintCheckmark("There is a suitable Minikube cluster with the name " + name + " running.")
 	} else {
 		ret = false
-		makeup.PrintWarning(" There are no Minikube clusters. A cluster with the name: " + name + " is needed.")
+		makeup.PrintWarning(" There is no minikube cluster with the name: " + name + ".")
 	}
 
 	return ret
