@@ -16,9 +16,38 @@ There's a `Makefile` to help building and running the cli during development.
 
 The binary can be found in `bin/a9s`.
 
-## Run
+# Using the CLI
 
     a9s
+
+## Executing a Demo
+
+    a9s demo a8s-pg
+
+### Skip Checking Prerequisites
+
+In order to skip the verification of necessary commands, a running Docker daemon and a configured Kubernetes cluster:
+
+    a9s demo a8s-pg --no-precheck
+
+### Number of Kubernetes Nodes
+
+    a9s demo a8s-pg --cluster-nr-of-nodes 1
+
+### Cluster Memory
+    a9s demo a8s-pg --cluster-memory 12gb
+
+### Deployment Version
+
+Select a particular release by providing the `--deployment-version` parameter:
+
+    a9s demo a8s-pg --deployment-version v0.3.0
+
+Use
+
+    a9s demo a8s-pg --deployment-version latest
+
+To get the latest, untagged version of the deployment manifests.
 
 ### Kubernetes Provider
 
@@ -62,7 +91,14 @@ They can be removed with:
 
     rm -rf $( a9s demo pwd )
 
+# Design Principles / Ideals
+
+* The CLI should not need a tight synchronization with product releases.
+    * The release of a new a8s Postgres version, for example, should be working with an existing CLI version.
+
 # Backlog
+
+* Add k8s-creator
 
 * Remove Kind.
 

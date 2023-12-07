@@ -1,3 +1,15 @@
+# v0.7.0
+
+* Introduces a multi-k8s-provider support with implementations for both `minikube` and `kind`.
+* The Kubernetes Node memory is now `4gb` instead of `8gb` per default.
+* The number of Kubernetes Nodes is now `3` instead of `4` per default.
+
+# v0.6.0 
+
+* Adds a parameter to skip the verification of prerequisites `a9s demo a8s-pg --no-prechecks`
+* Adds parameters to set the nr of Kubernetes nodes as well as the cluster memory: `a9s demo a8s-pg --cluster-nr-of-nodes 1 --cluster-memory 12gb`
+* Adds parameter to select the version of the a8s-deployment manifests. See Readme.md for more details.
+
 # v0.5.1
 
 * Fixes bug in CLI params `--backup-bucket`, `--backup-region` and `backup-provider`. Backup region has also been used as a backup name and backup-provider was fixed to "AWS" instead of using the param.

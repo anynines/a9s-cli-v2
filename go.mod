@@ -5,6 +5,7 @@ go 1.20
 require (
 	github.com/NilPointer-Software/emoji v0.0.0-20230626160233-14b453685d90
 	github.com/charmbracelet/lipgloss v0.7.1
+	github.com/enescakir/emoji v1.0.0
 	github.com/fatih/color v1.15.0
 	github.com/sethvargo/go-password v0.2.0
 	github.com/spf13/cobra v1.7.0
