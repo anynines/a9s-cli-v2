@@ -1,4 +1,4 @@
-# Development
+# v0.7.0
 
 * Introduces a multi-k8s-provider support with implementations for both `minikube` and `kind`.
 * The Kubernetes Node memory is now `4gb` instead of `8gb` per default.
