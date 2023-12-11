@@ -98,28 +98,31 @@ They can be removed with:
 
 # Backlog
 
-* Add k8s-creator
-
-* Remove Kind.
+* Question: Should the demo a8s-pg execute the entire demo or just install the operator? Other commands could be: 
+    * a8s-pg 
+        * `create`
+            * It's more idiomatic in Kubernetes for the verb to be the first command: `kubectl get pods` vs `kubectl pod get`.
+        * `a9s pg instance`
+            * `create`
+                * `a9s pg instance create --isolation pod` > a8s PG
+                * `a9s pg create instance --isolation pod`
+                * `a9s pg instance create --isolation vm` > a9s PG
+        * `a9s pg service-binding`
+            * `a9s pg binding` 
+            * `a9s pg sb`
+        * `a9s pg backup`
+        * `a9s pg restore`
+    * a8s-pg-instance 
+    * a8s-pg-app
+    * Alternatively, the entire demo could be driven by the "assistent" asking the user questions, interactively.
 
 * Sub command to delete all demo resources.
     * Remove cluster        
         * `a9s demo delete`
     * Remove everything (incl. config files)
 
-* Add `-y` / `--yes` flag to `demo a8s` to confirm all yes/no user dialogs with `yes`. This makes it faster when repeating the process several times.
-* Make minikube/kind memory configurable
-* Make minikube/kind nr of nodes configurable
-
-
-
 * Don't use the `default` namespace, instead create a demo namespace, e.g. `a8s-demo`.
     * Provision a8s-pg into namespace
-* Question: Should the demo a8s-pg execute the entire demo or just install the operator? Other commands could be: 
-    * a8s-pg 
-    * a8s-pg-instance 
-    * a8s-pg-app
-    * Alternatively, the entire demo could be driven by the "assistent" asking the user questions, interactively.
 
 * Create S3 bucket with configs
     * Alternatively: Install a local storage provider, e.g. minio.
