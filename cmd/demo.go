@@ -73,6 +73,8 @@ func ExecuteA8sPGDemo() {
 
 	demo.CheckoutDeploymentGitRepository()
 
+	demo.CheckoutDemoAppGitRepository()
+
 	if demo.CountPodsInDemoNamespace() == 0 {
 		makeup.PrintCheckmark("Kubernetes cluster has no pods in " + demo.GetConfig().DemoSpace + " namespace.")
 	}
