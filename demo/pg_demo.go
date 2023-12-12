@@ -3,6 +3,7 @@ package demo
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/anynines/a9s-cli-v2/makeup"
@@ -94,6 +95,16 @@ func CheckPrerequisites() {
 		makeup.PrintFailSummary("Sadly, mandatory prerequisited haven't been met. Aborting...")
 		os.Exit(1)
 	}
+}
+
+/*
+Applies the manifests of the a8s-deployment repository and thus installs a8s PG.
+*/
+func ApplyA8sManifests() {
+	makeup.PrintH1("Applying the a8s Data Service manifests...")
+	kustomizePath := filepath.Join(DemoConfig.WorkingDir, demoA8sDeploymentLocalDir, "deploy", "a8s", "manifests")
+	KubectlApplyKustomize(kustomizePath)
+	makeup.PrintCheckmark("Done applying a8s manifests.")
 }
 
 func WaitForSystemToBecomeReady() {

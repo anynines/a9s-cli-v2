@@ -211,13 +211,6 @@ func KubectlApplyKustomize(kustomizeFilepath string) {
 
 }
 
-func ApplyA8sManifests() {
-	makeup.PrintH1("Applying the a8s Data Service manifests...")
-	kustomizePath := filepath.Join(DemoConfig.WorkingDir, demoA8sDeploymentLocalDir, "deploy", "a8s", "manifests")
-	KubectlApplyKustomize(kustomizePath)
-	makeup.PrintCheckmark("Done applying a8s manifests.")
-}
-
 // https://github.com/kubernetes/client-go/blob/master/examples/in-cluster-client-configuration/main.go
 func countPodsInNamespace(namespace string) int {
 
