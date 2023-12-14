@@ -6,23 +6,23 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var cmdCreate = &cobra.Command{
-	Use:   "create",
-	Short: "Create data service resources such as data service instances, service bindings, backups and restore jobs.",
-	Long:  `Create data service resources including data service instances, service bindings backups and restore jobs.`,
+var cmdDelete = &cobra.Command{
+	Use:   "delete",
+	Short: "Delete data service resources such as data service instances, service bindings, backups and restore jobs.",
+	Long:  `Delete data service resources including data service instances, service bindings backups and restore jobs.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		//ExecuteA8sPGDemo()
 
-		makeup.PrintWarning(" " + "Please select the data service resource type you would like to instantiate.")
+		makeup.PrintWarning(" " + "Please select the data service resource type you would like to delete.")
 
 		cmd.Help()
 	},
 }
 
-var cmdPG = &cobra.Command{
+var cmdDeletePG = &cobra.Command{
 	Use:   "pg",
-	Short: "Create PostgreSQL resources such as service instances, service bindings, backups and restore jobs.",
-	Long:  `Create PostgreSQL resources such as service instances, service bindings, backups and restore jobs.`,
+	Short: "Delete PostgreSQL resources such as service instances, service bindings, backups and restore jobs.",
+	Long:  `Delete PostgreSQL resources such as service instances, service bindings, backups and restore jobs.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		// ExecuteA8sPGDemo()
 		makeup.PrintWarning(" " + "Please select a PostgreSQL resource such as (service) instance.")
@@ -30,15 +30,15 @@ var cmdPG = &cobra.Command{
 	},
 }
 
-var cmdPGInstance = &cobra.Command{
+var cmdDeletePGInstance = &cobra.Command{
 	Use:   "instance",
-	Short: "Create a PostgreSQL service instance.",
-	Long:  `Create a PostgreSQL service instance`,
+	Short: "Delete a PostgreSQL service instance.",
+	Long:  `Delete a PostgreSQL service instance`,
 	Run: func(cmd *cobra.Command, args []string) {
-		demo.CreatePGServiceInstance()
+		demo.DeletePGServiceInstance()
 
 		//TODO Make configurable
-		demo.WaitForServiceInstanceToBecomeReady("default", "sample-pg-cluster", 3)
+		// demo.WaitForServiceInstanceToBecomeReady("default", "sample-pg-cluster", 3)
 	},
 }
 
@@ -71,7 +71,7 @@ func init() {
 	// affinity
 
 	// cmdPGInstance.PersistentFlags().StringVar(&demo.BackupInfrastructureRegion, "backup-region", "us-east-1", "specify the infrastructure region to store backups such as \"us-east-1\".")
-	cmdPG.AddCommand(cmdPGInstance)
-	cmdCreate.AddCommand(cmdPG)
-	rootCmd.AddCommand(cmdCreate)
+	cmdDeletePG.AddCommand(cmdDeletePGInstance)
+	cmdDelete.AddCommand(cmdDeletePG)
+	rootCmd.AddCommand(cmdDelete)
 }

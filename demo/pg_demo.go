@@ -22,6 +22,7 @@ const certManagerNamespace = "cert-manager"
 const certManagerManifestUrl = "https://github.com/cert-manager/cert-manager/releases/download/v1.12.0/cert-manager.yaml"
 const defaultDemoSpace = "default"
 const A8sSystemName = "a8s Postgres Control Plane"
+const A8sSystemNamespace = "a8s-system"
 
 var BackupInfrastructureProvider string // e.g. AWS
 var BackupInfrastructureRegion string   // e.g. us-east-1
@@ -122,7 +123,20 @@ func WaitForA8sSystemToBecomeReady() {
 		{Name: "service-binding-controller-manager", Running: false},
 	}
 
-	WaitForSystemToBecomeReady(A8sSystemName, expectedPods)
+	WaitForSystemToBecomeReady(A8sSystemNamespace, A8sSystemName, expectedPods)
+}
+
+func WaitForServiceInstanceToBecomeReady(namespace, serviceInstanceName string, nrOfInstances int) {
+	expectedPods := make([]PodExpectationState, 3)
+
+	for i := 0; i < nrOfInstances; i++ {
+		expectedPods[i] = PodExpectationState{
+			Name:    fmt.Sprintf("%s-%d", serviceInstanceName, i),
+			Running: false,
+		}
+	}
+
+	WaitForSystemToBecomeReady(namespace, serviceInstanceName, expectedPods)
 }
 
 func CreatePGServiceInstance() {
@@ -151,6 +165,35 @@ func CreatePGServiceInstance() {
 	}
 
 	KubectlApplyF(exampleManifestPath)
+}
+
+// Refactor to DRY with Create ... > CRUDPGServiceInstance
+func DeletePGServiceInstance() {
+	makeup.PrintH1("Deleting a a8s Postgres Service Instance...")
+
+	EstablishConfigFilePath()
+
+	if !LoadConfig() {
+		makeup.ExitDueToFatalError(nil, "There is no config, yet. Please create a demo environment before attempting to create a service instance.")
+	}
+
+	makeup.Print("Using default values for deleting the instance.")
+
+	// Stage 1: apply static manifest
+	// TODO stage 2: create struct, generate manifest based on parameters
+
+	exampleManifestPath := filepath.Join(A8sDeploymentExamplesPath(), "postgresql-instance.yaml")
+
+	makeup.PrintInfo("The YAML manifest of the service instance is located at: " + exampleManifestPath)
+
+	makeup.Print("The YAML manifest contains: ")
+	err := makeup.PrintYAMLFile(exampleManifestPath)
+
+	if err != nil {
+		makeup.ExitDueToFatalError(err, "Can't read service instance manifest from "+exampleManifestPath)
+	}
+
+	KubectlDeleteF(exampleManifestPath)
 }
 
 func PrintDemoSummary() {

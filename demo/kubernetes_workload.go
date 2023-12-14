@@ -16,13 +16,12 @@ import (
 /*
 Wait for a set of Pods known by name to enter the status "Running".
 */
-func WaitForSystemToBecomeReady(systemName string, expectedPods []PodExpectationState) {
+func WaitForSystemToBecomeReady(namespace, systemName string, expectedPods []PodExpectationState) {
 	makeup.PrintH1("Waiting for the " + systemName + " to become ready...")
 
 	allGood := true
 
-	//TODO Make configurable or move to beginning of file for better maintainability
-	systemNamespace := "a8s-system"
+	makeup.Print(fmt.Sprintf("Checking the existence of the following %d Pods: ", len(expectedPods)))
 
 out:
 	for {
@@ -30,7 +29,7 @@ out:
 		allGood = true
 		for _, expectedPodPrefix := range expectedPods {
 			makeup.Print("Checking the " + expectedPodPrefix.Name + "...")
-			if checkIfPodHasStatusRunningInNamespace(expectedPodPrefix.Name, systemNamespace) {
+			if checkIfPodHasStatusRunningInNamespace(expectedPodPrefix.Name, namespace) {
 				makeup.PrintCheckmark("The " + expectedPodPrefix.Name + " appears to be running.")
 				expectedPodPrefix.Running = true
 			} else {
@@ -39,13 +38,13 @@ out:
 				allGood = false
 			}
 
-			if allGood {
-				makeup.PrintSuccessSummary("The " + systemName + " appears to be ready. All expected pods are running.")
-				break out
-			} else {
-				makeup.PrintWait("The " + systemNamespace + " is not ready (yet), let's try again in 5s ...")
-				time.Sleep(5 * time.Second)
-			}
+		}
+		if allGood {
+			makeup.PrintSuccessSummary("The " + systemName + " appears to be ready. All expected pods are running.")
+			break out
+		} else {
+			makeup.PrintWait("The " + systemName + " is not ready (yet), let's try again in 5s ...")
+			time.Sleep(5 * time.Second)
 		}
 	}
 	makeup.WaitForUser(UnattendedMode)
@@ -71,7 +70,7 @@ func checkIfPodHasStatusRunningInNamespace(podNameStartsWith string, namespace s
 
 			switch phase := pod.Status.Phase; phase {
 			case v1.PodRunning:
-				makeup.PrintCheckmark("The Pod " + pod.Name + "h is running as expected.")
+				makeup.PrintCheckmark("The Pod " + pod.Name + " is running as expected.")
 				return true
 			case v1.PodFailed:
 				makeup.PrintFail("The Pod " + pod.Name + "h has failed but should be running.")
@@ -98,26 +97,28 @@ func checkIfPodHasStatusRunningInNamespace(podNameStartsWith string, namespace s
 func CountPodsInDemoNamespace() int {
 	return countPodsInNamespace(DemoConfig.DemoSpace)
 }
+
 func KubectlApplyF(yamlFilepath string) {
 
-	cmd := exec.Command("kubectl", "apply", "-f", yamlFilepath)
+	KubectlActOnFile("apply", "-f", yamlFilepath)
+}
 
-	output, err := cmd.CombinedOutput()
-
-	makeup.PrintCommandBox(cmd.String())
-	makeup.WaitForUser(UnattendedMode)
-
-	if err != nil {
-		makeup.PrintWarning(string(output))
-		makeup.ExitDueToFatalError(err, "Can't kubectl apply with command: "+cmd.String())
-	}
-
-	fmt.Println(string(output))
+func KubectlDeleteF(yamlFilepath string) {
+	KubectlActOnFile("delete", "-f", yamlFilepath)
 }
 
 func KubectlApplyKustomize(kustomizeFilepath string) {
+	KubectlActOnFile("apply", "--kustomize", kustomizeFilepath)
+}
 
-	cmd := exec.Command("kubectl", "apply", "--kustomize", kustomizeFilepath)
+/*
+Examples:
+apply -f {path}
+delete -f {path}
+apply --kustomize {path}
+*/
+func KubectlActOnFile(verb, flag, filepath string) {
+	cmd := exec.Command("kubectl", verb, flag, filepath)
 
 	makeup.PrintCommandBox(cmd.String())
 	makeup.WaitForUser(UnattendedMode)
@@ -127,9 +128,8 @@ func KubectlApplyKustomize(kustomizeFilepath string) {
 	fmt.Println(string(output))
 
 	if err != nil {
-		makeup.ExitDueToFatalError(err, "Can't kubectl kustomize with using the command: "+cmd.String())
+		makeup.ExitDueToFatalError(err, "Can't kubectl "+verb+" with using the command: "+cmd.String())
 	}
-
 }
 
 // https://github.com/kubernetes/client-go/blob/master/examples/in-cluster-client-configuration/main.go
