@@ -297,7 +297,7 @@ func checkIfPodHasStatusRunningInNamespace(podNameStartsWith string, namespace s
 				return true
 			case v1.PodFailed:
 				makeup.PrintFail("The Pod " + pod.Name + "h has failed but should be running.")
-				makeup.PrintFail("The " + systemName + " has not been installed successfully.")
+				makeup.PrintFail("The " + A8sSystemName + " has not been installed successfully.")
 				os.Exit(1)
 
 			case v1.PodPending:

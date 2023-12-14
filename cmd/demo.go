@@ -85,7 +85,7 @@ func ExecuteA8sPGDemo() {
 
 	demo.ApplyA8sManifests()
 
-	demo.WaitForSystemToBecomeReady()
+	demo.WaitForA8sSystemToBecomeReady()
 
 	demo.PrintDemoSummary()
 }

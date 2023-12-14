@@ -22,7 +22,7 @@ const demoA8sDeploymentLocalDir = "a8s-deployment"
 const certManagerNamespace = "cert-manager"
 const certManagerManifestUrl = "https://github.com/cert-manager/cert-manager/releases/download/v1.12.0/cert-manager.yaml"
 const defaultDemoSpace = "default"
-const systemName = "a8s Postgres control plane"
+const A8sSystemName = "a8s Postgres Control Plane"
 
 var BackupInfrastructureProvider string // e.g. AWS
 var BackupInfrastructureRegion string   // e.g. us-east-1
@@ -107,34 +107,38 @@ func ApplyA8sManifests() {
 	makeup.PrintCheckmark("Done applying a8s manifests.")
 }
 
-func WaitForSystemToBecomeReady() {
+/*
+Represents the state of a Pod which is expected to be running at some point.
+The attribute "Running" is meant to be updated by a control loop.
+*/
+type PodExpectationState struct {
+	Name    string
+	Running bool
+}
+
+/*
+Wait for a set of Pods known by name to enter the status "Running".
+*/
+func WaitForSystemToBecomeReady(systemName string, expectedPods []PodExpectationState) {
 	makeup.PrintH1("Waiting for the " + systemName + " to become ready...")
 
 	allGood := true
 
 	//TODO Make configurable or move to beginning of file for better maintainability
-	expectedPodPrefixes := []struct {
-		name    string
-		running bool
-	}{
-		{"a8s-backup-controller-manager", false},
-		{"postgresql-controller-manager", false},
-		{"service-binding-controller-manager", false},
-	}
 	systemNamespace := "a8s-system"
 
 out:
 	for {
 		// We start optimistically that all pods are running
 		allGood = true
-		for _, expectedPodPrefix := range expectedPodPrefixes {
-			makeup.Print("Checking the " + expectedPodPrefix.name + "...")
-			if checkIfPodHasStatusRunningInNamespace(expectedPodPrefix.name, systemNamespace) {
-				makeup.PrintCheckmark("The " + expectedPodPrefix.name + " appears to be running.")
-				expectedPodPrefix.running = true
+		for _, expectedPodPrefix := range expectedPods {
+			makeup.Print("Checking the " + expectedPodPrefix.Name + "...")
+			if checkIfPodHasStatusRunningInNamespace(expectedPodPrefix.Name, systemNamespace) {
+				makeup.PrintCheckmark("The " + expectedPodPrefix.Name + " appears to be running.")
+				expectedPodPrefix.Running = true
 			} else {
 				// Sadly, at least one pod isn't running so we need another loop iteration
-				makeup.PrintFail("The " + expectedPodPrefix.name + " is not ready (yet).")
+				makeup.PrintFail("The " + expectedPodPrefix.Name + " is not ready (yet).")
 				allGood = false
 			}
 
@@ -148,6 +152,16 @@ out:
 		}
 	}
 	makeup.WaitForUser(UnattendedMode)
+}
+
+func WaitForA8sSystemToBecomeReady() {
+	expectedPods := []PodExpectationState{
+		{Name: "a8s-backup-controller-manager", Running: false},
+		{Name: "postgresql-controller-manager", Running: false},
+		{Name: "service-binding-controller-manager", Running: false},
+	}
+
+	WaitForSystemToBecomeReady(A8sSystemName, expectedPods)
 }
 
 func CreatePGServiceInstance() {
