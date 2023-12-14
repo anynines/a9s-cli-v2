@@ -124,6 +124,10 @@ They can be removed with:
 * Don't use the `default` namespace, instead create a demo namespace, e.g. `a8s-demo`.
     * Provision a8s-pg into namespace
 
+* Create binaries in a release matrix, e.g. using Go Release Binaries with Gihub Action Matrix Strategy
+    * https://github.com/marketplace/actions/go-release-binaries
+    * https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idstrategymatrix
+
 * Create S3 bucket with configs
     * Alternatively: Install a local storage provider, e.g. minio.
         * Costly dependency: add the local storage provider to the backup agent.

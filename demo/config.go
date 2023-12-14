@@ -204,8 +204,16 @@ func CheckIfFileExists(filePath string) bool {
 	}
 }
 
+func A8sDeploymentLocalPath() string {
+	return filepath.Join(DemoConfig.WorkingDir, demoA8sDeploymentLocalDir)
+}
+
+func A8sDeploymentExamplesPath() string {
+	return filepath.Join(A8sDeploymentLocalPath(), "examples")
+}
+
 func BackupConfigBasePath() string {
-	return filepath.Join(DemoConfig.WorkingDir, demoA8sDeploymentLocalDir, "deploy", "a8s", "backup-config")
+	return filepath.Join(A8sDeploymentLocalPath(), "deploy", "a8s", "backup-config")
 }
 
 func BackupConfigAccessKeyIdFilePath() string {

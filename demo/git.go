@@ -38,10 +38,11 @@ func CheckoutGitRepository(repositoryURL, localDirectory string, tag string) err
 		e.g. due to a cancellation of a previous run.
 	*/
 
-	// if _, err := os.Stat(localDirectory); !os.IsNotExist(err) {
-	// 	makeup.ExitDueToFatalError(err, "Can't checkout git repo "+repositoryURL+": The target directory: "+localDirectory+" does not exist.")
-	// 	//return fmt.Errorf("local directory already exists")
-	// }
+	if _, err := os.Stat(localDirectory); !os.IsNotExist(err) {
+		makeup.PrintInfo("The a8s-deployment directory already exists. Please verify that the directory is up to date and contents are healthy. If you are unsure, delete it. It'll will be cloned from the remote repository, again.")
+		return nil
+		//return fmt.Errorf("local directory already exists")
+	}
 
 	var cmd *exec.Cmd
 

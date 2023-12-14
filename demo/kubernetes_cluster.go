@@ -188,6 +188,7 @@ func KubectlApplyF(yamlFilepath string) {
 	makeup.WaitForUser(UnattendedMode)
 
 	if err != nil {
+		makeup.PrintWarning(string(output))
 		makeup.ExitDueToFatalError(err, "Can't kubectl apply with command: "+cmd.String())
 	}
 

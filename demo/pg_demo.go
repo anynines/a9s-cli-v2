@@ -150,6 +150,25 @@ out:
 	makeup.WaitForUser(UnattendedMode)
 }
 
+func CreatePGServiceInstance() {
+	makeup.PrintH1("Creating a a8s Postgres Service Instance...")
+
+	EstablishConfigFilePath()
+
+	if !LoadConfig() {
+		makeup.ExitDueToFatalError(nil, "There is no config, yet. Please create a demo environment before attempting to create a service instance.")
+	}
+
+	makeup.Print("Using default values for creating the instance.")
+
+	// Stage 1: apply static manifest
+	// TODO stage 2: create struct, generate manifest based on parameters
+
+	exampleManifestPath := filepath.Join(A8sDeploymentExamplesPath(), "postgresql-instance.yaml")
+
+	KubectlApplyF(exampleManifestPath)
+}
+
 func PrintDemoSummary() {
 	makeup.PrintH1("Summary")
 	makeup.Print("You've successfully accomplished the followings steps:")
