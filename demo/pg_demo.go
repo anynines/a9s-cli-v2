@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"time"
 
 	"github.com/anynines/a9s-cli-v2/makeup"
 )
@@ -114,44 +113,6 @@ The attribute "Running" is meant to be updated by a control loop.
 type PodExpectationState struct {
 	Name    string
 	Running bool
-}
-
-/*
-Wait for a set of Pods known by name to enter the status "Running".
-*/
-func WaitForSystemToBecomeReady(systemName string, expectedPods []PodExpectationState) {
-	makeup.PrintH1("Waiting for the " + systemName + " to become ready...")
-
-	allGood := true
-
-	//TODO Make configurable or move to beginning of file for better maintainability
-	systemNamespace := "a8s-system"
-
-out:
-	for {
-		// We start optimistically that all pods are running
-		allGood = true
-		for _, expectedPodPrefix := range expectedPods {
-			makeup.Print("Checking the " + expectedPodPrefix.Name + "...")
-			if checkIfPodHasStatusRunningInNamespace(expectedPodPrefix.Name, systemNamespace) {
-				makeup.PrintCheckmark("The " + expectedPodPrefix.Name + " appears to be running.")
-				expectedPodPrefix.Running = true
-			} else {
-				// Sadly, at least one pod isn't running so we need another loop iteration
-				makeup.PrintFail("The " + expectedPodPrefix.Name + " is not ready (yet).")
-				allGood = false
-			}
-
-			if allGood {
-				makeup.PrintSuccessSummary("The " + systemName + " appears to be ready. All expected pods are running.")
-				break out
-			} else {
-				makeup.PrintWait("The " + systemNamespace + " is not ready (yet), let's try again in 5s ...")
-				time.Sleep(5 * time.Second)
-			}
-		}
-	}
-	makeup.WaitForUser(UnattendedMode)
 }
 
 func WaitForA8sSystemToBecomeReady() {
