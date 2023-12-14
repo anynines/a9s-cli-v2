@@ -5,8 +5,9 @@ go 1.20
 require (
 	github.com/NilPointer-Software/emoji v0.0.0-20230626160233-14b453685d90
 	github.com/charmbracelet/lipgloss v0.7.1
-	github.com/enescakir/emoji v1.0.0
 	github.com/fatih/color v1.15.0
+	github.com/goccy/go-yaml v1.11.2
+	github.com/mattn/go-colorable v0.1.13
 	github.com/sethvargo/go-password v0.2.0
 	github.com/spf13/cobra v1.7.0
 	golang.org/x/term v0.6.0
@@ -36,7 +37,6 @@ require (
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
-	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.18 // indirect
 	github.com/mattn/go-runewidth v0.0.14 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
@@ -52,6 +52,7 @@ require (
 	golang.org/x/sys v0.6.0 // indirect
 	golang.org/x/text v0.8.0 // indirect
 	golang.org/x/time v0.0.0-20220210224613-90d013bbcef8 // indirect
+	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/protobuf v1.28.1 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect

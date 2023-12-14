@@ -166,6 +166,15 @@ func CreatePGServiceInstance() {
 
 	exampleManifestPath := filepath.Join(A8sDeploymentExamplesPath(), "postgresql-instance.yaml")
 
+	makeup.PrintInfo("The YAML manifest of the service instance is located at: " + exampleManifestPath)
+
+	makeup.Print("The YAML manifest contains: ")
+	err := makeup.PrintYAMLFile(exampleManifestPath)
+
+	if err != nil {
+		makeup.ExitDueToFatalError(err, "Can't read service instance manifest from "+exampleManifestPath)
+	}
+
 	KubectlApplyF(exampleManifestPath)
 }
 
