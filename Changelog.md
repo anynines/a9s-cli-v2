@@ -8,6 +8,7 @@
 * Create Postgres service instances with `a9s create pg instance`
 * Delete Postgres service instances with `a9s delete pg instance`
 * Create an a8s Data Service demo environment with `a9s create demo a8s` which used to be `a9s demo a8s-pg`.
+* Delete an a8s Data Service demo environment with `a9s delete demo a8s` which used to be `a9s demo delete`.
 
 # v0.7.0
 

@@ -19,6 +19,28 @@ var cmdDelete = &cobra.Command{
 	},
 }
 
+var cmdDeleteDemo = &cobra.Command{
+	Use:   "demo",
+	Short: "Delete demo resources.",
+	Long:  `Delete demo resources of the corresponding resources. Use sub-commands to chose the demo resource to free.`,
+	Run: func(cmd *cobra.Command, args []string) {
+
+		makeup.PrintWarning(" " + "Use a sub-command to choose the demo resource to be freed.")
+
+		cmd.Help()
+	},
+}
+
+var cmdDeleteDemoA8s = &cobra.Command{
+	Use:   "a8s",
+	Short: "Delete the a8s Data Service demo Kubernetes cluster.",
+	Long: `Delete the a8s Data Service demo Kubernetes cluster in order to free corresponding 
+	resources.`,
+	Run: func(cmd *cobra.Command, args []string) {
+		demo.DeleteKubernetesCluster()
+	},
+}
+
 var cmdDeletePG = &cobra.Command{
 	Use:   "pg",
 	Short: "Delete PostgreSQL resources such as service instances, service bindings, backups and restore jobs.",
@@ -73,5 +95,12 @@ func init() {
 	// cmdPGInstance.PersistentFlags().StringVar(&demo.BackupInfrastructureRegion, "backup-region", "us-east-1", "specify the infrastructure region to store backups such as \"us-east-1\".")
 	cmdDeletePG.AddCommand(cmdDeletePGInstance)
 	cmdDelete.AddCommand(cmdDeletePG)
+	cmdDelete.AddCommand(cmdDeleteDemo)
+
+	cmdDeleteDemo.PersistentFlags().StringVarP(&demo.KubernetesTool, "provider", "p", "minikube", "provider for creating the Kubernetes cluster. Valid options are \"minikube\" an \"kind\"")
+	cmdDeleteDemo.PersistentFlags().StringVarP(&demo.DemoClusterName, "cluster-name", "c", "a8s-demo", "name of the demo Kubernetes cluster.")
+	cmdDeleteDemo.PersistentFlags().BoolVarP(&demo.UnattendedMode, "yes", "y", false, "skip yes-no questions by answering with \"yes\".")
+
+	cmdDeleteDemo.AddCommand(cmdDeleteDemoA8s)
 	rootCmd.AddCommand(cmdDelete)
 }
