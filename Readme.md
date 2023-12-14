@@ -98,6 +98,13 @@ They can be removed with:
 
 # Backlog
 
+* Change command `a9s demo a8s-pg` to `a9s create demo a8s-pg`
+* Change command `a9s demo delete` to `a9s delete demo`
+
+* Sub command to delete all demo resources.
+    * Remove everything (incl. config files)
+        * e.g. `a9s demo delete --all`
+
 * Question: Should the demo a8s-pg execute the entire demo or just install the operator? Other commands could be: 
     * a8s-pg 
         * `create`
@@ -116,10 +123,6 @@ They can be removed with:
     * a8s-pg-app
     * Alternatively, the entire demo could be driven by the "assistent" asking the user questions, interactively.
 
-* Sub command to delete all demo resources.
-    * Remove cluster        
-        * `a9s demo delete`
-    * Remove everything (incl. config files)
 
 * Don't use the `default` namespace, instead create a demo namespace, e.g. `a8s-demo`.
     * Provision a8s-pg into namespace
