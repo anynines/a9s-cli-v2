@@ -42,6 +42,27 @@ var cmdPGInstance = &cobra.Command{
 	},
 }
 
+var cmdCreateDemo = &cobra.Command{
+	Use:   "demo",
+	Short: "Create an a9s Platform demo environment.",
+	Long: `The demo assistent guides through the creation of a9s Platform demos, 
+	helps to install all necessary prerequisites and finally configures and installs
+	the chosen product. Select a sub-command to create corresponding demo environments.`,
+	Run: func(cmd *cobra.Command, args []string) {
+		makeup.PrintWarning(" " + "Please use a demo sub-command.")
+		cmd.Help()
+	},
+}
+
+var cmdCreateDemoA8s = &cobra.Command{
+	Use:   "a8s",
+	Short: "Create a demo environment for the pod based a8s Data Services such as a8s Postgres.",
+	Long:  `The demo assistent helps with the creation of a local Kubernetes cluster, installing the a8s Data Service operator(s) including necessary dependencies.`,
+	Run: func(cmd *cobra.Command, args []string) {
+		CreateA8sDemoEnvironment()
+	},
+}
+
 func init() {
 
 	/*
@@ -73,5 +94,20 @@ func init() {
 	// cmdPGInstance.PersistentFlags().StringVar(&demo.BackupInfrastructureRegion, "backup-region", "us-east-1", "specify the infrastructure region to store backups such as \"us-east-1\".")
 	cmdPG.AddCommand(cmdPGInstance)
 	cmdCreate.AddCommand(cmdPG)
+
+	cmdCreateDemoA8s.PersistentFlags().StringVar(&demo.BackupInfrastructureRegion, "backup-region", "us-east-1", "specify the infrastructure region to store backups such as \"us-east-1\".")
+	cmdCreateDemoA8s.PersistentFlags().StringVar(&demo.BackupInfrastructureBucket, "backup-bucket", "a8s-backups", "specify the infrastructure object store bucket name.")
+	cmdCreateDemoA8s.PersistentFlags().StringVar(&demo.BackupInfrastructureBucket, "backup-provider", "AWS", "specify the infrastructure provider as supported by the a8s Backup Manager.")
+	cmdCreateDemoA8s.PersistentFlags().StringVar(&demo.DeploymentVersion, "deployment-version", "v0.3.0", "specify the version corresponding to the a8s-deployment git version tag. Use \"latest\" to get the untagged version.")
+	cmdCreateDemoA8s.PersistentFlags().StringVar(&demo.ClusterNrOfNodes, "cluster-nr-of-nodes", "3", "specify number of Kubernetes nodes.")
+	cmdCreateDemoA8s.PersistentFlags().StringVar(&demo.ClusterMemory, "cluster-memory", "4gb", "specify memory of the Kubernetes cluster.")
+	cmdCreateDemoA8s.PersistentFlags().BoolVar(&demo.NoPreCheck, "no-precheck", false, "skip the verification of prerequisites.")
+
+	cmdCreateDemo.PersistentFlags().StringVarP(&demo.KubernetesTool, "provider", "p", "minikube", "provider for creating the Kubernetes cluster. Valid options are \"minikube\" an \"kind\"")
+	cmdCreateDemo.PersistentFlags().StringVarP(&demo.DemoClusterName, "cluster-name", "c", "a8s-demo", "name of the demo Kubernetes cluster.")
+	cmdCreateDemo.PersistentFlags().BoolVarP(&demo.UnattendedMode, "yes", "y", false, "skip yes-no questions by answering with \"yes\".")
+
+	cmdCreateDemo.AddCommand(cmdCreateDemoA8s)
+	cmdCreate.AddCommand(cmdCreateDemo)
 	rootCmd.AddCommand(cmdCreate)
 }

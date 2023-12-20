@@ -20,32 +20,32 @@ The binary can be found in `bin/a9s`.
 
     a9s
 
-## Executing a Demo
+## Creating a Demo Environment
 
-    a9s demo a8s-pg
+    a9s create demo a8s
 
 ### Skip Checking Prerequisites
 
 In order to skip the verification of necessary commands, a running Docker daemon and a configured Kubernetes cluster:
 
-    a9s demo a8s-pg --no-precheck
+    a9s create demo a8s --no-precheck
 
 ### Number of Kubernetes Nodes
 
-    a9s demo a8s-pg --cluster-nr-of-nodes 1
+    a9s create demo a8s --cluster-nr-of-nodes 1
 
 ### Cluster Memory
-    a9s demo a8s-pg --cluster-memory 12gb
+    a9s create demo a8s --cluster-memory 12gb
 
 ### Deployment Version
 
 Select a particular release by providing the `--deployment-version` parameter:
 
-    a9s demo a8s-pg --deployment-version v0.3.0
+    a9s create demo a8s --deployment-version v0.3.0
 
 Use
 
-    a9s demo a8s-pg --deployment-version latest
+    a9s create demo a8s --deployment-version latest
 
 To get the latest, untagged version of the deployment manifests.
 
@@ -53,35 +53,35 @@ To get the latest, untagged version of the deployment manifests.
 
 If you want to select a particular Kubernetes provider:
 
-    a9s demo a8s-pg -p kind 
-    a9s demo a8s-pg -p minikube (default)
+    a9s create demo a8s -p kind 
+    a9s create demo a8s -p minikube (default)
 
 Follow the instructions to learn about available sub commands.
 
 ### Backup Infrastructure Region
 
-    a9s demo a8s-pg --backup-region us-east-1
+    a9s create demo a8s --backup-region us-east-1
 
 **Note**: By default, an existing `backup-config.yaml` will be used. Hence, if you intend to change
 your backup config, remove the existing `backup-config.yaml`, first:
 
-    rm demo/deploy/a8s/backup-config/backup-store-config.yaml
-
-## Printing the Demo Working Directory
-
-    a9s demo pwd
+    rm a8s-deployment/deploy/a8s/backup-config/backup-store-config.yaml
 
 ## Unattended Mode
 
 It is possible to skip all yes-no questions by **enabling the unattended mode** by passing the `-y` or `--yes` flag:
 
-    a9s demo a8s-pg --yes
+    a9s create demo a8s --yes
+
+## Printing the Demo Working Directory
+
+    a9s demo pwd
 
 ## Cleaning Up
 
 In order to delete the Demo cluster run:
 
-    a9s demo delete
+    a9s delete demo a8s
 
 **Note**: This will not delete config files stored.
 
@@ -97,9 +97,6 @@ They can be removed with:
     * The release of a new a8s Postgres version, for example, should be working with an existing CLI version.
 
 # Backlog
-
-* Change command `a9s demo a8s-pg` to `a9s create demo a8s-pg`
-* Change command `a9s demo delete` to `a9s delete demo`
 
 * Sub command to delete all demo resources.
     * Remove everything (incl. config files)
