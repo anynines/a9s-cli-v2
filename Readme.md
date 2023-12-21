@@ -77,6 +77,10 @@ It is possible to skip all yes-no questions by **enabling the unattended mode** 
 
     a9s demo pwd
 
+## Creating a Service Instance
+
+    a9s create pg instance
+
 ## Cleaning Up
 
 In order to delete the Demo cluster run:
@@ -97,6 +101,14 @@ They can be removed with:
     * The release of a new a8s Postgres version, for example, should be working with an existing CLI version.
 
 # Backlog
+
+* Create commnand `a9s create pg backup --name $INSTANCE_NAME`
+
+* Extend `a9s create pg instance` to generate a YAML manifest given the params `--name`, `--replicas`, `--volume-size`, `--version`, `--requests-cpu` and `--limits-memory`
+    * Establish parameters
+    * Create struct
+    * Generate yaml - Filename = `"a8s-pg-instance-" + instance_name + ".yaml"
+    * Add `-o yaml` flag to generate yaml output, print yaml to screen but do not execute the command, 
 
 * Sub command to delete all demo resources.
     * Remove everything (incl. config files)
