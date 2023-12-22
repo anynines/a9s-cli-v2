@@ -28,6 +28,15 @@ var BackupInfrastructureProvider string // e.g. AWS
 var BackupInfrastructureRegion string   // e.g. us-east-1
 var BackupInfrastructureBucket string   // e.g. a8s-backups
 
+var ServiceInstanceApiVersion string
+var ServiceInstanceName string
+var ServiceInstanceNamespace string
+var ServiceInstanceReplicas int
+var ServiceInstanceVolumeSize string
+var ServiceInstanceVersion string
+var ServiceInstanceRequestsCPU string
+var ServiceInstanceLimitsMemory string
+
 var DeploymentVersion string // e.g. v0.3.0
 var NoPreCheck bool          // e.g. false -> Perform prechecks
 var KubernetesTool string    // e.g. "minikube" or "kind"
