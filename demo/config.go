@@ -212,6 +212,19 @@ func A8sDeploymentExamplesPath() string {
 	return filepath.Join(A8sDeploymentLocalPath(), "examples")
 }
 
+func UserManifestsPath() string {
+
+	fp := filepath.Join(DemoConfig.WorkingDir, "usermanifests")
+
+	err := os.MkdirAll(fp, os.ModePerm)
+
+	if err != nil {
+		makeup.ExitDueToFatalError(err, "Can't create user manifests folder at: "+fp)
+	}
+
+	return fp
+}
+
 func BackupConfigBasePath() string {
 	return filepath.Join(A8sDeploymentLocalPath(), "deploy", "a8s", "backup-config")
 }

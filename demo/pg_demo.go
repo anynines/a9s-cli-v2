@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/anynines/a9s-cli-v2/makeup"
+	"github.com/anynines/a9s-cli-v2/pg"
 )
 
 //TODO Separate generic, non-pg methods into a separate file
@@ -28,8 +29,12 @@ var BackupInfrastructureProvider string // e.g. AWS
 var BackupInfrastructureRegion string   // e.g. us-east-1
 var BackupInfrastructureBucket string   // e.g. a8s-backups
 
+var A8sPGServiceInstance pg.ServiceInstance
+var DeleteA8sPGInstanceName string
+
 var DeploymentVersion string // e.g. v0.3.0
 var NoPreCheck bool          // e.g. false -> Perform prechecks
+var DoNotApply bool          // e.g. yes --> do not execute kubectl apply -f ...
 var KubernetesTool string    // e.g. "minikube" or "kind"
 
 // const default_waiting_time_in_s = 10
@@ -148,23 +153,32 @@ func CreatePGServiceInstance() {
 		makeup.ExitDueToFatalError(nil, "There is no config, yet. Please create a demo environment before attempting to create a service instance.")
 	}
 
-	makeup.Print("Using default values for creating the instance.")
+	// TODO Find a more elegant way/place for setting the Kind attribute
+	A8sPGServiceInstance.Kind = "Postgresql"
+	instanceYAML := pg.ServiceInstanceToYAML(A8sPGServiceInstance)
 
-	// Stage 1: apply static manifest
-	// TODO stage 2: create struct, generate manifest based on parameters
+	manifestsPath := UserManifestsPath()
 
-	exampleManifestPath := filepath.Join(A8sDeploymentExamplesPath(), "postgresql-instance.yaml")
+	instanceManifestPath := filepath.Join(manifestsPath, A8sPGServiceInstance.Name+"-instance.yaml")
 
-	makeup.PrintInfo("The YAML manifest of the service instance is located at: " + exampleManifestPath)
-
-	makeup.Print("The YAML manifest contains: ")
-	err := makeup.PrintYAMLFile(exampleManifestPath)
+	err := os.WriteFile(instanceManifestPath, []byte(instanceYAML), 0600)
 
 	if err != nil {
-		makeup.ExitDueToFatalError(err, "Can't read service instance manifest from "+exampleManifestPath)
+		makeup.ExitDueToFatalError(err, "Couldn't save YAML file at: "+instanceManifestPath)
 	}
 
-	KubectlApplyF(exampleManifestPath)
+	makeup.PrintInfo("The YAML manifest of the service instance is located at: " + instanceManifestPath)
+
+	makeup.Print("The YAML manifest contains: ")
+	err = makeup.PrintYAMLFile(instanceManifestPath)
+
+	if err != nil {
+		makeup.ExitDueToFatalError(err, "Can't read service instance manifest from "+instanceManifestPath)
+	}
+
+	if !DoNotApply {
+		KubectlApplyF(instanceManifestPath)
+	}
 }
 
 // Refactor to DRY with Create ... > CRUDPGServiceInstance
@@ -179,21 +193,21 @@ func DeletePGServiceInstance() {
 
 	makeup.Print("Using default values for deleting the instance.")
 
-	// Stage 1: apply static manifest
-	// TODO stage 2: create struct, generate manifest based on parameters
+	// // Stage 1: apply static manifest
+	// // TODO stage 2: create struct, generate manifest based on parameters
 
-	exampleManifestPath := filepath.Join(A8sDeploymentExamplesPath(), "postgresql-instance.yaml")
+	// exampleManifestPath := filepath.Join(A8sDeploymentExamplesPath(), "postgresql-instance.yaml")
 
-	makeup.PrintInfo("The YAML manifest of the service instance is located at: " + exampleManifestPath)
+	// makeup.PrintInfo("The YAML manifest of the service instance is located at: " + exampleManifestPath)
 
-	makeup.Print("The YAML manifest contains: ")
-	err := makeup.PrintYAMLFile(exampleManifestPath)
+	// makeup.Print("The YAML manifest contains: ")
+	// err := makeup.PrintYAMLFile(exampleManifestPath)
 
-	if err != nil {
-		makeup.ExitDueToFatalError(err, "Can't read service instance manifest from "+exampleManifestPath)
-	}
+	// if err != nil {
+	// 	makeup.ExitDueToFatalError(err, "Can't read service instance manifest from "+exampleManifestPath)
+	// }
 
-	KubectlDeleteF(exampleManifestPath)
+	KubectlAct("delete", "postgresqls", DeleteA8sPGInstanceName)
 }
 
 func PrintDemoSummary() {
