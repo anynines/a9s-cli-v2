@@ -22,7 +22,7 @@ type ServiceInstance struct {
 
 func ServiceInstanceToYAML(instance ServiceInstance) string {
 	instanceMap := make(map[string]interface{})
-	instanceMap["apiVersion"] = instance.ApiVersion
+	instanceMap["apiVersion"] = "postgresql.anynines.com/" + instance.ApiVersion
 	instanceMap["kind"] = instance.Kind
 
 	metadata := make(map[string]interface{})
@@ -31,9 +31,9 @@ func ServiceInstanceToYAML(instance ServiceInstance) string {
 
 	spec := make(map[string]interface{})
 	instanceMap["spec"] = spec
-	spec["replicas"] = strconv.Itoa(instance.Replicas)
+	spec["replicas"] = instance.Replicas
 	spec["volumeSize"] = instance.VolumeSize
-	spec["version"] = instance.Version
+	spec["version"], _ = strconv.Atoi(instance.Version)
 
 	resources := make(map[string]interface{})
 	spec["resources"] = resources
