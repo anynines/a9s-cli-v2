@@ -1,4 +1,4 @@
-# Development
+# v0.8.0
 
 * The `a8s-deployment` repository is now cloned to {workdir}/a8s-deployment and is not at the {workdir} root anymore.
     * This allows cloning additional repositories as the same level.
