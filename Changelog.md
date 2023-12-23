@@ -1,3 +1,15 @@
+# Development
+
+* The `a8s-deployment` repository is now cloned to {workdir}/a8s-deployment and is not at the {workdir} root anymore.
+    * This allows cloning additional repositories as the same level.
+* Now also the `a8s-demo` repository with its demo application manifests is cloned into {workdir}.
+    * In theory the `a8s-demo` repo contains `a8s-deployment` as a submodule. However, using two separate `git clone` operations provides a more granular control over which version of each repository to checkout.
+
+* Create Postgres service instances with `a9s create pg instance`
+* Delete Postgres service instances with `a9s delete pg instance`
+* Create an a8s Data Service demo environment with `a9s create demo a8s` which used to be `a9s demo a8s-pg`.
+* Delete an a8s Data Service demo environment with `a9s delete demo a8s` which used to be `a9s demo delete`.
+
 # v0.7.0
 
 * Introduces a multi-k8s-provider support with implementations for both `minikube` and `kind`.
