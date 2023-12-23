@@ -66,33 +66,7 @@ var cmdDeletePGInstance = &cobra.Command{
 
 func init() {
 
-	/*
-		The required struct to generate a yaml file should already be present in the operator.
-		This also creates a tight depedency to the operator itself including
-		api versions and the corresponding data schema comprising configurable attributes.
-		This means that the CLI version needs to be kept in sync with the operator versions.
-		Assuming that more and more services will be supported, it may require to
-		modify the CLI from various teams.
-
-		Hence, over time the codebase must be split into sub modules and some types of changes must happen
-		fully automtically or otherwise the release process becomes a nightmare and may lead to
-		a large delay between operator and CLI releases.
-
-	*/
-
-	// apiVersion
-	// name
-	// namespace
-	// replicas
-	// volume size
-	// version
-	// resource requests cpu
-	// resource limits memory
-
-	// expose
-	// affinity
-
-	// cmdPGInstance.PersistentFlags().StringVar(&demo.BackupInfrastructureRegion, "backup-region", "us-east-1", "specify the infrastructure region to store backups such as \"us-east-1\".")
+	cmdDeletePGInstance.PersistentFlags().StringVar(&demo.DeleteA8sPGInstanceName, "name", "a8s-pg-instance", "name of the pg service instance to be deleted.")
 	cmdDeletePG.AddCommand(cmdDeletePGInstance)
 	cmdDelete.AddCommand(cmdDeletePG)
 	cmdDelete.AddCommand(cmdDeleteDemo)

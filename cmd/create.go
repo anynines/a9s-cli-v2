@@ -38,7 +38,7 @@ var cmdPGInstance = &cobra.Command{
 		demo.CreatePGServiceInstance()
 
 		if !(demo.DoNotApply) {
-			instance := demo.A8sServiceInstance
+			instance := demo.A8sPGServiceInstance
 			demo.WaitForServiceInstanceToBecomeReady(instance.Namespace, instance.Name, instance.Replicas)
 		}
 	},
@@ -96,14 +96,14 @@ func init() {
 	// cmdPGInstance.PersistentFlags().StringVar(&demo.BackupInfrastructureRegion, "backup-region", "us-east-1", "specify the infrastructure region to store backups such as \"us-east-1\".")
 
 	// create pg instance
-	cmdPG.PersistentFlags().StringVar(&demo.A8sServiceInstance.ApiVersion, "api-version", "v1beta3", "api version of the pg service instance.")
-	cmdPG.PersistentFlags().StringVar(&demo.A8sServiceInstance.Name, "name", "a8s-pg-instance", "name of the pg service instance.")
-	cmdPG.PersistentFlags().StringVar(&demo.A8sServiceInstance.Namespace, "namespace", "default", "namespace of the pg service instance.")
-	cmdPG.PersistentFlags().IntVar(&demo.A8sServiceInstance.Replicas, "replicas", 1, "number of Pods (replicas) the service instance's statefulset will have.")
-	cmdPG.PersistentFlags().StringVar(&demo.A8sServiceInstance.VolumeSize, "volume-size", "1Gi", "Volume size of the persistent volume claim(s)d of the service instance's statefulset.")
-	cmdPG.PersistentFlags().StringVar(&demo.A8sServiceInstance.Version, "service-version", "14", "Postgres version. The given version must be supported by the automation.")
-	cmdPG.PersistentFlags().StringVar(&demo.A8sServiceInstance.RequestsCPU, "requests-cpu", "100m", "Resources -> requests -> cpu of the service instance's statefulset.")
-	cmdPG.PersistentFlags().StringVar(&demo.A8sServiceInstance.LimitsMemory, "limits-memory", "100Mi", "Resources -> limits -> memory  of the service instance's statefulset.")
+	cmdPG.PersistentFlags().StringVar(&demo.A8sPGServiceInstance.ApiVersion, "api-version", "v1beta3", "api version of the pg service instance.")
+	cmdPG.PersistentFlags().StringVar(&demo.A8sPGServiceInstance.Name, "name", "a8s-pg-instance", "name of the pg service instance.")
+	cmdPG.PersistentFlags().StringVar(&demo.A8sPGServiceInstance.Namespace, "namespace", "default", "namespace of the pg service instance.")
+	cmdPG.PersistentFlags().IntVar(&demo.A8sPGServiceInstance.Replicas, "replicas", 1, "number of Pods (replicas) the service instance's statefulset will have.")
+	cmdPG.PersistentFlags().StringVar(&demo.A8sPGServiceInstance.VolumeSize, "volume-size", "1Gi", "Volume size of the persistent volume claim(s)d of the service instance's statefulset.")
+	cmdPG.PersistentFlags().StringVar(&demo.A8sPGServiceInstance.Version, "service-version", "14", "Postgres version. The given version must be supported by the automation.")
+	cmdPG.PersistentFlags().StringVar(&demo.A8sPGServiceInstance.RequestsCPU, "requests-cpu", "100m", "Resources -> requests -> cpu of the service instance's statefulset.")
+	cmdPG.PersistentFlags().StringVar(&demo.A8sPGServiceInstance.LimitsMemory, "limits-memory", "100Mi", "Resources -> limits -> memory  of the service instance's statefulset.")
 	cmdPG.PersistentFlags().BoolVar(&demo.DoNotApply, "no-apply", false, "If this flag is set, the service instance YAML spec is not applied (kubectl apply -f).")
 
 	// cmdPG.PersistentFlags().StringVarP(&demo.OutputFormat, "output", "o", "", "Output format. Options: \"yaml\".")

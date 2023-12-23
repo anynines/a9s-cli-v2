@@ -29,7 +29,8 @@ var BackupInfrastructureProvider string // e.g. AWS
 var BackupInfrastructureRegion string   // e.g. us-east-1
 var BackupInfrastructureBucket string   // e.g. a8s-backups
 
-var A8sServiceInstance pg.ServiceInstance
+var A8sPGServiceInstance pg.ServiceInstance
+var DeleteA8sPGInstanceName string
 
 var DeploymentVersion string // e.g. v0.3.0
 var NoPreCheck bool          // e.g. false -> Perform prechecks
@@ -153,12 +154,12 @@ func CreatePGServiceInstance() {
 	}
 
 	// TODO Find a more elegant way/place for setting the Kind attribute
-	A8sServiceInstance.Kind = "Postgresql"
-	instanceYAML := pg.ServiceInstanceToYAML(A8sServiceInstance)
+	A8sPGServiceInstance.Kind = "Postgresql"
+	instanceYAML := pg.ServiceInstanceToYAML(A8sPGServiceInstance)
 
 	manifestsPath := UserManifestsPath()
 
-	instanceManifestPath := filepath.Join(manifestsPath, A8sServiceInstance.Name+"-instance.yaml")
+	instanceManifestPath := filepath.Join(manifestsPath, A8sPGServiceInstance.Name+"-instance.yaml")
 
 	err := os.WriteFile(instanceManifestPath, []byte(instanceYAML), 0600)
 
@@ -192,21 +193,21 @@ func DeletePGServiceInstance() {
 
 	makeup.Print("Using default values for deleting the instance.")
 
-	// Stage 1: apply static manifest
-	// TODO stage 2: create struct, generate manifest based on parameters
+	// // Stage 1: apply static manifest
+	// // TODO stage 2: create struct, generate manifest based on parameters
 
-	exampleManifestPath := filepath.Join(A8sDeploymentExamplesPath(), "postgresql-instance.yaml")
+	// exampleManifestPath := filepath.Join(A8sDeploymentExamplesPath(), "postgresql-instance.yaml")
 
-	makeup.PrintInfo("The YAML manifest of the service instance is located at: " + exampleManifestPath)
+	// makeup.PrintInfo("The YAML manifest of the service instance is located at: " + exampleManifestPath)
 
-	makeup.Print("The YAML manifest contains: ")
-	err := makeup.PrintYAMLFile(exampleManifestPath)
+	// makeup.Print("The YAML manifest contains: ")
+	// err := makeup.PrintYAMLFile(exampleManifestPath)
 
-	if err != nil {
-		makeup.ExitDueToFatalError(err, "Can't read service instance manifest from "+exampleManifestPath)
-	}
+	// if err != nil {
+	// 	makeup.ExitDueToFatalError(err, "Can't read service instance manifest from "+exampleManifestPath)
+	// }
 
-	KubectlDeleteF(exampleManifestPath)
+	KubectlAct("delete", "postgresqls", DeleteA8sPGInstanceName)
 }
 
 func PrintDemoSummary() {

@@ -98,26 +98,14 @@ func CountPodsInDemoNamespace() int {
 	return countPodsInNamespace(DemoConfig.DemoSpace)
 }
 
-func KubectlApplyF(yamlFilepath string) {
-
-	KubectlActOnFile("apply", "-f", yamlFilepath)
-}
-
-func KubectlDeleteF(yamlFilepath string) {
-	KubectlActOnFile("delete", "-f", yamlFilepath)
-}
-
-func KubectlApplyKustomize(kustomizeFilepath string) {
-	KubectlActOnFile("apply", "--kustomize", kustomizeFilepath)
-}
-
 /*
 Examples:
+delete postgresql {name}
 apply -f {path}
 delete -f {path}
 apply --kustomize {path}
 */
-func KubectlActOnFile(verb, flag, filepath string) {
+func KubectlAct(verb, flag, filepath string) {
 	cmd := exec.Command("kubectl", verb, flag, filepath)
 
 	makeup.PrintCommandBox(cmd.String())
@@ -130,6 +118,19 @@ func KubectlActOnFile(verb, flag, filepath string) {
 	if err != nil {
 		makeup.ExitDueToFatalError(err, "Can't kubectl "+verb+" with using the command: "+cmd.String())
 	}
+}
+
+func KubectlApplyF(yamlFilepath string) {
+
+	KubectlAct("apply", "-f", yamlFilepath)
+}
+
+func KubectlDeleteF(yamlFilepath string) {
+	KubectlAct("delete", "-f", yamlFilepath)
+}
+
+func KubectlApplyKustomize(kustomizeFilepath string) {
+	KubectlAct("apply", "--kustomize", kustomizeFilepath)
 }
 
 // https://github.com/kubernetes/client-go/blob/master/examples/in-cluster-client-configuration/main.go
