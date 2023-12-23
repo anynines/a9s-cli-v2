@@ -79,7 +79,48 @@ It is possible to skip all yes-no questions by **enabling the unattended mode** 
 
 ## Creating a Service Instance
 
-    a9s create pg instance
+Creating a service instance with the name `sample-pg-cluster`:
+
+    a9s create pg instance --name sample-pg-cluster
+
+The generated YAML specification will be stored in the `usermanifests`.
+
+### Creating Service Instance YAML Without Applying it
+
+    a9s create pg instance --name sample-pg-cluster --no-apply
+
+The generated YAML specification will be stored in the `usermanifests` but `kubectl apply` won't be executed.
+
+### Creaging a Custom Service Instance
+
+The command:
+
+    a9s create pg instance --api-version v1beta3 --name my-pg --namespace default --replicas 3 --req
+uests-cpu 200m --limits-memory 200m --service-version 14 --volume-size 2Gi
+
+Will generate a YAML spec called `usermanifests/my-pg-instance.yaml` with the following content:
+
+```yaml
+apiVersion: postgresql.anynines.com/v1beta3
+kind: Postgresql
+metadata:
+  name: my-pg
+spec:
+  replicas: 3
+  resources:
+    limits:
+      memory: 200m
+    requests:
+      cpu: 200m
+  version: 14
+  volumeSize: 2Gi
+``````
+
+## Deleting a Service Instance
+
+Deleting a service instance with the name `sample-pg-cluster`:
+
+    a9s delete pg instance --name sample-pg-cluster
 
 ## Cleaning Up
 
