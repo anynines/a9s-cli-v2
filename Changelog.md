@@ -1,6 +1,7 @@
 # Development
 
 * BUGFIX: When creating service instance YAML manifests, the namespace of the service instance is now set, correctly.
+* BUGFIX: Params for creating pg instances do now belong to the `a9s create pg instance` command instead of `a9s create pg`.
 
 # v0.8.0
 

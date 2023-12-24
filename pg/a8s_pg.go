@@ -25,6 +25,13 @@ type ServiceInstance struct {
 	LimitsMemory string
 }
 
+type Backup struct {
+	ApiVersion          string
+	Name                string
+	Namespace           string
+	ServiceInstanceName string
+}
+
 func ServiceInstanceToYAML(instance ServiceInstance) string {
 	instanceMap := make(map[string]interface{})
 	instanceMap["apiVersion"] = A8sPGServiceInstanceAPIGroup + "/" + instance.ApiVersion
@@ -66,15 +73,15 @@ Creates a backup YAML manifest for the given service instance name.
 
 Returns a string.
 */
-func BackupToYAML(namespace, apiVersion, backupName, serviceInstanceName string) string {
+func BackupToYAML(backup Backup) string {
 	backupMap := make(map[string]interface{})
-	backupMap["apiVersion"] = A8sPGBackupAPIGroup + "/" + apiVersion
+	backupMap["apiVersion"] = A8sPGBackupAPIGroup + "/" + backup.ApiVersion
 	backupMap["kind"] = A8sPGBackupKind
 
 	metadata := make(map[string]interface{})
 	backupMap["metadata"] = metadata
-	metadata["name"] = backupName
-	metadata["namespace"] = namespace
+	metadata["name"] = backup.Name
+	metadata["namespace"] = backup.Namespace
 
 	spec := make(map[string]interface{})
 	backupMap["spec"] = spec
@@ -84,12 +91,12 @@ func BackupToYAML(namespace, apiVersion, backupName, serviceInstanceName string)
 
 	serviceInstanceMap["apiGroup"] = A8sPGServiceInstanceAPIGroup
 	serviceInstanceMap["kind"] = A8sPGServiceInstanceKind
-	serviceInstanceMap["name"] = serviceInstanceName
+	serviceInstanceMap["name"] = backup.ServiceInstanceName
 
 	yamlBytes, err := yaml.Marshal(backupMap)
 
 	if err != nil {
-		makeup.ExitDueToFatalError(err, fmt.Sprintf("Can't generate YAML for a8s Postgres backup with name: %s for service instance: %s", backupName, serviceInstanceName))
+		makeup.ExitDueToFatalError(err, fmt.Sprintf("Can't generate YAML for a8s Postgres backup with name: %s for service instance: %s", backup.Name, backup.ServiceInstanceName))
 	}
 
 	return string(yamlBytes)

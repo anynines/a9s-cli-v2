@@ -32,6 +32,8 @@ var BackupInfrastructureBucket string   // e.g. a8s-backups
 var A8sPGServiceInstance pg.ServiceInstance
 var DeleteA8sPGInstanceName string
 
+var A8sPGBackup pg.Backup
+
 var DeploymentVersion string // e.g. v0.3.0
 var NoPreCheck bool          // e.g. false -> Perform prechecks
 var DoNotApply bool          // e.g. yes --> do not execute kubectl apply -f ...
@@ -208,6 +210,18 @@ func DeletePGServiceInstance() {
 	// }
 
 	KubectlAct("delete", "postgresqls", DeleteA8sPGInstanceName)
+}
+
+func CreatePGServiceInstanceBackup() {
+	makeup.PrintH1("Creating an a8s Postgres Service Instance Backup...")
+
+	yaml := pg.BackupToYAML(A8sPGBackup)
+
+	//TODO Write YAML to file
+	// execute YAML optionally
+	// in command > implement waiting for backup to be finished
+
+
 }
 
 func PrintDemoSummary() {
