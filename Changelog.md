@@ -1,5 +1,9 @@
 # Development
 
+* BUGFIX: When creating service instance YAML manifests, the namespace of the service instance is now set, correctly.
+
+# v0.8.0
+
 * The `a8s-deployment` repository is now cloned to {workdir}/a8s-deployment and is not at the {workdir} root anymore.
     * This allows cloning additional repositories as the same level.
 * Now also the `a8s-demo` repository with its demo application manifests is cloned into {workdir}.
