@@ -159,27 +159,51 @@ func CreatePGServiceInstance() {
 	A8sPGServiceInstance.Kind = "Postgresql"
 	instanceYAML := pg.ServiceInstanceToYAML(A8sPGServiceInstance)
 
-	manifestsPath := UserManifestsPath()
+	instanceManifestPath := getServiceInstanceManifestPath(A8sPGServiceInstance.Name)
 
-	instanceManifestPath := filepath.Join(manifestsPath, A8sPGServiceInstance.Name+"-instance.yaml")
-
-	err := os.WriteFile(instanceManifestPath, []byte(instanceYAML), 0600)
-
-	if err != nil {
-		makeup.ExitDueToFatalError(err, "Couldn't save YAML file at: "+instanceManifestPath)
-	}
-
-	makeup.PrintInfo("The YAML manifest of the service instance is located at: " + instanceManifestPath)
-
-	makeup.Print("The YAML manifest contains: ")
-	err = makeup.PrintYAMLFile(instanceManifestPath)
-
-	if err != nil {
-		makeup.ExitDueToFatalError(err, "Can't read service instance manifest from "+instanceManifestPath)
-	}
+	writeYAMLToFile(instanceYAML, instanceManifestPath)
 
 	if !DoNotApply {
 		KubectlApplyF(instanceManifestPath)
+	}
+}
+
+/*
+Returns the filepath to the service instance manifest.
+*/
+func getServiceInstanceManifestPath(serviceInstanceName string) string {
+	return getUserManifestPath("a8s-pg-instance-" + serviceInstanceName + ".yaml")
+}
+
+/*
+Returns a filepath located in the user manifests path.
+*/
+func getUserManifestPath(filename string) string {
+	manifestsPath := UserManifestsPath()
+
+	manifestPath := filepath.Join(manifestsPath, filename)
+
+	return manifestPath
+}
+
+/*
+Writes the provided YAML string to a YAML file at the given path.
+*/
+func writeYAMLToFile(instanceYAML string, manifestPath string) {
+
+	err := os.WriteFile(manifestPath, []byte(instanceYAML), 0600)
+
+	if err != nil {
+		makeup.ExitDueToFatalError(err, "Couldn't save YAML file at: "+manifestPath)
+	}
+
+	makeup.PrintInfo("The YAML manifest is located at: " + manifestPath)
+
+	makeup.Print("The YAML manifest contains: ")
+	err = makeup.PrintYAMLFile(manifestPath)
+
+	if err != nil {
+		makeup.ExitDueToFatalError(err, "Can't read manifest from "+manifestPath)
 	}
 }
 
@@ -195,21 +219,13 @@ func DeletePGServiceInstance() {
 
 	makeup.Print("Using default values for deleting the instance.")
 
-	// // Stage 1: apply static manifest
-	// // TODO stage 2: create struct, generate manifest based on parameters
-
-	// exampleManifestPath := filepath.Join(A8sDeploymentExamplesPath(), "postgresql-instance.yaml")
-
-	// makeup.PrintInfo("The YAML manifest of the service instance is located at: " + exampleManifestPath)
-
-	// makeup.Print("The YAML manifest contains: ")
-	// err := makeup.PrintYAMLFile(exampleManifestPath)
-
-	// if err != nil {
-	// 	makeup.ExitDueToFatalError(err, "Can't read service instance manifest from "+exampleManifestPath)
-	// }
-
+	// TODO Make "postgresqls" a constant
 	KubectlAct("delete", "postgresqls", DeleteA8sPGInstanceName)
+}
+
+func getBackupManifestPath(backupName string) string {
+	makeup.Print("Generating manifest for backup: " + backupName + " ...")
+	return getUserManifestPath("a8s-pg-backup-" + backupName + ".yaml")
 }
 
 func CreatePGServiceInstanceBackup() {
@@ -217,11 +233,11 @@ func CreatePGServiceInstanceBackup() {
 
 	yaml := pg.BackupToYAML(A8sPGBackup)
 
-	//TODO Write YAML to file
-	// execute YAML optionally
-	// in command > implement waiting for backup to be finished
+	writeYAMLToFile(yaml, getBackupManifestPath(A8sPGBackup.Name))
 
-
+	if !DoNotApply {
+		KubectlApplyF(getBackupManifestPath(A8sPGBackup.Name))
+	}
 }
 
 func PrintDemoSummary() {

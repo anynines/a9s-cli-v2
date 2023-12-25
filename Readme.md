@@ -122,6 +122,10 @@ Deleting a service instance with the name `sample-pg-cluster`:
 
     a9s delete pg instance --name sample-pg-cluster
 
+## Creating a Backup of a Service Instance
+
+    a9s create pg backup --name sample-pg-cluster-backup-1 -i sample-pg-cluster-1
+
 ## Cleaning Up
 
 In order to delete the Demo cluster run:
@@ -142,6 +146,9 @@ They can be removed with:
     * The release of a new a8s Postgres version, for example, should be working with an existing CLI version.
 
 # Backlog
+
+* BUGFIX: executing a9s from an arbitrary file should writeYAML files to the working directory not relative to the exeuction folder of the a9s binary.
+* BUGIX: The filename of a backup manifest should be correct but is: usermanifests/a8s-pg-backup-a8s-pg-backup.yaml
 
 * Create commnand `a9s create pg backup --name $INSTANCE_NAME`
     * DONE: BackupToYAML implemented
