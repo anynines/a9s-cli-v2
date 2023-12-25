@@ -129,7 +129,7 @@ func init() {
 
 	cmdPGBackup.PersistentFlags().StringVar(&demo.A8sPGBackup.ApiVersion, "api-version", "v1beta3", "api version of the pg backup.")
 	cmdPGBackup.PersistentFlags().StringVar(&demo.A8sPGBackup.Name, "name", "a8s-pg-backup", "name of the pg backup. Not the name of the service instance.")
-	cmdPGBackup.PersistentFlags().StringVarP(&demo.A8sPGBackup.ServiceInstanceName, "service-instance", "si", "a8s-pg-instance", "name of the pg service instance to be backed up.")
+	cmdPGBackup.PersistentFlags().StringVarP(&demo.A8sPGBackup.ServiceInstanceName, "service-instance", "i", "a8s-pg-instance", "name of the pg service instance to be backed up.")
 	cmdPGBackup.PersistentFlags().StringVar(&demo.A8sPGBackup.Namespace, "namespace", "default", "namespace of the pg service instance.")
 	cmdPG.AddCommand(cmdPGBackup)
 
