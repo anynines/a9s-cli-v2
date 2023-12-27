@@ -164,6 +164,8 @@ They can be removed with:
     * Remove everything (incl. config files)
         * e.g. `a9s demo delete --all`
 
+* When executing a9s create demo a8s for the first time, the infrastructure-region should be queried as a user input instead of being a default-parameter. The probability is too high that the user choses a non-viable default option instead of providing a valid region.
+
 * Question: Should the demo a8s-pg execute the entire demo or just install the operator? Other commands could be: 
     * a8s-pg 
         * `create`
