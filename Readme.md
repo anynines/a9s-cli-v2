@@ -147,12 +147,20 @@ They can be removed with:
 
 # Backlog
 
-
-* Create commnand `a9s create pg backup --name $INSTANCE_NAME`
+* Next release: backup/restore
+* Feature: Backup
+    * Create commnand `a9s create pg backup --name $INSTANCE_NAME`
     * DONE: BackupToYAML implemented
     * DONE: Add command, generate yaml file and optionally execute it
     * Wait for the backup to complete
+* Feature: Restore
+    * Create command `a9s create pg restore ...`
+    * This completes the backup / restore cycle.
 
+* For completeness: Create command `a9s delete pg backup ...`
+* For completeness: Create command `a9s delete pg restore ...`
+
+* Chore: Write a testSuite to run end-to-end tests on a local machine using the `a9s`-cli applying all major usecases for both the kind and minikube providers.
 
 * Sub command to delete all demo resources.
     * Remove everything (incl. config files)
