@@ -161,7 +161,7 @@ func CreatePGServiceInstance() {
 
 	instanceManifestPath := getServiceInstanceManifestPath(A8sPGServiceInstance.Name)
 
-	writeYAMLToFile(instanceYAML, instanceManifestPath)
+	WriteYAMLToFile(instanceYAML, instanceManifestPath)
 
 	if !DoNotApply {
 		KubectlApplyF(instanceManifestPath)
@@ -184,27 +184,6 @@ func getUserManifestPath(filename string) string {
 	manifestPath := filepath.Join(manifestsPath, filename)
 
 	return manifestPath
-}
-
-/*
-Writes the provided YAML string to a YAML file at the given path.
-*/
-func writeYAMLToFile(instanceYAML string, manifestPath string) {
-
-	err := os.WriteFile(manifestPath, []byte(instanceYAML), 0600)
-
-	if err != nil {
-		makeup.ExitDueToFatalError(err, "Couldn't save YAML file at: "+manifestPath)
-	}
-
-	makeup.PrintInfo("The YAML manifest is located at: " + manifestPath)
-
-	makeup.Print("The YAML manifest contains: ")
-	err = makeup.PrintYAMLFile(manifestPath)
-
-	if err != nil {
-		makeup.ExitDueToFatalError(err, "Can't read manifest from "+manifestPath)
-	}
 }
 
 // Refactor to DRY with Create ... > CRUDPGServiceInstance
@@ -233,7 +212,7 @@ func CreatePGServiceInstanceBackup() {
 
 	yaml := pg.BackupToYAML(A8sPGBackup)
 
-	writeYAMLToFile(yaml, getBackupManifestPath(A8sPGBackup.Name))
+	WriteYAMLToFile(yaml, getBackupManifestPath(A8sPGBackup.Name))
 
 	if !DoNotApply {
 		KubectlApplyF(getBackupManifestPath(A8sPGBackup.Name))

@@ -344,3 +344,24 @@ func EstablishBackupStoreCredentials() {
 
 	//TODO deploy/a8s/backup-config/backup-store-config.yaml.template
 }
+
+/*
+Writes the provided YAML string to a YAML file at the given path.
+*/
+func WriteYAMLToFile(instanceYAML string, manifestPath string) {
+
+	err := os.WriteFile(manifestPath, []byte(instanceYAML), 0600)
+
+	if err != nil {
+		makeup.ExitDueToFatalError(err, "Couldn't save YAML file at: "+manifestPath)
+	}
+
+	makeup.PrintInfo("The YAML manifest is located at: " + manifestPath)
+
+	makeup.Print("The YAML manifest contains: ")
+	err = makeup.PrintYAMLFile(manifestPath)
+
+	if err != nil {
+		makeup.ExitDueToFatalError(err, "Can't read manifest from "+manifestPath)
+	}
+}
