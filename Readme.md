@@ -150,7 +150,7 @@ They can be removed with:
 
 * Create commnand `a9s create pg backup --name $INSTANCE_NAME`
     * DONE: BackupToYAML implemented
-    * Add command, generate yaml file and optionally execute it
+    * DONE: Add command, generate yaml file and optionally execute it
 
 * Extend `a9s create pg instance` to generate a YAML manifest given the params `--name`, `--replicas`, `--volume-size`, `--version`, `--requests-cpu` and `--limits-memory`
     * Establish parameters
