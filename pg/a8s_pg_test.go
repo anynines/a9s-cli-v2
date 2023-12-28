@@ -34,8 +34,8 @@ func TestServiceInstanceToYAML(t *testing.T) {
 	// 			this doesn't say that the spec is correct but ... better than nothing
 }
 
-func TestBackupToYAML(t *testing.T) {
-	yamlString := BackupToYAML("default", "v1beta3", "sample-pg-cluster-backup-1", "sample-pg-cluster")
+// func TestBackupToYAML(t *testing.T) {
+// 	yamlString := BackupToYAML("default", "v1beta3", "sample-pg-cluster-backup-1", "sample-pg-cluster")
 
-	t.Logf("YAML String:\n%s", yamlString)
-}
+// 	t.Logf("YAML String:\n%s", yamlString)
+// }

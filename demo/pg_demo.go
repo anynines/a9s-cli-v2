@@ -149,11 +149,7 @@ func WaitForServiceInstanceToBecomeReady(namespace, serviceInstanceName string, 
 func CreatePGServiceInstance() {
 	makeup.PrintH1("Creating a a8s Postgres Service Instance...")
 
-	EstablishConfigFilePath()
-
-	if !LoadConfig() {
-		makeup.ExitDueToFatalError(nil, "There is no config, yet. Please create a demo environment before attempting to create a service instance.")
-	}
+	EnsureConfigIsLoaded()
 
 	// TODO Find a more elegant way/place for setting the Kind attribute
 	A8sPGServiceInstance.Kind = "Postgresql"
@@ -172,29 +168,14 @@ func CreatePGServiceInstance() {
 Returns the filepath to the service instance manifest.
 */
 func getServiceInstanceManifestPath(serviceInstanceName string) string {
-	return getUserManifestPath("a8s-pg-instance-" + serviceInstanceName + ".yaml")
-}
-
-/*
-Returns a filepath located in the user manifests path.
-*/
-func getUserManifestPath(filename string) string {
-	manifestsPath := UserManifestsPath()
-
-	manifestPath := filepath.Join(manifestsPath, filename)
-
-	return manifestPath
+	return GetUserManifestPath("a8s-pg-instance-" + serviceInstanceName + ".yaml")
 }
 
 // Refactor to DRY with Create ... > CRUDPGServiceInstance
 func DeletePGServiceInstance() {
 	makeup.PrintH1("Deleting a a8s Postgres Service Instance...")
 
-	EstablishConfigFilePath()
-
-	if !LoadConfig() {
-		makeup.ExitDueToFatalError(nil, "There is no config, yet. Please create a demo environment before attempting to create a service instance.")
-	}
+	EnsureConfigIsLoaded()
 
 	makeup.Print("Using default values for deleting the instance.")
 
@@ -204,10 +185,12 @@ func DeletePGServiceInstance() {
 
 func getBackupManifestPath(backupName string) string {
 	makeup.Print("Generating manifest for backup: " + backupName + " ...")
-	return getUserManifestPath("a8s-pg-backup-" + backupName + ".yaml")
+	return GetUserManifestPath("a8s-pg-backup-" + backupName + ".yaml")
 }
 
 func CreatePGServiceInstanceBackup() {
+	EnsureConfigIsLoaded()
+
 	makeup.PrintH1("Creating an a8s Postgres Service Instance Backup...")
 
 	yaml := pg.BackupToYAML(A8sPGBackup)

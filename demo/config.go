@@ -63,6 +63,17 @@ func EstablishWorkingDir() {
 	saveConfig()
 }
 
+/*
+Execute this at the beginning of every command that requires a config to be present.
+*/
+func EnsureConfigIsLoaded() {
+	EstablishConfigFilePath()
+
+	if !LoadConfig() {
+		makeup.ExitDueToFatalError(nil, "There is no config, yet. Please create a demo environment before attempting to create a service instance.")
+	}
+}
+
 func EstablishConfig() {
 	EstablishConfigFilePath()
 
@@ -213,7 +224,6 @@ func A8sDeploymentExamplesPath() string {
 }
 
 func UserManifestsPath() string {
-
 	fp := filepath.Join(DemoConfig.WorkingDir, "usermanifests")
 
 	err := os.MkdirAll(fp, os.ModePerm)
@@ -317,6 +327,7 @@ func establishBackupStoreConfigYaml() {
 			},
 		}
 
+		//TODO Refactor using WriteYAMLToFile
 		yamlData, err := yaml.Marshal(&blobStoreConfig)
 
 		if err != nil {
@@ -364,4 +375,15 @@ func WriteYAMLToFile(instanceYAML string, manifestPath string) {
 	if err != nil {
 		makeup.ExitDueToFatalError(err, "Can't read manifest from "+manifestPath)
 	}
+}
+
+/*
+Returns a filepath located in the user manifests path.
+*/
+func GetUserManifestPath(filename string) string {
+	manifestsPath := UserManifestsPath()
+
+	manifestPath := filepath.Join(manifestsPath, filename)
+
+	return manifestPath
 }
