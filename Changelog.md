@@ -3,7 +3,10 @@
 * BUGFIX: When creating service instance YAML manifests, the namespace of the service instance is now set, correctly.
 * BUGFIX: Params for creating pg instances do now belong to the `a9s create pg instance` command instead of `a9s create pg`.
 * BUGFIX: The `backup-provider` param in `a9s create demo a8s` is now correctly set instead of being falsely assigned to the `backup-bucket` parameter.
-* Makes `eu-central-1` the default infrastructure region.
+* BUGFIX: executing a9s from an arbitrary file should writeYAML files to the working directory not relative to the exeuction folder of the a9s binary.
+* BUGIX: The filename of a backup manifest should be correct but is: usermanifests/a8s-pg-backup-a8s-pg-backup.yaml
+* Default change: Makes `eu-central-1` the default infrastructure region.
+
 
 # v0.8.0
 

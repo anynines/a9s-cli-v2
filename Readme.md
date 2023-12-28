@@ -147,10 +147,6 @@ They can be removed with:
 
 # Backlog
 
-* BUGFIX: executing a9s from an arbitrary file should writeYAML files to the working directory not relative to the exeuction folder of the a9s binary.
-    * Cause: The command doesnt load the config > config.WorkDir is empty > relative path is generated
-    * Solution: It must be ensured that every command loads the config.
-* BUGIX: The filename of a backup manifest should be correct but is: usermanifests/a8s-pg-backup-a8s-pg-backup.yaml
 
 * Create commnand `a9s create pg backup --name $INSTANCE_NAME`
     * DONE: BackupToYAML implemented
