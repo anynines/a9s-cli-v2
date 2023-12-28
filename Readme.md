@@ -151,12 +151,8 @@ They can be removed with:
 * Create commnand `a9s create pg backup --name $INSTANCE_NAME`
     * DONE: BackupToYAML implemented
     * DONE: Add command, generate yaml file and optionally execute it
+    * Wait for the backup to complete
 
-* Extend `a9s create pg instance` to generate a YAML manifest given the params `--name`, `--replicas`, `--volume-size`, `--version`, `--requests-cpu` and `--limits-memory`
-    * Establish parameters
-    * Create struct
-    * Generate yaml - Filename = `"a8s-pg-instance-" + instance_name + ".yaml"
-    * Add `-o yaml` flag to generate yaml output, print yaml to screen but do not execute the command, 
 
 * Sub command to delete all demo resources.
     * Remove everything (incl. config files)
