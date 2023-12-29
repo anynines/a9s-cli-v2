@@ -245,11 +245,16 @@ func WaitForKubernetesResource(namespace string, gvr schema.GroupVersionResource
 
 	for event := range watchInterface.ResultChan() {
 		switch event.Type {
+		case watch.Error:
+			makeup.PrintFail(fmt.Sprintf("It was all for nothing! %v", event))
+			os.Exit(1)
 		case watch.Added, watch.Modified:
 			backup, ok := event.Object.(*m1u.Unstructured)
 			if !ok {
 				makeup.ExitDueToFatalError(nil, "Could not cast to Unstructured")
 			}
+
+			// pretty.Print(backup)
 
 			// Check the status.conditions for the desired status.
 			status, exists, err := m1u.NestedFieldCopy(backup.Object, "status", "conditions")
@@ -261,8 +266,6 @@ func WaitForKubernetesResource(namespace string, gvr schema.GroupVersionResource
 			conditions, ok := status.([]interface{})
 			if !ok {
 				makeup.PrintWait(".")
-				//makeup.PrintWarning("conditions in WaitForKubernetesResources should be an array")
-				// return errors.New("conditions in WaitForKubernetesResources should be an array")
 				continue
 			}
 
@@ -275,15 +278,34 @@ func WaitForKubernetesResource(namespace string, gvr schema.GroupVersionResource
 					continue
 				}
 
+				// fmt.Printf("%v\n", condMap)
+
 				//TODO Check for conditions in desiredConditionsMap
-				if condMap["reason"] == "Complete" && condMap["status"] == "True" {
+				if ConditionsAreMet(condMap, desiredConditionsMap) {
 					makeup.PrintCheckmark("Backup complete: " + backup.GetName())
 					return nil
+					//
 				} else {
 					makeup.PrintWait("Desired conditions are not met, yet...")
 				}
 			}
+
+			continue
 		}
 	}
 	return errors.New("expected conditions have not been met")
+}
+
+/*
+Verifies whether the key-value pairs of expectedConditionsMap are contained in
+actualConditionsMap.
+*/
+func ConditionsAreMet(actualConditionsMap, expectedConditionsMap map[string]interface{}) bool {
+	for key, expectedValue := range expectedConditionsMap {
+		actualValue, exists := actualConditionsMap[key]
+		if !exists || actualValue != expectedValue {
+			return false
+		}
+	}
+	return true
 }
