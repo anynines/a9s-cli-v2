@@ -196,6 +196,9 @@ func (c KindCreator) Delete(name string, unattendedMode bool) {
 	}
 }
 
-func (c KindCreator) GetContext(name string) string {
-	return "kind-" + name
+/*
+Returns the context name for the given Kind cluster.
+*/
+func (c KindCreator) GetContext(kindClusterName string) string {
+	return "kind-" + kindClusterName
 }

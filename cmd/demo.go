@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/anynines/a9s-cli-v2/demo"
+	"github.com/anynines/a9s-cli-v2/k8s"
 	"github.com/anynines/a9s-cli-v2/makeup"
 	"github.com/spf13/cobra"
 )
@@ -76,7 +77,7 @@ func CreateA8sDemoEnvironment() {
 
 	demo.EstablishBackupStoreCredentials()
 
-	demo.ApplyCertManagerManifests()
+	k8s.ApplyCertManagerManifests(demo.UnattendedMode)
 
 	demo.ApplyA8sManifests()
 

@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/anynines/a9s-cli-v2/k8s"
 	"github.com/anynines/a9s-cli-v2/makeup"
 	"gopkg.in/yaml.v2"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 const A8sPGServiceInstanceAPIGroup = "postgresql.anynines.com"
@@ -102,3 +104,19 @@ func BackupToYAML(backup Backup) string {
 	return string(yamlBytes)
 }
 
+func WaitForPGBackupToBecomeReady(backup Backup) {
+
+	//TODO Get API Group and API Version from a constant or the backup object
+	// e.g. by making them separate fields in the BackupObject and make APIVersion an function
+	gvr := schema.GroupVersionResource{Group: "backups.anynines.com", Version: "v1beta3", Resource: "backups"}
+
+	desiredConditionsMap := make(map[string]interface{})
+	desiredConditionsMap["reason"] = "Complete"
+	desiredConditionsMap["status"] = "True"
+
+	err := k8s.WaitForKubernetesResource(backup.Namespace, gvr, desiredConditionsMap)
+
+	if err != nil {
+		makeup.PrintFail(fmt.Sprintf("The backup has not been completed. Does the service instance %s exist?", backup.ServiceInstanceName))
+	}
+}

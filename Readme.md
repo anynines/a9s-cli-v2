@@ -147,6 +147,11 @@ They can be removed with:
 
 # Backlog
 
+* CONTINUE: Resolve cycling import by moving kubernetes functions to a separate package
+    * This in turn created much more trouble than expected.
+
+* CHORE: Check if makeup.WaitForUser(demo.UnattendedMode) is used consistently for all new commands instance & backup
+
 * Next release: backup/restore
 * Feature: Backup
     * Create commnand `a9s create pg backup --name $INSTANCE_NAME`

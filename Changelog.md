@@ -7,7 +7,7 @@
 * BUGFIX: executing a9s from an arbitrary file should writeYAML files to the working directory not relative to the exeuction folder of the a9s binary.
 * BUGIX: The filename of a backup manifest should be correct but is: usermanifests/a8s-pg-backup-a8s-pg-backup.yaml
 * Default change: Makes `eu-central-1` the default infrastructure region.
-
+* Removes Docker as a necessary prerequisite as not all Kubernetes providers mandatorily need Docker
 
 # v0.8.0
 
