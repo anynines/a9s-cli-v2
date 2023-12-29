@@ -1,4 +1,16 @@
 # Development
+* Feature: `a9s create pg backup` to generate a backup YAML manifest, execute the backup and wait for it to complete.
+* Feature: `a9s create pg instance` to generate a YAML manifest given the params: `--namespace`, `--api-version`, `--name`, `--replicas`, `--volume-size`, `--service-version`, `--requests-cpu` and `--limits-memory`
+* Feature: Add `--no-apply` flag allow the generation of YAML manifests without applying them.
+* BUGFIX: When creating service instance YAML manifests, the namespace of the service instance is now set, correctly.
+* BUGFIX: Params for creating pg instances do now belong to the `a9s create pg instance` command instead of `a9s create pg`.
+* BUGFIX: The `backup-provider` param in `a9s create demo a8s` is now correctly set instead of being falsely assigned to the `backup-bucket` parameter.
+* BUGFIX: executing a9s from an arbitrary file should writeYAML files to the working directory not relative to the exeuction folder of the a9s binary.
+* BUGIX: The filename of a backup manifest should be correct but is: usermanifests/a8s-pg-backup-a8s-pg-backup.yaml
+* Default change: Makes `eu-central-1` the default infrastructure region.
+* Removes Docker as a necessary prerequisite as not all Kubernetes providers mandatorily need Docker
+
+# v0.8.0
 
 * The `a8s-deployment` repository is now cloned to {workdir}/a8s-deployment and is not at the {workdir} root anymore.
     * This allows cloning additional repositories as the same level.

@@ -4,9 +4,16 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/anynines/a9s-cli-v2/k8s"
 	"github.com/anynines/a9s-cli-v2/makeup"
 	"gopkg.in/yaml.v2"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
+
+const A8sPGServiceInstanceAPIGroup = "postgresql.anynines.com"
+const A8sPGBackupAPIGroup = "backups.anynines.com"
+const A8sPGBackupKind = "Backup"
+const A8sPGServiceInstanceKind = "PostgreSQL"
 
 type ServiceInstance struct {
 	Kind         string
@@ -20,14 +27,22 @@ type ServiceInstance struct {
 	LimitsMemory string
 }
 
+type Backup struct {
+	ApiVersion          string
+	Name                string
+	Namespace           string
+	ServiceInstanceName string
+}
+
 func ServiceInstanceToYAML(instance ServiceInstance) string {
 	instanceMap := make(map[string]interface{})
-	instanceMap["apiVersion"] = "postgresql.anynines.com/" + instance.ApiVersion
+	instanceMap["apiVersion"] = A8sPGServiceInstanceAPIGroup + "/" + instance.ApiVersion
 	instanceMap["kind"] = instance.Kind
 
 	metadata := make(map[string]interface{})
 	instanceMap["metadata"] = metadata
 	metadata["name"] = instance.Name
+	metadata["namespace"] = instance.Namespace
 
 	spec := make(map[string]interface{})
 	instanceMap["spec"] = spec
@@ -53,4 +68,55 @@ func ServiceInstanceToYAML(instance ServiceInstance) string {
 	}
 
 	return string(yamlBytes)
+}
+
+/*
+Creates a backup YAML manifest for the given service instance name.
+
+Returns a string.
+*/
+func BackupToYAML(backup Backup) string {
+	backupMap := make(map[string]interface{})
+	backupMap["apiVersion"] = A8sPGBackupAPIGroup + "/" + backup.ApiVersion
+	backupMap["kind"] = A8sPGBackupKind
+
+	metadata := make(map[string]interface{})
+	backupMap["metadata"] = metadata
+	metadata["name"] = backup.Name
+	metadata["namespace"] = backup.Namespace
+
+	spec := make(map[string]interface{})
+	backupMap["spec"] = spec
+
+	serviceInstanceMap := make(map[string]interface{})
+	spec["serviceInstance"] = serviceInstanceMap
+
+	serviceInstanceMap["apiGroup"] = A8sPGServiceInstanceAPIGroup
+	serviceInstanceMap["kind"] = A8sPGServiceInstanceKind
+	serviceInstanceMap["name"] = backup.ServiceInstanceName
+
+	yamlBytes, err := yaml.Marshal(backupMap)
+
+	if err != nil {
+		makeup.ExitDueToFatalError(err, fmt.Sprintf("Can't generate YAML for a8s Postgres backup with name: %s for service instance: %s", backup.Name, backup.ServiceInstanceName))
+	}
+
+	return string(yamlBytes)
+}
+
+func WaitForPGBackupToBecomeReady(backup Backup) {
+
+	//TODO Get API Group and API Version from a constant or the backup object
+	// e.g. by making them separate fields in the BackupObject and make APIVersion an function
+	gvr := schema.GroupVersionResource{Group: "backups.anynines.com", Version: "v1beta3", Resource: "backups"}
+
+	desiredConditionsMap := make(map[string]interface{})
+	desiredConditionsMap["reason"] = "Complete"
+	desiredConditionsMap["status"] = "True"
+
+	err := k8s.WaitForKubernetesResource(backup.Namespace, gvr, desiredConditionsMap)
+
+	if err != nil {
+		makeup.PrintFail(fmt.Sprintf("The backup has not been completed. Does the service instance %s exist?", backup.ServiceInstanceName))
+	}
 }
