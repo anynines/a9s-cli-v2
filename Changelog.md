@@ -1,4 +1,5 @@
 # Development
+* Feature: `a9s create pg backup` to generate a backup YAML manifest, execute the backup and wait for it to complete.
 * Feature: `a9s create pg instance` to generate a YAML manifest given the params: `--namespace`, `--api-version`, `--name`, `--replicas`, `--volume-size`, `--service-version`, `--requests-cpu` and `--limits-memory`
 * Feature: Add `--no-apply` flag allow the generation of YAML manifests without applying them.
 * BUGFIX: When creating service instance YAML manifests, the namespace of the service instance is now set, correctly.

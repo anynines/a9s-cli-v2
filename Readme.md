@@ -91,7 +91,7 @@ The generated YAML specification will be stored in the `usermanifests`.
 
 The generated YAML specification will be stored in the `usermanifests` but `kubectl apply` won't be executed.
 
-### Creaging a Custom Service Instance
+### Creating a Custom Service Instance
 
 The command:
 
@@ -141,64 +141,13 @@ They can be removed with:
     rm -rf $( a9s demo pwd )
 
 # Design Principles / Ideals
-
+* The CLI acts like a personal assistent who knows the a9s products and helps to use them more easily.
+    * The CLI helps with installing a demo environment
+    * The CLI helps with writing YAML manifests, e.g. so that users do not have to lookup attributes in the documentation.
 * The CLI should not need a tight synchronization with product releases.
     * The release of a new a8s Postgres version, for example, should be working with an existing CLI version.
 
-# Backlog
+# Known Issues
 
-* CONTINUE: Resolve cycling import by moving kubernetes functions to a separate package
-    * This in turn created much more trouble than expected.
-
-* CHORE: Check if makeup.WaitForUser(demo.UnattendedMode) is used consistently for all new commands instance & backup
-
-* Next release: backup/restore
-* Feature: Backup
-    * Create commnand `a9s create pg backup --name $INSTANCE_NAME`
-    * DONE: BackupToYAML implemented
-    * DONE: Add command, generate yaml file and optionally execute it
-    * Wait for the backup to complete
-* Feature: Restore
-    * Create command `a9s create pg restore ...`
-    * This completes the backup / restore cycle.
-
-* For completeness: Create command `a9s delete pg backup ...`
-* For completeness: Create command `a9s delete pg restore ...`
-
-* Chore: Write a testSuite to run end-to-end tests on a local machine using the `a9s`-cli applying all major usecases for both the kind and minikube providers.
-
-* Sub command to delete all demo resources.
-    * Remove everything (incl. config files)
-        * e.g. `a9s demo delete --all`
-
-* When executing a9s create demo a8s for the first time, the infrastructure-region should be queried as a user input instead of being a default-parameter. The probability is too high that the user choses a non-viable default option instead of providing a valid region.
-
-* Question: Should the demo a8s-pg execute the entire demo or just install the operator? Other commands could be: 
-    * a8s-pg 
-        * `create`
-            * It's more idiomatic in Kubernetes for the verb to be the first command: `kubectl get pods` vs `kubectl pod get`.
-        * `a9s pg instance`
-            * `create`
-                * `a9s pg instance create --isolation pod` > a8s PG
-                * `a9s pg create instance --isolation pod`
-                * `a9s pg instance create --isolation vm` > a9s PG
-        * `a9s pg service-binding`
-            * `a9s pg binding` 
-            * `a9s pg sb`
-        * `a9s pg backup`
-        * `a9s pg restore`
-    * a8s-pg-instance 
-    * a8s-pg-app
-    * Alternatively, the entire demo could be driven by the "assistent" asking the user questions, interactively.
-
-
-* Don't use the `default` namespace, instead create a demo namespace, e.g. `a8s-demo`.
-    * Provision a8s-pg into namespace
-
-* Create binaries in a release matrix, e.g. using Go Release Binaries with Gihub Action Matrix Strategy
-    * https://github.com/marketplace/actions/go-release-binaries
-    * https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idstrategymatrix
-
-* Create S3 bucket with configs
-    * Alternatively: Install a local storage provider, e.g. minio.
-        * Costly dependency: add the local storage provider to the backup agent.
+* Creating a backup for non-existing service instances falsely suggests that the backup has been successful.
+* Deletion of backups with `kubectl delete backup ...` get stuck and the deletion doesn't succeed.
