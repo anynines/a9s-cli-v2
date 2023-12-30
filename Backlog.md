@@ -1,5 +1,11 @@
 # Backlog
 
+* Feature: As a test suite I want to execute the a9s cli without user-prompts. A true unattended mode will allow me to pass credentials such as the backup store credentials without prompts.
+    * Backup store credentials
+    * Creating a demo cluster with a custom name
+    * Defining a separate work dir
+    * NOT interferring with the `.a8s` config file?!
+
 * BUG: Backups for non existing service instances shouldnt return success messages.
     * The event was `map[lastTransitionTime:2023-12-29T09:18:43Z message:Backup Completed reason:Complete status:True type:Complete]`
     * The bug may exist in the a8s backup manager
