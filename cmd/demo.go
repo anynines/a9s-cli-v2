@@ -87,32 +87,6 @@ func CreateA8sDemoEnvironment() {
 }
 
 func init() {
-
-	// cmdDemoA8sPG.PersistentFlags().StringVar(&demo.BackupInfrastructureRegion, "backup-region", "us-east-1", "specify the infrastructure region to store backups such as \"us-east-1\".")
-	// cmdDemoA8sPG.PersistentFlags().StringVar(&demo.BackupInfrastructureBucket, "backup-bucket", "a8s-backups", "specify the infrastructure object store bucket name.")
-	// cmdDemoA8sPG.PersistentFlags().StringVar(&demo.BackupInfrastructureBucket, "backup-provider", "AWS", "specify the infrastructure provider as supported by the a8s Backup Manager.")
-	// cmdDemoA8sPG.PersistentFlags().StringVar(&demo.DeploymentVersion, "deployment-version", "v0.3.0", "specify the version corresponding to the a8s-deployment git version tag. Use \"latest\" to get the untagged version.")
-	// cmdDemoA8sPG.PersistentFlags().StringVar(&demo.ClusterNrOfNodes, "cluster-nr-of-nodes", "3", "specify number of Kubernetes nodes.")
-	// cmdDemoA8sPG.PersistentFlags().StringVar(&demo.ClusterMemory, "cluster-memory", "4gb", "specify memory of the Kubernetes cluster.")
-	// cmdDemoA8sPG.PersistentFlags().BoolVar(&demo.NoPreCheck, "no-precheck", false, "skip the verification of prerequisites.")
-	// cmdDemo.AddCommand(cmdDemoA8sPG)
-
-	// cmdDemo.PersistentFlags().StringVarP(&demo.KubernetesTool, "provider", "p", "minikube", "provider for creating the Kubernetes cluster. Valid options are \"minikube\" an \"kind\"")
-	// cmdDemo.PersistentFlags().StringVarP(&demo.DemoClusterName, "cluster-name", "c", "a8s-demo", "name of the demo Kubernetes cluster.")
-	// cmdDemo.PersistentFlags().BoolVarP(&demo.UnattendedMode, "yes", "y", false, "skip yes-no questions by answering with \"yes\".")
 	cmdDemo.AddCommand(cmdDemoPwd)
-
-	// cmdDemo.AddCommand(cmdDemoDelete)
-
 	rootCmd.AddCommand(cmdDemo)
-
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// runDemoCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// runDemoCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
