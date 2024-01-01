@@ -10,6 +10,7 @@
 * BUGIX: The filename of a backup manifest should be correct but is: usermanifests/a8s-pg-backup-a8s-pg-backup.yaml
 * Default change: Makes `eu-central-1` the default infrastructure region.
 * Removes Docker as a necessary prerequisite as not all Kubernetes providers mandatorily need Docker
+* Testing: Created a Ruby/RSpec test suite to run the demo automatically for both `kind` and `minikube`. See: https://github.com/anynines/a9s-cli-v2-tests
 
 # v0.8.0
 
