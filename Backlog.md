@@ -1,4 +1,8 @@
 # Backlog
+* Next release: backup/restore
+    * Feature: Restore
+        * Create command `a9s create pg restore ...`
+        * This completes the backup / restore cycle.
 
 * BUG: Backups for non existing service instances shouldnt return success messages.
     * The event was `map[lastTransitionTime:2023-12-29T09:18:43Z message:Backup Completed reason:Complete status:True type:Complete]`
@@ -6,15 +10,6 @@
 
 * CHORE: Check if makeup.WaitForUser(demo.UnattendedMode) is used consistently for all new commands instance & backup
 
-* Next release: backup/restore
-* Feature: Backup
-    * Create commnand `a9s create pg backup --name $INSTANCE_NAME`
-    * DONE: BackupToYAML implemented
-    * DONE: Add command, generate yaml file and optionally execute it
-    * Wait for the backup to complete
-* Feature: Restore
-    * Create command `a9s create pg restore ...`
-    * This completes the backup / restore cycle.
 
 * For completeness: Create command `a9s delete pg backup ...`
 * For completeness: Create command `a9s delete pg restore ...`
