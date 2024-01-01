@@ -22,24 +22,38 @@
 
 * When executing a9s create demo a8s for the first time, the infrastructure-region should be queried as a user input instead of being a default-parameter. The probability is too high that the user choses a non-viable default option instead of providing a valid region.
 
-* Question: Should the demo a8s-pg execute the entire demo or just install the operator? Other commands could be: 
-    * a8s-pg 
-        * `create`
-            * It's more idiomatic in Kubernetes for the verb to be the first command: `kubectl get pods` vs `kubectl pod get`.
-        * `a9s pg instance`
-            * `create`
+
+* Question: Should the de   mo a8s-pg execute the entire demo or just install the operator? Other commands could be: 
+    * Issue: What if a9s-pg is added to the a9s CLI?
+        * How should it be resolved?
+            * Option a)
                 * `a9s pg instance create --isolation pod` > a8s PG
-                * `a9s pg create instance --isolation pod`
                 * `a9s pg instance create --isolation vm` > a9s PG
+            * Option b)
+                * `a9s a8s-pg instance create ...`
+                * `a9s a9s-pg instance create ...`
+    * Issue: What if support for the a9s CrossBind services is added to the `a9s`-cli?
+        * Then we not only need to differenciate a8s from a9s services but also local from remote service instances.
+        * How should it be resolved?
+            * Option a) Explicit commands/params/flags
+                * Option a-1)
+                    * `a9s create remote pg instance`
+                    * `a9s create local pg instance`
+                        * Allows each variant to have its own set of params/flags
+                * Option a-2)
+                    * `a9s create pg instance --local`
+                    * `a9s create pg instance --remote`
+                        * This variant may be harder to implement as local and remote PGs may have different attributes.
+
+            * Option b) Implicit detection of the context
+                * Not possible if both a local operator and a remote version of, let's say, a8s-pg is available
+    * a8s-pg  
+        * `a9s pg instance`
+                * `a9s pg create instance --isolation pod`
+            * `create`
         * `a9s pg service-binding`
             * `a9s pg binding` 
             * `a9s pg sb`
-        * `a9s pg backup`
-        * `a9s pg restore`
-    * a8s-pg-instance 
-    * a8s-pg-app
-    * Alternatively, the entire demo could be driven by the "assistent" asking the user questions, interactively.
-
 
 * Don't use the `default` namespace, instead create a demo namespace, e.g. `a8s-demo`.
     * Provision a8s-pg into namespace
