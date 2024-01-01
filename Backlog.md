@@ -10,9 +10,9 @@
 
 * CHORE: Check if makeup.WaitForUser(demo.UnattendedMode) is used consistently for all new commands instance & backup
 
-
-* For completeness: Create command `a9s delete pg backup ...`
-* For completeness: Create command `a9s delete pg restore ...`
+* Deleting Backups and Restore CRs
+    * For completeness: Create command `a9s delete pg backup ...`
+    * For completeness: Create command `a9s delete pg restore ...`
 
 * Chore: Write a testSuite to run end-to-end tests on a local machine using the `a9s`-cli applying all major usecases for both the kind and minikube providers.
 
