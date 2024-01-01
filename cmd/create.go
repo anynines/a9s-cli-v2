@@ -50,14 +50,6 @@ var cmdPGBackup = &cobra.Command{
 	Long:  `Create a PostgreSQL backup of a PostgreSQL service instance`,
 	Run: func(cmd *cobra.Command, args []string) {
 		demo.CreatePGServiceInstanceBackup()
-
-		if !(demo.DoNotApply) {
-			// TODO adapt & implement
-			//instance := demo.A8sPGServiceInstanceBackup
-
-			// TODO adapt & implement
-			// demo.WaitForPGBackupToBecomeReady(instance.Namespace, instance.Name, instance.Replicas)
-		}
 	},
 }
 
