@@ -49,7 +49,18 @@ var cmdPGBackup = &cobra.Command{
 	Short: "Create a PostgreSQL backup of a PostgreSQL service instance.",
 	Long:  `Create a PostgreSQL backup of a PostgreSQL service instance`,
 	Run: func(cmd *cobra.Command, args []string) {
+		// DoNotApply is processed in the Create func
 		demo.CreatePGServiceInstanceBackup()
+	},
+}
+
+var cmdPGRestore = &cobra.Command{
+	Use:   "restore",
+	Short: "Create a PostgreSQL restore of a PostgreSQL backup.",
+	Long:  `Create a PostgreSQL restore of a PostgreSQL backup of a PostgreSQL service instance.`,
+	Run: func(cmd *cobra.Command, args []string) {
+		// DoNotApply is processed in the Create func
+		demo.CreatePGServiceInstanceRestore()
 	},
 }
 
@@ -110,6 +121,13 @@ func init() {
 	cmdPGBackup.PersistentFlags().StringVarP(&demo.A8sPGBackup.ServiceInstanceName, "service-instance", "i", "example-pg", "name of the pg service instance to be backed up.")
 	cmdPGBackup.PersistentFlags().StringVar(&demo.A8sPGBackup.Namespace, "namespace", "default", "namespace of the pg service instance.")
 	cmdPG.AddCommand(cmdPGBackup)
+
+	// Should the restore act on the backup resource or should there be a separate object for it?
+	cmdPGRestore.PersistentFlags().StringVar(&demo.A8sPGBackup.ApiVersion, "api-version", "v1beta3", "api version of the pg backup.")
+	cmdPGRestore.PersistentFlags().StringVar(&demo.A8sPGBackup.Name, "name", "example-pg-1", "name of the pg backup. Not the name of the service instance.")
+	cmdPGRestore.PersistentFlags().StringVarP(&demo.A8sPGBackup.ServiceInstanceName, "service-instance", "i", "example-pg", "name of the pg service instance to be backed up.")
+	cmdPGRestore.PersistentFlags().StringVar(&demo.A8sPGBackup.Namespace, "namespace", "default", "namespace of the pg service instance.")
+	cmdPG.AddCommand(cmdPGRestore)
 
 	cmdCreate.AddCommand(cmdPG)
 

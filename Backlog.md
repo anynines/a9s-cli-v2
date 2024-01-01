@@ -1,10 +1,25 @@
 # Backlog
 * Next release: backup/restore
+    * Chore: Load data into service instance
+        * Implement a command that loads a well known dataset into a service instance
+            * Store data somewhere where it will also be checked out, e.g. in a8s-demo
+            * Create a command `a9s pg apply --file load_demo_data.sql` 
+                * This way the command can also be used for other purposes
+                    * It does say "import" as the sql file could also be about deleting data.
+                        `a9s pg apply --file delete_demo_data.sql`
+            * Create a command `a9s pg apply --file demo_data.sql`
+                * This should be executing the following statements
+                    * `kubectl cp demo_data.sql default/clustered-0:/home/postgres -c postgres`
+                    * `kubectl exec -n default clustered-0 -c postgres -- psql -U postgres -d a9s_apps_default_db -f demo_data.sql`
+                    * TODO: Modify the exec command so that the file is deleted within the pod after it has been imported.
+
     * Feature: Restore
         * The implementation plan is similar to creating the backup.
-        * Create command `a9s create pg restore ...`
-        * Generate a YAML manifest
-        * Apply the YAML manifest
+        * DONE: Create command `a9s create pg restore ...`
+        * DONE: Generate a YAML manifest
+        * DONE: Apply the YAML manifest
+        * Test manually
+            * FIX: Can't create dynamic WatchInterface to watch Kubernetes resource backups.anynines.com/v1beta3, Resource=restore. the server could not find the requested resource%
         * Add tests to the e2e test suite
         * This completes the backup / restore cycle.
 
