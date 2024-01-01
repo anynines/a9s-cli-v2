@@ -140,6 +140,12 @@ They can be removed with:
 
     rm -rf $( a9s demo pwd )
 
+# Testing the CLI
+
+The state of unit tests is currently very poor.
+
+End-to-end testing can be done using the external Ruby/RSpec test suite located at: https://github.com/anynines/a9s-cli-v2-tests
+
 # Design Principles / Ideals
 * The CLI acts like a personal assistent who knows the a9s products and helps to use them more easily.
     * The CLI helps with installing a demo environment
