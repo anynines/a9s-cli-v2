@@ -1,7 +1,11 @@
 # Backlog
 * Next release: backup/restore
     * Feature: Restore
+        * The implementation plan is similar to creating the backup.
         * Create command `a9s create pg restore ...`
+        * Generate a YAML manifest
+        * Apply the YAML manifest
+        * Add tests to the e2e test suite
         * This completes the backup / restore cycle.
 
 * BUG: Backups for non existing service instances shouldnt return success messages.
