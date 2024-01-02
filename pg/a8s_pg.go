@@ -169,9 +169,9 @@ func WaitForPGBackupResourceToBecomeReady(namespace, name string, resource strin
 }
 
 func WaitForPGBackupToBecomeReady(namespace, name string) {
-	WaitForPGBackupResourceToBecomeReady(namespace, name, "backup")
+	WaitForPGBackupResourceToBecomeReady(namespace, name, "backups")
 }
 
 func WaitForPGRestoreToBecomeReady(namespace, name string) {
-	WaitForPGBackupResourceToBecomeReady(namespace, name, "restore")
+	WaitForPGBackupResourceToBecomeReady(namespace, name, "restores")
 }
