@@ -270,7 +270,7 @@ func CreatePGServiceInstanceRestore() {
 		k8s.KubectlApplyF(getRestoreManifestPath(A8sPGRestore.Name), UnattendedMode)
 	}
 
-	pg.WaitForPGRestoreToBecomeReady(A8sPGRestore.Namespace, A8sPGRestore.BackupName)
+	pg.WaitForPGRestoreToBecomeReady(A8sPGRestore.Namespace, A8sPGRestore.Name)
 }
 
 func PrintDemoSummary() {
