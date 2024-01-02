@@ -20,8 +20,13 @@
         * DONE: Apply the YAML manifest
         * Test manually
             * FIX: Can't create dynamic WatchInterface to watch Kubernetes resource backups.anynines.com/v1beta3, Resource=restore. the server could not find the requested resource%
+            * CHANGE: A restore should have a separate name from a backup as it might be necessary to restore a particular backup multiple times.
+                * restore --name nameOfRestore --backup nameOfBackup
         * Add tests to the e2e test suite
         * This completes the backup / restore cycle.
+
+* Backup: The create backup command should verify whether the given service instance exists.
+* Restore: The create restore command should verify whether both the given backup and service instance exists.
 
 * BUG: Backups for non existing service instances shouldnt return success messages.
     * The event was `map[lastTransitionTime:2023-12-29T09:18:43Z message:Backup Completed reason:Complete status:True type:Complete]`
