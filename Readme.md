@@ -126,6 +126,10 @@ Deleting a service instance with the name `sample-pg-cluster`:
 
     a9s create pg backup --name sample-pg-cluster-backup-1 -i sample-pg-cluster-1
 
+## Restoring a Backup of Service Instance
+
+    a9s create pg restore --name sample-pg-cluster-restore-1 -b sample-pg-cluster-backup-1 -i sample-pg-cluster-1
+
 ## Cleaning Up
 
 In order to delete the Demo cluster run:
