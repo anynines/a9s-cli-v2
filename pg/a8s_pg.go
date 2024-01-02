@@ -35,6 +35,14 @@ type Backup struct {
 	ServiceInstanceName string
 }
 
+type Restore struct {
+	ApiVersion          string
+	Name                string
+	BackupName          string
+	Namespace           string
+	ServiceInstanceName string
+}
+
 func ServiceInstanceToYAML(instance ServiceInstance) string {
 	instanceMap := make(map[string]interface{})
 	instanceMap["apiVersion"] = A8sPGServiceInstanceAPIGroup + "/" + instance.ApiVersion
@@ -108,15 +116,15 @@ func BackupToYAML(backup Backup) string {
 /*
 Creates a restore YAML manifest to restore a backup.
 */
-func BackupToRestoreYAML(backup Backup) string {
+func RestoreToYAML(restore Restore) string {
 	restoreMap := make(map[string]interface{})
-	restoreMap["apiVersion"] = A8sPGBackupAPIGroup + "/" + backup.ApiVersion
+	restoreMap["apiVersion"] = A8sPGBackupAPIGroup + "/" + restore.ApiVersion
 	restoreMap["kind"] = A8sPGRestoreKind
 
 	metadata := make(map[string]interface{})
 	restoreMap["metadata"] = metadata
-	metadata["name"] = backup.Name
-	metadata["namespace"] = backup.Namespace
+	metadata["name"] = restore.Name
+	metadata["namespace"] = restore.Namespace
 
 	spec := make(map[string]interface{})
 	restoreMap["spec"] = spec
@@ -126,20 +134,24 @@ func BackupToRestoreYAML(backup Backup) string {
 
 	serviceInstanceMap["apiGroup"] = A8sPGServiceInstanceAPIGroup
 	serviceInstanceMap["kind"] = A8sPGServiceInstanceKind
-	serviceInstanceMap["name"] = backup.ServiceInstanceName
+	serviceInstanceMap["name"] = restore.ServiceInstanceName
 
-	spec["backupName"] = backup.Name
+	spec["backupName"] = restore.BackupName
 
 	yamlBytes, err := yaml.Marshal(restoreMap)
 
 	if err != nil {
-		makeup.ExitDueToFatalError(err, fmt.Sprintf("Can't generate YAML for a8s Postgres restore with name: %s for service instance: %s", backup.Name, backup.ServiceInstanceName))
+		makeup.ExitDueToFatalError(err, fmt.Sprintf("Can't generate YAML for a8s Postgres restore with name: %s for backup %s of service instance: %s", restore.Name, restore.BackupName, restore.ServiceInstanceName))
 	}
 
 	return string(yamlBytes)
 }
 
-func WaitForPGBackupResourceToBecomeReady(backup Backup, resource string) {
+/*
+Similar to kubectl watch ...
+Needed: Namespace and name of the resource to be observed.
+*/
+func WaitForPGBackupResourceToBecomeReady(namespace, name string, resource string) {
 
 	//TODO Get API Group and API Version from a constant or the backup object
 	// e.g. by making them separate fields in the BackupObject and make APIVersion an function
@@ -149,17 +161,17 @@ func WaitForPGBackupResourceToBecomeReady(backup Backup, resource string) {
 	desiredConditionsMap["reason"] = "Complete"
 	desiredConditionsMap["status"] = "True"
 
-	err := k8s.WaitForKubernetesResource(backup.Namespace, gvr, desiredConditionsMap)
+	err := k8s.WaitForKubernetesResource(namespace, gvr, desiredConditionsMap)
 
 	if err != nil {
-		makeup.PrintFail(fmt.Sprintf("The backup has not been completed. Does the service instance %s exist?", backup.ServiceInstanceName))
+		makeup.PrintFail("The " + resource + " has not been completed. Does the service instance exist?")
 	}
 }
 
-func WaitForPGBackupToBecomeReady(backup Backup) {
-	WaitForPGBackupResourceToBecomeReady(backup, "backup")
+func WaitForPGBackupToBecomeReady(namespace, name string) {
+	WaitForPGBackupResourceToBecomeReady(namespace, name, "backup")
 }
 
-func WaitForPGRestoreToBecomeReady(backup Backup) {
-	WaitForPGBackupResourceToBecomeReady(backup, "restore")
+func WaitForPGRestoreToBecomeReady(namespace, name string) {
+	WaitForPGBackupResourceToBecomeReady(namespace, name, "restore")
 }
