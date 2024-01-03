@@ -151,27 +151,37 @@ func RestoreToYAML(restore Restore) string {
 Similar to kubectl watch ...
 Needed: Namespace and name of the resource to be observed.
 */
-func WaitForPGBackupResourceToBecomeReady(namespace, name string, resource string) {
+func WaitForPGBackupResourceToBecomeReady(namespace, name string, resource string) error {
 
 	//TODO Get API Group and API Version from a constant or the backup object
 	// e.g. by making them separate fields in the BackupObject and make APIVersion an function
 	gvr := schema.GroupVersionResource{Group: "backups.anynines.com", Version: "v1beta3", Resource: resource}
 
 	desiredConditionsMap := make(map[string]interface{})
-	desiredConditionsMap["reason"] = "Complete"
+	desiredConditionsMap["type"] = "Complete"
 	desiredConditionsMap["status"] = "True"
 
 	err := k8s.WaitForKubernetesResource(namespace, gvr, desiredConditionsMap)
 
-	if err != nil {
-		makeup.PrintFail("The " + resource + " has not been completed. Does the service instance exist?")
-	}
+	return err
 }
 
 func WaitForPGBackupToBecomeReady(namespace, name string) {
-	WaitForPGBackupResourceToBecomeReady(namespace, name, "backups")
+	err := WaitForPGBackupResourceToBecomeReady(namespace, name, "backups")
+
+	if err != nil {
+		makeup.PrintFail("The backup has not been successful. Does the service instance exist?")
+	} else {
+		makeup.PrintCheckmark(fmt.Sprintf("The backup with the name %s in namespace %s has been successful.", name, namespace))
+	}
 }
 
 func WaitForPGRestoreToBecomeReady(namespace, name string) {
-	WaitForPGBackupResourceToBecomeReady(namespace, name, "restores")
+	err := WaitForPGBackupResourceToBecomeReady(namespace, name, "restores")
+
+	if err != nil {
+		makeup.PrintFail("The restore has not been completed. Does the service instance and backup exist?")
+	} else {
+		makeup.PrintCheckmark(fmt.Sprintf("The restore with the name %s in namespace %s has been successful.", name, namespace))
+	}
 }

@@ -87,7 +87,7 @@ Prints only if the Verbose flag is set.
 */
 func PrintVerbose(s string) {
 	if Verbose {
-		fmt.Println(RegularText(s))
+		fmt.Println(H2(s))
 	}
 }
 

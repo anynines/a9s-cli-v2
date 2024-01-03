@@ -7,7 +7,7 @@ require (
 	github.com/charmbracelet/lipgloss v0.7.1
 	github.com/fatih/color v1.15.0
 	github.com/goccy/go-yaml v1.11.2
-	github.com/kylelemons/godebug v1.1.0
+	github.com/kr/pretty v0.3.0
 	github.com/mattn/go-colorable v0.1.13
 	github.com/sethvargo/go-password v0.2.0
 	github.com/spf13/cobra v1.7.0
@@ -36,6 +36,7 @@ require (
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
+	github.com/kr/text v0.2.0 // indirect
 	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mattn/go-isatty v0.0.18 // indirect
@@ -46,6 +47,7 @@ require (
 	github.com/muesli/termenv v0.15.1 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
+	github.com/rogpeppe/go-internal v1.11.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/stretchr/testify v1.8.2 // indirect
 	golang.org/x/net v0.8.0 // indirect

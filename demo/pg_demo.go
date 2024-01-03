@@ -230,12 +230,12 @@ func CountPodsInDemoNamespace() int {
 }
 
 func getBackupManifestPath(backupName string) string {
-	makeup.Print("Generating manifest for backup: " + backupName + " ...")
+	makeup.PrintVerbose("Generating manifest for backup: " + backupName + " ...")
 	return GetUserManifestPath("a8s-pg-backup-" + backupName + ".yaml")
 }
 
 func getRestoreManifestPath(backupName string) string {
-	makeup.Print("Generating manifest for backup restore: " + backupName + " ...")
+	makeup.PrintVerbose("Generating manifest for backup restore: " + backupName + " ...")
 	return GetUserManifestPath("a8s-pg-restore-" + backupName + ".yaml")
 }
 
