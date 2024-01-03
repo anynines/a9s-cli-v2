@@ -21,12 +21,14 @@
         * Test manually
         * Add tests to the e2e test suite
         * This completes the backup / restore cycle.
-
-* CHORE: Use PrintVerbose to make output much more clean.
+    * Backup: A failed backup should be indicated to the user.
+    * Restore: A failed restore should be indicated to the user.
 
 * Backup/Restore: The WaitForKubernetesResource function should indicate the current status cycling through all states with Status = true (scheduled, complete, ...)
 * Backup: The create backup command should verify whether the given service instance exists.
 * Restore: The create restore command should verify whether both the given backup and service instance exists.
+
+* CHORE: Use PrintVerbose to make output much more clean.
 
 * BUG: Backups for non existing service instances shouldnt return success messages.
     * The event was `map[lastTransitionTime:2023-12-29T09:18:43Z message:Backup Completed reason:Complete status:True type:Complete]`
