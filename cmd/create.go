@@ -148,5 +148,6 @@ func init() {
 	cmdCreateDemo.AddCommand(cmdCreateDemoA8s)
 	cmdCreate.AddCommand(cmdCreateDemo)
 	rootCmd.PersistentFlags().BoolVarP(&demo.UnattendedMode, "yes", "y", false, "skip yes-no questions by answering with \"yes\".")
+	rootCmd.PersistentFlags().BoolVarP(&makeup.Verbose, "verbose", "v", false, "enable verbose output?")
 	rootCmd.AddCommand(cmdCreate)
 }
