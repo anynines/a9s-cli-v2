@@ -7,7 +7,7 @@
                 * This way the command can also be used for other purposes
                     * It does say "import" as the sql file could also be about deleting data.
                         `a9s pg apply --file delete_demo_data.sql`
-            * Create a command `a9s pg apply --file demo_data.sql`
+            * Create a command `a9s pg apply --file demo_data.sql`            
                 * This should be executing the following statements
                     * `kubectl cp demo_data.sql default/clustered-0:/home/postgres -c postgres`
                     * `kubectl exec -n default clustered-0 -c postgres -- psql -U postgres -d a9s_apps_default_db -f demo_data.sql`
@@ -18,8 +18,8 @@
         * DONE: Create command `a9s create pg restore ...`
         * DONE: Generate a YAML manifest
         * DONE: Apply the YAML manifest
-        * Test manually
-        * Add tests to the e2e test suite
+        * DONE: Test manually
+        * DONE: Add tests to the e2e test suite
         * This completes the backup / restore cycle.
     * Backup: A failed backup should be indicated to the user.
     * Restore: A failed restore should be indicated to the user.
