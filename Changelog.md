@@ -1,8 +1,9 @@
 # v0.9.0
 * Change: `--yes` is now a global flag and available to all commands.
 * Change: `--verbose` or `-v` is now a global flag and available to all commands. Standard output is now less verbose.
-* Feature: `a9s create pg backup` to generate a backup YAML manifest, execute the backup and wait for it to complete.
 * Feature: `a9s create pg instance` to generate a YAML manifest given the params: `--namespace`, `--api-version`, `--name`, `--replicas`, `--volume-size`, `--service-version`, `--requests-cpu` and `--limits-memory`
+* Feature: `a9s create pg backup` to generate a backup YAML manifest, execute the backup and wait for it to complete.
+* Feature: `a9s create pg restore` to generate a restore YAML manifest, execute the restore and wait for it to complete.
 * Feature: Add `--no-apply` flag allow the generation of YAML manifests without applying them.
 * BUGFIX: When creating service instance YAML manifests, the namespace of the service instance is now set, correctly.
 * BUGFIX: Params for creating pg instances do now belong to the `a9s create pg instance` command instead of `a9s create pg`.
