@@ -10,6 +10,8 @@ import (
 	"golang.org/x/term"
 )
 
+var Verbose bool
+
 /*
 The makeup package contains helper methods to format output and print messages to the user.
 */
@@ -78,6 +80,15 @@ func PrintFlexedBiceps(s string) {
 
 func Print(s string) {
 	fmt.Println(RegularText(s))
+}
+
+/*
+Prints only if the Verbose flag is set.
+*/
+func PrintVerbose(s string) {
+	if Verbose {
+		fmt.Println(H2(s))
+	}
 }
 
 func PrintSuccessSummary(s string) {

@@ -15,7 +15,7 @@ import (
 )
 
 func EstablishConfigFilePath() {
-	makeup.PrintH2("Setting a config file path in order to persist settings...")
+	makeup.PrintVerbose("Setting a config file path in order to persist settings...")
 
 	homeDir, err := os.UserHomeDir()
 
@@ -26,13 +26,13 @@ func EstablishConfigFilePath() {
 
 	configFilePath = filepath.Join(homeDir, configFileName)
 
-	makeup.PrintH2("Settings will be stored at " + configFilePath)
+	makeup.PrintVerbose("Settings will be stored at " + configFilePath)
 
 }
 
 func EstablishWorkingDir() {
 	makeup.PrintH1("Setting up a Working Directory")
-	makeup.PrintH2("We will need a working directory for the demo. Let's find one..")
+	makeup.PrintVerbose("We will need a working directory for the demo. Let's find one..")
 
 	reader := bufio.NewReader(os.Stdin)
 
@@ -108,7 +108,7 @@ func LoadConfig() bool {
 
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			makeup.PrintH2("No config file found.")
+			makeup.PrintVerbose("No config file found.")
 			return false
 		}
 
@@ -121,7 +121,7 @@ func LoadConfig() bool {
 		makeup.PrintFail("Coudln't parse config file.")
 	}
 
-	makeup.PrintH2("Using the following working directory: " + DemoConfig.WorkingDir)
+	makeup.PrintVerbose("Using the following working directory: " + DemoConfig.WorkingDir)
 
 	return true
 }
@@ -162,7 +162,7 @@ Generates an encryption password file for backups if it doesnt exist.
 Does nothing if the file already exists.
 */
 func EstablishEncryptionPasswordFile() {
-	makeup.PrintH2("In order to encrypt backups we need an encryption password.")
+	makeup.PrintVerbose("In order to encrypt backups we need an encryption password.")
 	makeup.Print("Checking if encryption password file for backups already exists...")
 
 	filePath := BackupConfigEncryptionPasswordFilePath()

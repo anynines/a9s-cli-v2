@@ -126,6 +126,10 @@ Deleting a service instance with the name `sample-pg-cluster`:
 
     a9s create pg backup --name sample-pg-cluster-backup-1 -i sample-pg-cluster-1
 
+## Restoring a Backup of Service Instance
+
+    a9s create pg restore --name sample-pg-cluster-restore-1 -b sample-pg-cluster-backup-1 -i sample-pg-cluster-1
+
 ## Cleaning Up
 
 In order to delete the Demo cluster run:
@@ -139,6 +143,12 @@ Config files are stored in the demo working directory.
 They can be removed with:
 
     rm -rf $( a9s demo pwd )
+
+# Testing the CLI
+
+The state of unit tests is currently very poor.
+
+End-to-end testing can be done using the external Ruby/RSpec test suite located at: https://github.com/anynines/a9s-cli-v2-tests
 
 # Design Principles / Ideals
 * The CLI acts like a personal assistent who knows the a9s products and helps to use them more easily.

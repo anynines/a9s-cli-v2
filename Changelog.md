@@ -1,5 +1,6 @@
 # v0.9.0
 * Change: `--yes` is now a global flag and available to all commands.
+* Change: `--verbose` or `-v` is now a global flag and available to all commands. Standard output is now less verbose.
 * Feature: `a9s create pg backup` to generate a backup YAML manifest, execute the backup and wait for it to complete.
 * Feature: `a9s create pg instance` to generate a YAML manifest given the params: `--namespace`, `--api-version`, `--name`, `--replicas`, `--volume-size`, `--service-version`, `--requests-cpu` and `--limits-memory`
 * Feature: Add `--no-apply` flag allow the generation of YAML manifests without applying them.
@@ -10,6 +11,7 @@
 * BUGIX: The filename of a backup manifest should be correct but is: usermanifests/a8s-pg-backup-a8s-pg-backup.yaml
 * Default change: Makes `eu-central-1` the default infrastructure region.
 * Removes Docker as a necessary prerequisite as not all Kubernetes providers mandatorily need Docker
+* Testing: Created a Ruby/RSpec test suite to run the demo automatically for both `kind` and `minikube`. See: https://github.com/anynines/a9s-cli-v2-tests
 
 # v0.8.0
 

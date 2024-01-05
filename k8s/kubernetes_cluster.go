@@ -48,13 +48,13 @@ func CheckIfAnyKubernetesIsRunning() bool {
 func GetKubernetesConfigPath() string {
 	var kubeconfig string
 	if kubeconfig = os.Getenv("KUBECONFIG"); kubeconfig != "" {
-		makeup.Print("Kubernetes configuration is set by the $KUBECONFIG env variable.")
+		makeup.PrintVerbose("Kubernetes configuration is set by the $KUBECONFIG env variable.")
 	} else if home := homedir.HomeDir(); home != "" {
-		makeup.Print("Kubernetes configuration is set by $HOME/.kube/config.")
+		makeup.PrintVerbose("Kubernetes configuration is set by $HOME/.kube/config.")
 		flag.CommandLine = flag.NewFlagSet("kubeconfig", flag.ExitOnError)
 		kubeconfig = *flag.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
 	} else {
-		makeup.Print("Kubernetes configuration is set by config flag.")
+		makeup.PrintVerbose("Kubernetes configuration is set by config flag.")
 		kubeconfig = *flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
 	}
 
@@ -66,7 +66,7 @@ func GetKubernetesConfigPath() string {
 
 func GetKubernetesConfig() *rest.Config {
 	kubeconfig := GetKubernetesConfigPath()
-	makeup.Print("Kubernetes config located at: " + kubeconfig)
+	makeup.PrintVerbose("Kubernetes config located at: " + kubeconfig)
 
 	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
 	if err != nil {

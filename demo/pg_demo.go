@@ -38,6 +38,7 @@ var A8sPGServiceInstance pg.ServiceInstance
 var DeleteA8sPGInstanceName string
 
 var A8sPGBackup pg.Backup
+var A8sPGRestore pg.Restore
 
 var DeploymentVersion string // e.g. v0.3.0
 var NoPreCheck bool          // e.g. false -> Perform prechecks
@@ -229,8 +230,13 @@ func CountPodsInDemoNamespace() int {
 }
 
 func getBackupManifestPath(backupName string) string {
-	makeup.Print("Generating manifest for backup: " + backupName + " ...")
+	makeup.PrintVerbose("Generating manifest for backup: " + backupName + " ...")
 	return GetUserManifestPath("a8s-pg-backup-" + backupName + ".yaml")
+}
+
+func getRestoreManifestPath(backupName string) string {
+	makeup.PrintVerbose("Generating manifest for backup restore: " + backupName + " ...")
+	return GetUserManifestPath("a8s-pg-restore-" + backupName + ".yaml")
 }
 
 // TODO Move to pg package
@@ -247,7 +253,24 @@ func CreatePGServiceInstanceBackup() {
 		k8s.KubectlApplyF(getBackupManifestPath(A8sPGBackup.Name), UnattendedMode)
 	}
 
-	pg.WaitForPGBackupToBecomeReady(A8sPGBackup)
+	pg.WaitForPGBackupToBecomeReady(A8sPGBackup.Namespace, A8sPGBackup.Name)
+}
+
+// TODO Reduce code duplicity with CreatePGServiceInstanceBackup
+func CreatePGServiceInstanceRestore() {
+	EnsureConfigIsLoaded()
+
+	makeup.PrintH1("Creating an a8s Postgres Service Instance Backup Restore...")
+
+	yaml := pg.RestoreToYAML(A8sPGRestore)
+
+	WriteYAMLToFile(yaml, getRestoreManifestPath(A8sPGRestore.Name))
+
+	if !DoNotApply {
+		k8s.KubectlApplyF(getRestoreManifestPath(A8sPGRestore.Name), UnattendedMode)
+	}
+
+	pg.WaitForPGRestoreToBecomeReady(A8sPGRestore.Namespace, A8sPGRestore.Name)
 }
 
 func PrintDemoSummary() {

@@ -49,15 +49,18 @@ var cmdPGBackup = &cobra.Command{
 	Short: "Create a PostgreSQL backup of a PostgreSQL service instance.",
 	Long:  `Create a PostgreSQL backup of a PostgreSQL service instance`,
 	Run: func(cmd *cobra.Command, args []string) {
+		// DoNotApply is processed in the Create func
 		demo.CreatePGServiceInstanceBackup()
+	},
+}
 
-		if !(demo.DoNotApply) {
-			// TODO adapt & implement
-			//instance := demo.A8sPGServiceInstanceBackup
-
-			// TODO adapt & implement
-			// demo.WaitForPGBackupToBecomeReady(instance.Namespace, instance.Name, instance.Replicas)
-		}
+var cmdPGRestore = &cobra.Command{
+	Use:   "restore",
+	Short: "Create a PostgreSQL restore of a PostgreSQL backup.",
+	Long:  `Create a PostgreSQL restore of a PostgreSQL backup of a PostgreSQL service instance.`,
+	Run: func(cmd *cobra.Command, args []string) {
+		// DoNotApply is processed in the Create func
+		demo.CreatePGServiceInstanceRestore()
 	},
 }
 
@@ -119,6 +122,14 @@ func init() {
 	cmdPGBackup.PersistentFlags().StringVar(&demo.A8sPGBackup.Namespace, "namespace", "default", "namespace of the pg service instance.")
 	cmdPG.AddCommand(cmdPGBackup)
 
+	// Should the restore act on the backup resource or should there be a separate object for it?
+	cmdPGRestore.PersistentFlags().StringVar(&demo.A8sPGRestore.ApiVersion, "api-version", "v1beta3", "api version of the pg backup.")
+	cmdPGRestore.PersistentFlags().StringVar(&demo.A8sPGRestore.Name, "name", "example-pg-1", "name of the pg restore. Not the name of the service instance or the backup.")
+	cmdPGRestore.PersistentFlags().StringVarP(&demo.A8sPGRestore.BackupName, "backup", "b", "example-pg-backup", "name of the pg backup to be restored.")
+	cmdPGRestore.PersistentFlags().StringVarP(&demo.A8sPGRestore.ServiceInstanceName, "service-instance", "i", "example-pg", "name of the pg service instance to be restored.")
+	cmdPGRestore.PersistentFlags().StringVar(&demo.A8sPGRestore.Namespace, "namespace", "default", "namespace of the pg service instance.")
+	cmdPG.AddCommand(cmdPGRestore)
+
 	cmdCreate.AddCommand(cmdPG)
 
 	// create demo a8s
@@ -137,5 +148,6 @@ func init() {
 	cmdCreateDemo.AddCommand(cmdCreateDemoA8s)
 	cmdCreate.AddCommand(cmdCreateDemo)
 	rootCmd.PersistentFlags().BoolVarP(&demo.UnattendedMode, "yes", "y", false, "skip yes-no questions by answering with \"yes\".")
+	rootCmd.PersistentFlags().BoolVarP(&makeup.Verbose, "verbose", "v", false, "enable verbose output?")
 	rootCmd.AddCommand(cmdCreate)
 }

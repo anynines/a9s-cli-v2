@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/anynines/a9s-cli-v2/makeup"
+	"github.com/kr/pretty"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	m1u "k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -241,7 +242,7 @@ func WaitForKubernetesResource(namespace string, gvr schema.GroupVersionResource
 		makeup.ExitDueToFatalError(err, fmt.Sprintf("Can't create dynamic WatchInterface to watch Kubernetes resource %v.", gvr))
 	}
 
-	makeup.Print(fmt.Sprintf("Watching for resources: %v", gvr))
+	makeup.PrintVerbose(fmt.Sprintf("Watching for resources: %v", gvr))
 
 	for event := range watchInterface.ResultChan() {
 		switch event.Type {
@@ -254,38 +255,75 @@ func WaitForKubernetesResource(namespace string, gvr schema.GroupVersionResource
 				makeup.ExitDueToFatalError(nil, "Could not cast to Unstructured")
 			}
 
-			// pretty.Print(backup)
+			if makeup.Verbose {
+				pretty.Print(backup)
+			}
 
 			// Check the status.conditions for the desired status.
 			status, exists, err := m1u.NestedFieldCopy(backup.Object, "status", "conditions")
 			if err != nil && !exists {
-				makeup.PrintWait("There is not status, yet.")
+				if makeup.Verbose {
+					makeup.PrintWait("There is not status, yet.")
+				}
 				continue
 			}
 
+			/*
+				Conditions is a list of condition maps.
+				One of the condition maps in conditions has the "Status" => "True".
+				This is the current condition.
+
+				Conditions change over time so that this section is part of a loop and
+				whill be executed when conditions change.
+
+				We are waiting for the circumstance when there's a condition map with
+				"Reason" => "Complete" and "Status" => "True".
+
+				TODO There are also other cases which represent a final state, for
+					example when a backup has permanently failed. They should also be captured
+					to indicate the user that the backup/restore has failed instead of
+					keeping the loop running while blocking the cli.
+			*/
 			conditions, ok := status.([]interface{})
 			if !ok {
-				makeup.PrintWait(".")
+				if makeup.Verbose {
+					makeup.PrintWait(".")
+				}
 				continue
 			}
 
-			makeup.PrintWait("Status is now available. Checking conditions...")
+			if makeup.Verbose {
+				makeup.PrintWait("Status is now available. Checking conditions...")
+			}
+
+			conditionsAreMet := false
 
 			for _, condition := range conditions {
+				makeup.PrintVerbose(fmt.Sprintf("Investigating condition %v of conditions\n", condition))
 				condMap, ok := condition.(map[string]interface{})
 				if !ok {
 					makeup.PrintWarning("Condition is not a map")
 					continue
 				}
 
-				// fmt.Printf("%v\n", condMap)
+				makeup.PrintVerbose(fmt.Sprintf("%v\n", condMap))
 
-				//TODO Check for conditions in desiredConditionsMap
+				// There are several condition fields only the condition with Status => true matters
+				// hence: if one of the condition maps has Status => true and has the desired "reason",
+				// 	we are ready to proceed.
 				if ConditionsAreMet(condMap, desiredConditionsMap) {
-					makeup.PrintCheckmark("Backup complete: " + backup.GetName())
-					return nil
-					//
-				} else {
+					conditionsAreMet = true
+					break
+				}
+			}
+
+			//TODO The conditionsAreMet variable is not necessary but increases readability. Does it?
+			if conditionsAreMet {
+				//makeup.PrintCheckmark("Operation complete for resource: " + backup.GetName())
+				return nil
+				//
+			} else {
+				if makeup.Verbose {
 					makeup.PrintWait("Desired conditions are not met, yet...")
 				}
 			}
@@ -299,9 +337,16 @@ func WaitForKubernetesResource(namespace string, gvr schema.GroupVersionResource
 /*
 Verifies whether the key-value pairs of expectedConditionsMap are contained in
 actualConditionsMap.
+
+The actualConditionsMap is a single record of a conditions array similar to:
+
+	map[lastTransitionTime:2024-01-03T07:04:28Z message:Restore object has been created reason:Initialized status:False type:PermanentlyFailed]
+
+The ConditionsAreMet function has to be applied against all condition entries, each being a condition map.
 */
 func ConditionsAreMet(actualConditionsMap, expectedConditionsMap map[string]interface{}) bool {
 	for key, expectedValue := range expectedConditionsMap {
+		makeup.PrintVerbose(fmt.Sprintf("\nConditionsAreMet? Checking whether %v / %v is in %v\n", key, expectedValue, actualConditionsMap))
 		actualValue, exists := actualConditionsMap[key]
 		if !exists || actualValue != expectedValue {
 			return false

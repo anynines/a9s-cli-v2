@@ -1,10 +1,34 @@
 # Backlog
+* Next release: backup/restore
+    * Chore: Load data into service instance
+        * Implement a command that loads a well known dataset into a service instance
+            * Store data somewhere where it will also be checked out, e.g. in a8s-demo
+            * Create a command `a9s pg apply --file load_demo_data.sql` 
+                * This way the command can also be used for other purposes
+                    * It does say "import" as the sql file could also be about deleting data.
+                        `a9s pg apply --file delete_demo_data.sql`
+            * Create a command `a9s pg apply --file demo_data.sql`
+                * This should be executing the following statements
+                    * `kubectl cp demo_data.sql default/clustered-0:/home/postgres -c postgres`
+                    * `kubectl exec -n default clustered-0 -c postgres -- psql -U postgres -d a9s_apps_default_db -f demo_data.sql`
+                    * TODO: Modify the exec command so that the file is deleted within the pod after it has been imported.
 
-* Feature: As a test suite I want to execute the a9s cli without user-prompts. A true unattended mode will allow me to pass credentials such as the backup store credentials without prompts.
-    * Backup store credentials
-    * Creating a demo cluster with a custom name
-    * Defining a separate work dir
-    * NOT interferring with the `.a8s` config file?!
+    * Feature: Restore
+        * The implementation plan is similar to creating the backup.
+        * DONE: Create command `a9s create pg restore ...`
+        * DONE: Generate a YAML manifest
+        * DONE: Apply the YAML manifest
+        * Test manually
+        * Add tests to the e2e test suite
+        * This completes the backup / restore cycle.
+    * Backup: A failed backup should be indicated to the user.
+    * Restore: A failed restore should be indicated to the user.
+
+* Backup/Restore: The WaitForKubernetesResource function should indicate the current status cycling through all states with Status = true (scheduled, complete, ...)
+* Backup: The create backup command should verify whether the given service instance exists.
+* Restore: The create restore command should verify whether both the given backup and service instance exists.
+
+* CHORE: Use PrintVerbose to make output much more clean.
 
 * BUG: Backups for non existing service instances shouldnt return success messages.
     * The event was `map[lastTransitionTime:2023-12-29T09:18:43Z message:Backup Completed reason:Complete status:True type:Complete]`
@@ -12,18 +36,9 @@
 
 * CHORE: Check if makeup.WaitForUser(demo.UnattendedMode) is used consistently for all new commands instance & backup
 
-* Next release: backup/restore
-* Feature: Backup
-    * Create commnand `a9s create pg backup --name $INSTANCE_NAME`
-    * DONE: BackupToYAML implemented
-    * DONE: Add command, generate yaml file and optionally execute it
-    * Wait for the backup to complete
-* Feature: Restore
-    * Create command `a9s create pg restore ...`
-    * This completes the backup / restore cycle.
-
-* For completeness: Create command `a9s delete pg backup ...`
-* For completeness: Create command `a9s delete pg restore ...`
+* Deleting Backups and Restore CRs
+    * For completeness: Create command `a9s delete pg backup ...`
+    * For completeness: Create command `a9s delete pg restore ...`
 
 * Chore: Write a testSuite to run end-to-end tests on a local machine using the `a9s`-cli applying all major usecases for both the kind and minikube providers.
 
@@ -33,24 +48,38 @@
 
 * When executing a9s create demo a8s for the first time, the infrastructure-region should be queried as a user input instead of being a default-parameter. The probability is too high that the user choses a non-viable default option instead of providing a valid region.
 
-* Question: Should the demo a8s-pg execute the entire demo or just install the operator? Other commands could be: 
-    * a8s-pg 
-        * `create`
-            * It's more idiomatic in Kubernetes for the verb to be the first command: `kubectl get pods` vs `kubectl pod get`.
-        * `a9s pg instance`
-            * `create`
+
+* Question: Should the de   mo a8s-pg execute the entire demo or just install the operator? Other commands could be: 
+    * Issue: What if a9s-pg is added to the a9s CLI?
+        * How should it be resolved?
+            * Option a)
                 * `a9s pg instance create --isolation pod` > a8s PG
-                * `a9s pg create instance --isolation pod`
                 * `a9s pg instance create --isolation vm` > a9s PG
+            * Option b)
+                * `a9s a8s-pg instance create ...`
+                * `a9s a9s-pg instance create ...`
+    * Issue: What if support for the a9s CrossBind services is added to the `a9s`-cli?
+        * Then we not only need to differenciate a8s from a9s services but also local from remote service instances.
+        * How should it be resolved?
+            * Option a) Explicit commands/params/flags
+                * Option a-1)
+                    * `a9s create remote pg instance`
+                    * `a9s create local pg instance`
+                        * Allows each variant to have its own set of params/flags
+                * Option a-2)
+                    * `a9s create pg instance --local`
+                    * `a9s create pg instance --remote`
+                        * This variant may be harder to implement as local and remote PGs may have different attributes.
+
+            * Option b) Implicit detection of the context
+                * Not possible if both a local operator and a remote version of, let's say, a8s-pg is available
+    * a8s-pg  
+        * `a9s pg instance`
+                * `a9s pg create instance --isolation pod`
+            * `create`
         * `a9s pg service-binding`
             * `a9s pg binding` 
             * `a9s pg sb`
-        * `a9s pg backup`
-        * `a9s pg restore`
-    * a8s-pg-instance 
-    * a8s-pg-app
-    * Alternatively, the entire demo could be driven by the "assistent" asking the user questions, interactively.
-
 
 * Don't use the `default` namespace, instead create a demo namespace, e.g. `a8s-demo`.
     * Provision a8s-pg into namespace
