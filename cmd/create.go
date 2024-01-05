@@ -11,8 +11,6 @@ var cmdCreate = &cobra.Command{
 	Short: "Create data service resources such as data service instances, service bindings, backups and restore jobs.",
 	Long:  `Create data service resources including data service instances, service bindings backups and restore jobs.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		//ExecuteA8sPGDemo()
-
 		makeup.PrintWarning(" " + "Please select the data service resource type you would like to instantiate.")
 
 		cmd.Help()
