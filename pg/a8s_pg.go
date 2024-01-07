@@ -11,10 +11,14 @@ import (
 )
 
 const A8sPGServiceInstanceAPIGroup = "postgresql.anynines.com"
+const A8sPGServiceInstanceAPIGroupLabel = "a8s.a9s/dsi-group=" + A8sPGBackupAPIGroup
 const A8sPGBackupAPIGroup = "backups.anynines.com"
 const A8sPGBackupKind = "Backup"
 const A8sPGRestoreKind = "Restore"
 const A8sPGServiceInstanceKind = "PostgreSQL"
+const A8sPGServiceInstanceKindLabel = "a8s.a9s/dsi-kind=" + A8sPGServiceInstanceKind
+const A8sPGLabelPrimary = "a8s.a9s/replication-role=master"
+const A8sPGServiceInstanceNameLabelKey = "a8s.a9s/dsi-name"
 
 type ServiceInstance struct {
 	Kind         string
@@ -184,4 +188,18 @@ func WaitForPGRestoreToBecomeReady(namespace, name string) {
 	} else {
 		makeup.PrintCheckmark(fmt.Sprintf("The restore with the name %s in namespace %s has been successful.", name, namespace))
 	}
+}
+
+/*
+Executes: kubectl get pods -n default -l 'a8s.a9s/replication-role=master,a8s.a9s/dsi-group=postgresql.anynines.com,a8s.a9s/dsi-kind=Postgresql,a8s.a9s/dsi-name=clustered' -o=jsonpath='{.items[*].metadata.name}'
+*/
+func FindPrimaryPodOfServiceInstance(namespace, serviceInstanceName string) error {
+
+	instanceLabel := fmt.Sprintf("%s=%s", A8sPGServiceInstanceNameLabelKey, serviceInstanceName)
+
+	label := fmt.Sprintf("%s,%s,%s", A8sPGLabelPrimary, A8sPGServiceInstanceAPIGroupLabel, instanceLabel)
+
+	//TODO Implement FindFirstPodByLabel in k8s/kubernetes_workload.go
+	k8s.FindFirstPodByLabel(namespace, label)
+	return nil
 }
