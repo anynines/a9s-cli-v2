@@ -15,17 +15,22 @@
 
         * Implementation notes:
             * Implementation Outline
+                1. Determine the master Pod for a given service instance name/namespace
+                    * **Important**: For clustered instances, before copying the file, it must be determined which Pod is the master-Pod as the role assignment may change over time.
+                    * The master pod is the pod with the following label: `a8s.a9s/replication-role=master`
+                    * `kubectl get pods -n default -l 'a8s.a9s/replication-role=master,a8s.a9s/dsi-group=postgresql.anynines.com,a8s.a9s/dsi-kind=Postgresql,a8s.a9s/dsi-name=clustered' -o=jsonpath='{.items[*].metadata.name}'`
+
+                    * Implement in `pg/a8s_pg.go`
                 1. Upload file to pod
                     * The container to copy the file to is called `postgres`
                     * The file should be uploaded to the pod's `tmp` folder
                     * For `kubectl cp` to work, the `tar` command must be present in the target pod.
                     * Implement copy in `kubernetes_workload.go`
-                2. Apply file by executing `psql`
+                1. Apply file by executing `psql`
                     * Implement apply in `a8s_pg.go`
-                3. Delete file
+                1. Delete file
                     * Implement copy in `kubernetes_workload.go`
-            * **Important**: For clustered instances, before copying the file, it must be determined which Pod is the master-Pod as the role assignment may change over time.
-                * The master pod is the pod with the following label: `a8s.a9s/replication-role=master`
+            
 
 
 
@@ -43,6 +48,14 @@
 * Backup/Restore: The WaitForKubernetesResource function should indicate the current status cycling through all states with Status = true (scheduled, complete, ...)
 * Backup: The create backup command should verify whether the given service instance exists.
 * Restore: The create restore command should verify whether both the given backup and service instance exists.
+
+Feature: Ensure that all commands accept and correctly apply a custom namespace for all postgres operations
+    * Manually test
+        * Create a service instance in a non-default namespace
+        * Create a backup
+        * Restore a backup
+        * Delete the service instance
+    * Write an rspec test scenario for the above
 
 * CHORE: Use PrintVerbose to make output much more clean.
 
