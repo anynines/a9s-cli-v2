@@ -173,7 +173,7 @@ func WaitForA8sSystemToBecomeReady() {
 }
 
 func WaitForServiceInstanceToBecomeReady(namespace, serviceInstanceName string, nrOfInstances int) {
-	expectedPods := make([]k8s.PodExpectationState, 3)
+	expectedPods := make([]k8s.PodExpectationState, nrOfInstances)
 
 	for i := 0; i < nrOfInstances; i++ {
 		expectedPods[i] = k8s.PodExpectationState{
