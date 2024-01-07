@@ -35,7 +35,7 @@ type PodExpectationState struct {
 Wait for a set of Pods known by name to enter the status "Running".
 */
 func WaitForSystemToBecomeReady(namespace, systemName string, expectedPods []PodExpectationState) {
-	makeup.PrintH1("Waiting for the " + systemName + " to become ready...")
+	makeup.PrintH1("Waiting for " + systemName + " to become ready...")
 
 	allGood := true
 

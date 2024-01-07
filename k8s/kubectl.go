@@ -5,11 +5,15 @@ Functions interacting with the kubectl command.
 */
 
 import (
+	"errors"
 	"fmt"
 	"os/exec"
+	"strings"
 
 	"github.com/anynines/a9s-cli-v2/makeup"
 )
+
+var ErrNotFound = errors.New("Resource was not found")
 
 /*
 Variadic function to use kubectl.
@@ -100,6 +104,25 @@ func KubectlCp() error {
 /*
 Executes similar to: kubectl get pods -n default -l 'a8s.a9s/replication-role=master,a8s.a9s/dsi-group=postgresql.anynines.com,a8s.a9s/dsi-kind=Postgresql,a8s.a9s/dsi-name=clustered' -o=jsonpath='{.items[*].metadata.name}'
 */
-func FindFirstPodByLabel(namespace, label string) error {
-	return nil
+func FindFirstPodByLabel(namespace, label string) (string, error) {
+
+	// Ignore the Don't Execute flag
+	waitForUser := false
+
+	// kubectl get pods -n default -l 'a8s.a9s/replication-role=master,a8s.a9s/dsi-group=postgresql.anynines.com,a8s.a9s/dsi-kind=Postgresql,a8s.a9s/dsi-name=clustered' -o=jsonpath='{.items[*].metadata.name}'
+	// output := "clustered-0 clustered-1 clustered-2 solo-0"
+	cmd, output, err := Kubectl(waitForUser, label)
+
+	if err != nil {
+		makeup.ExitDueToFatalError(err, "Can't kubectl using the command: "+cmd.String())
+	}
+
+	outputString := string(output)
+	if outputString == "" {
+		return "", ErrNotFound
+	}
+
+	podNames := strings.Fields(outputString)
+
+	return podNames[0], nil
 }
