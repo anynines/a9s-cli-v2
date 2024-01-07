@@ -70,6 +70,14 @@ func KubectlUploadFileToTmp() error {
 }
 
 /*
+Uploads the given file to the given container in the given pod to the given
+remote target folder.
+*/
+func KubectlUploadFileToPod(namespace, podName, containerName, fileToUpload, remoteTargetFolder string) error {
+	return nil
+}
+
+/*
 Deletes a file from the remote tmp directory.
 */
 func KubectlDeleteTmpFile() error {
@@ -79,7 +87,7 @@ func KubectlDeleteTmpFile() error {
 /*
 Deletes a file in the remote pod/container.
 */
-func KubectlDeleteFile() error {
+func KubectlDeleteFileInPod(namespace, podName, containerName, remoteFilename string) error {
 	return nil
 }
 
