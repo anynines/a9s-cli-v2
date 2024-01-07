@@ -18,6 +18,7 @@
 !LICENSE
 !Changelog.md
 !Backlog.md
+!ImplementationNotes.md
 bin/a9s
 
 # !Makefile
