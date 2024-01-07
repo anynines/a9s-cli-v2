@@ -17,7 +17,7 @@ var cmdCreate = &cobra.Command{
 	},
 }
 
-var cmdPG = &cobra.Command{
+var cmdCreatePG = &cobra.Command{
 	Use:   "pg",
 	Short: "Create PostgreSQL resources such as service instances, service bindings, backups and restore jobs.",
 	Long:  `Create PostgreSQL resources such as service instances, service bindings, backups and restore jobs.`,
@@ -112,13 +112,13 @@ func init() {
 
 	// cmdPG.PersistentFlags().StringVarP(&demo.OutputFormat, "output", "o", "", "Output format. Options: \"yaml\".")
 
-	cmdPG.AddCommand(cmdPGInstance)
+	cmdCreatePG.AddCommand(cmdPGInstance)
 
 	cmdPGBackup.PersistentFlags().StringVar(&demo.A8sPGBackup.ApiVersion, "api-version", "v1beta3", "api version of the pg backup.")
 	cmdPGBackup.PersistentFlags().StringVar(&demo.A8sPGBackup.Name, "name", "example-pg-1", "name of the pg backup. Not the name of the service instance.")
 	cmdPGBackup.PersistentFlags().StringVarP(&demo.A8sPGBackup.ServiceInstanceName, "service-instance", "i", "example-pg", "name of the pg service instance to be backed up.")
 	cmdPGBackup.PersistentFlags().StringVar(&demo.A8sPGBackup.Namespace, "namespace", "default", "namespace of the pg service instance.")
-	cmdPG.AddCommand(cmdPGBackup)
+	cmdCreatePG.AddCommand(cmdPGBackup)
 
 	// Should the restore act on the backup resource or should there be a separate object for it?
 	cmdPGRestore.PersistentFlags().StringVar(&demo.A8sPGRestore.ApiVersion, "api-version", "v1beta3", "api version of the pg backup.")
@@ -126,9 +126,9 @@ func init() {
 	cmdPGRestore.PersistentFlags().StringVarP(&demo.A8sPGRestore.BackupName, "backup", "b", "example-pg-backup", "name of the pg backup to be restored.")
 	cmdPGRestore.PersistentFlags().StringVarP(&demo.A8sPGRestore.ServiceInstanceName, "service-instance", "i", "example-pg", "name of the pg service instance to be restored.")
 	cmdPGRestore.PersistentFlags().StringVar(&demo.A8sPGRestore.Namespace, "namespace", "default", "namespace of the pg service instance.")
-	cmdPG.AddCommand(cmdPGRestore)
+	cmdCreatePG.AddCommand(cmdPGRestore)
 
-	cmdCreate.AddCommand(cmdPG)
+	cmdCreate.AddCommand(cmdCreatePG)
 
 	// create demo a8s
 	cmdCreateDemoA8s.PersistentFlags().StringVar(&demo.BackupInfrastructureRegion, "backup-region", "eu-central-1", "specify the infrastructure region to store backups such as \"us-east-1\".")

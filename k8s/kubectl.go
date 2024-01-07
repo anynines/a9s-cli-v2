@@ -16,7 +16,6 @@ Examples:
 delete postgresql {name}
 apply -f {path}
 delete -f {path}
-apply --kustomize {path}
 */
 func KubectlAct(verb, flag, filepath string, waitForUser bool) {
 	cmd := exec.Command("kubectl", verb, flag, filepath)
@@ -48,9 +47,10 @@ func KubectlApplyKustomize(kustomizeFilepath string, waitForUser bool) {
 // /*
 // Uploads the given file to the tmp folder within the target pod.
 // */
-// func KubectlUploadFileToTmp() error {
-// 	return nil
-// }
+func KubectlUploadFileToTmp() error {
+
+	return nil
+}
 
 // /*
 // Deletes a file from the remote tmp directory.
