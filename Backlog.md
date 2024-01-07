@@ -1,17 +1,33 @@
 # Backlog
 * Next release: backup/restore
-    * Chore: Load data into service instance
+    * Feature: `a9s pg apply --file my.sql` 
+        * Load data into service instance
         * Implement a command that loads a well known dataset into a service instance
             * Store data somewhere where it will also be checked out, e.g. in a8s-demo
             * Create a command `a9s pg apply --file load_demo_data.sql` 
                 * This way the command can also be used for other purposes
                     * It does say "import" as the sql file could also be about deleting data.
                         `a9s pg apply --file delete_demo_data.sql`
-            * Create a command `a9s pg apply --file demo_data.sql`            
                 * This should be executing the following statements
                     * `kubectl cp demo_data.sql default/clustered-0:/home/postgres -c postgres`
                     * `kubectl exec -n default clustered-0 -c postgres -- psql -U postgres -d a9s_apps_default_db -f demo_data.sql`
                     * TODO: Modify the exec command so that the file is deleted within the pod after it has been imported.
+
+        * Implementation notes:
+            * Implementation Outline
+                1. Upload file to pod
+                    * The container to copy the file to is called `postgres`
+                    * The file should be uploaded to the pod's `tmp` folder
+                    * For `kubectl cp` to work, the `tar` command must be present in the target pod.
+                    * Implement copy in `kubernetes_workload.go`
+                2. Apply file by executing `psql`
+                    * Implement apply in `a8s_pg.go`
+                3. Delete file
+                    * Implement copy in `kubernetes_workload.go`
+            * **Important**: For clustered instances, before copying the file, it must be determined which Pod is the master-Pod as the role assignment may change over time.
+                * The master pod is the pod with the following label: `a8s.a9s/replication-role=master`
+
+
 
     * Feature: Restore
         * The implementation plan is similar to creating the backup.
