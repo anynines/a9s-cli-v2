@@ -9,7 +9,8 @@
 * BUGFIX: Params for creating pg instances do now belong to the `a9s create pg instance` command instead of `a9s create pg`.
 * BUGFIX: The `backup-provider` param in `a9s create demo a8s` is now correctly set instead of being falsely assigned to the `backup-bucket` parameter.
 * BUGFIX: executing a9s from an arbitrary file should writeYAML files to the working directory not relative to the exeuction folder of the a9s binary.
-* BUGIX: The filename of a backup manifest should be correct but is: usermanifests/a8s-pg-backup-a8s-pg-backup.yaml
+* BUGFIX: The filename of a backup manifest should be correct but is: usermanifests/a8s-pg-backup-a8s-pg-backup.yaml
+* BUGFIX: Creating a service instance named `solo` with a single replica should not print output containing the name `clustered-0` due to assuming any system to consist of 3 replicas.
 * Default change: Makes `eu-central-1` the default infrastructure region.
 * Removes Docker as a necessary prerequisite as not all Kubernetes providers mandatorily need Docker
 * Testing: Created a Ruby/RSpec test suite to run the demo automatically for both `kind` and `minikube`. See: https://github.com/anynines/a9s-cli-v2-tests

@@ -1,5 +1,5 @@
 # Backlog
-* Next release: backup/restore
+* Next release: backup/restore    
     * Feature: `a9s pg apply --file my.sql` 
         * Load data into service instance
         * Implement a command that loads a well known dataset into a service instance
@@ -19,8 +19,17 @@
                     * **Important**: For clustered instances, before copying the file, it must be determined which Pod is the master-Pod as the role assignment may change over time.
                     * The master pod is the pod with the following label: `a8s.a9s/replication-role=master`
                     * `kubectl get pods -n default -l 'a8s.a9s/replication-role=master,a8s.a9s/dsi-group=postgresql.anynines.com,a8s.a9s/dsi-kind=Postgresql,a8s.a9s/dsi-name=clustered' -o=jsonpath='{.items[*].metadata.name}'`
-
-                    * Implement in `pg/a8s_pg.go`
+                    * [In-progress] Implement in `pg/a8s_pg.go`
+                        * [Done] BUG: Creating a service instance named `solo` should not print output containing the name `clustered-0`.
+                        * `FindPrimaryPodOfServiceInstance`
+                            * [Next] In `k8s/kubectl.go` implement `FindFirstPodByLabel`
+                                * Implement a more generic version `Kubectl` being a variadic function just like `Command` is.
+                    * In `k8s/kubectl.go` implement
+                        * `KubectlUploadFileToTmp`
+                        * `KubectlDeleteTmpFile`
+                        * `KubectlDeleteFile`
+                        * `KubectlExec`
+                        * `KubectlCp` 
                 1. Upload file to pod
                     * The container to copy the file to is called `postgres`
                     * The file should be uploaded to the pod's `tmp` folder
