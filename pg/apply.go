@@ -95,7 +95,7 @@ func ApplySQLFileToPGServiceInstance(namespace, serviceInstanceName, sqlFileToUp
 	remoteSQLFilePath := filepath.Join(RemoteUploadDir, sqlFilename)
 
 	// Apply SQL file using psql
-	err = ExecuteSQLFileWithinPod(namespace, serviceInstanceName, remoteSQLFilePath)
+	err = ExecuteSQLFileWithinPod(namespace, podName, remoteSQLFilePath)
 
 	// Delete file
 }
