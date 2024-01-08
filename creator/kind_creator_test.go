@@ -5,6 +5,7 @@ Execute with: go test ./...
 */
 
 import (
+	"os"
 	"testing"
 	"time"
 )
@@ -37,11 +38,17 @@ func TestKindRunning(t *testing.T) {
 
 /*
 TODO Find a more elegant solution to perform end to end tests.
+RUN: go test ./... -run TestKindCreate -v -count=1
+Note: -cound=1 disables test caching
 */
 func TestKindCreate(t *testing.T) {
 	if !testing.Short() {
 		spec := BuildStandardClusterSpec()
+		spec.Name = "a8s-test-kind-creator"
+
 		c := KindCreator{}
+
+		c.LocalWorkDir = os.TempDir()
 
 		c.Create(spec, true)
 
@@ -67,8 +74,4 @@ func TestKindCreate(t *testing.T) {
 	} else {
 		t.Skip("Skipping creation in short mode")
 	}
-}
-
-func TestKindDelete(t *testing.T) {
-
 }

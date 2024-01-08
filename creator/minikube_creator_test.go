@@ -30,6 +30,8 @@ TODO Find a more elegant solution to perform end to end tests.
 func TestMinikubeCreate(t *testing.T) {
 	if !testing.Short() {
 		spec := BuildStandardClusterSpec()
+		spec.Name = "a8s-testing-minikube-creator"
+
 		c := MinikubeCreator{}
 
 		c.Create(spec, true)
