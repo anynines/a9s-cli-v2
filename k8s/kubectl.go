@@ -137,7 +137,7 @@ func FindFirstPodByLabel(namespace, label string) (string, error) {
 	commandElements = append(commandElements, label)
 
 	// Output jsonpath
-	commandElements = append(commandElements, " -o=jsonpath='{.items[*].metadata.name}'")
+	commandElements = append(commandElements, "-o=jsonpath='{.items[*].metadata.name}'")
 
 	cmd, output, err := Kubectl(waitForUser, commandElements...)
 

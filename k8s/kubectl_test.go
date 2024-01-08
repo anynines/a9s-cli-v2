@@ -39,7 +39,11 @@ func TestKubectl(t *testing.T) {
 }
 
 func TestFindFirstPodByLabel(t *testing.T) {
-	// TODO implement
+	nonExistingLabel := "non-existing-label=true"
+	name, err := FindFirstPodByLabel("default", nonExistingLabel)
+	if err != nil {
+		t.Errorf("Shouldn't find a non-existing pod with label %s but found pod with name %s.", nonExistingLabel, name)
+	}
 }
 
 func BuildStandardClusterSpec() creator.KubernetesClusterSpec {
@@ -83,8 +87,8 @@ See: https://pkg.go.dev/testing#hdr-Main
 func TestMain(m *testing.M) {
 
 	CreateTestCluster()
+	defer DeleteTestCluster()
 
 	m.Run()
 
-	DeleteTestCluster()
 }
