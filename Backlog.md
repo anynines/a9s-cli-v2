@@ -25,7 +25,7 @@
                             * [Done] In `k8s/kubectl.go` implement `FindFirstPodByLabel`
                                 * Implement a more generic version `Kubectl` being a variadic function just like `Command` is.
                     
-                1. **[Next]** Upload file to pod
+                1. [Done] Upload file to pod
                     * The container to copy the file to is called `postgres`
                     * The file should be uploaded to the pod's `tmp` folder
                     * For `kubectl cp` to work, the `tar` command must be present in the target pod.
@@ -37,11 +37,12 @@
                         * `KubectlDeleteFile`
                         * `KubectlExec`
                         * `KubectlCp` 
-                1. Apply file by executing `psql`
+                1. [DONE] Apply file by executing `psql`
                     * Implement apply in `a8s_pg.go`
-                1. Delete file
+                1. **[Next]** Delete file
                     * Implement copy in `kubernetes_workload.go`
-            
+                1. `a9s pg apply --file` should warn if a service-instance cannot be found
+                1. `a9s pg apply` should demand mandatory params without defaults for `-f` and `-i`
 
 
 
@@ -56,7 +57,7 @@
     * Backup: A failed backup should be indicated to the user.
     * Restore: A failed restore should be indicated to the user.
 
-* `a9s pg apply --file` should warn if a service-instance cannot be found
+
 
 * Backup/Restore: The WaitForKubernetesResource function should indicate the current status cycling through all states with Status = true (scheduled, complete, ...)
 * Backup: The create backup command should verify whether the given service instance exists.
