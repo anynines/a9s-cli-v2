@@ -44,6 +44,15 @@ func TestFindFirstPodByLabel(t *testing.T) {
 	if err != nil {
 		t.Errorf("Shouldn't find a non-existing pod with label %s but found pod with name %s.", nonExistingLabel, name)
 	}
+
+	// Create pod with label
+	knownLabel := "test-label=ihslsd"
+	Kubectl(false, "run", "tst-first-pod-by-label", "--image=busybox", "--labels", knownLabel)
+
+	_, err = FindFirstPodByLabel("default", knownLabel)
+	if err != nil {
+		t.Errorf("Should find a pod with label %s but didn't find any pod with that label.", knownLabel)
+	}
 }
 
 func BuildStandardClusterSpec() creator.KubernetesClusterSpec {
