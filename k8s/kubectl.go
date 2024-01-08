@@ -17,6 +17,8 @@ var ErrNotFound = errors.New("Resource was not found")
 
 /*
 Variadic function to use kubectl.
+
+Returns: cmd, output, err
 */
 func Kubectl(waitForUser bool, kubectlArg ...string) (*exec.Cmd, []byte, error) {
 
@@ -119,7 +121,25 @@ func FindFirstPodByLabel(namespace, label string) (string, error) {
 
 	// kubectl get pods -n default -l 'a8s.a9s/replication-role=master,a8s.a9s/dsi-group=postgresql.anynines.com,a8s.a9s/dsi-kind=Postgresql,a8s.a9s/dsi-name=clustered' -o=jsonpath='{.items[*].metadata.name}'
 	// output := "clustered-0 clustered-1 clustered-2 solo-0"
-	cmd, output, err := Kubectl(waitForUser, label)
+
+	//TODO Correctly assemble a string to pass to Kubectl
+
+	commandElements := make([]string, 0)
+	commandElements = append(commandElements, "get")
+	commandElements = append(commandElements, "pods")
+
+	// Namespace
+	commandElements = append(commandElements, "-n")
+	commandElements = append(commandElements, namespace)
+
+	// Labels
+	commandElements = append(commandElements, "-l")
+	commandElements = append(commandElements, label)
+
+	// Output jsonpath
+	commandElements = append(commandElements, " -o=jsonpath='{.items[*].metadata.name}'")
+
+	cmd, output, err := Kubectl(waitForUser, commandElements...)
 
 	if err != nil {
 		makeup.ExitDueToFatalError(err, "Can't kubectl using the command: "+cmd.String())

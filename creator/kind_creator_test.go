@@ -11,7 +11,7 @@ import (
 )
 
 func BuildStandardClusterSpec() KubernetesClusterSpec {
-	clusterName := "tarzan-furzt-auf-dem-baum"
+	clusterName := "a8s-test-creator"
 
 	return KubernetesClusterSpec{
 		Name:                 clusterName,
