@@ -13,7 +13,7 @@ import (
 	"github.com/anynines/a9s-cli-v2/makeup"
 )
 
-var ErrNotFound = errors.New("Resource was not found")
+var ErrNotFound = errors.New("resource was not found")
 
 /*
 Variadic function to use kubectl.
@@ -63,19 +63,31 @@ func KubectlApplyKustomize(kustomizeFilepath string, waitForUser bool) {
 	KubectlAct("apply", "--kustomize", kustomizeFilepath, waitForUser)
 }
 
-// /*
-// Uploads the given file to the tmp folder within the target pod.
-// */
-func KubectlUploadFileToTmp() error {
-
-	return nil
-}
-
 /*
 Uploads the given file to the given container in the given pod to the given
 remote target folder.
+
+Example kubectl command: kubectl cp demo_data.sql default/clustered-0:/home/postgres -c postgres
 */
 func KubectlUploadFileToPod(namespace, podName, containerName, fileToUpload, remoteTargetFolder string) error {
+	commandElements := make([]string, 0)
+
+	commandElements = append(commandElements, "cp")
+	commandElements = append(commandElements, fileToUpload)
+	commandElements = append(commandElements, namespace+"/"+podName+":"+remoteTargetFolder)
+	commandElements = append(commandElements, "-c")
+	commandElements = append(commandElements, containerName)
+
+	_, output, err := Kubectl(false, commandElements...)
+
+	if makeup.Verbose {
+		fmt.Println(string(output))
+	}
+
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -137,7 +149,7 @@ func FindFirstPodByLabel(namespace, label string) (string, error) {
 	commandElements = append(commandElements, label)
 
 	// Output jsonpath
-	commandElements = append(commandElements, "-o=jsonpath='{.items[*].metadata.name}'")
+	commandElements = append(commandElements, "-o=jsonpath={.items[*].metadata.name}")
 
 	cmd, output, err := Kubectl(waitForUser, commandElements...)
 
@@ -152,5 +164,7 @@ func FindFirstPodByLabel(namespace, label string) (string, error) {
 
 	podNames := strings.Fields(outputString)
 
-	return podNames[0], nil
+	podName := podNames[0]
+
+	return podName, nil
 }

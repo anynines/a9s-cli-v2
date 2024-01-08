@@ -11,7 +11,7 @@ import (
 )
 
 const A8sPGServiceInstanceAPIGroup = "postgresql.anynines.com"
-const A8sPGServiceInstanceAPIGroupLabel = "a8s.a9s/dsi-group=" + A8sPGBackupAPIGroup
+const A8sPGServiceInstanceAPIGroupLabel = "a8s.a9s/dsi-group=" + A8sPGServiceInstanceAPIGroup
 const A8sPGBackupAPIGroup = "backups.anynines.com"
 const A8sPGBackupKind = "Backup"
 const A8sPGRestoreKind = "Restore"
@@ -189,4 +189,3 @@ func WaitForPGRestoreToBecomeReady(namespace, name string) {
 		makeup.PrintCheckmark(fmt.Sprintf("The restore with the name %s in namespace %s has been successful.", name, namespace))
 	}
 }
-

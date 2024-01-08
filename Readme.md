@@ -161,3 +161,4 @@ End-to-end testing can be done using the external Ruby/RSpec test suite located 
 
 * Creating a backup for non-existing service instances falsely suggests that the backup has been successful.
 * Deletion of backups with `kubectl delete backup ...` get stuck and the deletion doesn't succeed.
+* When applying a sql file to an a8s Postgres database using `a9s pg apply --file` ensure that there is no change of the primary pod for clustered instances as otherwise the file might be copied to the wrong pod. There's a slight delay between determining the primary pod and uploading the file to it. 

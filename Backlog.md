@@ -15,26 +15,28 @@
 
         * Implementation notes:
             * Implementation Outline
-                1. Determine the master Pod for a given service instance name/namespace
+                1. [Done] Determine the master Pod for a given service instance name/namespace
                     * **Important**: For clustered instances, before copying the file, it must be determined which Pod is the master-Pod as the role assignment may change over time.
                     * The master pod is the pod with the following label: `a8s.a9s/replication-role=master`
                     * `kubectl get pods -n default -l 'a8s.a9s/replication-role=master,a8s.a9s/dsi-group=postgresql.anynines.com,a8s.a9s/dsi-kind=Postgresql,a8s.a9s/dsi-name=clustered' -o=jsonpath='{.items[*].metadata.name}'`
-                    * [In-progress] Implement in `pg/a8s_pg.go`
+                    * [Done] Implement in `pg/a8s_pg.go`
                         * [Done] BUG: Creating a service instance named `solo` should not print output containing the name `clustered-0`.
-                        * `FindPrimaryPodOfServiceInstance`
-                            * [Next] In `k8s/kubectl.go` implement `FindFirstPodByLabel`
+                        * [Done] `FindPrimaryPodOfServiceInstance`
+                            * [Done] In `k8s/kubectl.go` implement `FindFirstPodByLabel`
                                 * Implement a more generic version `Kubectl` being a variadic function just like `Command` is.
+                    
+                1. **[Next]** Upload file to pod
+                    * The container to copy the file to is called `postgres`
+                    * The file should be uploaded to the pod's `tmp` folder
+                    * For `kubectl cp` to work, the `tar` command must be present in the target pod.
+                    * Implement copy in `kubectl.go`
                     * In `k8s/kubectl.go` implement
+                        * `KubectlUploadFileToPod`
                         * `KubectlUploadFileToTmp`
                         * `KubectlDeleteTmpFile`
                         * `KubectlDeleteFile`
                         * `KubectlExec`
                         * `KubectlCp` 
-                1. Upload file to pod
-                    * The container to copy the file to is called `postgres`
-                    * The file should be uploaded to the pod's `tmp` folder
-                    * For `kubectl cp` to work, the `tar` command must be present in the target pod.
-                    * Implement copy in `kubernetes_workload.go`
                 1. Apply file by executing `psql`
                     * Implement apply in `a8s_pg.go`
                 1. Delete file
@@ -53,6 +55,8 @@
         * This completes the backup / restore cycle.
     * Backup: A failed backup should be indicated to the user.
     * Restore: A failed restore should be indicated to the user.
+
+* `a9s pg apply --file` should warn if a service-instance cannot be found
 
 * Backup/Restore: The WaitForKubernetesResource function should indicate the current status cycling through all states with Status = true (scheduled, complete, ...)
 * Backup: The create backup command should verify whether the given service instance exists.
