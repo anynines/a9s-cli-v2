@@ -128,6 +128,10 @@ Uploading a SQL file, executing it using `psql` and deleting the file can be don
 
     a9s pg apply --file /path/to/sql/file --instance-name sample-pg-cluster
 
+The file is uploaded to the current primary pod of the service instance. 
+
+**Note**: Ensure that, during the execution of the command, there is no change of the primary node for a given clustered service intance as otherwise the file upload may fail or target the wrong pod.
+
 Use `--yes` to skip the confirmation prompt.
 
     a9s pg apply --file /path/to/sql/file --instance-name sample-pg-cluster --yes
