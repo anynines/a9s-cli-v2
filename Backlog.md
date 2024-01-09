@@ -1,5 +1,5 @@
 # Backlog
-* Next release: backup/restore    
+* Release v0.9.0: backup/restore v1
     * Feature: `a9s pg apply --file my.sql` 
         * Load data into service instance
         * Implement a command that loads a well known dataset into a service instance
@@ -46,7 +46,7 @@
                 1. `a9s pg apply --file` should warn if a service-instance cannot be found
                 1. `a9s pg apply` should demand mandatory params without defaults for `-f` and `-i`
 
-
+* Next Release
 
     * Feature: Restore
         * The implementation plan is similar to creating the backup.
