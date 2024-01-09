@@ -122,6 +122,20 @@ Deleting a service instance with the name `sample-pg-cluster`:
 
     a9s delete pg instance --name sample-pg-cluster
 
+## Applying a SQL File to a Service Instance
+
+Uploading a SQL file, executing it using `psql` and deleting the file can be done with:
+
+    a9s pg apply --file /path/to/sql/file --instance-name sample-pg-cluster
+
+Use `--yes` to skip the confirmation prompt.
+
+    a9s pg apply --file /path/to/sql/file --instance-name sample-pg-cluster --yes
+
+Use `--no-delete` to leave the file in the pod:
+
+    a9s pg apply --file /path/to/sql/file --instance-name sample-pg-cluster --no-delete
+
 ## Creating a Backup of a Service Instance
 
     a9s create pg backup --name sample-pg-cluster-backup-1 -i sample-pg-cluster-1
