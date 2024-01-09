@@ -7,6 +7,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var NoDeleteSQLFile bool
+var UnattendedMode bool
+
 var cmdPG = &cobra.Command{
 	Use:   "pg",
 	Short: "Interacting with Postgres.",
@@ -24,7 +27,7 @@ var cmdPGApply = &cobra.Command{
 	Short: "Apply an SQL file to the given Postgres instance",
 	Long:  "Applying an SQL file will upload the file, use psql to apply it and then delete the file within the target pod.",
 	Run: func(cmd *cobra.Command, args []string) {
-		pg.ApplySQLFileToPGServiceInstance(demo.A8sPGServiceInstance.Namespace, demo.A8sPGServiceInstance.Name, pg.SQLFilename)
+		pg.ApplySQLFileToPGServiceInstance(UnattendedMode, demo.A8sPGServiceInstance.Namespace, demo.A8sPGServiceInstance.Name, pg.SQLFilename, NoDeleteSQLFile)
 	},
 }
 
@@ -34,8 +37,10 @@ func init() {
 	//TODO Make service-instance mandatory param without default value
 	//TODO Make file mandatory param without default value
 	cmdPG.PersistentFlags().StringVar(&demo.A8sPGServiceInstance.Namespace, "namespace", "default", "namespace of the pg service instance.")
+	cmdPG.PersistentFlags().BoolVar(&NoDeleteSQLFile, "no-delete", false, "if set the uploaded SQL file won't be deleted after applying it.")
 	cmdPG.PersistentFlags().StringVarP(&demo.A8sPGServiceInstance.Name, "service-instance", "i", "", "name of the pg service instance.")
 	cmdPG.PersistentFlags().StringVarP(&pg.SQLFilename, "file", "f", "", "name of the SQL file to be applied to the pg service instance.")
+	cmdPG.PersistentFlags().BoolVarP(&UnattendedMode, "yes", "y", false, "skip yes-no questions by answering with \"yes\".")
 
 	rootCmd.AddCommand(cmdPG)
 }

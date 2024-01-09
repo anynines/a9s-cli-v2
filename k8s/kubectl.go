@@ -20,17 +20,18 @@ Variadic function to use kubectl.
 
 Returns: cmd, output, err
 */
-func Kubectl(waitForUser bool, kubectlArg ...string) (*exec.Cmd, []byte, error) {
+func Kubectl(unattendedMode bool, kubectlArg ...string) (*exec.Cmd, []byte, error) {
 
 	cmd := exec.Command("kubectl", kubectlArg...)
 
 	makeup.PrintCommandBox(cmd.String())
-	makeup.WaitForUser(waitForUser)
+	makeup.WaitForUser(unattendedMode)
 
 	output, err := cmd.CombinedOutput()
 
-	//TODO Use makeup
-	fmt.Println(string(output))
+	if makeup.Verbose {
+		fmt.Println(string(output))
+	}
 
 	return cmd, output, err
 }
@@ -69,7 +70,7 @@ remote target folder.
 
 Example kubectl command: kubectl cp demo_data.sql default/clustered-0:/home/postgres -c postgres
 */
-func KubectlUploadFileToPod(namespace, podName, containerName, fileToUpload, remoteTargetFolder string) error {
+func KubectlUploadFileToPod(unattendedMode bool, namespace, podName, containerName, fileToUpload, remoteTargetFolder string) error {
 	commandElements := make([]string, 0)
 
 	commandElements = append(commandElements, "cp")
@@ -78,49 +79,32 @@ func KubectlUploadFileToPod(namespace, podName, containerName, fileToUpload, rem
 	commandElements = append(commandElements, "-c")
 	commandElements = append(commandElements, containerName)
 
-	_, output, err := Kubectl(false, commandElements...)
+	_, _, err := Kubectl(unattendedMode, commandElements...)
 
-	if makeup.Verbose {
-		fmt.Println(string(output))
-	}
-
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-/*
-Deletes a file from the remote tmp directory.
-*/
-func KubectlDeleteTmpFile() error {
-	return nil
+	return err
 }
 
 /*
 Deletes a file in the remote pod/container.
+Executes command similar to: kubectl exec solo-0 -n default -c postgres -- rm /tmp/demo.sql
 */
-func KubectlDeleteFileInPod(namespace, podName, containerName, remoteFilename string) error {
-	return nil
-}
+func KubectlDeleteFileFromPod(unattendedMode bool, namespace, podName, containerName, remoteFilename string) error {
 
-/*
-Executes the kubectl exec command.
-*/
-func KubectlExec() error {
-	return nil
-}
+	commandElements := make([]string, 0)
 
-/*
-Executes the kubectl cp command.
+	commandElements = append(commandElements, "exec")
+	commandElements = append(commandElements, podName)
+	commandElements = append(commandElements, "-n")
+	commandElements = append(commandElements, namespace)
+	commandElements = append(commandElements, "-c")
+	commandElements = append(commandElements, containerName)
+	commandElements = append(commandElements, "--")
+	commandElements = append(commandElements, "rm")
+	commandElements = append(commandElements, remoteFilename)
 
-Note that the tar command must be present within the target pod or
-kubectl cp will fail.
-*/
-func KubectlCp() error {
+	_, _, err := Kubectl(unattendedMode, commandElements...)
 
-	return nil
+	return err
 }
 
 /*
@@ -129,7 +113,7 @@ Executes similar to: kubectl get pods -n default -l 'a8s.a9s/replication-role=ma
 func FindFirstPodByLabel(namespace, label string) (string, error) {
 
 	// Ignore the Don't Execute flag
-	waitForUser := false
+	unattendedMode := true
 
 	// kubectl get pods -n default -l 'a8s.a9s/replication-role=master,a8s.a9s/dsi-group=postgresql.anynines.com,a8s.a9s/dsi-kind=Postgresql,a8s.a9s/dsi-name=clustered' -o=jsonpath='{.items[*].metadata.name}'
 	// output := "clustered-0 clustered-1 clustered-2 solo-0"
@@ -151,7 +135,7 @@ func FindFirstPodByLabel(namespace, label string) (string, error) {
 	// Output jsonpath
 	commandElements = append(commandElements, "-o=jsonpath={.items[*].metadata.name}")
 
-	cmd, output, err := Kubectl(waitForUser, commandElements...)
+	cmd, output, err := Kubectl(unattendedMode, commandElements...)
 
 	if err != nil {
 		makeup.ExitDueToFatalError(err, "Can't kubectl using the command: "+cmd.String())

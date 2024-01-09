@@ -39,8 +39,10 @@
                         * `KubectlCp` 
                 1. [DONE] Apply file by executing `psql`
                     * Implement apply in `a8s_pg.go`
-                1. **[Next]** Delete file
+                1. [DONE] Delete file
                     * Implement copy in `kubernetes_workload.go`
+                1. [DONE] Test manually
+                1. [Next] Add tests to the e2e test suite
                 1. `a9s pg apply --file` should warn if a service-instance cannot be found
                 1. `a9s pg apply` should demand mandatory params without defaults for `-f` and `-i`
 

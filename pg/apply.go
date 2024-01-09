@@ -45,7 +45,7 @@ Both the sql file and the psql command must be present in the target pod.
 Example:
 kubectl exec -n default clustered-0 -c postgres -- psql -U postgres -d a9s_apps_default_db -f demo_data.sql
 */
-func ExecuteSQLFileWithinPod(namespace, serviceInstanceName, remoteSQLFilePath string) error {
+func ExecuteSQLFileWithinPod(unattendedMode bool, namespace, serviceInstanceName, remoteSQLFilePath string) error {
 
 	commandElements := make([]string, 0)
 	commandElements = append(commandElements, "exec")
@@ -63,7 +63,7 @@ func ExecuteSQLFileWithinPod(namespace, serviceInstanceName, remoteSQLFilePath s
 	commandElements = append(commandElements, "-f")
 	commandElements = append(commandElements, remoteSQLFilePath)
 
-	k8s.Kubectl(false, commandElements...)
+	k8s.Kubectl(unattendedMode, commandElements...)
 
 	return nil
 }
@@ -71,9 +71,13 @@ func ExecuteSQLFileWithinPod(namespace, serviceInstanceName, remoteSQLFilePath s
 /*
 Upload and execute psql for the given file on the primary of the given service instance.
 
+If noDelete is set to true, the uploaded file won't be deleted after a successful apply.
+Not that, if errors occur, the process will be stopped and hence, an uploaded file will remain
+in the pod and not be deleted, in case its execution failed.
+
 Example kubectl command: kubectl exec -n default clustered-0 -c postgres -- psql -U postgres -d a9s_apps_default_db -f demo_data.sql
 */
-func ApplySQLFileToPGServiceInstance(namespace, serviceInstanceName, sqlFileToUpload string) {
+func ApplySQLFileToPGServiceInstance(unattendedMode bool, namespace, serviceInstanceName, sqlFileToUpload string, noDelete bool) {
 	// Determine primary pod name
 	podName := FindPrimaryPodOfServiceInstance(namespace, serviceInstanceName)
 
@@ -84,7 +88,7 @@ func ApplySQLFileToPGServiceInstance(namespace, serviceInstanceName, sqlFileToUp
 	}
 
 	// Upload
-	err := k8s.KubectlUploadFileToPod(namespace, podName, RemoteUploadContainerName, sqlFileToUpload, RemoteUploadDir)
+	err := k8s.KubectlUploadFileToPod(unattendedMode, namespace, podName, RemoteUploadContainerName, sqlFileToUpload, RemoteUploadDir)
 
 	if err != nil {
 		makeup.ExitDueToFatalError(err, fmt.Sprintf("Can't upload file %s to service instance %s", sqlFileToUpload, serviceInstanceName))
@@ -95,7 +99,19 @@ func ApplySQLFileToPGServiceInstance(namespace, serviceInstanceName, sqlFileToUp
 	remoteSQLFilePath := filepath.Join(RemoteUploadDir, sqlFilename)
 
 	// Apply SQL file using psql
-	err = ExecuteSQLFileWithinPod(namespace, podName, remoteSQLFilePath)
+	err = ExecuteSQLFileWithinPod(unattendedMode, namespace, podName, remoteSQLFilePath)
 
-	// Delete file
+	if err != nil {
+		makeup.ExitDueToFatalError(err, "Couldn't execute provided SQL file to pod "+podName)
+	}
+
+	if !noDelete {
+
+		// Delete file
+		err = k8s.KubectlDeleteFileFromPod(unattendedMode, namespace, podName, RemoteUploadContainerName, remoteSQLFilePath)
+
+		if err != nil {
+			makeup.ExitDueToFatalError(err, "Couldn't delete uploaded SQL file from pod "+podName)
+		}
+	}
 }
