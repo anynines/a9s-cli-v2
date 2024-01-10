@@ -33,3 +33,13 @@ func TestServiceInstanceToYAML(t *testing.T) {
 	//			test using kubectl validation ?! kubectl must know whether the given spec of that kind is valid
 	// 			this doesn't say that the spec is correct but ... better than nothing
 }
+
+// func TestBackupToYAML(t *testing.T) {
+// 	yamlString := BackupToYAML("default", "v1beta3", "sample-pg-cluster-backup-1", "sample-pg-cluster")
+
+// 	t.Logf("YAML String:\n%s", yamlString)
+// }
+
+func TestFindPrimaryPodOfServiceInstance(t *testing.T) {
+
+}

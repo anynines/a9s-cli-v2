@@ -1,10 +1,17 @@
 package demo
 
+/*
+	TODO Make a8s package installing the a8s demo (incl. future a8s data services)
+*/
+
 import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 
+	"github.com/anynines/a9s-cli-v2/creator"
+	"github.com/anynines/a9s-cli-v2/k8s"
 	"github.com/anynines/a9s-cli-v2/makeup"
 	"github.com/anynines/a9s-cli-v2/pg"
 )
@@ -19,8 +26,6 @@ const demoAppGitRepo = "https://github.com/anynines/a8s-demo.git"
 const demoAppLocalDir = "a8s-demo"
 const demoA8sDeploymentLocalDir = "a8s-deployment"
 
-const certManagerNamespace = "cert-manager"
-const certManagerManifestUrl = "https://github.com/cert-manager/cert-manager/releases/download/v1.12.0/cert-manager.yaml"
 const defaultDemoSpace = "default"
 const A8sSystemName = "a8s Postgres Control Plane"
 const A8sSystemNamespace = "a8s-system"
@@ -31,6 +36,9 @@ var BackupInfrastructureBucket string   // e.g. a8s-backups
 
 var A8sPGServiceInstance pg.ServiceInstance
 var DeleteA8sPGInstanceName string
+
+var A8sPGBackup pg.Backup
+var A8sPGRestore pg.Restore
 
 var DeploymentVersion string // e.g. v0.3.0
 var NoPreCheck bool          // e.g. false -> Perform prechecks
@@ -61,6 +69,45 @@ type BlobStoreCloudConfiguration struct {
 var configFilePath string
 var DemoConfig Config
 
+// TODO Why not merge some of these settings into DemoConfig?
+// TODO Maybe DemoConfig or the entire demo package should be renamed a8s-demo or become less a8s specific
+var DemoClusterName string
+var UnattendedMode bool // Ask yes-no questions or assume "yes"
+var ClusterNrOfNodes string
+var ClusterMemory string
+
+func BuildKubernetesClusterSpec() creator.KubernetesClusterSpec {
+	nrOfNodes, err := strconv.Atoi(ClusterNrOfNodes)
+
+	if err != nil {
+		makeup.ExitDueToFatalError(err, "Couldn't determine the number of Kubernetes nodes from the param: "+ClusterNrOfNodes)
+	}
+
+	spec := creator.KubernetesClusterSpec{
+		Name:                 DemoClusterName,
+		NrOfNodes:            nrOfNodes,
+		NodeMemory:           ClusterMemory,
+		InfrastructureRegion: BackupInfrastructureRegion,
+	}
+
+	return spec
+}
+
+/*
+Builds a cluster manager without params by using shared package variables.
+*/
+func BuildKubernetesClusterManager() k8s.ClusterManager {
+
+	clusterManager := k8s.BuildClusterManager(
+		DemoConfig.WorkingDir,
+		DemoClusterName,
+		KubernetesTool,
+		UnattendedMode,
+	)
+
+	return clusterManager
+}
+
 func CheckPrerequisites() {
 	allGood := true
 
@@ -68,31 +115,33 @@ func CheckPrerequisites() {
 
 	CheckCommandAvailability()
 
-	if !checkIfDockerIsRunning() {
+	//TODO Remove section
+	// Docker is not a pre-requisite.
+	// if !kubernetes.CheckIfDockerIsRunning() {
+	// 	allGood = false
+	// }
+
+	// TODO Remove section
+	// We don't need to check if Kubernetes is running as we are about to
+	// create a Kubernetes cluster
+
+	//k8sCreator := kubernetes.GetKubernetesCreator(KubernetesTool, DemoConfig.WorkingDir)
+
+	clusterSpec := BuildKubernetesClusterSpec()
+
+	clusterManager := BuildKubernetesClusterManager()
+
+	clusterManager.CreateKubernetesClusterIfNotExists(clusterSpec)
+
+	// At this point there should be a Kubernetescluster
+	if !k8s.CheckIfAnyKubernetesIsRunning() {
 		allGood = false
 	}
 
-	if !checkIfKubernetesIsRunning() {
+	// Only if there's a suitable cluster, the cluster may also be selected.
+	// In any other case, the demo cluster has to be created, first.
+	if !clusterManager.IsClusterSelectedAsCurrentContext(DemoClusterName) {
 		allGood = false
-	}
-
-	k8sCreator := GetKubernetesCreator()
-
-	if !k8sCreator.Exists(DemoClusterName) {
-
-		spec := BuildKubernetesClusterSpec()
-
-		k8sCreator.Create(spec, UnattendedMode)
-
-		fmt.Println()
-		makeup.PrintH2("Rerunning prerequisite check ...")
-		CheckPrerequisites()
-		allGood = true
-	} else {
-
-		// Only if there's a suitable cluster, the cluster may also be selected.
-		// In any other case, the demo cluster has to be created, first.
-		CheckSelectedCluster()
 	}
 
 	// !NoPreCheck > Perform a pre-check
@@ -108,106 +157,120 @@ Applies the manifests of the a8s-deployment repository and thus installs a8s PG.
 func ApplyA8sManifests() {
 	makeup.PrintH1("Applying the a8s Data Service manifests...")
 	kustomizePath := filepath.Join(DemoConfig.WorkingDir, demoA8sDeploymentLocalDir, "deploy", "a8s", "manifests")
-	KubectlApplyKustomize(kustomizePath)
+	k8s.KubectlApplyKustomize(kustomizePath, UnattendedMode)
 	makeup.PrintCheckmark("Done applying a8s manifests.")
 }
 
-/*
-Represents the state of a Pod which is expected to be running at some point.
-The attribute "Running" is meant to be updated by a control loop.
-*/
-type PodExpectationState struct {
-	Name    string
-	Running bool
-}
-
 func WaitForA8sSystemToBecomeReady() {
-	expectedPods := []PodExpectationState{
+	expectedPods := []k8s.PodExpectationState{
 		{Name: "a8s-backup-controller-manager", Running: false},
 		{Name: "postgresql-controller-manager", Running: false},
 		{Name: "service-binding-controller-manager", Running: false},
 	}
 
-	WaitForSystemToBecomeReady(A8sSystemNamespace, A8sSystemName, expectedPods)
+	k8s.WaitForSystemToBecomeReady(A8sSystemNamespace, A8sSystemName, expectedPods)
+	makeup.WaitForUser(UnattendedMode)
 }
 
 func WaitForServiceInstanceToBecomeReady(namespace, serviceInstanceName string, nrOfInstances int) {
-	expectedPods := make([]PodExpectationState, 3)
+	expectedPods := make([]k8s.PodExpectationState, nrOfInstances)
 
 	for i := 0; i < nrOfInstances; i++ {
-		expectedPods[i] = PodExpectationState{
+		expectedPods[i] = k8s.PodExpectationState{
 			Name:    fmt.Sprintf("%s-%d", serviceInstanceName, i),
 			Running: false,
 		}
 	}
 
-	WaitForSystemToBecomeReady(namespace, serviceInstanceName, expectedPods)
+	k8s.WaitForSystemToBecomeReady(namespace, serviceInstanceName, expectedPods)
+	makeup.WaitForUser(UnattendedMode)
 }
 
+// TODO Move to pg package
 func CreatePGServiceInstance() {
 	makeup.PrintH1("Creating a a8s Postgres Service Instance...")
 
-	EstablishConfigFilePath()
-
-	if !LoadConfig() {
-		makeup.ExitDueToFatalError(nil, "There is no config, yet. Please create a demo environment before attempting to create a service instance.")
-	}
+	EnsureConfigIsLoaded()
 
 	// TODO Find a more elegant way/place for setting the Kind attribute
 	A8sPGServiceInstance.Kind = "Postgresql"
 	instanceYAML := pg.ServiceInstanceToYAML(A8sPGServiceInstance)
 
-	manifestsPath := UserManifestsPath()
+	instanceManifestPath := getServiceInstanceManifestPath(A8sPGServiceInstance.Name)
 
-	instanceManifestPath := filepath.Join(manifestsPath, A8sPGServiceInstance.Name+"-instance.yaml")
-
-	err := os.WriteFile(instanceManifestPath, []byte(instanceYAML), 0600)
-
-	if err != nil {
-		makeup.ExitDueToFatalError(err, "Couldn't save YAML file at: "+instanceManifestPath)
-	}
-
-	makeup.PrintInfo("The YAML manifest of the service instance is located at: " + instanceManifestPath)
-
-	makeup.Print("The YAML manifest contains: ")
-	err = makeup.PrintYAMLFile(instanceManifestPath)
-
-	if err != nil {
-		makeup.ExitDueToFatalError(err, "Can't read service instance manifest from "+instanceManifestPath)
-	}
+	WriteYAMLToFile(instanceYAML, instanceManifestPath)
 
 	if !DoNotApply {
-		KubectlApplyF(instanceManifestPath)
+		k8s.KubectlApplyF(instanceManifestPath, UnattendedMode)
 	}
 }
 
+/*
+Returns the filepath to the service instance manifest.
+*/
+func getServiceInstanceManifestPath(serviceInstanceName string) string {
+	return GetUserManifestPath("a8s-pg-instance-" + serviceInstanceName + ".yaml")
+}
+
+// TODO Move to pg package
 // Refactor to DRY with Create ... > CRUDPGServiceInstance
 func DeletePGServiceInstance() {
 	makeup.PrintH1("Deleting a a8s Postgres Service Instance...")
 
-	EstablishConfigFilePath()
-
-	if !LoadConfig() {
-		makeup.ExitDueToFatalError(nil, "There is no config, yet. Please create a demo environment before attempting to create a service instance.")
-	}
+	EnsureConfigIsLoaded()
 
 	makeup.Print("Using default values for deleting the instance.")
 
-	// // Stage 1: apply static manifest
-	// // TODO stage 2: create struct, generate manifest based on parameters
+	// TODO Make "postgresqls" a constant
+	k8s.KubectlAct("delete", "postgresqls", DeleteA8sPGInstanceName, UnattendedMode)
+}
 
-	// exampleManifestPath := filepath.Join(A8sDeploymentExamplesPath(), "postgresql-instance.yaml")
+func CountPodsInDemoNamespace() int {
+	return k8s.CountPodsInNamespace(DemoConfig.DemoSpace)
+}
 
-	// makeup.PrintInfo("The YAML manifest of the service instance is located at: " + exampleManifestPath)
+func getBackupManifestPath(backupName string) string {
+	makeup.PrintVerbose("Generating manifest for backup: " + backupName + " ...")
+	return GetUserManifestPath("a8s-pg-backup-" + backupName + ".yaml")
+}
 
-	// makeup.Print("The YAML manifest contains: ")
-	// err := makeup.PrintYAMLFile(exampleManifestPath)
+func getRestoreManifestPath(backupName string) string {
+	makeup.PrintVerbose("Generating manifest for backup restore: " + backupName + " ...")
+	return GetUserManifestPath("a8s-pg-restore-" + backupName + ".yaml")
+}
 
-	// if err != nil {
-	// 	makeup.ExitDueToFatalError(err, "Can't read service instance manifest from "+exampleManifestPath)
-	// }
+// TODO Move to pg package
+func CreatePGServiceInstanceBackup() {
+	EnsureConfigIsLoaded()
 
-	KubectlAct("delete", "postgresqls", DeleteA8sPGInstanceName)
+	makeup.PrintH1("Creating an a8s Postgres Service Instance Backup...")
+
+	yaml := pg.BackupToYAML(A8sPGBackup)
+
+	WriteYAMLToFile(yaml, getBackupManifestPath(A8sPGBackup.Name))
+
+	if !DoNotApply {
+		k8s.KubectlApplyF(getBackupManifestPath(A8sPGBackup.Name), UnattendedMode)
+	}
+
+	pg.WaitForPGBackupToBecomeReady(A8sPGBackup.Namespace, A8sPGBackup.Name)
+}
+
+// TODO Reduce code duplicity with CreatePGServiceInstanceBackup
+func CreatePGServiceInstanceRestore() {
+	EnsureConfigIsLoaded()
+
+	makeup.PrintH1("Creating an a8s Postgres Service Instance Backup Restore...")
+
+	yaml := pg.RestoreToYAML(A8sPGRestore)
+
+	WriteYAMLToFile(yaml, getRestoreManifestPath(A8sPGRestore.Name))
+
+	if !DoNotApply {
+		k8s.KubectlApplyF(getRestoreManifestPath(A8sPGRestore.Name), UnattendedMode)
+	}
+
+	pg.WaitForPGRestoreToBecomeReady(A8sPGRestore.Namespace, A8sPGRestore.Name)
 }
 
 func PrintDemoSummary() {

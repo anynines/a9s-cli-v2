@@ -91,7 +91,7 @@ The generated YAML specification will be stored in the `usermanifests`.
 
 The generated YAML specification will be stored in the `usermanifests` but `kubectl apply` won't be executed.
 
-### Creaging a Custom Service Instance
+### Creating a Custom Service Instance
 
 The command:
 
@@ -122,6 +122,32 @@ Deleting a service instance with the name `sample-pg-cluster`:
 
     a9s delete pg instance --name sample-pg-cluster
 
+## Applying a SQL File to a Service Instance
+
+Uploading a SQL file, executing it using `psql` and deleting the file can be done with:
+
+    a9s pg apply --file /path/to/sql/file --instance-name sample-pg-cluster
+
+The file is uploaded to the current primary pod of the service instance. 
+
+**Note**: Ensure that, during the execution of the command, there is no change of the primary node for a given clustered service intance as otherwise the file upload may fail or target the wrong pod.
+
+Use `--yes` to skip the confirmation prompt.
+
+    a9s pg apply --file /path/to/sql/file --instance-name sample-pg-cluster --yes
+
+Use `--no-delete` to leave the file in the pod:
+
+    a9s pg apply --file /path/to/sql/file --instance-name sample-pg-cluster --no-delete
+
+## Creating a Backup of a Service Instance
+
+    a9s create pg backup --name sample-pg-cluster-backup-1 -i sample-pg-cluster-1
+
+## Restoring a Backup of Service Instance
+
+    a9s create pg restore --name sample-pg-cluster-restore-1 -b sample-pg-cluster-backup-1 -i sample-pg-cluster-1
+
 ## Cleaning Up
 
 In order to delete the Demo cluster run:
@@ -136,51 +162,21 @@ They can be removed with:
 
     rm -rf $( a9s demo pwd )
 
-# Design Principles / Ideals
+# Testing the CLI
 
+The state of unit tests is currently very poor.
+
+End-to-end testing can be done using the external Ruby/RSpec test suite located at: https://github.com/anynines/a9s-cli-v2-tests
+
+# Design Principles / Ideals
+* The CLI acts like a personal assistent who knows the a9s products and helps to use them more easily.
+    * The CLI helps with installing a demo environment
+    * The CLI helps with writing YAML manifests, e.g. so that users do not have to lookup attributes in the documentation.
 * The CLI should not need a tight synchronization with product releases.
     * The release of a new a8s Postgres version, for example, should be working with an existing CLI version.
 
-# Backlog
+# Known Issues
 
-* Create commnand `a9s create pg backup --name $INSTANCE_NAME`
-
-* Extend `a9s create pg instance` to generate a YAML manifest given the params `--name`, `--replicas`, `--volume-size`, `--version`, `--requests-cpu` and `--limits-memory`
-    * Establish parameters
-    * Create struct
-    * Generate yaml - Filename = `"a8s-pg-instance-" + instance_name + ".yaml"
-    * Add `-o yaml` flag to generate yaml output, print yaml to screen but do not execute the command, 
-
-* Sub command to delete all demo resources.
-    * Remove everything (incl. config files)
-        * e.g. `a9s demo delete --all`
-
-* Question: Should the demo a8s-pg execute the entire demo or just install the operator? Other commands could be: 
-    * a8s-pg 
-        * `create`
-            * It's more idiomatic in Kubernetes for the verb to be the first command: `kubectl get pods` vs `kubectl pod get`.
-        * `a9s pg instance`
-            * `create`
-                * `a9s pg instance create --isolation pod` > a8s PG
-                * `a9s pg create instance --isolation pod`
-                * `a9s pg instance create --isolation vm` > a9s PG
-        * `a9s pg service-binding`
-            * `a9s pg binding` 
-            * `a9s pg sb`
-        * `a9s pg backup`
-        * `a9s pg restore`
-    * a8s-pg-instance 
-    * a8s-pg-app
-    * Alternatively, the entire demo could be driven by the "assistent" asking the user questions, interactively.
-
-
-* Don't use the `default` namespace, instead create a demo namespace, e.g. `a8s-demo`.
-    * Provision a8s-pg into namespace
-
-* Create binaries in a release matrix, e.g. using Go Release Binaries with Gihub Action Matrix Strategy
-    * https://github.com/marketplace/actions/go-release-binaries
-    * https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idstrategymatrix
-
-* Create S3 bucket with configs
-    * Alternatively: Install a local storage provider, e.g. minio.
-        * Costly dependency: add the local storage provider to the backup agent.
+* Creating a backup for non-existing service instances falsely suggests that the backup has been successful.
+* Deletion of backups with `kubectl delete backup ...` get stuck and the deletion doesn't succeed.
+* When applying a sql file to an a8s Postgres database using `a9s pg apply --file` ensure that there is no change of the primary pod for clustered instances as otherwise the file might be copied to the wrong pod. There's a slight delay between determining the primary pod and uploading the file to it. 

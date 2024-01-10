@@ -11,15 +11,13 @@ var cmdCreate = &cobra.Command{
 	Short: "Create data service resources such as data service instances, service bindings, backups and restore jobs.",
 	Long:  `Create data service resources including data service instances, service bindings backups and restore jobs.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		//ExecuteA8sPGDemo()
-
 		makeup.PrintWarning(" " + "Please select the data service resource type you would like to instantiate.")
 
 		cmd.Help()
 	},
 }
 
-var cmdPG = &cobra.Command{
+var cmdCreatePG = &cobra.Command{
 	Use:   "pg",
 	Short: "Create PostgreSQL resources such as service instances, service bindings, backups and restore jobs.",
 	Long:  `Create PostgreSQL resources such as service instances, service bindings, backups and restore jobs.`,
@@ -41,6 +39,26 @@ var cmdPGInstance = &cobra.Command{
 			instance := demo.A8sPGServiceInstance
 			demo.WaitForServiceInstanceToBecomeReady(instance.Namespace, instance.Name, instance.Replicas)
 		}
+	},
+}
+
+var cmdPGBackup = &cobra.Command{
+	Use:   "backup",
+	Short: "Create a PostgreSQL backup of a PostgreSQL service instance.",
+	Long:  `Create a PostgreSQL backup of a PostgreSQL service instance`,
+	Run: func(cmd *cobra.Command, args []string) {
+		// DoNotApply is processed in the Create func
+		demo.CreatePGServiceInstanceBackup()
+	},
+}
+
+var cmdPGRestore = &cobra.Command{
+	Use:   "restore",
+	Short: "Create a PostgreSQL restore of a PostgreSQL backup.",
+	Long:  `Create a PostgreSQL restore of a PostgreSQL backup of a PostgreSQL service instance.`,
+	Run: func(cmd *cobra.Command, args []string) {
+		// DoNotApply is processed in the Create func
+		demo.CreatePGServiceInstanceRestore()
 	},
 }
 
@@ -81,41 +99,41 @@ func init() {
 
 	*/
 
-	// apiVersion
-	// name
-	// namespace
-	// replicas
-	// volume size
-	// version
-	// resource requests cpu
-	// resource limits memory
-
-	// expose
-	// affinity
-
-	// cmdPGInstance.PersistentFlags().StringVar(&demo.BackupInfrastructureRegion, "backup-region", "us-east-1", "specify the infrastructure region to store backups such as \"us-east-1\".")
-
 	// create pg instance
-	cmdPG.PersistentFlags().StringVar(&demo.A8sPGServiceInstance.ApiVersion, "api-version", "v1beta3", "api version of the pg service instance.")
-	cmdPG.PersistentFlags().StringVar(&demo.A8sPGServiceInstance.Name, "name", "a8s-pg-instance", "name of the pg service instance.")
-	cmdPG.PersistentFlags().StringVar(&demo.A8sPGServiceInstance.Namespace, "namespace", "default", "namespace of the pg service instance.")
-	cmdPG.PersistentFlags().IntVar(&demo.A8sPGServiceInstance.Replicas, "replicas", 1, "number of Pods (replicas) the service instance's statefulset will have.")
-	cmdPG.PersistentFlags().StringVar(&demo.A8sPGServiceInstance.VolumeSize, "volume-size", "1Gi", "Volume size of the persistent volume claim(s)d of the service instance's statefulset.")
-	cmdPG.PersistentFlags().StringVar(&demo.A8sPGServiceInstance.Version, "service-version", "14", "Postgres version. The given version must be supported by the automation.")
-	cmdPG.PersistentFlags().StringVar(&demo.A8sPGServiceInstance.RequestsCPU, "requests-cpu", "100m", "Resources -> requests -> cpu of the service instance's statefulset.")
-	cmdPG.PersistentFlags().StringVar(&demo.A8sPGServiceInstance.LimitsMemory, "limits-memory", "100Mi", "Resources -> limits -> memory  of the service instance's statefulset.")
-	cmdPG.PersistentFlags().BoolVar(&demo.DoNotApply, "no-apply", false, "If this flag is set, the service instance YAML spec is not applied (kubectl apply -f).")
+	cmdPGInstance.PersistentFlags().StringVar(&demo.A8sPGServiceInstance.ApiVersion, "api-version", "v1beta3", "api version of the pg service instance.")
+	cmdPGInstance.PersistentFlags().StringVar(&demo.A8sPGServiceInstance.Name, "name", "example-pg", "name of the pg service instance.")
+	cmdPGInstance.PersistentFlags().StringVar(&demo.A8sPGServiceInstance.Namespace, "namespace", "default", "namespace of the pg service instance.")
+	cmdPGInstance.PersistentFlags().IntVar(&demo.A8sPGServiceInstance.Replicas, "replicas", 1, "number of Pods (replicas) the service instance's statefulset will have.")
+	cmdPGInstance.PersistentFlags().StringVar(&demo.A8sPGServiceInstance.VolumeSize, "volume-size", "1Gi", "Volume size of the persistent volume claim(s)d of the service instance's statefulset.")
+	cmdPGInstance.PersistentFlags().StringVar(&demo.A8sPGServiceInstance.Version, "service-version", "14", "Postgres version. The given version must be supported by the automation.")
+	cmdPGInstance.PersistentFlags().StringVar(&demo.A8sPGServiceInstance.RequestsCPU, "requests-cpu", "100m", "Resources -> requests -> cpu of the service instance's statefulset.")
+	cmdPGInstance.PersistentFlags().StringVar(&demo.A8sPGServiceInstance.LimitsMemory, "limits-memory", "100Mi", "Resources -> limits -> memory  of the service instance's statefulset.")
+	cmdPGInstance.PersistentFlags().BoolVar(&demo.DoNotApply, "no-apply", false, "If this flag is set, the service instance YAML spec is not applied (kubectl apply -f).")
 
 	// cmdPG.PersistentFlags().StringVarP(&demo.OutputFormat, "output", "o", "", "Output format. Options: \"yaml\".")
 
-	cmdPG.AddCommand(cmdPGInstance)
+	cmdCreatePG.AddCommand(cmdPGInstance)
 
-	cmdCreate.AddCommand(cmdPG)
+	cmdPGBackup.PersistentFlags().StringVar(&demo.A8sPGBackup.ApiVersion, "api-version", "v1beta3", "api version of the pg backup.")
+	cmdPGBackup.PersistentFlags().StringVar(&demo.A8sPGBackup.Name, "name", "example-pg-1", "name of the pg backup. Not the name of the service instance.")
+	cmdPGBackup.PersistentFlags().StringVarP(&demo.A8sPGBackup.ServiceInstanceName, "service-instance", "i", "example-pg", "name of the pg service instance to be backed up.")
+	cmdPGBackup.PersistentFlags().StringVar(&demo.A8sPGBackup.Namespace, "namespace", "default", "namespace of the pg service instance.")
+	cmdCreatePG.AddCommand(cmdPGBackup)
+
+	// Should the restore act on the backup resource or should there be a separate object for it?
+	cmdPGRestore.PersistentFlags().StringVar(&demo.A8sPGRestore.ApiVersion, "api-version", "v1beta3", "api version of the pg backup.")
+	cmdPGRestore.PersistentFlags().StringVar(&demo.A8sPGRestore.Name, "name", "example-pg-1", "name of the pg restore. Not the name of the service instance or the backup.")
+	cmdPGRestore.PersistentFlags().StringVarP(&demo.A8sPGRestore.BackupName, "backup", "b", "example-pg-backup", "name of the pg backup to be restored.")
+	cmdPGRestore.PersistentFlags().StringVarP(&demo.A8sPGRestore.ServiceInstanceName, "service-instance", "i", "example-pg", "name of the pg service instance to be restored.")
+	cmdPGRestore.PersistentFlags().StringVar(&demo.A8sPGRestore.Namespace, "namespace", "default", "namespace of the pg service instance.")
+	cmdCreatePG.AddCommand(cmdPGRestore)
+
+	cmdCreate.AddCommand(cmdCreatePG)
 
 	// create demo a8s
-	cmdCreateDemoA8s.PersistentFlags().StringVar(&demo.BackupInfrastructureRegion, "backup-region", "us-east-1", "specify the infrastructure region to store backups such as \"us-east-1\".")
+	cmdCreateDemoA8s.PersistentFlags().StringVar(&demo.BackupInfrastructureRegion, "backup-region", "eu-central-1", "specify the infrastructure region to store backups such as \"us-east-1\".")
 	cmdCreateDemoA8s.PersistentFlags().StringVar(&demo.BackupInfrastructureBucket, "backup-bucket", "a8s-backups", "specify the infrastructure object store bucket name.")
-	cmdCreateDemoA8s.PersistentFlags().StringVar(&demo.BackupInfrastructureBucket, "backup-provider", "AWS", "specify the infrastructure provider as supported by the a8s Backup Manager.")
+	cmdCreateDemoA8s.PersistentFlags().StringVar(&demo.BackupInfrastructureProvider, "backup-provider", "AWS", "specify the infrastructure provider as supported by the a8s Backup Manager.")
 	cmdCreateDemoA8s.PersistentFlags().StringVar(&demo.DeploymentVersion, "deployment-version", "v0.3.0", "specify the version corresponding to the a8s-deployment git version tag. Use \"latest\" to get the untagged version.")
 	cmdCreateDemoA8s.PersistentFlags().StringVar(&demo.ClusterNrOfNodes, "cluster-nr-of-nodes", "3", "specify number of Kubernetes nodes.")
 	cmdCreateDemoA8s.PersistentFlags().StringVar(&demo.ClusterMemory, "cluster-memory", "4gb", "specify memory of the Kubernetes cluster.")
@@ -124,9 +142,10 @@ func init() {
 	// create demo
 	cmdCreateDemo.PersistentFlags().StringVarP(&demo.KubernetesTool, "provider", "p", "minikube", "provider for creating the Kubernetes cluster. Valid options are \"minikube\" an \"kind\"")
 	cmdCreateDemo.PersistentFlags().StringVarP(&demo.DemoClusterName, "cluster-name", "c", "a8s-demo", "name of the demo Kubernetes cluster.")
-	cmdCreateDemo.PersistentFlags().BoolVarP(&demo.UnattendedMode, "yes", "y", false, "skip yes-no questions by answering with \"yes\".")
 
 	cmdCreateDemo.AddCommand(cmdCreateDemoA8s)
 	cmdCreate.AddCommand(cmdCreateDemo)
+	rootCmd.PersistentFlags().BoolVarP(&demo.UnattendedMode, "yes", "y", false, "skip yes-no questions by answering with \"yes\".")
+	rootCmd.PersistentFlags().BoolVarP(&makeup.Verbose, "verbose", "v", false, "enable verbose output?")
 	rootCmd.AddCommand(cmdCreate)
 }

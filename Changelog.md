@@ -1,3 +1,23 @@
+
+# v0.9.0
+* Change: `--yes` is now a global flag and available to all commands.
+* Change: `--verbose` or `-v` is now a global flag and available to all commands. Standard output is now less verbose.
+* Feature: `a9s create pg instance` to generate a YAML manifest given the params: `--namespace`, `--api-version`, `--name`, `--replicas`, `--volume-size`, `--service-version`, `--requests-cpu` and `--limits-memory`
+* Feature: `a9s create pg backup` to generate a backup YAML manifest, execute the backup and wait for it to complete.
+* Feature: `a9s create pg restore` to generate a restore YAML manifest, execute the restore and wait for it to complete.
+* Feature: Add `--no-apply` flag allow the generation of YAML manifests without applying them.
+* Feature `a9s pg apply` to conveniently load an SQL file into a service intance.
+* BUGFIX: When creating service instance YAML manifests, the namespace of the service instance is now set, correctly.
+* BUGFIX: Params for creating pg instances do now belong to the `a9s create pg instance` command instead of `a9s create pg`.
+* BUGFIX: The `backup-provider` param in `a9s create demo a8s` is now correctly set instead of being falsely assigned to the `backup-bucket` parameter.
+* BUGFIX: executing a9s from an arbitrary file should writeYAML files to the working directory not relative to the exeuction folder of the a9s binary.
+* BUGFIX: The filename of a backup manifest should be correct but is: usermanifests/a8s-pg-backup-a8s-pg-backup.yaml
+* BUGFIX: Creating a service instance named `solo` with a single replica should not print output containing the name `clustered-0` due to assuming any system to consist of 3 replicas.
+* Default change: Makes `eu-central-1` the default infrastructure region.
+* Removes Docker as a necessary prerequisite as not all Kubernetes providers mandatorily need Docker
+* Testing: Created a Ruby/RSpec test suite to run the demo automatically for both `kind` and `minikube`. See: https://github.com/anynines/a9s-cli-v2-tests
+
+
 # v0.8.0
 
 * The `a8s-deployment` repository is now cloned to {workdir}/a8s-deployment and is not at the {workdir} root anymore.
