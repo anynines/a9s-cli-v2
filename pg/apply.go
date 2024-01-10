@@ -114,4 +114,6 @@ func ApplySQLFileToPGServiceInstance(unattendedMode bool, namespace, serviceInst
 			makeup.ExitDueToFatalError(err, "Couldn't delete uploaded SQL file from pod "+podName)
 		}
 	}
+
+	makeup.PrintCheckmark("Successfully applied SQL file to pod " + podName + "")
 }
