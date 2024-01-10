@@ -35,7 +35,7 @@ type PodExpectationState struct {
 Wait for a set of Pods known by name to enter the status "Running".
 */
 func WaitForSystemToBecomeReady(namespace, systemName string, expectedPods []PodExpectationState) {
-	makeup.PrintH1("Waiting for the " + systemName + " to become ready...")
+	makeup.PrintH1("Waiting for " + systemName + " to become ready...")
 
 	allGood := true
 
@@ -109,40 +109,6 @@ func checkIfPodHasStatusRunningInNamespace(podNameStartsWith string, namespace s
 		}
 	}
 	return false
-}
-
-/*
-Examples:
-delete postgresql {name}
-apply -f {path}
-delete -f {path}
-apply --kustomize {path}
-*/
-func KubectlAct(verb, flag, filepath string, waitForUser bool) {
-	cmd := exec.Command("kubectl", verb, flag, filepath)
-
-	makeup.PrintCommandBox(cmd.String())
-	makeup.WaitForUser(waitForUser)
-
-	output, err := cmd.CombinedOutput()
-
-	fmt.Println(string(output))
-
-	if err != nil {
-		makeup.ExitDueToFatalError(err, "Can't kubectl "+verb+" with using the command: "+cmd.String())
-	}
-}
-
-func KubectlApplyF(yamlFilepath string, waitForUser bool) {
-	KubectlAct("apply", "-f", yamlFilepath, waitForUser)
-}
-
-func KubectlDeleteF(yamlFilepath string, waitForUser bool) {
-	KubectlAct("delete", "-f", yamlFilepath, waitForUser)
-}
-
-func KubectlApplyKustomize(kustomizeFilepath string, waitForUser bool) {
-	KubectlAct("apply", "--kustomize", kustomizeFilepath, waitForUser)
 }
 
 // https://github.com/kubernetes/client-go/blob/master/examples/in-cluster-client-configuration/main.go

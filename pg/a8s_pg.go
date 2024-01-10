@@ -11,10 +11,14 @@ import (
 )
 
 const A8sPGServiceInstanceAPIGroup = "postgresql.anynines.com"
+const A8sPGServiceInstanceAPIGroupLabel = "a8s.a9s/dsi-group=" + A8sPGServiceInstanceAPIGroup
 const A8sPGBackupAPIGroup = "backups.anynines.com"
 const A8sPGBackupKind = "Backup"
 const A8sPGRestoreKind = "Restore"
 const A8sPGServiceInstanceKind = "PostgreSQL"
+const A8sPGServiceInstanceKindLabel = "a8s.a9s/dsi-kind=" + A8sPGServiceInstanceKind
+const A8sPGLabelPrimary = "a8s.a9s/replication-role=master"
+const A8sPGServiceInstanceNameLabelKey = "a8s.a9s/dsi-name"
 
 type ServiceInstance struct {
 	Kind         string

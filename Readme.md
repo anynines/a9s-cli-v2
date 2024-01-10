@@ -122,6 +122,24 @@ Deleting a service instance with the name `sample-pg-cluster`:
 
     a9s delete pg instance --name sample-pg-cluster
 
+## Applying a SQL File to a Service Instance
+
+Uploading a SQL file, executing it using `psql` and deleting the file can be done with:
+
+    a9s pg apply --file /path/to/sql/file --instance-name sample-pg-cluster
+
+The file is uploaded to the current primary pod of the service instance. 
+
+**Note**: Ensure that, during the execution of the command, there is no change of the primary node for a given clustered service intance as otherwise the file upload may fail or target the wrong pod.
+
+Use `--yes` to skip the confirmation prompt.
+
+    a9s pg apply --file /path/to/sql/file --instance-name sample-pg-cluster --yes
+
+Use `--no-delete` to leave the file in the pod:
+
+    a9s pg apply --file /path/to/sql/file --instance-name sample-pg-cluster --no-delete
+
 ## Creating a Backup of a Service Instance
 
     a9s create pg backup --name sample-pg-cluster-backup-1 -i sample-pg-cluster-1
@@ -161,3 +179,4 @@ End-to-end testing can be done using the external Ruby/RSpec test suite located 
 
 * Creating a backup for non-existing service instances falsely suggests that the backup has been successful.
 * Deletion of backups with `kubectl delete backup ...` get stuck and the deletion doesn't succeed.
+* When applying a sql file to an a8s Postgres database using `a9s pg apply --file` ensure that there is no change of the primary pod for clustered instances as otherwise the file might be copied to the wrong pod. There's a slight delay between determining the primary pod and uploading the file to it. 

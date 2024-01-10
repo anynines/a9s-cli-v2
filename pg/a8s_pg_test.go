@@ -39,3 +39,7 @@ func TestServiceInstanceToYAML(t *testing.T) {
 
 // 	t.Logf("YAML String:\n%s", yamlString)
 // }
+
+func TestFindPrimaryPodOfServiceInstance(t *testing.T) {
+
+}
