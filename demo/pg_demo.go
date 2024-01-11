@@ -273,6 +273,10 @@ func CreatePGServiceInstanceBackup() {
 func CreatePGServiceInstanceRestore() {
 	EnsureConfigIsLoaded()
 
+	if !pg.DoesServiceInstanceExist(A8sPGRestore.Namespace, A8sPGRestore.ServiceInstanceName) {
+		makeup.ExitDueToFatalError(nil, fmt.Sprintf("Can't create restore for non-existing service instance %s in namespace %s", A8sPGBackup.ServiceInstanceName, A8sPGBackup.Namespace))
+	}
+
 	makeup.PrintH1("Creating an a8s Postgres Service Instance Backup Restore...")
 
 	yaml := pg.RestoreToYAML(A8sPGRestore)

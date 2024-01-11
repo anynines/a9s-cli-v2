@@ -7,9 +7,9 @@
   * Observability: As a user I expect the a9s cli to provide a descriptive error message when executing a command involving a service instance that does not exist.
     * Branch: `service-instance-existence-1``
     * Affected commands:
-        * Create backup
+        * [DONE] Create backup
         * Restore backup
-            * As a user I expect the restore command to fail when the given service instance does not exist
+            * [DONE] As a user I expect the restore command to fail when the given service instance does not exist
             * As a user I expect the restore command to fail when the given backup does not exist
         * [DONE]: Delete service instance    
 

@@ -1,5 +1,6 @@
 # v0.10.0
 
+* Change: `a9s delete pg restore` now verifies whether service instance exstist and fails with a non-zero return code if the service instance doesn't exist.
 * Change: `a9s delete pg backup` now verifies whether service instance exstist and fails with a non-zero return code if the service instance doesn't exist.
 * Change: `a9s delete pg instance` now verifies whether service instance exstist and warns if not existing with return code `0` as the desired state is that the instance shall not exist.
 
