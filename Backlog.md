@@ -3,20 +3,29 @@
 
 * Next Release
   * Feature: `a9s delete pg instance`: add param `--namespace`
-  
+
   * Observability: As a user I expect the a9s cli to provide a descriptive error message when executing a command involving a service instance that does not exist.
     * Branch: `service-instance-existence-1``
     * Affected commands:
         * Create backup
         * Restore backup
-        * Delete service instance    
-  * As a user I expect the restore command to fail when the given backup does not exist
+            * As a user I expect the restore command to fail when the given service instance does not exist
+            * As a user I expect the restore command to fail when the given backup does not exist
+        * [DONE]: Delete service instance    
 
   * Observability:
     * Backup: A failed backup should be indicated to the user.
     * Restore: A failed restore should be indicated to the user.
 
+* Feature: Create service instance from local SQL File
+    * Combines:
+        * Create service instance
+        * Apply SQL
 
+* Feature: Create service instance from backup
+    * Combines:
+        * Create service instance
+        * Restore backup
 
 * Backup/Restore: The WaitForKubernetesResource function should indicate the current status cycling through all states with Status = true (scheduled, complete, ...)
 * Backup: The create backup command should verify whether the given service instance exists.
