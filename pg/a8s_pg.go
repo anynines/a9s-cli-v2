@@ -2,7 +2,9 @@ package pg
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/anynines/a9s-cli-v2/k8s"
 	"github.com/anynines/a9s-cli-v2/makeup"
@@ -19,6 +21,7 @@ const A8sPGServiceInstanceKind = "PostgreSQL"
 const A8sPGServiceInstanceKindLabel = "a8s.a9s/dsi-kind=" + A8sPGServiceInstanceKind
 const A8sPGLabelPrimary = "a8s.a9s/replication-role=master"
 const A8sPGServiceInstanceNameLabelKey = "a8s.a9s/dsi-name"
+const A8sPGServiceInstanceKindPlural = "postgresqls"
 
 type ServiceInstance struct {
 	Kind         string
@@ -188,4 +191,41 @@ func WaitForPGRestoreToBecomeReady(namespace, name string) {
 	} else {
 		makeup.PrintCheckmark(fmt.Sprintf("The restore with the name %s in namespace %s has been successful.", name, namespace))
 	}
+}
+
+func DoesServiceInstanceExist(namespace, name string) bool {
+	// Ignore the Don't Execute flag
+	unattendedMode := true
+
+	// kubectl get pods -n default -l 'a8s.a9s/replication-role=master,a8s.a9s/dsi-group=postgresql.anynines.com,a8s.a9s/dsi-kind=Postgresql,a8s.a9s/dsi-name=clustered' -o=jsonpath='{.items[*].metadata.name}'
+	// output := "clustered-0 clustered-1 clustered-2 solo-0"
+
+	//TODO Correctly assemble a string to pass to Kubectl
+
+	commandElements := make([]string, 0)
+	commandElements = append(commandElements, "get")
+	commandElements = append(commandElements, A8sPGServiceInstanceKindPlural)
+
+	// Namespace
+	commandElements = append(commandElements, "-n")
+	commandElements = append(commandElements, namespace)
+
+	// Output jsonpath
+	commandElements = append(commandElements, "-o=jsonpath={.items[*].metadata.name}")
+
+	cmd, output, err := k8s.Kubectl(unattendedMode, commandElements...)
+
+	if err != nil {
+		makeup.ExitDueToFatalError(err, "Can't kubectl using the command: "+cmd.String())
+	}
+
+	outputString := string(output)
+
+	if outputString == "" {
+		return false
+	}
+
+	instanceNames := strings.Fields(outputString)
+
+	return slices.Contains(instanceNames, name)
 }

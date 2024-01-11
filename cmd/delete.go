@@ -6,6 +6,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var Namespace, ServiceInstanceName string
+
 var cmdDelete = &cobra.Command{
 	Use:   "delete",
 	Short: "Delete data service resources such as data service instances, service bindings, backups and restore jobs.",
@@ -59,7 +61,7 @@ var cmdDeletePGInstance = &cobra.Command{
 	Short: "Delete a PostgreSQL service instance.",
 	Long:  `Delete a PostgreSQL service instance`,
 	Run: func(cmd *cobra.Command, args []string) {
-		demo.DeletePGServiceInstance()
+		demo.DeletePGServiceInstance(Namespace, ServiceInstanceName)
 
 		//TODO Make configurable
 		// demo.WaitForServiceInstanceToBecomeReady("default", "sample-pg-cluster", 3)
@@ -68,7 +70,8 @@ var cmdDeletePGInstance = &cobra.Command{
 
 func init() {
 
-	cmdDeletePGInstance.PersistentFlags().StringVar(&demo.DeleteA8sPGInstanceName, "name", "a8s-pg-instance", "name of the pg service instance to be deleted.")
+	cmdDeletePGInstance.PersistentFlags().StringVar(&ServiceInstanceName, "name", "a8s-pg-instance", "name of the pg service instance to be deleted.")
+	cmdDeletePGInstance.PersistentFlags().StringVar(&Namespace, "namespace", "default", "namespace of the pg service instance to be deleted.")
 	cmdDeletePG.AddCommand(cmdDeletePGInstance)
 	cmdDelete.AddCommand(cmdDeletePG)
 	cmdDelete.AddCommand(cmdDeleteDemo)

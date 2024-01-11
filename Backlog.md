@@ -2,8 +2,17 @@
 
 
 * Next Release
+  * Feature: `a9s delete pg instance`: add param `--namespace`
+  
+  * Observability: As a user I expect the a9s cli to provide a descriptive error message when executing a command involving a service instance that does not exist.
+    * Branch: `service-instance-existence-1``
+    * Affected commands:
+        * Create backup
+        * Restore backup
+        * Delete service instance    
+  * As a user I expect the restore command to fail when the given backup does not exist
 
-   
+  * Observability:
     * Backup: A failed backup should be indicated to the user.
     * Restore: A failed restore should be indicated to the user.
 

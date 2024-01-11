@@ -214,15 +214,23 @@ func getServiceInstanceManifestPath(serviceInstanceName string) string {
 
 // TODO Move to pg package
 // Refactor to DRY with Create ... > CRUDPGServiceInstance
-func DeletePGServiceInstance() {
+func DeletePGServiceInstance(namespace, serviceInstanceName string) {
 	makeup.PrintH1("Deleting a a8s Postgres Service Instance...")
 
 	EnsureConfigIsLoaded()
 
-	makeup.Print("Using default values for deleting the instance.")
+	if !pg.DoesServiceInstanceExist(namespace, serviceInstanceName) {
+		makeup.ExitDueToFatalError(nil, fmt.Sprintf("Can't delete service instance. Service instance %s doesn't exist in namespace %s!", serviceInstanceName, namespace))
+	}
 
 	// TODO Make "postgresqls" a constant
-	k8s.KubectlAct("delete", "postgresqls", DeleteA8sPGInstanceName, UnattendedMode)
+	_, _, err := k8s.Kubectl(UnattendedMode, "delete", "postgresqls", serviceInstanceName, "-n", namespace)
+
+	if err != nil {
+		makeup.ExitDueToFatalError(err, "Couldn't delete service instance.")
+	} else {
+		makeup.PrintCheckmark(fmt.Sprintf("Service instance %s successfully deleted from namespace %s.", serviceInstanceName, namespace))
+	}
 }
 
 func CountPodsInDemoNamespace() int {
