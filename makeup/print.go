@@ -74,6 +74,11 @@ func PrintFailSummary(s string) {
 func PrintCheckmark(s string) {
 	fmt.Println(ListCheckmark(s))
 }
+
+func PrintSuccess(s string) {
+	PrintCheckmark(s)
+}
+
 func PrintFlexedBiceps(s string) {
 	fmt.Println(ListFlexedBiceps(s))
 }
