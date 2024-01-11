@@ -252,7 +252,11 @@ func getRestoreManifestPath(backupName string) string {
 func CreatePGServiceInstanceBackup() {
 	EnsureConfigIsLoaded()
 
-	makeup.PrintH1("Creating an a8s Postgres Service Instance Backup...")
+	if !pg.DoesServiceInstanceExist(A8sPGBackup.Namespace, A8sPGBackup.ServiceInstanceName) {
+		makeup.ExitDueToFatalError(nil, fmt.Sprintf("Can't create backup for non-existing service instance %s in namespace %s", A8sPGBackup.ServiceInstanceName, A8sPGBackup.Namespace))
+	}
+
+	makeup.PrintH1("Creating an a8s Postgres service instance backup...")
 
 	yaml := pg.BackupToYAML(A8sPGBackup)
 

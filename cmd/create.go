@@ -117,7 +117,7 @@ func init() {
 	cmdPGBackup.PersistentFlags().StringVar(&demo.A8sPGBackup.ApiVersion, "api-version", "v1beta3", "api version of the pg backup.")
 	cmdPGBackup.PersistentFlags().StringVar(&demo.A8sPGBackup.Name, "name", "example-pg-1", "name of the pg backup. Not the name of the service instance.")
 	cmdPGBackup.PersistentFlags().StringVarP(&demo.A8sPGBackup.ServiceInstanceName, "service-instance", "i", "example-pg", "name of the pg service instance to be backed up.")
-	cmdPGBackup.PersistentFlags().StringVar(&demo.A8sPGBackup.Namespace, "namespace", "default", "namespace of the pg service instance.")
+	cmdPGBackup.PersistentFlags().StringVarP(&demo.A8sPGBackup.Namespace, "namespace", "n", "default", "namespace of the pg service instance.")
 	cmdCreatePG.AddCommand(cmdPGBackup)
 
 	// Should the restore act on the backup resource or should there be a separate object for it?
