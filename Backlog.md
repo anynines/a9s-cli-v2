@@ -8,10 +8,15 @@
     * Branch: `service-instance-existence-1``
     * Affected commands:
         * [DONE] Create backup
-        * Restore backup
+        * [DONE] Restore backup
             * [DONE] As a user I expect the restore command to fail when the given service instance does not exist
-            * As a user I expect the restore command to fail when the given backup does not exist
+            * [DONE] As a user I expect the restore command to fail when the given backup does not exist
         * [DONE]: Delete service instance    
+    * Create e-2-e tests for attempting to 
+        * delete a non-existing service instance
+        * create a backup for a non existing service instance
+        * create a restore for a non existing service instance
+        * create a restore for a non existing backup
 
   * Observability:
     * Backup: A failed backup should be indicated to the user.

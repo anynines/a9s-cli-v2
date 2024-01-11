@@ -274,7 +274,11 @@ func CreatePGServiceInstanceRestore() {
 	EnsureConfigIsLoaded()
 
 	if !pg.DoesServiceInstanceExist(A8sPGRestore.Namespace, A8sPGRestore.ServiceInstanceName) {
-		makeup.ExitDueToFatalError(nil, fmt.Sprintf("Can't create restore for non-existing service instance %s in namespace %s", A8sPGBackup.ServiceInstanceName, A8sPGBackup.Namespace))
+		makeup.ExitDueToFatalError(nil, fmt.Sprintf("Can't create restore for non-existing service instance %s in namespace %s", A8sPGRestore.ServiceInstanceName, A8sPGRestore.Namespace))
+	}
+
+	if !pg.DoesBackupExist(A8sPGRestore.Namespace, A8sPGRestore.BackupName) {
+		makeup.ExitDueToFatalError(nil, fmt.Sprintf("Can't create restore for non-existing backup %s in namespace %s", A8sPGRestore.BackupName, A8sPGRestore.Namespace))
 	}
 
 	makeup.PrintH1("Creating an a8s Postgres Service Instance Backup Restore...")
