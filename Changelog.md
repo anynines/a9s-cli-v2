@@ -1,3 +1,7 @@
+# v0.10.0
+
+* Change: `a9s delete pg instance` now verifies whether service instance exstist and warns if not existing with return code `0` as the desired state is that the instance shall not exist.
+
 # v0.9.0
 * Change: `--yes` is now a global flag and available to all commands.
 * Change: `--verbose` or `-v` is now a global flag and available to all commands. Standard output is now less verbose.

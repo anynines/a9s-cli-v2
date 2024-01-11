@@ -71,7 +71,7 @@ var cmdDeletePGInstance = &cobra.Command{
 func init() {
 
 	cmdDeletePGInstance.PersistentFlags().StringVar(&ServiceInstanceName, "name", "a8s-pg-instance", "name of the pg service instance to be deleted.")
-	cmdDeletePGInstance.PersistentFlags().StringVar(&Namespace, "namespace", "default", "namespace of the pg service instance to be deleted.")
+	cmdDeletePGInstance.PersistentFlags().StringVarP(&Namespace, "namespace", "n", "default", "namespace of the pg service instance to be deleted.")
 	cmdDeletePG.AddCommand(cmdDeletePGInstance)
 	cmdDelete.AddCommand(cmdDeletePG)
 	cmdDelete.AddCommand(cmdDeleteDemo)

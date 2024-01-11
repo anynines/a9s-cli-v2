@@ -220,7 +220,8 @@ func DeletePGServiceInstance(namespace, serviceInstanceName string) {
 	EnsureConfigIsLoaded()
 
 	if !pg.DoesServiceInstanceExist(namespace, serviceInstanceName) {
-		makeup.ExitDueToFatalError(nil, fmt.Sprintf("Can't delete service instance. Service instance %s doesn't exist in namespace %s!", serviceInstanceName, namespace))
+		makeup.PrintWarning(fmt.Sprintf("Can't delete service instance. Service instance %s doesn't exist in namespace %s!", serviceInstanceName, namespace))
+		os.Exit(0)
 	}
 
 	// TODO Make "postgresqls" a constant

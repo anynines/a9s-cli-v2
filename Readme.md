@@ -122,6 +122,14 @@ Deleting a service instance with the name `sample-pg-cluster`:
 
     a9s delete pg instance --name sample-pg-cluster
 
+Or by providing an explicit namespace:
+
+    a9s delete pg instance --name sample-pg-cluster -n default
+
+**Note**: If the service instance doesn't exist, a warning is printed and the command exists with the
+return code `0` as the desired state of the service instance being delete is reached.
+
+
 ## Applying a SQL File to a Service Instance
 
 Uploading a SQL file, executing it using `psql` and deleting the file can be done with:
