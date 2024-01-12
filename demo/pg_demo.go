@@ -214,15 +214,24 @@ func getServiceInstanceManifestPath(serviceInstanceName string) string {
 
 // TODO Move to pg package
 // Refactor to DRY with Create ... > CRUDPGServiceInstance
-func DeletePGServiceInstance() {
+func DeletePGServiceInstance(namespace, serviceInstanceName string) {
 	makeup.PrintH1("Deleting a a8s Postgres Service Instance...")
 
 	EnsureConfigIsLoaded()
 
-	makeup.Print("Using default values for deleting the instance.")
+	if !pg.DoesServiceInstanceExist(namespace, serviceInstanceName) {
+		makeup.PrintWarning(fmt.Sprintf("Can't delete service instance. Service instance %s doesn't exist in namespace %s!", serviceInstanceName, namespace))
+		os.Exit(0)
+	}
 
 	// TODO Make "postgresqls" a constant
-	k8s.KubectlAct("delete", "postgresqls", DeleteA8sPGInstanceName, UnattendedMode)
+	_, _, err := k8s.Kubectl(UnattendedMode, "delete", "postgresqls", serviceInstanceName, "-n", namespace)
+
+	if err != nil {
+		makeup.ExitDueToFatalError(err, "Couldn't delete service instance.")
+	} else {
+		makeup.PrintCheckmark(fmt.Sprintf("Service instance %s successfully deleted from namespace %s.", serviceInstanceName, namespace))
+	}
 }
 
 func CountPodsInDemoNamespace() int {
@@ -243,7 +252,11 @@ func getRestoreManifestPath(backupName string) string {
 func CreatePGServiceInstanceBackup() {
 	EnsureConfigIsLoaded()
 
-	makeup.PrintH1("Creating an a8s Postgres Service Instance Backup...")
+	if !pg.DoesServiceInstanceExist(A8sPGBackup.Namespace, A8sPGBackup.ServiceInstanceName) {
+		makeup.ExitDueToFatalError(nil, fmt.Sprintf("Can't create backup for non-existing service instance %s in namespace %s", A8sPGBackup.ServiceInstanceName, A8sPGBackup.Namespace))
+	}
+
+	makeup.PrintH1("Creating an a8s Postgres service instance backup...")
 
 	yaml := pg.BackupToYAML(A8sPGBackup)
 
@@ -259,6 +272,14 @@ func CreatePGServiceInstanceBackup() {
 // TODO Reduce code duplicity with CreatePGServiceInstanceBackup
 func CreatePGServiceInstanceRestore() {
 	EnsureConfigIsLoaded()
+
+	if !pg.DoesServiceInstanceExist(A8sPGRestore.Namespace, A8sPGRestore.ServiceInstanceName) {
+		makeup.ExitDueToFatalError(nil, fmt.Sprintf("Can't create restore for non-existing service instance %s in namespace %s", A8sPGRestore.ServiceInstanceName, A8sPGRestore.Namespace))
+	}
+
+	if !pg.DoesBackupExist(A8sPGRestore.Namespace, A8sPGRestore.BackupName) {
+		makeup.ExitDueToFatalError(nil, fmt.Sprintf("Can't create restore for non-existing backup %s in namespace %s", A8sPGRestore.BackupName, A8sPGRestore.Namespace))
+	}
 
 	makeup.PrintH1("Creating an a8s Postgres Service Instance Backup Restore...")
 
