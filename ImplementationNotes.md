@@ -5,6 +5,22 @@ they may contain information worthwile to persistest. However, be aware that the
 represent ideas that have not been implemented or that changes may have been applied. In other words:
 **do not expect implementation notes to be in sync with the implementation**.
 
+## v0.10-0
+
+* Observability: As a user I expect the a9s cli to provide a descriptive error message when executing a command involving a service instance that does not exist.
+    * Branch: `service-instance-existence-1``
+    * Affected commands:
+        * [DONE] Create backup
+        * [DONE] Restore backup
+            * [DONE] As a user I expect the restore command to fail when the given service instance does not exist
+            * [DONE] As a user I expect the restore command to fail when the given backup does not exist
+        * [DONE]: Delete service instance    
+    * Create e-2-e tests for attempting to 
+        * delete a non-existing service instance
+        * create a backup for a non existing service instance
+        * create a restore for a non existing service instance
+        * create a restore for a non existing backup
+
 ## v0.9.0
 
 * Release v0.9.0: backup/restore v1
