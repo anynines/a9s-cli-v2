@@ -36,7 +36,7 @@ func init() {
 
 	//TODO Make service-instance mandatory param without default value
 	//TODO Make file mandatory param without default value
-	cmdPG.PersistentFlags().StringVar(&demo.A8sPGServiceInstance.Namespace, "namespace", "default", "namespace of the pg service instance.")
+	cmdPG.PersistentFlags().StringVarP(&demo.A8sPGServiceInstance.Namespace, "namespace", "n", "default", "namespace of the pg service instance.")
 	cmdPG.PersistentFlags().BoolVar(&NoDeleteSQLFile, "no-delete", false, "if set the uploaded SQL file won't be deleted after applying it.")
 	cmdPG.PersistentFlags().StringVarP(&demo.A8sPGServiceInstance.Name, "service-instance", "i", "", "name of the pg service instance.")
 	cmdPG.PersistentFlags().StringVarP(&pg.SQLFilename, "file", "f", "", "name of the SQL file to be applied to the pg service instance.")
