@@ -29,7 +29,17 @@
 
 ## Release: KubeCon Pre-Release
 
+### a8s PG Demo
+**OBJECTIVE**: Given a local computer and the `a9s` CLI, a local a8s PG demo can be performed.
+
+* **Github authentication**: A non-anynines user must be able to perform the a8s PG demo
+    * There mustn't be a requirement to have certain access privileges for any anynines github repository.
+    * Possible solution: Include github authentication into the CLI
+        * Currently it is assumed that `gh auth login` is performed.
+
 ### Public a8s PG Self-Demo
+**OBJECTIVE**: A visitor can perform a a8s PG demo on a local computer without the involvement of a sales engineer and/or online documentation.
+
 * Create and publish `a9s` binaries for supported OSes
     * Run test suite on linux
         * Perform cold test run
@@ -47,14 +57,19 @@
         * Upload binary
         * Publish docs / changelog
 * Create and deploy and a8s PG self-demo landing page
-
+* Create a marketing campaign with ads to feed the landing page
+* Establish a funnel and funnel monitoring to measure success
 
 ## Release: KubeCon Final
 
 ## Unassigned
 
+* Epic: POC on AWS
+* Epic: Allow Minio as Object Store
+    * OBJECTIVE: Allow a local demo without a depedency to external object stores such as AWS S3.
+
 * Epic: Use case: **Deploy the demo app**
-    * Feature: a9s create app myapp
+    * Feature: a9s create app -k directoryWithKustomize.yaml
     * Demo App
         * The demo consists of an app and a service + kustomize file.
         * `kubectl apply -k ...`
