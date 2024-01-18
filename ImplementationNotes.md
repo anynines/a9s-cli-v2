@@ -77,3 +77,11 @@ represent ideas that have not been implemented or that changes may have been app
         * DONE: Test manually
         * DONE: Add tests to the e2e test suite
         * This completes the backup / restore cycle.
+
+# v0.8.0 and Older
+
+* Chore: Write a testSuite to run end-to-end tests on a local machine using the `a9s`-cli applying all major usecases for both the kind and minikube providers.
+
+* Sub command to delete all demo resources.
+    * Remove everything (incl. config files)
+        * e.g. `a9s demo delete --all`

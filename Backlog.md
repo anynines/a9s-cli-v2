@@ -1,56 +1,95 @@
 # Backlog
 
 
-* Next Release
-  * Feature: `a9s delete pg instance`: add param `--namespace`
+## Next Release
+  * Epic: Namespace param
+    * Objective: Ensure commands consistently support `-n` and `--namespace` where applicable.
+        * TODO: Check which commands are in scope
+            * TODO: For each command in scope check whether `-n` and `--namespace` are supported, create feature if not.
+        
+        * Feature: Ensure that all commands accept and correctly apply a custom namespace for all postgres operations
+            * Feature: `a9s delete pg instance`: add param `--namespace`
+            * Manually test
+                * Create a service instance in a non-default namespace
+                * Create a backup
+                * Restore a backup
+                * Delete the service instance
+            * Write an rspec test scenario for namespace commands
+                * Alternatively, modify existing tests to use a namespace. Assumption: if it works in a custom namepspace, it'll surely work in the default namespace.
+
+    * Usability: Namespace: `a9s create demo a8s` 
+        * Don't use the `default` namespace, instead create a demo namespace, e.g. `a8s-demo`.
+        * Provision a8s-pg into custom namespace
+            * Change: Change the default namespace for `a9s create pg instance`
 
   * Observability:
     * Backup: A failed backup should be indicated to the user.
     * Restore: A failed restore should be indicated to the user.
 
-* Feature: Create service instance from local SQL File
-    * Combines:
-        * Create service instance
-        * Apply SQL
+
+## Release: KubeCon Pre-Release
+
+### Public a8s PG Self-Demo
+* Create and publish `a9s` binaries for supported OSes
+    * Run test suite on linux
+        * Perform cold test run
+        * Run test suite
+    * Run test suite on windows
+        * Perform cold test run
+        * Run test suite
+    * Run test suite test on macos
+        * Perform cold test run
+        * Run test suite
+* Create CI/CD pipeline that
+    * Creates binaries for each supported OS
+    * Runs tests for each supported OS
+    * Publishes binaries for each supported OS
+        * Upload binary
+        * Publish docs / changelog
+* Create and deploy and a8s PG self-demo landing page
+
+
+## Release: KubeCon Final
+
+## Unassigned
+
+* Epic: Use case: **Deploy the demo app**
+    * Feature: a9s create app myapp
+    * Demo App
+        * The demo consists of an app and a service + kustomize file.
+        * `kubectl apply -k ...`
+
+* Epic: Verbosity
+    * For all commands ensure that the `-v` flag is respected and without it there's a clean output
 
 * Feature: Create service instance from backup
     * Combines:
         * Create service instance
         * Restore backup
 
-* Backup/Restore: The WaitForKubernetesResource function should indicate the current status cycling through all states with Status = true (scheduled, complete, ...)
-* Backup: The create backup command should verify whether the given service instance exists.
-* Restore: The create restore command should verify whether both the given backup and service instance exists.
+* Observability: Backup/Restore: The WaitForKubernetesResource function should indicate the current status cycling through all states with Status = true (scheduled, complete, ...)
 
-Feature: Ensure that all commands accept and correctly apply a custom namespace for all postgres operations
-    * Manually test
-        * Create a service instance in a non-default namespace
-        * Create a backup
-        * Restore a backup
-        * Delete the service instance
-    * Write an rspec test scenario for the above
-
-* CHORE: Use PrintVerbose to make output much more clean.
-
-* BUG: Backups for non existing service instances shouldnt return success messages.
-    * The event was `map[lastTransitionTime:2023-12-29T09:18:43Z message:Backup Completed reason:Complete status:True type:Complete]`
-    * The bug may exist in the a8s backup manager
 
 * CHORE: Check if makeup.WaitForUser(demo.UnattendedMode) is used consistently for all new commands instance & backup
 
-* Deleting Backups and Restore CRs
+* FEATURE: Backups: Deleting Backups and Restore CRs
     * For completeness: Create command `a9s delete pg backup ...`
     * For completeness: Create command `a9s delete pg restore ...`
 
-* Chore: Write a testSuite to run end-to-end tests on a local machine using the `a9s`-cli applying all major usecases for both the kind and minikube providers.
+* Usability: Backup, Infrastructure Region: When executing a9s create demo a8s for the first time, the infrastructure-region should be queried as a user input instead of being a default-parameter. The probability is too high that the user choses a non-viable default option instead of providing a valid region.
 
-* Sub command to delete all demo resources.
-    * Remove everything (incl. config files)
-        * e.g. `a9s demo delete --all`
+* Create binaries in a release matrix, e.g. using Go Release Binaries with Gihub Action Matrix Strategy
+    * https://github.com/marketplace/actions/go-release-binaries
+    * https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idstrategymatrix
 
-* When executing a9s create demo a8s for the first time, the infrastructure-region should be queried as a user input instead of being a default-parameter. The probability is too high that the user choses a non-viable default option instead of providing a valid region.
+* Create S3 bucket with configs
+    * Alternatively: Install a local storage provider, e.g. minio.
+        * Costly dependency: add the local storage provider to the backup agent.
 
 
+# Questions
+
+## Command Structure
 * Question: Should the de   mo a8s-pg execute the entire demo or just install the operator? Other commands could be: 
     * Issue: What if a9s-pg is added to the a9s CLI?
         * How should it be resolved?
@@ -83,13 +122,3 @@ Feature: Ensure that all commands accept and correctly apply a custom namespace 
             * `a9s pg binding` 
             * `a9s pg sb`
 
-* Don't use the `default` namespace, instead create a demo namespace, e.g. `a8s-demo`.
-    * Provision a8s-pg into namespace
-
-* Create binaries in a release matrix, e.g. using Go Release Binaries with Gihub Action Matrix Strategy
-    * https://github.com/marketplace/actions/go-release-binaries
-    * https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idstrategymatrix
-
-* Create S3 bucket with configs
-    * Alternatively: Install a local storage provider, e.g. minio.
-        * Costly dependency: add the local storage provider to the backup agent.
