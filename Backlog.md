@@ -6,7 +6,19 @@
     * Objective: Ensure commands consistently support `-n` and `--namespace` where applicable.
         * TODO: Check which commands are in scope
             * TODO: For each command in scope check whether `-n` and `--namespace` are supported, create feature if not.
-        
+            * Commands in scope are:
+                * `a9s create demo a8s`
+                    * Question: should the installation of the a8s system be configurable at this point in time?
+                    * Answer: no! We can add this later.
+                * `a9s create pg instance`                   
+                   * DONE --namespace is present
+                   * TODO add -n 
+                   * TODO test creating a service instance in a non-default namespace
+                * `a9s create pg backup`
+                * `a9s create pg restore`
+                * `a9s delete demo a8s`
+                * `a9s delete pg instance`
+                * `a9s pg apply`
         * Feature: Ensure that all commands accept and correctly apply a custom namespace for all postgres operations
             * Feature: `a9s delete pg instance`: add param `--namespace`
             * Manually test
