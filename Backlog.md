@@ -11,14 +11,27 @@
                     * Question: should the installation of the a8s system be configurable at this point in time?
                     * Answer: no! We can add this later.
                 * `a9s create pg instance`                   
-                   * DONE --namespace is present
-                   * TODO add -n 
-                   * TODO test creating a service instance in a non-default namespace
+                    * DONE --namespace is present
+                    * TODO add -n 
+                    * TODO test creating a service instance in a non-default namespace
                 * `a9s create pg backup`
+                    * DONE --namespace is present
+                    * DONE add -n 
+                    * TODO test creating a service instance in a non-default namespace
                 * `a9s create pg restore`
+                    * DONE --namespace is present
+                    * DONE add -n 
+                    * TODO test creating a service instance in a non-default namespace
                 * `a9s delete demo a8s`
+                    * Support for namespaces will be added later.
                 * `a9s delete pg instance`
+                    * DONE --namespace is present
+                    * TODO add -n 
+                    * TODO test creating a service instance in a non-default namespace
                 * `a9s pg apply`
+                    * DONE --namespace is present
+                    * DONE add -n 
+                    * TODO test creating a service instance in a non-default namespace
         * Feature: Ensure that all commands accept and correctly apply a custom namespace for all postgres operations
             * Feature: `a9s delete pg instance`: add param `--namespace`
             * Manually test
