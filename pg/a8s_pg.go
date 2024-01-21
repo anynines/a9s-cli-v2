@@ -169,7 +169,11 @@ func WaitForPGBackupResourceToBecomeReady(namespace, name string, resource strin
 	desiredConditionsMap["type"] = "Complete"
 	desiredConditionsMap["status"] = "True"
 
-	err := k8s.WaitForKubernetesResource(namespace, gvr, desiredConditionsMap)
+	failedConditionsMap := make(map[string]interface{})
+	failedConditionsMap["type"] = "PermanentlyFailed"
+	failedConditionsMap["status"] = "True"
+
+	err := k8s.WaitForKubernetesResource(namespace, gvr, desiredConditionsMap, failedConditionsMap)
 
 	return err
 }
@@ -178,7 +182,7 @@ func WaitForPGBackupToBecomeReady(namespace, name string) {
 	err := WaitForPGBackupResourceToBecomeReady(namespace, name, "backups")
 
 	if err != nil {
-		makeup.PrintFail("The backup has not been successful. Does the service instance exist?")
+		makeup.PrintFail("The backup has not been successful: " + err.Error() + ". Does the service instance exist?")
 	} else {
 		makeup.PrintCheckmark(fmt.Sprintf("The backup with the name %s in namespace %s has been successful.", name, namespace))
 	}
