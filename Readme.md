@@ -79,15 +79,15 @@ It is possible to skip all yes-no questions by **enabling the unattended mode** 
 
 ## Creating a Service Instance
 
-Creating a service instance with the name `clustered`:
+Creating a service instance with the name `sample-pg-cluster`:
 
-    a9s create pg instance --name clustered --replicas 3
+    a9s create pg instance --name sample-pg-cluster
 
 The generated YAML specification will be stored in the `usermanifests`.
 
 ### Creating Service Instance YAML Without Applying it
 
-    a9s create pg instance --name clustered --replicas 3 --no-apply
+    a9s create pg instance --name sample-pg-cluster --no-apply
 
 The generated YAML specification will be stored in the `usermanifests` but `kubectl apply` won't be executed.
 

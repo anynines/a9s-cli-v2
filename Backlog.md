@@ -89,6 +89,8 @@
 
 ## Unassigned
 
+* `a9s pg apply -i`
+
 * Epic: POC on AWS
 * Epic: Allow Minio as Object Store
     * OBJECTIVE: Allow a local demo without a depedency to external object stores such as AWS S3.
