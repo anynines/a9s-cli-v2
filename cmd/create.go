@@ -102,7 +102,7 @@ func init() {
 	// create pg instance
 	cmdPGInstance.PersistentFlags().StringVar(&demo.A8sPGServiceInstance.ApiVersion, "api-version", "v1beta3", "api version of the pg service instance.")
 	cmdPGInstance.PersistentFlags().StringVar(&demo.A8sPGServiceInstance.Name, "name", "example-pg", "name of the pg service instance.")
-	cmdPGInstance.PersistentFlags().StringVar(&demo.A8sPGServiceInstance.Namespace, "namespace", "default", "namespace of the pg service instance.")
+	cmdPGInstance.PersistentFlags().StringVarP(&demo.A8sPGServiceInstance.Namespace, "namespace", "n", "default", "namespace of the pg service instance.")
 	cmdPGInstance.PersistentFlags().IntVar(&demo.A8sPGServiceInstance.Replicas, "replicas", 1, "number of Pods (replicas) the service instance's statefulset will have.")
 	cmdPGInstance.PersistentFlags().StringVar(&demo.A8sPGServiceInstance.VolumeSize, "volume-size", "1Gi", "Volume size of the persistent volume claim(s)d of the service instance's statefulset.")
 	cmdPGInstance.PersistentFlags().StringVar(&demo.A8sPGServiceInstance.Version, "service-version", "14", "Postgres version. The given version must be supported by the automation.")

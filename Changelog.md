@@ -1,5 +1,6 @@
 # v0.10.0
 
+* Change: `a9s create pg backup` now returns an error if the backup reaches the "PermanentlyFailed" state.
 * Feature: `a9s pg apply -f statements.sql -i instance -n namespace` applies a local `.sql` file to the given service instance in the given namespace.
 * Change: `a9s create pg restore` now verifies whether backup exstist and fails with a non-zero return code if it doesn't exist.
 * Change: `a9s create pg restore` now verifies whether the service instance exstist and fails with a non-zero return code if the service instance doesn't exist.

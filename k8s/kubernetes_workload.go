@@ -95,13 +95,13 @@ func checkIfPodHasStatusRunningInNamespace(podNameStartsWith string, namespace s
 				os.Exit(1)
 
 			case v1.PodPending:
-				makeup.Print("The Pod " + pod.Name + "h in pending but should be running.")
+				makeup.Print("The Pod " + pod.Name + " in pending but should be running.")
 				return false
 			case v1.PodSucceeded:
-				makeup.Print("The Pod " + pod.Name + "h has succeeded but should be running.")
+				makeup.Print("The Pod " + pod.Name + " has succeeded but should be running.")
 				return false
 			case v1.PodUnknown:
-				makeup.Print("The Pod " + pod.Name + "h has an unknown status but should be running.")
+				makeup.Print("The Pod " + pod.Name + " has an unknown status but should be running.")
 				return false
 			default:
 				return false
@@ -190,6 +190,11 @@ func GetDynamicKubernetesClient() *dynamic.DynamicClient {
 }
 
 /*
+Wait for a Kubernetes resource to reach either a desired or failed state.
+
+The desiredConditionsMap contains the conditions to indicate success while
+the failedConditionsMap contains the conditions to indicate failure.
+
 Example:
 
 gvr := schema.GroupVersionResource{Group: "backups.anynines.com", Version: "v1beta3", Resource: "backups"}
@@ -197,8 +202,12 @@ gvr := schema.GroupVersionResource{Group: "backups.anynines.com", Version: "v1be
 desiredConditionsMap := make(map[string]interface{})
 desiredConditionsMap["reason"] = "Complete"
 desiredConditionsMap["status"] = "True"
+
+failedConditionsMap := make(map[string]interface{})
+failedConditionsMap["reason"] = "PermanentlyFailed"
+failedConditionsMap["status"] = "True"
 */
-func WaitForKubernetesResource(namespace string, gvr schema.GroupVersionResource, desiredConditionsMap map[string]interface{}) error {
+func WaitForKubernetesResource(namespace string, gvr schema.GroupVersionResource, desiredConditionsMap map[string]interface{}, failedConditionsMap map[string]interface{}) error {
 
 	dynamicClient := GetDynamicKubernetesClient()
 
@@ -263,6 +272,7 @@ func WaitForKubernetesResource(namespace string, gvr schema.GroupVersionResource
 			}
 
 			conditionsAreMet := false
+			failedConditionsAreMet := false
 
 			for _, condition := range conditions {
 				makeup.PrintVerbose(fmt.Sprintf("Investigating condition %v of conditions\n", condition))
@@ -281,6 +291,11 @@ func WaitForKubernetesResource(namespace string, gvr schema.GroupVersionResource
 					conditionsAreMet = true
 					break
 				}
+
+				if failedConditionsMap != nil && ConditionsAreMet(condMap, failedConditionsMap) {
+					failedConditionsAreMet = true
+					break
+				}
 			}
 
 			//TODO The conditionsAreMet variable is not necessary but increases readability. Does it?
@@ -292,6 +307,14 @@ func WaitForKubernetesResource(namespace string, gvr schema.GroupVersionResource
 				if makeup.Verbose {
 					makeup.PrintWait("Desired conditions are not met, yet...")
 				}
+			}
+
+			if failedConditionsAreMet {
+				errorMessage := fmt.Sprintf("waiting for Kubernetes resource %v in namespace %s has failed. Resource reached failed state", gvr, namespace)
+				if makeup.Verbose {
+					makeup.PrintWarning(errorMessage)
+				}
+				return errors.New(errorMessage)
 			}
 
 			continue
