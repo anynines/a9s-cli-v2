@@ -95,13 +95,13 @@ func checkIfPodHasStatusRunningInNamespace(podNameStartsWith string, namespace s
 				os.Exit(1)
 
 			case v1.PodPending:
-				makeup.Print("The Pod " + pod.Name + "h in pending but should be running.")
+				makeup.Print("The Pod " + pod.Name + " in pending but should be running.")
 				return false
 			case v1.PodSucceeded:
-				makeup.Print("The Pod " + pod.Name + "h has succeeded but should be running.")
+				makeup.Print("The Pod " + pod.Name + " has succeeded but should be running.")
 				return false
 			case v1.PodUnknown:
-				makeup.Print("The Pod " + pod.Name + "h has an unknown status but should be running.")
+				makeup.Print("The Pod " + pod.Name + " has an unknown status but should be running.")
 				return false
 			default:
 				return false

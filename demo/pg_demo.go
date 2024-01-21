@@ -26,7 +26,7 @@ const demoAppGitRepo = "https://github.com/anynines/a8s-demo.git"
 const demoAppLocalDir = "a8s-demo"
 const demoA8sDeploymentLocalDir = "a8s-deployment"
 
-const defaultDemoSpace = "default"
+const defaultDemoSpace = "a8s-demo"
 const A8sSystemName = "a8s Postgres Control Plane"
 const A8sSystemNamespace = "a8s-system"
 
