@@ -140,6 +140,14 @@ func H1(s string) string {
 		Render(s)
 }
 
+func Bright(s string) string {
+	return lipgloss.NewStyle().
+		PaddingLeft(1).
+		PaddingTop(1).
+		Foreground(lipgloss.Color("#D9DCCF")).
+		Render(s)
+}
+
 func H2(s string) string {
 	return lipgloss.NewStyle().
 		PaddingLeft(1).
