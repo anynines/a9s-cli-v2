@@ -1,5 +1,6 @@
 # v0.10.0
 
+* Bugfix: `--sql` is now a param of `a9s pg apply` and not `a9s pg`.
 * Change: `a9s create pg backup` now returns an error if the backup reaches the "PermanentlyFailed" state.
 * Feature: `a9s pg apply -f statements.sql -i instance -n namespace` applies a local `.sql` file to the given service instance in the given namespace.
 * Change: `a9s create pg restore` now verifies whether backup exstist and fails with a non-zero return code if it doesn't exist.
@@ -15,12 +16,12 @@
 * Feature: `a9s create pg backup` to generate a backup YAML manifest, execute the backup and wait for it to complete.
 * Feature: `a9s create pg restore` to generate a restore YAML manifest, execute the restore and wait for it to complete.
 * Feature: Add `--no-apply` flag allow the generation of YAML manifests without applying them.
-* BUGFIX: When creating service instance YAML manifests, the namespace of the service instance is now set, correctly.
-* BUGFIX: Params for creating pg instances do now belong to the `a9s create pg instance` command instead of `a9s create pg`.
-* BUGFIX: The `backup-provider` param in `a9s create demo a8s` is now correctly set instead of being falsely assigned to the `backup-bucket` parameter.
-* BUGFIX: executing a9s from an arbitrary file should writeYAML files to the working directory not relative to the exeuction folder of the a9s binary.
-* BUGFIX: The filename of a backup manifest should be correct but is: usermanifests/a8s-pg-backup-a8s-pg-backup.yaml
-* BUGFIX: Creating a service instance named `solo` with a single replica should not print output containing the name `clustered-0` due to assuming any system to consist of 3 replicas.
+* Bugfix: When creating service instance YAML manifests, the namespace of the service instance is now set, correctly.
+* Bugfix: Params for creating pg instances do now belong to the `a9s create pg instance` command instead of `a9s create pg`.
+* Bugfix: The `backup-provider` param in `a9s create demo a8s` is now correctly set instead of being falsely assigned to the `backup-bucket` parameter.
+* Bugfix: executing a9s from an arbitrary file should writeYAML files to the working directory not relative to the exeuction folder of the a9s binary.
+* Bugfix: The filename of a backup manifest should be correct but is: usermanifests/a8s-pg-backup-a8s-pg-backup.yaml
+* Bugfix: Creating a service instance named `solo` with a single replica should not print output containing the name `clustered-0` due to assuming any system to consist of 3 replicas.
 * Default change: Makes `eu-central-1` the default infrastructure region.
 * Removes Docker as a necessary prerequisite as not all Kubernetes providers mandatorily need Docker
 * Testing: Created a Ruby/RSpec test suite to run the demo automatically for both `kind` and `minikube`. See: https://github.com/anynines/a9s-cli-v2-tests
@@ -87,7 +88,7 @@
 
 
 # v0.2.1
-* BUGFIX for issue where the a8s-pg-demo was crashing as kubeconfig flag was already defined.
+* Bugfix for issue where the a8s-pg-demo was crashing as kubeconfig flag was already defined.
 
 # v0.2.0
 

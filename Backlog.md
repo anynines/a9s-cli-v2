@@ -2,7 +2,13 @@
 
 
 ## Next Release
-  * `a9s pg apply -i instancename --database databasename --sql "select * from posts"`
+  * `a9s pg apply -i instancename --sql "select * from posts"`
+    * Ensure: `--sql` and `--file` can't go together
+
+
+  * `a9s pg apply`: Add `--database` option
+    * `a9s pg apply -i instancename --database databasename --sql "select * from posts"`
+    * `a9s pg apply -i instancename --database databasename -f my.sql`
 
   
     * Usability: Namespace: `a9s create demo a8s` 
@@ -51,6 +57,9 @@
 ## Release: KubeCon Final
 
 ## Unassigned
+
+* CHORE: Harmonize variable declaration for params. Use package config. Maybe use viper.
+* Evaluate to use viper to handle config options: https://github.com/spf13/viper
 
 * Epic: POC on AWS
 * Epic: Allow Minio as Object Store

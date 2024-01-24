@@ -5,6 +5,7 @@ a8s PG specific apply functions
 */
 import (
 	"fmt"
+	"os/exec"
 	"path/filepath"
 
 	"github.com/anynines/a9s-cli-v2/k8s"
@@ -71,6 +72,28 @@ func ExecuteSQLFileWithinPod(unattendedMode bool, namespace, serviceInstanceName
 	return nil
 }
 
+// TODO Remove code duplication with ExecuteSQLFileWithinPod
+func ExecuteSQLStatementWithinPod(unattendedMode bool, namespace, serviceInstanceName, sqlStatement string) (*exec.Cmd, []byte, error) {
+
+	commandElements := make([]string, 0)
+	commandElements = append(commandElements, "exec")
+	commandElements = append(commandElements, "-n")
+	commandElements = append(commandElements, namespace)
+	commandElements = append(commandElements, serviceInstanceName)
+	commandElements = append(commandElements, "-c")
+	commandElements = append(commandElements, RemoteUploadContainerName)
+	commandElements = append(commandElements, "--")
+	commandElements = append(commandElements, "psql")
+	commandElements = append(commandElements, "-U")
+	commandElements = append(commandElements, a8sPGDefaultDatabaseUser)
+	commandElements = append(commandElements, "-d")
+	commandElements = append(commandElements, a8sPGDefaultDatabaseName)
+	commandElements = append(commandElements, "-c")
+	commandElements = append(commandElements, sqlStatement)
+
+	return k8s.Kubectl(unattendedMode, commandElements...)
+}
+
 /*
 Upload and execute psql for the given file on the primary of the given service instance.
 
@@ -119,4 +142,31 @@ func ApplySQLFileToPGServiceInstance(unattendedMode bool, namespace, serviceInst
 	}
 
 	makeup.PrintCheckmark("Successfully applied SQL file to pod " + podName + "")
+}
+
+// TODO Reduce code duplication with ApplySQLFileToPGServiceInstance
+func ApplySQLStatementToPGServiceInstance(unattendedMode bool, namespace, serviceInstanceName, sqlStatement string) {
+
+	// Determine primary pod name
+	podName := FindPrimaryPodOfServiceInstance(namespace, serviceInstanceName)
+
+	if podName != "" {
+		makeup.PrintVerbose(fmt.Sprintf("Found primary pod %s of service instance %s", podName, serviceInstanceName))
+	} else {
+		makeup.ExitDueToFatalError(nil, "Can't find primary pod of service instance "+serviceInstanceName)
+	}
+
+	// Apply SQL file using psql
+	_, output, err := ExecuteSQLStatementWithinPod(unattendedMode, namespace, podName, sqlStatement)
+
+	if err != nil {
+		makeup.ExitDueToFatalError(err, "Couldn't execute provided SQL file to pod "+podName)
+	}
+
+	makeup.PrintCheckmark("Successfully executed SQL statement in pod " + podName + "")
+
+	makeup.Print("Output from the Pod:")
+
+	makeup.PrintBright(string(output))
+
 }

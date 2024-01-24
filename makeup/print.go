@@ -87,6 +87,10 @@ func Print(s string) {
 	fmt.Println(RegularText(s))
 }
 
+func PrintBright(s string) {
+	fmt.Println(Bright(s))
+}
+
 /*
 Prints only if the Verbose flag is set.
 */
