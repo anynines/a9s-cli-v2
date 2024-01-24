@@ -163,7 +163,10 @@ func ApplySQLStatementToPGServiceInstance(unattendedMode bool, namespace, servic
 		makeup.ExitDueToFatalError(err, "Couldn't execute provided SQL file to pod "+podName)
 	}
 
+	makeup.PrintCheckmark("Successfully executed SQL statement in pod " + podName + "")
+
+	makeup.Print("Output from the Pod:")
+
 	makeup.PrintBright(string(output))
 
-	makeup.PrintCheckmark("Successfully applied SQL file to pod " + podName + "")
 }
