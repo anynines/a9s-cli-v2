@@ -1,5 +1,6 @@
 # v0.10.0
 
+* Change: `a9s demo pwd`: prints the demo working directory without newlines to fascilitate the use within scripts.
 * Feature: `a9s pg apply --sql` allows the execution of a SQL statement on the primary pod of a PostgreSQL service instance.
 * Bugfix: `--file` is now a param of `a9s pg apply` and not `a9s pg`.
 * Change: `a9s create pg backup` now returns an error if the backup reaches the "PermanentlyFailed" state.
