@@ -9,12 +9,12 @@
     * OR `b`
     * Implementation
         * a9s cli
-            * Spec example: /Users/jfischer/Dropbox/workspace/a8s-demo-allesmeinspro/a8s-deployment/examples/service-binding.yaml
-            * Implement command
-            * Implement pg function 
-                * to generate yaml manifest
-                * to kubectl apply
-            * Wait for Secret to be created
+            * [DONE] Spec example: /Users/jfischer/Dropbox/workspace/a8s-demo-allesmeinspro/a8s-deployment/examples/service-binding.yaml
+            * [DONE]Implement command
+            * [DONE]Implement pg function 
+                * [DONE] to generate yaml manifest
+                * [DONE] to kubectl apply
+            * [NEXT] Wait for Secret to be created
         * manual test
         * e-2-test
         * Changelog entry
