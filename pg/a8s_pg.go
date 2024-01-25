@@ -25,7 +25,7 @@ const A8sPGRestoreKind = "Restore"
 // Instance
 const A8sPGServiceInstanceAPIGroup = "postgresql.anynines.com"
 const A8sPGServiceInstanceAPIGroupLabel = "a8s.a9s/dsi-group=" + A8sPGServiceInstanceAPIGroup
-const A8sPGServiceInstanceKind = "postgresql"
+const A8sPGServiceInstanceKind = "Postgresql"
 const A8sPGServiceInstanceKindPlural = "postgresqls"
 const A8sPGServiceInstanceKindLabel = "a8s.a9s/dsi-kind=" + A8sPGServiceInstanceKind
 
@@ -192,7 +192,7 @@ func ServiceBindingToYAML(binding ServiceBinding) string {
 	spec["instance"] = instanceMap
 
 	// Assumption: apiVersion of a service binding and its service instance is always the same
-	instanceMap["apiVersion"] = binding.ApiVersion
+	instanceMap["apiVersion"] = A8sPGServiceInstanceAPIGroup + "/" + binding.ApiVersion
 	instanceMap["kind"] = binding.ServiceInstanceKind
 	instanceMap["name"] = binding.ServiceInstanceName
 	instanceMap["namespace"] = binding.Namespace

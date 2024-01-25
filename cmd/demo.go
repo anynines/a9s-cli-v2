@@ -43,7 +43,7 @@ var cmdDemoPwd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		demo.EstablishConfig()
 
-		fmt.Printf("\n%s\n\n", demo.DemoConfig.WorkingDir)
+		fmt.Printf("%s", demo.DemoConfig.WorkingDir)
 	},
 }
 
