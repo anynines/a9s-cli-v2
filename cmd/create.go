@@ -89,7 +89,8 @@ var cmdCreatePGBinding = &cobra.Command{
 	Short: "Create a PostgreSQL service binding = Postgres user/pass + Kubernets Secret.",
 	Long:  `Create a PostgreSQL service binding and thus a Kubernetes Secret containing username/password credentials unique to the service binding.`,
 	Run: func(cmd *cobra.Command, args []string) {
-
+		demo.A8sPGServiceBinding.ServiceInstanceKind = pg.A8sPGServiceInstanceKind
+		demo.CreatePGServiceBinding()
 	},
 }
 
@@ -142,9 +143,11 @@ func init() {
 
 	// create pg binding
 	// cmdCreatePGBinding.
-	// cmdCreatePGBinding.PersistentFlags().StringVar(&demo.A8sPGRestore.ApiVersion, "api-version", pg.DefaultPGAPIVersion, "api version of the PG service binding.")
-	// cmdCreatePGBinding.PersistentFlags().StringVarP(&demo.A8sPGRestore.Namespace, "namespace", "n", "default", "namespace of the pg service instance.")
-	// cmdCreate.AddCommand(cmdCreatePGBinding)
+	cmdCreatePGBinding.PersistentFlags().StringVar(&demo.A8sPGServiceBinding.ApiVersion, "api-version", pg.DefaultPGAPIVersion, "api version of the PG service binding.")
+	cmdCreatePGBinding.PersistentFlags().StringVar(&demo.A8sPGServiceBinding.Name, "name", "example-pg-1", "name of the PG service binding. NOT the name of the PG service instance.")
+	cmdCreatePGBinding.PersistentFlags().StringVarP(&demo.A8sPGServiceBinding.Namespace, "namespace", "n", "default", "namespace of the PG service instance. NOT the app's namespace.")
+	cmdCreatePGBinding.PersistentFlags().StringVarP(&demo.A8sPGServiceBinding.ServiceInstanceName, "service-instance", "i", "example-pg", "name of the PG service instance to bind to.")
+	cmdCreatePG.AddCommand(cmdCreatePGBinding)
 
 	// create demo a8s
 	cmdCreateDemoA8s.PersistentFlags().StringVar(&demo.BackupInfrastructureRegion, "backup-region", "eu-central-1", "specify the infrastructure region to store backups such as \"us-east-1\".")

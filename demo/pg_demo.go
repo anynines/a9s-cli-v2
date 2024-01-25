@@ -30,6 +30,7 @@ const defaultDemoSpace = "a8s-demo"
 const A8sSystemName = "a8s Postgres Control Plane"
 const A8sSystemNamespace = "a8s-system"
 
+// TODO This is a poor man's struct!
 var BackupInfrastructureProvider string // e.g. AWS
 var BackupInfrastructureRegion string   // e.g. us-east-1
 var BackupInfrastructureBucket string   // e.g. a8s-backups
@@ -39,6 +40,8 @@ var DeleteA8sPGInstanceName string
 
 var A8sPGBackup pg.Backup
 var A8sPGRestore pg.Restore
+
+var A8sPGServiceBinding pg.ServiceBinding
 
 var DeploymentVersion string // e.g. v0.3.0
 var NoPreCheck bool          // e.g. false -> Perform prechecks
@@ -245,6 +248,8 @@ func getBackupManifestPath(backupName string) string {
 
 func getRestoreManifestPath(backupName string) string {
 	makeup.PrintVerbose("Generating manifest for backup restore: " + backupName + " ...")
+
+	//TODO their could be collisions for names used in mulitple namespace
 	return GetUserManifestPath("a8s-pg-restore-" + backupName + ".yaml")
 }
 
@@ -292,6 +297,33 @@ func CreatePGServiceInstanceRestore() {
 	}
 
 	pg.WaitForPGRestoreToBecomeReady(A8sPGRestore.Namespace, A8sPGRestore.Name)
+}
+
+func getServiceBindingManifestPath(binding pg.ServiceBinding) string {
+	makeup.PrintVerbose("Generating manifest for service binding: " + binding.Name + " ...")
+
+	// TODO their could be collisions for names used in mulitple namespace
+	// ADD binding.Namespace + "-" +
+	return GetUserManifestPath("a8s-pg-service-binding-" + binding.Name + ".yaml")
+}
+
+func CreatePGServiceBinding() {
+	makeup.PrintH1("Creating a a8s Postgres Service Binding...")
+	EnsureConfigIsLoaded()
+
+	if !pg.DoesServiceInstanceExist(A8sPGServiceBinding.Namespace, A8sPGServiceBinding.ServiceInstanceName) {
+		makeup.ExitDueToFatalError(nil, fmt.Sprintf("Can't create service binding for non-existing service instance %s in namespace %s", A8sPGServiceBinding.ServiceInstanceName, A8sPGServiceBinding.Namespace))
+	}
+
+	yaml := pg.ServiceBindingToYAML(A8sPGServiceBinding)
+
+	WriteYAMLToFile(yaml, getServiceBindingManifestPath(A8sPGServiceBinding))
+
+	if !DoNotApply {
+		k8s.KubectlApplyF(getServiceBindingManifestPath(A8sPGServiceBinding), UnattendedMode)
+	}
+
+	// pg.WaitForPGServiceBindingToBecomeReady(A8sPGServiceBinding)
 }
 
 func PrintDemoSummary() {

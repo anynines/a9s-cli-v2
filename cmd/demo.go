@@ -57,7 +57,7 @@ var cmdDemoPwd = &cobra.Command{
 // 	},
 // }
 
-// TODO Move. This is the right place.
+// TODO Move. This is not the right place for business logic.
 func CreateA8sDemoEnvironment() {
 	makeup.PrintWelcomeScreen(demo.UnattendedMode)
 

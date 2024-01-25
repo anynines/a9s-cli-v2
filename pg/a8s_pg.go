@@ -13,17 +13,28 @@ import (
 )
 
 const DefaultPGAPIVersion = "v1beta3"
-const A8sPGServiceInstanceAPIGroup = "postgresql.anynines.com"
-const A8sPGServiceInstanceAPIGroupLabel = "a8s.a9s/dsi-group=" + A8sPGServiceInstanceAPIGroup
+
+// Backup
 const A8sPGBackupAPIGroup = "backups.anynines.com"
 const A8sPGBackupKind = "Backup"
 const A8sPGBackupKindPlural = "backups"
+
+// Restore
 const A8sPGRestoreKind = "Restore"
-const A8sPGServiceInstanceKind = "PostgreSQL"
+
+// Instance
+const A8sPGServiceInstanceAPIGroup = "postgresql.anynines.com"
+const A8sPGServiceInstanceAPIGroupLabel = "a8s.a9s/dsi-group=" + A8sPGServiceInstanceAPIGroup
+const A8sPGServiceInstanceKind = "postgresql"
 const A8sPGServiceInstanceKindPlural = "postgresqls"
 const A8sPGServiceInstanceKindLabel = "a8s.a9s/dsi-kind=" + A8sPGServiceInstanceKind
-const A8sPGLabelPrimary = "a8s.a9s/replication-role=master"
+
 const A8sPGServiceInstanceNameLabelKey = "a8s.a9s/dsi-name"
+const A8sPGLabelPrimary = "a8s.a9s/replication-role=master"
+
+// Service Binding
+const A8sPGServiceBindingKind = "ServiceBinding"
+const A8sPGServiceBindingAPIGroup = "servicebindings.anynines.com"
 
 type ServiceInstance struct {
 	Kind         string
@@ -50,6 +61,14 @@ type Restore struct {
 	BackupName          string
 	Namespace           string
 	ServiceInstanceName string
+}
+
+type ServiceBinding struct {
+	ApiVersion          string
+	Name                string
+	Namespace           string
+	ServiceInstanceName string
+	ServiceInstanceKind string
 }
 
 func ServiceInstanceToYAML(instance ServiceInstance) string {
@@ -151,6 +170,37 @@ func RestoreToYAML(restore Restore) string {
 
 	if err != nil {
 		makeup.ExitDueToFatalError(err, fmt.Sprintf("Can't generate YAML for a8s Postgres restore with name: %s for backup %s of service instance: %s", restore.Name, restore.BackupName, restore.ServiceInstanceName))
+	}
+
+	return string(yamlBytes)
+}
+
+func ServiceBindingToYAML(binding ServiceBinding) string {
+	bindingMap := make(map[string]interface{})
+	bindingMap["apiVersion"] = A8sPGServiceBindingAPIGroup + "/" + binding.ApiVersion
+	bindingMap["kind"] = A8sPGServiceBindingKind
+
+	metadata := make(map[string]interface{})
+	bindingMap["metadata"] = metadata
+	metadata["name"] = binding.Name
+	metadata["namespace"] = binding.Namespace
+
+	spec := make(map[string]interface{})
+	bindingMap["spec"] = spec
+
+	instanceMap := make(map[string]interface{})
+	spec["instance"] = instanceMap
+
+	// Assumption: apiVersion of a service binding and its service instance is always the same
+	instanceMap["apiVersion"] = binding.ApiVersion
+	instanceMap["kind"] = binding.ServiceInstanceKind
+	instanceMap["name"] = binding.ServiceInstanceName
+	instanceMap["namespace"] = binding.Namespace
+
+	yamlBytes, err := yaml.Marshal(bindingMap)
+
+	if err != nil {
+		makeup.ExitDueToFatalError(err, fmt.Sprintf("Can't generate YAML for service binding: %v", binding))
 	}
 
 	return string(yamlBytes)
@@ -261,4 +311,23 @@ func DoesBackupExist(namespace, backupName string) bool {
 	instanceNames := strings.Fields(outputString)
 
 	return slices.Contains(instanceNames, backupName)
+}
+
+/*
+Assumption: The service binding is ready when its Secret is ready.
+*/
+func WaitForPGServiceBindingToBecomeReady(binding ServiceBinding) error {
+	gvr := schema.GroupVersionResource{Group: A8sPGServiceBindingAPIGroup, Version: DefaultPGAPIVersion, Resource: "Secret"}
+
+	desiredConditionsMap := make(map[string]interface{})
+	desiredConditionsMap["type"] = "Complete"
+	desiredConditionsMap["status"] = "True"
+
+	failedConditionsMap := make(map[string]interface{})
+	failedConditionsMap["type"] = "PermanentlyFailed"
+	failedConditionsMap["status"] = "True"
+
+	err := k8s.WaitForKubernetesResource(binding.Namespace, gvr, desiredConditionsMap, failedConditionsMap)
+
+	return err
 }
