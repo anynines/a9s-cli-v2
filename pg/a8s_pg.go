@@ -12,6 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
+const DefaultPGAPIVersion = "v1beta3"
 const A8sPGServiceInstanceAPIGroup = "postgresql.anynines.com"
 const A8sPGServiceInstanceAPIGroupLabel = "a8s.a9s/dsi-group=" + A8sPGServiceInstanceAPIGroup
 const A8sPGBackupAPIGroup = "backups.anynines.com"
@@ -163,7 +164,7 @@ func WaitForPGBackupResourceToBecomeReady(namespace, name string, resource strin
 
 	//TODO Get API Group and API Version from a constant or the backup object
 	// e.g. by making them separate fields in the BackupObject and make APIVersion an function
-	gvr := schema.GroupVersionResource{Group: "backups.anynines.com", Version: "v1beta3", Resource: resource}
+	gvr := schema.GroupVersionResource{Group: "backups.anynines.com", Version: DefaultPGAPIVersion, Resource: resource}
 
 	desiredConditionsMap := make(map[string]interface{})
 	desiredConditionsMap["type"] = "Complete"
