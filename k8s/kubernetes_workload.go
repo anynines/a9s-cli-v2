@@ -206,6 +206,17 @@ desiredConditionsMap["status"] = "True"
 failedConditionsMap := make(map[string]interface{})
 failedConditionsMap["reason"] = "PermanentlyFailed"
 failedConditionsMap["status"] = "True"
+
+TODO
+  - It seems that it waits for resources of a particular type, namespace but it does not really watch for the
+    particular resource e.g. a particular backup, restore or service-binding
+  - group: backups.anynines.com
+  - version: v1beta3
+  - resource: backups
+    -> there is not reference to the specifc backup
+    -> TODO The name of the actual backup must be added to the observation
+  - TODO Add a name parameter to the WaitForKubernetesResource function
+  - TODO Use the name parameter to filter events specific for the given resource
 */
 func WaitForKubernetesResource(namespace string, gvr schema.GroupVersionResource, desiredConditionsMap map[string]interface{}, failedConditionsMap map[string]interface{}) error {
 
@@ -299,6 +310,7 @@ func WaitForKubernetesResource(namespace string, gvr schema.GroupVersionResource
 			}
 
 			//TODO The conditionsAreMet variable is not necessary but increases readability. Does it?
+			// No it doesn't. Code here could also be put in the above if clause (if ConditionsAreMet ...)
 			if conditionsAreMet {
 				//makeup.PrintCheckmark("Operation complete for resource: " + backup.GetName())
 				return nil

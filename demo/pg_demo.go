@@ -323,7 +323,7 @@ func CreatePGServiceBinding() {
 		k8s.KubectlApplyF(getServiceBindingManifestPath(A8sPGServiceBinding), UnattendedMode)
 	}
 
-	// pg.WaitForPGServiceBindingToBecomeReady(A8sPGServiceBinding)
+	pg.WaitForPGServiceBindingToBecomeReady(A8sPGServiceBinding)
 }
 
 func PrintDemoSummary() {

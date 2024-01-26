@@ -313,11 +313,8 @@ func DoesBackupExist(namespace, backupName string) bool {
 	return slices.Contains(instanceNames, backupName)
 }
 
-/*
-Assumption: The service binding is ready when its Secret is ready.
-*/
 func WaitForPGServiceBindingToBecomeReady(binding ServiceBinding) error {
-	gvr := schema.GroupVersionResource{Group: A8sPGServiceBindingAPIGroup, Version: DefaultPGAPIVersion, Resource: "Secret"}
+	gvr := schema.GroupVersionResource{Group: A8sPGServiceBindingAPIGroup, Version: DefaultPGAPIVersion, Resource: "servicebindings"}
 
 	desiredConditionsMap := make(map[string]interface{})
 	desiredConditionsMap["type"] = "Complete"
