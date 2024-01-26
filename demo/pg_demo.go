@@ -323,7 +323,13 @@ func CreatePGServiceBinding() {
 		k8s.KubectlApplyF(getServiceBindingManifestPath(A8sPGServiceBinding), UnattendedMode)
 	}
 
-	pg.WaitForPGServiceBindingToBecomeReady(A8sPGServiceBinding)
+	err := pg.WaitForPGServiceBindingToBecomeReady(A8sPGServiceBinding)
+
+	if err != nil {
+		makeup.ExitDueToFatalError(err, "A problem occurred creating the service binding.")
+	} else {
+		makeup.PrintCheckmark("The service binding has been created successfully.")
+	}
 }
 
 func PrintDemoSummary() {

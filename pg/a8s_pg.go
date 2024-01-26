@@ -9,6 +9,7 @@ import (
 	"github.com/anynines/a9s-cli-v2/k8s"
 	"github.com/anynines/a9s-cli-v2/makeup"
 	"gopkg.in/yaml.v2"
+	m1u "k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
@@ -224,7 +225,7 @@ func WaitForPGBackupResourceToBecomeReady(namespace, name string, resource strin
 	failedConditionsMap["type"] = "PermanentlyFailed"
 	failedConditionsMap["status"] = "True"
 
-	err := k8s.WaitForKubernetesResource(namespace, gvr, desiredConditionsMap, failedConditionsMap)
+	err := k8s.WaitForKubernetesResource(namespace, name, gvr, desiredConditionsMap, failedConditionsMap)
 
 	return err
 }
@@ -324,7 +325,24 @@ func WaitForPGServiceBindingToBecomeReady(binding ServiceBinding) error {
 	failedConditionsMap["type"] = "PermanentlyFailed"
 	failedConditionsMap["status"] = "True"
 
-	err := k8s.WaitForKubernetesResource(binding.Namespace, gvr, desiredConditionsMap, failedConditionsMap)
+	err := k8s.WaitForKubernetesResourceWithFunction(binding.Namespace, binding.Name, gvr, func(object *m1u.Unstructured) bool {
+		statusImplmentedInterface, exists, err := m1u.NestedFieldCopy(object.Object, "status", "implemented")
+
+		makeup.PrintVerbose(fmt.Sprintf("Status implemented interface: %v", statusImplmentedInterface))
+
+		if err != nil && !exists {
+			// Wait longer
+			makeup.PrintVerbose("There is not status, yet.")
+			return true
+		}
+
+		if statusImplmentedInterface == nil {
+			return true
+		}
+
+		statusImplemented := statusImplmentedInterface.(bool)
+		return !statusImplemented
+	})
 
 	return err
 }
