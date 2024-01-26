@@ -210,15 +210,8 @@ failedConditionsMap["reason"] = "PermanentlyFailed"
 failedConditionsMap["status"] = "True"
 
 TODO
-  - It seems that it waits for resources of a particular type, namespace but it does not really watch for the
-    particular resource e.g. a particular backup, restore or service-binding
-  - group: backups.anynines.com
-  - version: v1beta3
-  - resource: backups
-    -> there is not reference to the specifc backup
-    -> TODO The name of the actual backup must be added to the observation
-  - TODO Add a name parameter to the WaitForKubernetesResource function
-  - TODO Use the name parameter to filter events specific for the given resource
+  - Refactor using WaitForKubernetesResourceWithFunction
+  - Rename WaitForKubernetesResourceWithFunction to WaitForKubernetesResource
 */
 func WaitForKubernetesResource(namespace, name string, gvr schema.GroupVersionResource, desiredConditionsMap map[string]interface{}, failedConditionsMap map[string]interface{}) error {
 

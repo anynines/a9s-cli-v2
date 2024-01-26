@@ -212,6 +212,7 @@ Similar to kubectl watch ...
 Needed: Namespace and name of the resource to be observed.
 */
 func WaitForPGBackupResourceToBecomeReady(namespace, name string, resource string) error {
+	makeup.PrintWait(fmt.Sprintf("Waiting for %s to become ready...", resource))
 
 	//TODO Get API Group and API Version from a constant or the backup object
 	// e.g. by making them separate fields in the BackupObject and make APIVersion an function
@@ -315,6 +316,7 @@ func DoesBackupExist(namespace, backupName string) bool {
 }
 
 func WaitForPGServiceBindingToBecomeReady(binding ServiceBinding) error {
+	makeup.PrintWait("Waiting for service binding to become ready...")
 	gvr := schema.GroupVersionResource{Group: A8sPGServiceBindingAPIGroup, Version: DefaultPGAPIVersion, Resource: "servicebindings"}
 
 	desiredConditionsMap := make(map[string]interface{})
