@@ -3,7 +3,7 @@
 
 ## Next Release
   
-* `a9s create pg binding`
+* `a9s create pg servicebinding`
     * OR `service-binding`
     * OR `sb`
     * OR `b`
@@ -15,14 +15,16 @@
                 * [DONE] to generate yaml manifest
                 * [DONE] to kubectl apply
             * [IN_PROGRESS] Wait for Secret to be created
-                * [TODO]: Does `WaitForKubernetesResource` wait for a particular resource?
-            * [TODO] Rename `binding` to `servicebinding` and `b` to `sb`
+                * [DONE]: Does `WaitForKubernetesResource` wait for a particular resource?
+            * [DONE] Rename `binding` to `servicebinding` and `b` to `sb`
 
-        * manual test
-        * e-2-test
+        * [DONE] manual test
         * Changelog entry
         * Readme entry
-        * Add to demo script
+        * e-2-test
+        * [DONE] Add to demo script
+
+* `a9s delete pg servicebinding`
 
 * Observability:
     * Backup: A failed backup should be indicated to the user.

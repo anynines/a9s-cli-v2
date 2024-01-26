@@ -85,7 +85,7 @@ var cmdCreateDemoA8s = &cobra.Command{
 }
 
 var cmdCreatePGBinding = &cobra.Command{
-	Use:   "binding",
+	Use:   "servicebinding",
 	Short: "Create a PostgreSQL service binding = Postgres user/pass + Kubernets Secret.",
 	Long:  `Create a PostgreSQL service binding and thus a Kubernetes Secret containing username/password credentials unique to the service binding.`,
 	Run: func(cmd *cobra.Command, args []string) {

@@ -162,6 +162,22 @@ Applying a SQL statement on the primary pod of a PostgreSQL service instance can
 
     a9s create pg restore --name sample-pg-cluster-restore-1 -b sample-pg-cluster-backup-1 -i sample-pg-cluster-1
 
+## Creating a PG Service Binding
+
+A Service Binding is an entity fascilitating the secure consumption of a service instance.
+By creating a service instance, a Postgres user is created along with a corresponding Kubernetes Secret.
+
+    a9s create pg servicebinding --name sb-clustered-1 -i clustered
+
+Will therefore create a Kubernetes Secret named `sb-clustered-1-service-binding` and provide the following 
+keys containing everything an application needs to connect to the PostgreSQL service instance:
+
+- `database`
+- `instance_service`
+- `password`
+- `username`
+
+
 ## Cleaning Up
 
 In order to delete the Demo cluster run:
