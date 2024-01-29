@@ -1,7 +1,8 @@
 # v0.10.0
 
+* Chore: End to end tests are now part of the repository and located in the `e2e-tests` folder.
 * Feature: `a9s create pg servicebinding`: creates a PG username/password and Kubernetes Secret for the given PG service instance.
-* BUGFIX: `a9s create backup`: waiting for a backup
+* Bugfix: `a9s create backup`: waiting for a backup
 * Change: `a9s demo pwd`: prints the demo working directory without newlines to fascilitate the use within scripts.
 * Feature: `a9s pg apply --sql` allows the execution of a SQL statement on the primary pod of a PostgreSQL service instance.
 * Bugfix: `--file` is now a param of `a9s pg apply` and not `a9s pg`.

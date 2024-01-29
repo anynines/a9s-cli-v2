@@ -8,19 +8,19 @@
     * OR `sb`
     * OR `b`
     * Implementation
-        * [IN_PROGRESS] a9s cli
+        * [DONE] a9s cli
             * [DONE] Spec example: /Users/jfischer/Dropbox/workspace/a8s-demo-allesmeinspro/a8s-deployment/examples/service-binding.yaml
             * [DONE]Implement command
             * [DONE]Implement pg function 
                 * [DONE] to generate yaml manifest
                 * [DONE] to kubectl apply
-            * [IN_PROGRESS] Wait for Secret to be created
+            * [DONE] Wait for Secret to be created
                 * [DONE]: Does `WaitForKubernetesResource` wait for a particular resource?
             * [DONE] Rename `binding` to `servicebinding` and `b` to `sb`
 
         * [DONE] manual test
-        * Changelog entry
-        * Readme entry
+        * [DONE] Changelog entry
+        * [DONE] Readme entry
         * e-2-test
         * [DONE] Add to demo script
 
