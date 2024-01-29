@@ -43,7 +43,7 @@ var cmdDemoPwd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		demo.EstablishConfig()
 
-		fmt.Printf("\n%s\n\n", demo.DemoConfig.WorkingDir)
+		fmt.Printf("%s", demo.DemoConfig.WorkingDir)
 	},
 }
 
@@ -57,7 +57,7 @@ var cmdDemoPwd = &cobra.Command{
 // 	},
 // }
 
-// TODO Move. This is the right place.
+// TODO Move. This is not the right place for business logic.
 func CreateA8sDemoEnvironment() {
 	makeup.PrintWelcomeScreen(demo.UnattendedMode)
 

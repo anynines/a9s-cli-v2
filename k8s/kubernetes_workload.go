@@ -192,6 +192,8 @@ func GetDynamicKubernetesClient() *dynamic.DynamicClient {
 /*
 Wait for a Kubernetes resource to reach either a desired or failed state.
 
+Namespace
+Name: name of the object to wait for, e.g. name of the backup
 The desiredConditionsMap contains the conditions to indicate success while
 the failedConditionsMap contains the conditions to indicate failure.
 
@@ -206,13 +208,21 @@ desiredConditionsMap["status"] = "True"
 failedConditionsMap := make(map[string]interface{})
 failedConditionsMap["reason"] = "PermanentlyFailed"
 failedConditionsMap["status"] = "True"
+
+TODO
+  - Refactor using WaitForKubernetesResourceWithFunction
+  - Rename WaitForKubernetesResourceWithFunction to WaitForKubernetesResource
 */
-func WaitForKubernetesResource(namespace string, gvr schema.GroupVersionResource, desiredConditionsMap map[string]interface{}, failedConditionsMap map[string]interface{}) error {
+func WaitForKubernetesResource(namespace, name string, gvr schema.GroupVersionResource, desiredConditionsMap map[string]interface{}, failedConditionsMap map[string]interface{}) error {
+
+	listOptions := metav1.ListOptions{
+		FieldSelector: fmt.Sprintf("metadata.name=%s", name),
+	}
 
 	dynamicClient := GetDynamicKubernetesClient()
 
 	// Watch for changes in Backup resources.
-	watchInterface, err := dynamicClient.Resource(gvr).Namespace(namespace).Watch(context.TODO(), metav1.ListOptions{})
+	watchInterface, err := dynamicClient.Resource(gvr).Namespace(namespace).Watch(context.TODO(), listOptions)
 	if err != nil {
 		makeup.ExitDueToFatalError(err, fmt.Sprintf("Can't create dynamic WatchInterface to watch Kubernetes resource %v.", gvr))
 	}
@@ -231,6 +241,7 @@ func WaitForKubernetesResource(namespace string, gvr schema.GroupVersionResource
 			}
 
 			if makeup.Verbose {
+				fmt.Print("Event object:")
 				pretty.Print(backup)
 			}
 
@@ -299,6 +310,7 @@ func WaitForKubernetesResource(namespace string, gvr schema.GroupVersionResource
 			}
 
 			//TODO The conditionsAreMet variable is not necessary but increases readability. Does it?
+			// No it doesn't. Code here could also be put in the above if clause (if ConditionsAreMet ...)
 			if conditionsAreMet {
 				//makeup.PrintCheckmark("Operation complete for resource: " + backup.GetName())
 				return nil
@@ -318,6 +330,55 @@ func WaitForKubernetesResource(namespace string, gvr schema.GroupVersionResource
 			}
 
 			continue
+		}
+	}
+	return errors.New("expected conditions have not been met")
+}
+
+/*
+name refers to the metadata.name value of the object of interest.
+
+waitLonger is a function describing what to wait for covering both success and failure scenarios.
+It returns true if waiting shall go on and false if the awaited event has happened.g
+*/
+func WaitForKubernetesResourceWithFunction(namespace, name string, gvr schema.GroupVersionResource, waitLonger func(object *m1u.Unstructured) bool) error {
+
+	listOptions := metav1.ListOptions{
+		FieldSelector: fmt.Sprintf("metadata.name=%s", name),
+	}
+
+	dynamicClient := GetDynamicKubernetesClient()
+
+	// Watch for changes in Backup resources.
+	watchInterface, err := dynamicClient.Resource(gvr).Namespace(namespace).Watch(context.TODO(), listOptions)
+	if err != nil {
+		makeup.ExitDueToFatalError(err, fmt.Sprintf("Can't create dynamic WatchInterface to watch Kubernetes resource %v.", gvr))
+	}
+
+	makeup.PrintVerbose(fmt.Sprintf("Watching for resources: %v", gvr))
+
+	var goOn bool
+
+	for event := range watchInterface.ResultChan() {
+		switch event.Type {
+		case watch.Error:
+			makeup.ExitDueToFatalError(err, "A watch.Error occurred watching the resource.")
+		case watch.Added, watch.Modified:
+			object, ok := event.Object.(*m1u.Unstructured)
+			if !ok {
+				makeup.ExitDueToFatalError(nil, "Could not cast to Unstructured")
+			}
+
+			if makeup.Verbose {
+				fmt.Print("Event object:")
+				pretty.Print(object)
+			}
+
+			goOn = waitLonger(object)
+
+			if !goOn {
+				return nil
+			}
 		}
 	}
 	return errors.New("expected conditions have not been met")

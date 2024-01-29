@@ -2,24 +2,13 @@
 
 
 ## Next Release
-  * `a9s pg apply -i instancename --sql "select * from posts"`
-    * Ensure: `--sql` and `--file` can't go together
-
-
-  * `a9s pg apply`: Add `--database` option
-    * `a9s pg apply -i instancename --database databasename --sql "select * from posts"`
-    * `a9s pg apply -i instancename --database databasename -f my.sql`
-
   
-    * Usability: Namespace: `a9s create demo a8s` 
-        * Don't use the `default` namespace, instead create a demo namespace, e.g. `a8s-demo`.
-        * Provision a8s-pg into custom namespace
-            * Change: Change the default namespace for `a9s create pg instance`
 
-  * Observability:
+* `a9s delete pg servicebinding`
+
+* Observability:
     * Backup: A failed backup should be indicated to the user.
     * Restore: A failed restore should be indicated to the user.
-
 
 ## Release: KubeCon Pre-Release
 

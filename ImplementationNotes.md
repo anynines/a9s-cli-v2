@@ -7,6 +7,41 @@ represent ideas that have not been implemented or that changes may have been app
 
 ## v0.10
 
+* `a9s create pg servicebinding`
+    * OR `service-binding`
+    * OR `sb`
+    * OR `b`
+    * Implementation
+        * [DONE] a9s cli
+            * [DONE] Spec example: /Users/jfischer/Dropbox/workspace/a8s-demo-allesmeinspro/a8s-deployment/examples/service-binding.yaml
+            * [DONE]Implement command
+            * [DONE]Implement pg function 
+                * [DONE] to generate yaml manifest
+                * [DONE] to kubectl apply
+            * [DONE] Wait for Secret to be created
+                * [DONE]: Does `WaitForKubernetesResource` wait for a particular resource?
+            * [DONE] Rename `binding` to `servicebinding` and `b` to `sb`
+
+        * [DONE] manual test
+        * [DONE] Changelog entry
+        * [DONE] Readme entry
+        * [DONE] e-2-test
+        * [DONE] Add to demo script
+
+
+* `a9s pg apply -i instancename --sql "select * from posts"`
+    * Ensure: `--sql` and `--file` can't go together
+
+  * `a9s pg apply`: Add `--database` option
+    * `a9s pg apply -i instancename --database databasename --sql "select * from posts"`
+    * `a9s pg apply -i instancename --database databasename -f my.sql`
+
+  
+* Usability: Namespace: `a9s create demo a8s` 
+    * Don't use the `default` namespace, instead create a demo namespace, e.g. `a8s-demo`.
+    * Provision a8s-pg into custom namespace
+        * Change: Change the default namespace for `a9s create pg instance`
+
 * Epic: Namespace param
     * Objective: Ensure commands consistently support `-n` and `--namespace` where applicable.
         * TODO: Check which commands are in scope
