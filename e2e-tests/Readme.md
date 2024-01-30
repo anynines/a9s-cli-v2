@@ -12,17 +12,23 @@ The idea is that Ruby is more user friendly when it comes to writing scripts tha
 * It is assumed that you have already run a demo successfully and hence the workdir is already there including backup store credentials.
   * **Attention: This test suite will interact with your demo system as well as with the backup store bucket (e.g. S3 bucket). DO NOT RUN THIS TESTSUITE IF YOU NEED A WORKING DEMO ENVIRONEMENT!**
 
-## Execute the Test Suite
+## Execute the End-to-End Test Suite
 
 1. Install the `a9s` cli and ensure it's in your `$PATH`.
 2. Run the `a9s demo a8s` for both `kind` and `minikube`. This ensures that all dependencies are there and creates a local working directory.
-3. Run this test suite: `bundle exec rspec`
+3. In the `e2e-tests` folger run the test suite by executing: `bundle exec rspec`
+  * Before the first execution: 
+    * [Recommended but optional] Install the Docker Pull Through Registry as this will speed up the test execution reducing the runtime to about 20%.    
+    * Ensure that you have installed both Ruby and Bundler.
+    * Execute `bundle install`
 
 ## Test Logs
 
 A log file named `test.log` is created or emptied each time the test suite is executed.
 
-## Docker Pull Through Registry
+## Docker Pull Through Registry (DPTR)
+
+The idea of the DPTR is to enable container image caching. As the test suite creates fresh Kubernetes clusters all container images are uncached on the per-Node cache of the clusters. Therefore, the major fraction of the test execution time is pulling container images. This can be signficantly reduced when using a DPTR on the level of Docker. As both Kind and Minikube use Docker the caching mechanism will automatically apply to both Kubernetes variants and thus speed up test execution, significantly.
 
 See [1] for more details.
 

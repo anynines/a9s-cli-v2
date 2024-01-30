@@ -5,6 +5,8 @@ they may contain information worthwile to persistest. However, be aware that the
 represent ideas that have not been implemented or that changes may have been applied. In other words:
 **do not expect implementation notes to be in sync with the implementation**.
 
+The implementation notes may document patterns on how certain features are developed by listing individual steps. This may help new developers to find a scaffold to start with when entering the project.
+
 ## v0.10
 
 * `a9s create pg servicebinding`

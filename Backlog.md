@@ -5,6 +5,12 @@
   
 
 * `a9s delete pg servicebinding`
+    * Add command
+        * Create command variable
+        * Sett command params
+    * Implement kubectl command
+    * Test manually
+    * Add e2e test
 
 * Observability:
     * Backup: A failed backup should be indicated to the user.
