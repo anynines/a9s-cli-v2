@@ -2,15 +2,6 @@
 
 
 ## Next Release
-  
-
-* `a9s delete pg servicebinding`
-    * [DONE] Add command
-        * [DONE] Create command variable
-        * [DONE] Sett command params
-    * [DONE] Implement kubectl command
-    * [DONE] Test manually
-    * [DONE] Add e2e test
 
 * Observability:
     * Backup: A failed backup should be indicated to the user.
