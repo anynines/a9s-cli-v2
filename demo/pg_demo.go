@@ -332,6 +332,19 @@ func CreatePGServiceBinding() {
 	}
 }
 
+func DeletePGServiceBinding() {
+	makeup.PrintH1("Deleting a a8s Postgres Service Binding...")
+	EnsureConfigIsLoaded()
+
+	_, _, err := k8s.Kubectl(UnattendedMode, "delete", "servicebinding", A8sPGServiceBinding.Name, "-n", A8sPGServiceBinding.Namespace)
+
+	if err != nil {
+		makeup.ExitDueToFatalError(err, "A problem occurred deleting the service binding.")
+	} else {
+		makeup.PrintCheckmark("The service binding has been deleted successfully.")
+	}
+}
+
 func PrintDemoSummary() {
 	makeup.PrintH1("Summary")
 	makeup.Print("You've successfully accomplished the followings steps:")

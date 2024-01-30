@@ -59,6 +59,19 @@ RSpec.shared_context "a8s-pg", :shared_context => :metadata, order: :defined do
 
       expect(output).to include("The service binding has been created successfully.")
     end
+
+    it "deletes a given service binding" do
+      cmd = "a9s delete pg servicebinding --name #{@service_binding_name} -n #{@workload_namespace} --yes"
+      logger.info(cmd)
+
+      output = `#{cmd}`
+      
+      logger.info "\t" + output
+
+      expect(output).to include("The service binding has been deleted successfully.")
+
+      #TODO Add a test that verifies whether the SB has actually been deleted
+    end
   end
 
   context "backups" do
