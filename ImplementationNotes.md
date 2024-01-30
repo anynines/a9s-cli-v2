@@ -9,6 +9,14 @@ The implementation notes may document patterns on how certain features are devel
 
 ## v0.10
 
+* `a9s delete pg servicebinding`
+    * [DONE] Add command
+        * [DONE] Create command variable
+        * [DONE] Sett command params
+    * [DONE] Implement kubectl command
+    * [DONE] Test manually
+    * [DONE] Add e2e test
+
 * `a9s create pg servicebinding`
     * OR `service-binding`
     * OR `sb`
