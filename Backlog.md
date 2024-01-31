@@ -1,9 +1,22 @@
 # Backlog
 
-
-## Next Release
+### v0.9.0
 
 * Observability:
+
+    * More robustness for `a9s pg apply`
+        1. `a9s pg apply --file` should warn if a service-instance cannot be found
+        1. `a9s pg apply` should demand mandatory params without defaults for `-f` and `-i`
+
+    * Feature: Restore
+        * The implementation plan is similar to creating the backup.
+        * DONE: Create command `a9s create pg restore ...`
+        * DONE: Generate a YAML manifest
+        * DONE: Apply the YAML manifest
+        * DONE: Test manually
+        * DONE: Add tests to the e2e test suite
+        * This completes the backup / restore cycle.
+
     * Backup: A failed backup should be indicated to the user.
     * Restore: A failed restore should be indicated to the user.
 

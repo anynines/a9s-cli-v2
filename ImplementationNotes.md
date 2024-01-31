@@ -7,7 +7,7 @@ represent ideas that have not been implemented or that changes may have been app
 
 The implementation notes may document patterns on how certain features are developed by listing individual steps. This may help new developers to find a scaffold to start with when entering the project.
 
-## v0.10
+## v0.9.0
 
 * `a9s delete pg servicebinding`
     * [DONE] Add command
@@ -107,7 +107,8 @@ The implementation notes may document patterns on how certain features are devel
         * create a restore for a non existing service instance
         * create a restore for a non existing backup
 
-## v0.9.0
+
+
 
 * Release v0.9.0: backup/restore v1
     * Feature: `a9s pg apply --file my.sql` 
