@@ -19,6 +19,7 @@
 !Changelog.md
 !Backlog.md
 !ImplementationNotes.md
+!e2e-tests/Gemfile
 !e2e-tests/*/**
 bin/a9s
 
