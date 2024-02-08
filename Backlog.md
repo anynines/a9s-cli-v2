@@ -1,9 +1,5 @@
 # Backlog
 
-### v0.10.0
-
-
-
 ## Release: KubeCon Pre-Release
 
 ### a8s PG Demo
@@ -40,6 +36,18 @@
 ## Release: KubeCon Final
 
 ## Unassigned
+
+
+* BUGFIX: `a9s create demo a8s` fails if minikube has never started before.
+
+```sh
+    minikube profile list -o json
+{"error":{"Op":"open","Path":"/home/ubuntu/.minikube/profiles","Err":2}}
+```
+
+* Rename `a9s create demo a8s` to `a9s create local-dev-env` or something similar.
+
+* Feature: In order to script the usage of a9s I want to pass all information to a9s create demo a8s to avoid any user dialog including the creation of a work direction as well as bucket credentials.
 
 * Feature(s): `a9s version`: Prints the version of the a9s CLI
     * Optional: Prints version of installed components on the current kubernetes cluster, e.g. versions of the a8s operators ...
