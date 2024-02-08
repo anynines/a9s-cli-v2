@@ -2,23 +2,40 @@ package pg
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/anynines/a9s-cli-v2/k8s"
 	"github.com/anynines/a9s-cli-v2/makeup"
 	"gopkg.in/yaml.v2"
+	m1u "k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-const A8sPGServiceInstanceAPIGroup = "postgresql.anynines.com"
-const A8sPGServiceInstanceAPIGroupLabel = "a8s.a9s/dsi-group=" + A8sPGServiceInstanceAPIGroup
+const DefaultPGAPIVersion = "v1beta3"
+
+// Backup
 const A8sPGBackupAPIGroup = "backups.anynines.com"
 const A8sPGBackupKind = "Backup"
+const A8sPGBackupKindPlural = "backups"
+
+// Restore
 const A8sPGRestoreKind = "Restore"
-const A8sPGServiceInstanceKind = "PostgreSQL"
+
+// Instance
+const A8sPGServiceInstanceAPIGroup = "postgresql.anynines.com"
+const A8sPGServiceInstanceAPIGroupLabel = "a8s.a9s/dsi-group=" + A8sPGServiceInstanceAPIGroup
+const A8sPGServiceInstanceKind = "Postgresql"
+const A8sPGServiceInstanceKindPlural = "postgresqls"
 const A8sPGServiceInstanceKindLabel = "a8s.a9s/dsi-kind=" + A8sPGServiceInstanceKind
-const A8sPGLabelPrimary = "a8s.a9s/replication-role=master"
+
 const A8sPGServiceInstanceNameLabelKey = "a8s.a9s/dsi-name"
+const A8sPGLabelPrimary = "a8s.a9s/replication-role=master"
+
+// Service Binding
+const A8sPGServiceBindingKind = "ServiceBinding"
+const A8sPGServiceBindingAPIGroup = "servicebindings.anynines.com"
 
 type ServiceInstance struct {
 	Kind         string
@@ -45,6 +62,14 @@ type Restore struct {
 	BackupName          string
 	Namespace           string
 	ServiceInstanceName string
+}
+
+type ServiceBinding struct {
+	ApiVersion          string
+	Name                string
+	Namespace           string
+	ServiceInstanceName string
+	ServiceInstanceKind string
 }
 
 func ServiceInstanceToYAML(instance ServiceInstance) string {
@@ -151,21 +176,57 @@ func RestoreToYAML(restore Restore) string {
 	return string(yamlBytes)
 }
 
+func ServiceBindingToYAML(binding ServiceBinding) string {
+	bindingMap := make(map[string]interface{})
+	bindingMap["apiVersion"] = A8sPGServiceBindingAPIGroup + "/" + binding.ApiVersion
+	bindingMap["kind"] = A8sPGServiceBindingKind
+
+	metadata := make(map[string]interface{})
+	bindingMap["metadata"] = metadata
+	metadata["name"] = binding.Name
+	metadata["namespace"] = binding.Namespace
+
+	spec := make(map[string]interface{})
+	bindingMap["spec"] = spec
+
+	instanceMap := make(map[string]interface{})
+	spec["instance"] = instanceMap
+
+	// Assumption: apiVersion of a service binding and its service instance is always the same
+	instanceMap["apiVersion"] = A8sPGServiceInstanceAPIGroup + "/" + binding.ApiVersion
+	instanceMap["kind"] = binding.ServiceInstanceKind
+	instanceMap["name"] = binding.ServiceInstanceName
+	instanceMap["namespace"] = binding.Namespace
+
+	yamlBytes, err := yaml.Marshal(bindingMap)
+
+	if err != nil {
+		makeup.ExitDueToFatalError(err, fmt.Sprintf("Can't generate YAML for service binding: %v", binding))
+	}
+
+	return string(yamlBytes)
+}
+
 /*
 Similar to kubectl watch ...
 Needed: Namespace and name of the resource to be observed.
 */
 func WaitForPGBackupResourceToBecomeReady(namespace, name string, resource string) error {
+	makeup.PrintWait(fmt.Sprintf("Waiting for %s to become ready...", resource))
 
 	//TODO Get API Group and API Version from a constant or the backup object
 	// e.g. by making them separate fields in the BackupObject and make APIVersion an function
-	gvr := schema.GroupVersionResource{Group: "backups.anynines.com", Version: "v1beta3", Resource: resource}
+	gvr := schema.GroupVersionResource{Group: "backups.anynines.com", Version: DefaultPGAPIVersion, Resource: resource}
 
 	desiredConditionsMap := make(map[string]interface{})
 	desiredConditionsMap["type"] = "Complete"
 	desiredConditionsMap["status"] = "True"
 
-	err := k8s.WaitForKubernetesResource(namespace, gvr, desiredConditionsMap)
+	failedConditionsMap := make(map[string]interface{})
+	failedConditionsMap["type"] = "PermanentlyFailed"
+	failedConditionsMap["status"] = "True"
+
+	err := k8s.WaitForKubernetesResource(namespace, name, gvr, desiredConditionsMap, failedConditionsMap)
 
 	return err
 }
@@ -174,7 +235,7 @@ func WaitForPGBackupToBecomeReady(namespace, name string) {
 	err := WaitForPGBackupResourceToBecomeReady(namespace, name, "backups")
 
 	if err != nil {
-		makeup.PrintFail("The backup has not been successful. Does the service instance exist?")
+		makeup.PrintFail("The backup has not been successful: " + err.Error() + ". Does the service instance exist?")
 	} else {
 		makeup.PrintCheckmark(fmt.Sprintf("The backup with the name %s in namespace %s has been successful.", name, namespace))
 	}
@@ -188,4 +249,102 @@ func WaitForPGRestoreToBecomeReady(namespace, name string) {
 	} else {
 		makeup.PrintCheckmark(fmt.Sprintf("The restore with the name %s in namespace %s has been successful.", name, namespace))
 	}
+}
+
+func DoesServiceInstanceExist(namespace, name string) bool {
+	// Ignore the Don't Execute flag
+	unattendedMode := true
+
+	commandElements := make([]string, 0)
+	commandElements = append(commandElements, "get")
+	commandElements = append(commandElements, A8sPGServiceInstanceKindPlural)
+
+	// Namespace
+	commandElements = append(commandElements, "-n")
+	commandElements = append(commandElements, namespace)
+
+	// Output jsonpath
+	commandElements = append(commandElements, "-o=jsonpath={.items[*].metadata.name}")
+
+	cmd, output, err := k8s.Kubectl(unattendedMode, commandElements...)
+
+	if err != nil {
+		makeup.ExitDueToFatalError(err, "Can't kubectl using the command: "+cmd.String())
+	}
+
+	outputString := string(output)
+
+	if outputString == "" {
+		return false
+	}
+
+	instanceNames := strings.Fields(outputString)
+
+	return slices.Contains(instanceNames, name)
+}
+
+func DoesBackupExist(namespace, backupName string) bool {
+	// Ignore the Don't Execute flag
+	unattendedMode := true
+
+	commandElements := make([]string, 0)
+	commandElements = append(commandElements, "get")
+	commandElements = append(commandElements, A8sPGBackupKindPlural)
+
+	// Namespace
+	commandElements = append(commandElements, "-n")
+	commandElements = append(commandElements, namespace)
+
+	// Output jsonpath
+	commandElements = append(commandElements, "-o=jsonpath={.items[*].metadata.name}")
+
+	cmd, output, err := k8s.Kubectl(unattendedMode, commandElements...)
+
+	if err != nil {
+		makeup.ExitDueToFatalError(err, "Can't kubectl using the command: "+cmd.String())
+	}
+
+	outputString := string(output)
+
+	if outputString == "" {
+		return false
+	}
+
+	instanceNames := strings.Fields(outputString)
+
+	return slices.Contains(instanceNames, backupName)
+}
+
+func WaitForPGServiceBindingToBecomeReady(binding ServiceBinding) error {
+	makeup.PrintWait("Waiting for service binding to become ready...")
+	gvr := schema.GroupVersionResource{Group: A8sPGServiceBindingAPIGroup, Version: DefaultPGAPIVersion, Resource: "servicebindings"}
+
+	desiredConditionsMap := make(map[string]interface{})
+	desiredConditionsMap["type"] = "Complete"
+	desiredConditionsMap["status"] = "True"
+
+	failedConditionsMap := make(map[string]interface{})
+	failedConditionsMap["type"] = "PermanentlyFailed"
+	failedConditionsMap["status"] = "True"
+
+	err := k8s.WaitForKubernetesResourceWithFunction(binding.Namespace, binding.Name, gvr, func(object *m1u.Unstructured) bool {
+		statusImplmentedInterface, exists, err := m1u.NestedFieldCopy(object.Object, "status", "implemented")
+
+		makeup.PrintVerbose(fmt.Sprintf("Status implemented interface: %v", statusImplmentedInterface))
+
+		if err != nil && !exists {
+			// Wait longer
+			makeup.PrintVerbose("There is not status, yet.")
+			return true
+		}
+
+		if statusImplmentedInterface == nil {
+			return true
+		}
+
+		statusImplemented := statusImplmentedInterface.(bool)
+		return !statusImplemented
+	})
+
+	return err
 }

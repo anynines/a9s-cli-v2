@@ -9,6 +9,7 @@ import (
 
 var NoDeleteSQLFile bool
 var UnattendedMode bool
+var ApplySQLStatement string
 
 var cmdPG = &cobra.Command{
 	Use:   "pg",
@@ -27,7 +28,14 @@ var cmdPGApply = &cobra.Command{
 	Short: "Apply an SQL file to the given Postgres instance",
 	Long:  "Applying an SQL file will upload the file, use psql to apply it and then delete the file within the target pod.",
 	Run: func(cmd *cobra.Command, args []string) {
-		pg.ApplySQLFileToPGServiceInstance(UnattendedMode, demo.A8sPGServiceInstance.Namespace, demo.A8sPGServiceInstance.Name, pg.SQLFilename, NoDeleteSQLFile)
+
+		if ApplySQLStatement != "" {
+			pg.ApplySQLStatementToPGServiceInstance(UnattendedMode, demo.A8sPGServiceInstance.Namespace, demo.A8sPGServiceInstance.Name, ApplySQLStatement)
+		} else if pg.SQLFilename != "" {
+			pg.ApplySQLFileToPGServiceInstance(UnattendedMode, demo.A8sPGServiceInstance.Namespace, demo.A8sPGServiceInstance.Name, pg.SQLFilename, NoDeleteSQLFile)
+		} else {
+			makeup.ExitDueToFatalError(nil, "Please supply either --sql with an SQL statement or --file with a path to a sql file.")
+		}
 	},
 }
 
@@ -36,10 +44,18 @@ func init() {
 
 	//TODO Make service-instance mandatory param without default value
 	//TODO Make file mandatory param without default value
-	cmdPG.PersistentFlags().StringVar(&demo.A8sPGServiceInstance.Namespace, "namespace", "default", "namespace of the pg service instance.")
+	cmdPG.PersistentFlags().StringVarP(&demo.A8sPGServiceInstance.Namespace, "namespace", "n", "default", "namespace of the pg service instance.")
 	cmdPG.PersistentFlags().BoolVar(&NoDeleteSQLFile, "no-delete", false, "if set the uploaded SQL file won't be deleted after applying it.")
+
 	cmdPG.PersistentFlags().StringVarP(&demo.A8sPGServiceInstance.Name, "service-instance", "i", "", "name of the pg service instance.")
-	cmdPG.PersistentFlags().StringVarP(&pg.SQLFilename, "file", "f", "", "name of the SQL file to be applied to the pg service instance.")
+	cmdPG.MarkFlagRequired("service-instance")
+
+	cmdPGApply.PersistentFlags().StringVarP(&pg.SQLFilename, "file", "f", "", "path to the SQL file to be applied to the given pg service instance.")
+	cmdPGApply.PersistentFlags().StringVar(&ApplySQLStatement, "sql", "", "applies the given SQL statement to the given pg service instance.")
+
+	// It's either --file or --sql but never both
+	cmdPGApply.MarkFlagsMutuallyExclusive("file", "sql")
+
 	cmdPG.PersistentFlags().BoolVarP(&UnattendedMode, "yes", "y", false, "skip yes-no questions by answering with \"yes\".")
 
 	rootCmd.AddCommand(cmdPG)

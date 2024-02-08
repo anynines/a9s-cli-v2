@@ -77,7 +77,7 @@ It is possible to skip all yes-no questions by **enabling the unattended mode** 
 
     a9s demo pwd
 
-## Creating a Service Instance
+## Creating a PG Service Instance
 
 Creating a service instance with the name `sample-pg-cluster`:
 
@@ -85,13 +85,13 @@ Creating a service instance with the name `sample-pg-cluster`:
 
 The generated YAML specification will be stored in the `usermanifests`.
 
-### Creating Service Instance YAML Without Applying it
+### Creating PG Service Instance YAML Without Applying it
 
     a9s create pg instance --name sample-pg-cluster --no-apply
 
 The generated YAML specification will be stored in the `usermanifests` but `kubectl apply` won't be executed.
 
-### Creating a Custom Service Instance
+### Creating a Custom PG Service Instance
 
 The command:
 
@@ -114,15 +114,23 @@ spec:
       cpu: 200m
   version: 14
   volumeSize: 2Gi
-``````
+```
 
-## Deleting a Service Instance
+## Deleting a PG Service Instance
 
 Deleting a service instance with the name `sample-pg-cluster`:
 
     a9s delete pg instance --name sample-pg-cluster
 
-## Applying a SQL File to a Service Instance
+Or by providing an explicit namespace:
+
+    a9s delete pg instance --name sample-pg-cluster -n default
+
+**Note**: If the service instance doesn't exist, a warning is printed and the command exists with the
+return code `0` as the desired state of the service instance being delete is reached.
+
+
+## Applying a SQL File to a PG Service Instance
 
 Uploading a SQL file, executing it using `psql` and deleting the file can be done with:
 
@@ -140,13 +148,35 @@ Use `--no-delete` to leave the file in the pod:
 
     a9s pg apply --file /path/to/sql/file --instance-name sample-pg-cluster --no-delete
 
-## Creating a Backup of a Service Instance
+## Applying a SQL Statement to a PG Service Instance
+
+Applying a SQL statement on the primary pod of a PostgreSQL service instance can be accomplished with:
+
+    a9s pg apply -i solo --sql "select count(*) from posts" --yes
+
+## Creating a Backup of a PG Service Instance
 
     a9s create pg backup --name sample-pg-cluster-backup-1 -i sample-pg-cluster-1
 
-## Restoring a Backup of Service Instance
+## Restoring a Backup of PG Service Instance
 
     a9s create pg restore --name sample-pg-cluster-restore-1 -b sample-pg-cluster-backup-1 -i sample-pg-cluster-1
+
+## Creating a PG Service Binding
+
+A Service Binding is an entity fascilitating the secure consumption of a service instance.
+By creating a service instance, a Postgres user is created along with a corresponding Kubernetes Secret.
+
+    a9s create pg servicebinding --name sb-clustered-1 -i clustered
+
+Will therefore create a Kubernetes Secret named `sb-clustered-1-service-binding` and provide the following 
+keys containing everything an application needs to connect to the PostgreSQL service instance:
+
+- `database`
+- `instance_service`
+- `password`
+- `username`
+
 
 ## Cleaning Up
 

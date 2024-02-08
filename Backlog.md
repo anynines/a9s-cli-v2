@@ -1,57 +1,103 @@
 # Backlog
 
-* Next Release
+## Release: KubeCon Pre-Release
 
-    * More robustness for `a9s pg apply`
-        1. `a9s pg apply --file` should warn if a service-instance cannot be found
-        1. `a9s pg apply` should demand mandatory params without defaults for `-f` and `-i`
+### a8s PG Demo
+**OBJECTIVE**: Given a local computer and the `a9s` CLI, a local a8s PG demo can be performed.
 
-    * Feature: Restore
-        * The implementation plan is similar to creating the backup.
-        * DONE: Create command `a9s create pg restore ...`
-        * DONE: Generate a YAML manifest
-        * DONE: Apply the YAML manifest
-        * DONE: Test manually
-        * DONE: Add tests to the e2e test suite
-        * This completes the backup / restore cycle.
-    * Backup: A failed backup should be indicated to the user.
-    * Restore: A failed restore should be indicated to the user.
+* **Github authentication**: A non-anynines user must be able to perform the a8s PG demo
+    * There mustn't be a requirement to have certain access privileges for any anynines github repository.
+    * Possible solution: Include github authentication into the CLI
+        * Currently it is assumed that `gh auth login` is performed.
+
+### Public a8s PG Self-Demo
+**OBJECTIVE**: A visitor can perform a a8s PG demo on a local computer without the involvement of a sales engineer and/or online documentation.
+
+* Create and publish `a9s` binaries for supported OSes
+    * Run test suite on linux
+        * Perform cold test run
+        * Run test suite
+    * Run test suite on windows
+        * Perform cold test run
+        * Run test suite
+    * Run test suite test on macos
+        * Perform cold test run
+        * Run test suite
+* Create CI/CD pipeline that
+    * Creates binaries for each supported OS
+    * Runs tests for each supported OS
+    * Publishes binaries for each supported OS
+        * Upload binary
+        * Publish docs / changelog
+* Create and deploy and a8s PG self-demo landing page
+* Create a marketing campaign with ads to feed the landing page
+* Establish a funnel and funnel monitoring to measure success
+
+## Release: KubeCon Final
+
+## Unassigned
 
 
+* BUGFIX: `a9s create demo a8s` fails if minikube has never started before.
 
-* Backup/Restore: The WaitForKubernetesResource function should indicate the current status cycling through all states with Status = true (scheduled, complete, ...)
-* Backup: The create backup command should verify whether the given service instance exists.
-* Restore: The create restore command should verify whether both the given backup and service instance exists.
+```sh
+    minikube profile list -o json
+{"error":{"Op":"open","Path":"/home/ubuntu/.minikube/profiles","Err":2}}
+```
 
-Feature: Ensure that all commands accept and correctly apply a custom namespace for all postgres operations
-    * Manually test
-        * Create a service instance in a non-default namespace
-        * Create a backup
-        * Restore a backup
-        * Delete the service instance
-    * Write an rspec test scenario for the above
+* Rename `a9s create demo a8s` to `a9s create local-dev-env` or something similar.
 
-* CHORE: Use PrintVerbose to make output much more clean.
+* Feature: In order to script the usage of a9s I want to pass all information to a9s create demo a8s to avoid any user dialog including the creation of a work direction as well as bucket credentials.
 
-* BUG: Backups for non existing service instances shouldnt return success messages.
-    * The event was `map[lastTransitionTime:2023-12-29T09:18:43Z message:Backup Completed reason:Complete status:True type:Complete]`
-    * The bug may exist in the a8s backup manager
+* Feature(s): `a9s version`: Prints the version of the a9s CLI
+    * Optional: Prints version of installed components on the current kubernetes cluster, e.g. versions of the a8s operators ...
+* CHORE: Harmonize variable declaration for params. Use package config. Maybe use viper.
+* Evaluate to use viper to handle config options: https://github.com/spf13/viper
+
+* Backup: A failed backup should be indicated to the user.
+* Restore: A failed restore should be indicated to the user.
+
+* Epic: POC on AWS
+* Epic: Allow Minio as Object Store
+    * OBJECTIVE: Allow a local demo without a depedency to external object stores such as AWS S3.
+
+* Epic: Use case: **Deploy the demo app**
+    * Feature: a9s create app -k directoryWithKustomize.yaml
+    * Demo App
+        * The demo consists of an app and a service + kustomize file.
+        * `kubectl apply -k ...`
+
+* Epic: Verbosity
+    * For all commands ensure that the `-v` flag is respected and without it there's a clean output
+
+* Feature: Create service instance from backup
+    * Combines:
+        * Create service instance
+        * Restore backup
+
+* Observability: Backup/Restore: The WaitForKubernetesResource function should indicate the current status cycling through all states with Status = true (scheduled, complete, ...)
+
 
 * CHORE: Check if makeup.WaitForUser(demo.UnattendedMode) is used consistently for all new commands instance & backup
 
-* Deleting Backups and Restore CRs
+* FEATURE: Backups: Deleting Backups and Restore CRs
     * For completeness: Create command `a9s delete pg backup ...`
     * For completeness: Create command `a9s delete pg restore ...`
 
-* Chore: Write a testSuite to run end-to-end tests on a local machine using the `a9s`-cli applying all major usecases for both the kind and minikube providers.
+* Usability: Backup, Infrastructure Region: When executing a9s create demo a8s for the first time, the infrastructure-region should be queried as a user input instead of being a default-parameter. The probability is too high that the user choses a non-viable default option instead of providing a valid region.
 
-* Sub command to delete all demo resources.
-    * Remove everything (incl. config files)
-        * e.g. `a9s demo delete --all`
+* Create binaries in a release matrix, e.g. using Go Release Binaries with Gihub Action Matrix Strategy
+    * https://github.com/marketplace/actions/go-release-binaries
+    * https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idstrategymatrix
 
-* When executing a9s create demo a8s for the first time, the infrastructure-region should be queried as a user input instead of being a default-parameter. The probability is too high that the user choses a non-viable default option instead of providing a valid region.
+* Create S3 bucket with configs
+    * Alternatively: Install a local storage provider, e.g. minio.
+        * Costly dependency: add the local storage provider to the backup agent.
 
 
+# Questions
+
+## Command Structure
 * Question: Should the de   mo a8s-pg execute the entire demo or just install the operator? Other commands could be: 
     * Issue: What if a9s-pg is added to the a9s CLI?
         * How should it be resolved?
@@ -84,13 +130,3 @@ Feature: Ensure that all commands accept and correctly apply a custom namespace 
             * `a9s pg binding` 
             * `a9s pg sb`
 
-* Don't use the `default` namespace, instead create a demo namespace, e.g. `a8s-demo`.
-    * Provision a8s-pg into namespace
-
-* Create binaries in a release matrix, e.g. using Go Release Binaries with Gihub Action Matrix Strategy
-    * https://github.com/marketplace/actions/go-release-binaries
-    * https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idstrategymatrix
-
-* Create S3 bucket with configs
-    * Alternatively: Install a local storage provider, e.g. minio.
-        * Costly dependency: add the local storage provider to the backup agent.

@@ -1,0 +1,22 @@
+CREATE TABLE IF NOT EXISTS posts(id SERIAL, title varchar(256), description varchar(1024));
+
+INSERT INTO posts(title, description) VALUES('Post 1', 'Description 1');
+INSERT INTO posts(title, description) VALUES('Post 2', 'Description 2');
+INSERT INTO posts(title, description) VALUES('Post 3', 'Description 3');
+INSERT INTO posts(title, description) VALUES('Post 4', 'Description 4');
+INSERT INTO posts(title, description) VALUES('Post 5', 'Description 5');
+INSERT INTO posts(title, description) VALUES('Post 6', 'Description 6');
+INSERT INTO posts(title, description) VALUES('Post 7', 'Description 7');
+INSERT INTO posts(title, description) VALUES('Post 8', 'Description 8');
+INSERT INTO posts(title, description) VALUES('Post 9', 'Description 9');
+INSERT INTO posts(title, description) VALUES('Post 10', 'Description 10');
+INSERT INTO posts(title, description) VALUES('Post 11', 'Description 11');
+INSERT INTO posts(title, description) VALUES('Post 12', 'Description 12');
+INSERT INTO posts(title, description) VALUES('Post 13', 'Description 13');
+INSERT INTO posts(title, description) VALUES('Post 14', 'Description 14');
+INSERT INTO posts(title, description) VALUES('Post 15', 'Description 15');
+INSERT INTO posts(title, description) VALUES('Post 16', 'Description 16');
+INSERT INTO posts(title, description) VALUES('Post 17', 'Description 17');
+INSERT INTO posts(title, description) VALUES('Post 18', 'Description 18');
+INSERT INTO posts(title, description) VALUES('Post 19', 'Description 19');
+INSERT INTO posts(title, description) VALUES('Post 20', 'Description 20');

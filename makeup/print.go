@@ -74,12 +74,21 @@ func PrintFailSummary(s string) {
 func PrintCheckmark(s string) {
 	fmt.Println(ListCheckmark(s))
 }
+
+func PrintSuccess(s string) {
+	PrintCheckmark(s)
+}
+
 func PrintFlexedBiceps(s string) {
 	fmt.Println(ListFlexedBiceps(s))
 }
 
 func Print(s string) {
 	fmt.Println(RegularText(s))
+}
+
+func PrintBright(s string) {
+	fmt.Println(Bright(s))
 }
 
 /*

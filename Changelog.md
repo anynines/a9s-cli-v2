@@ -1,11 +1,35 @@
+# v0.10.0
+
+* Chore: End to end tests are now part of the repository and located in the `e2e-tests` folder.
 
 # v0.9.0
+
+* Feature: `a9s create pg servicebinding`: creates a PG username/password and Kubernetes Secret for the given PG service instance.
+* Bugfix: `a9s create backup`: waiting for a backup
+* Change: `a9s demo pwd`: prints the demo working directory without newlines to fascilitate the use within scripts.
+* Feature: `a9s pg apply --sql` allows the execution of a SQL statement on the primary pod of a PostgreSQL service instance.
+* Bugfix: `--file` is now a param of `a9s pg apply` and not `a9s pg`.
+* Change: `a9s create pg backup` now returns an error if the backup reaches the "PermanentlyFailed" state.
+* Feature: `a9s pg apply -f statements.sql -i instance -n namespace` applies a local `.sql` file to the given service instance in the given namespace.
+* Change: `a9s create pg restore` now verifies whether backup exstist and fails with a non-zero return code if it doesn't exist.
+* Change: `a9s create pg restore` now verifies whether the service instance exstist and fails with a non-zero return code if the service instance doesn't exist.
+* Change: `a9s create pg backup` now verifies whether the service instance exstist and fails with a non-zero return code if the service instance doesn't exist.
+* Change: `a9s delete pg instance` now verifies whether the service instance exstist and warns if not existing with return code `0` as the desired state is that the instance shall not exist.
+
 * Change: `--yes` is now a global flag and available to all commands.
 * Change: `--verbose` or `-v` is now a global flag and available to all commands. Standard output is now less verbose.
 * Feature: `a9s create pg instance` to generate a YAML manifest given the params: `--namespace`, `--api-version`, `--name`, `--replicas`, `--volume-size`, `--service-version`, `--requests-cpu` and `--limits-memory`
 * Feature: `a9s create pg backup` to generate a backup YAML manifest, execute the backup and wait for it to complete.
 * Feature: `a9s create pg restore` to generate a restore YAML manifest, execute the restore and wait for it to complete.
 * Feature: Add `--no-apply` flag allow the generation of YAML manifests without applying them.
+<<<<<<< HEAD
+* Bugfix: When creating service instance YAML manifests, the namespace of the service instance is now set, correctly.
+* Bugfix: Params for creating pg instances do now belong to the `a9s create pg instance` command instead of `a9s create pg`.
+* Bugfix: The `backup-provider` param in `a9s create demo a8s` is now correctly set instead of being falsely assigned to the `backup-bucket` parameter.
+* Bugfix: executing a9s from an arbitrary file should writeYAML files to the working directory not relative to the exeuction folder of the a9s binary.
+* Bugfix: The filename of a backup manifest should be correct but is: usermanifests/a8s-pg-backup-a8s-pg-backup.yaml
+* Bugfix: Creating a service instance named `solo` with a single replica should not print output containing the name `clustered-0` due to assuming any system to consist of 3 replicas.
+=======
 * Feature `a9s pg apply` to conveniently load an SQL file into a service intance.
 * BUGFIX: When creating service instance YAML manifests, the namespace of the service instance is now set, correctly.
 * BUGFIX: Params for creating pg instances do now belong to the `a9s create pg instance` command instead of `a9s create pg`.
@@ -13,6 +37,7 @@
 * BUGFIX: executing a9s from an arbitrary file should writeYAML files to the working directory not relative to the exeuction folder of the a9s binary.
 * BUGFIX: The filename of a backup manifest should be correct but is: usermanifests/a8s-pg-backup-a8s-pg-backup.yaml
 * BUGFIX: Creating a service instance named `solo` with a single replica should not print output containing the name `clustered-0` due to assuming any system to consist of 3 replicas.
+>>>>>>> v0.9.0
 * Default change: Makes `eu-central-1` the default infrastructure region.
 * Removes Docker as a necessary prerequisite as not all Kubernetes providers mandatorily need Docker
 * Testing: Created a Ruby/RSpec test suite to run the demo automatically for both `kind` and `minikube`. See: https://github.com/anynines/a9s-cli-v2-tests
@@ -80,7 +105,7 @@
 
 
 # v0.2.1
-* BUGFIX for issue where the a8s-pg-demo was crashing as kubeconfig flag was already defined.
+* Bugfix for issue where the a8s-pg-demo was crashing as kubeconfig flag was already defined.
 
 # v0.2.0
 

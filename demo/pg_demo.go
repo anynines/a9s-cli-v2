@@ -26,10 +26,11 @@ const demoAppGitRepo = "https://github.com/anynines/a8s-demo.git"
 const demoAppLocalDir = "a8s-demo"
 const demoA8sDeploymentLocalDir = "a8s-deployment"
 
-const defaultDemoSpace = "default"
+const defaultDemoSpace = "a8s-demo"
 const A8sSystemName = "a8s Postgres Control Plane"
 const A8sSystemNamespace = "a8s-system"
 
+// TODO This is a poor man's struct!
 var BackupInfrastructureProvider string // e.g. AWS
 var BackupInfrastructureRegion string   // e.g. us-east-1
 var BackupInfrastructureBucket string   // e.g. a8s-backups
@@ -39,6 +40,8 @@ var DeleteA8sPGInstanceName string
 
 var A8sPGBackup pg.Backup
 var A8sPGRestore pg.Restore
+
+var A8sPGServiceBinding pg.ServiceBinding
 
 var DeploymentVersion string // e.g. v0.3.0
 var NoPreCheck bool          // e.g. false -> Perform prechecks
@@ -214,15 +217,24 @@ func getServiceInstanceManifestPath(serviceInstanceName string) string {
 
 // TODO Move to pg package
 // Refactor to DRY with Create ... > CRUDPGServiceInstance
-func DeletePGServiceInstance() {
+func DeletePGServiceInstance(namespace, serviceInstanceName string) {
 	makeup.PrintH1("Deleting a a8s Postgres Service Instance...")
 
 	EnsureConfigIsLoaded()
 
-	makeup.Print("Using default values for deleting the instance.")
+	if !pg.DoesServiceInstanceExist(namespace, serviceInstanceName) {
+		makeup.PrintWarning(fmt.Sprintf("Can't delete service instance. Service instance %s doesn't exist in namespace %s!", serviceInstanceName, namespace))
+		os.Exit(0)
+	}
 
 	// TODO Make "postgresqls" a constant
-	k8s.KubectlAct("delete", "postgresqls", DeleteA8sPGInstanceName, UnattendedMode)
+	_, _, err := k8s.Kubectl(UnattendedMode, "delete", "postgresqls", serviceInstanceName, "-n", namespace)
+
+	if err != nil {
+		makeup.ExitDueToFatalError(err, "Couldn't delete service instance.")
+	} else {
+		makeup.PrintCheckmark(fmt.Sprintf("Service instance %s successfully deleted from namespace %s.", serviceInstanceName, namespace))
+	}
 }
 
 func CountPodsInDemoNamespace() int {
@@ -236,6 +248,8 @@ func getBackupManifestPath(backupName string) string {
 
 func getRestoreManifestPath(backupName string) string {
 	makeup.PrintVerbose("Generating manifest for backup restore: " + backupName + " ...")
+
+	//TODO their could be collisions for names used in mulitple namespace
 	return GetUserManifestPath("a8s-pg-restore-" + backupName + ".yaml")
 }
 
@@ -243,7 +257,11 @@ func getRestoreManifestPath(backupName string) string {
 func CreatePGServiceInstanceBackup() {
 	EnsureConfigIsLoaded()
 
-	makeup.PrintH1("Creating an a8s Postgres Service Instance Backup...")
+	if !pg.DoesServiceInstanceExist(A8sPGBackup.Namespace, A8sPGBackup.ServiceInstanceName) {
+		makeup.ExitDueToFatalError(nil, fmt.Sprintf("Can't create backup for non-existing service instance %s in namespace %s", A8sPGBackup.ServiceInstanceName, A8sPGBackup.Namespace))
+	}
+
+	makeup.PrintH1("Creating an a8s Postgres service instance backup...")
 
 	yaml := pg.BackupToYAML(A8sPGBackup)
 
@@ -260,6 +278,14 @@ func CreatePGServiceInstanceBackup() {
 func CreatePGServiceInstanceRestore() {
 	EnsureConfigIsLoaded()
 
+	if !pg.DoesServiceInstanceExist(A8sPGRestore.Namespace, A8sPGRestore.ServiceInstanceName) {
+		makeup.ExitDueToFatalError(nil, fmt.Sprintf("Can't create restore for non-existing service instance %s in namespace %s", A8sPGRestore.ServiceInstanceName, A8sPGRestore.Namespace))
+	}
+
+	if !pg.DoesBackupExist(A8sPGRestore.Namespace, A8sPGRestore.BackupName) {
+		makeup.ExitDueToFatalError(nil, fmt.Sprintf("Can't create restore for non-existing backup %s in namespace %s", A8sPGRestore.BackupName, A8sPGRestore.Namespace))
+	}
+
 	makeup.PrintH1("Creating an a8s Postgres Service Instance Backup Restore...")
 
 	yaml := pg.RestoreToYAML(A8sPGRestore)
@@ -271,6 +297,52 @@ func CreatePGServiceInstanceRestore() {
 	}
 
 	pg.WaitForPGRestoreToBecomeReady(A8sPGRestore.Namespace, A8sPGRestore.Name)
+}
+
+func getServiceBindingManifestPath(binding pg.ServiceBinding) string {
+	makeup.PrintVerbose("Generating manifest for service binding: " + binding.Name + " ...")
+
+	// TODO their could be collisions for names used in mulitple namespace
+	// ADD binding.Namespace + "-" +
+	return GetUserManifestPath("a8s-pg-service-binding-" + binding.Name + ".yaml")
+}
+
+func CreatePGServiceBinding() {
+	makeup.PrintH1("Creating a a8s Postgres Service Binding...")
+	EnsureConfigIsLoaded()
+
+	if !pg.DoesServiceInstanceExist(A8sPGServiceBinding.Namespace, A8sPGServiceBinding.ServiceInstanceName) {
+		makeup.ExitDueToFatalError(nil, fmt.Sprintf("Can't create service binding for non-existing service instance %s in namespace %s", A8sPGServiceBinding.ServiceInstanceName, A8sPGServiceBinding.Namespace))
+	}
+
+	yaml := pg.ServiceBindingToYAML(A8sPGServiceBinding)
+
+	WriteYAMLToFile(yaml, getServiceBindingManifestPath(A8sPGServiceBinding))
+
+	if !DoNotApply {
+		k8s.KubectlApplyF(getServiceBindingManifestPath(A8sPGServiceBinding), UnattendedMode)
+	}
+
+	err := pg.WaitForPGServiceBindingToBecomeReady(A8sPGServiceBinding)
+
+	if err != nil {
+		makeup.ExitDueToFatalError(err, "A problem occurred creating the service binding.")
+	} else {
+		makeup.PrintCheckmark("The service binding has been created successfully.")
+	}
+}
+
+func DeletePGServiceBinding() {
+	makeup.PrintH1("Deleting a a8s Postgres Service Binding...")
+	EnsureConfigIsLoaded()
+
+	_, _, err := k8s.Kubectl(UnattendedMode, "delete", "servicebinding", A8sPGServiceBinding.Name, "-n", A8sPGServiceBinding.Namespace)
+
+	if err != nil {
+		makeup.ExitDueToFatalError(err, "A problem occurred deleting the service binding.")
+	} else {
+		makeup.PrintCheckmark("The service binding has been deleted successfully.")
+	}
 }
 
 func PrintDemoSummary() {

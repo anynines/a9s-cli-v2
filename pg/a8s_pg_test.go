@@ -9,7 +9,7 @@ import (
 func TestServiceInstanceToYAML(t *testing.T) {
 
 	instance := ServiceInstance{
-		ApiVersion:   "postgresql.anynines.com/v1beta3",
+		ApiVersion:   "postgresql.anynines.com/" + DefaultPGAPIVersion,
 		Name:         "sample-pg-cluster",
 		Kind:         "Postgresql",
 		Namespace:    "default",
