@@ -5,11 +5,14 @@ temp = $(subst /, ,$@)
 os = $(word 1, $(temp))
 arch = $(word 2, $(temp))
 
+timestamp = $(shell date +%s)
+version = "v0.10.0"
+
 # Your platform
 build:
-	go build -o bin/a9s main.go
-	go build -o bin/kubectl-a9s main.go
-
+	$(info Build time is $(timestamp))
+	go build -v -ldflags "-X 'github.com/anynines/a9s-cli-v2/cmd.BuildTimestamp="$(timestamp)"' -X 'github.com/anynines/a9s-cli-v2/cmd.CliVersion=$(version)'" -o bin/a9s main.go
+	cp bin/a9s bin/kubectl-a9s
 
 # All platforms
 build_all: $(PLATFORMS)
