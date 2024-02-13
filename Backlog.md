@@ -4,9 +4,14 @@
 
 * Feature(s): `a9s version`: Prints the version of the a9s CLI
     * Optional: Prints version of installed components on the current kubernetes cluster, e.g. versions of the a8s operators ...
-    * Implementation:
-        * Create base `a9s version` command
-        * Define place where to store the version or derive it from git
+    * Implementation:     
+        * Define place where to store the version
+            * How and when is the version bumped?
+            * How to make sure the version is used consistently 
+                * In the code / build
+                * Git tag
+                * S3 bucket folder
+                * CI testing
 
 ## Release: KubeCon Pre-Release
 
