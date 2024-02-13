@@ -5,13 +5,17 @@ temp = $(subst /, ,$@)
 os = $(word 1, $(temp))
 arch = $(word 2, $(temp))
 
+# Metadata to be carried into the binary enabling the user/dev to relate the binary to the documentation and source code
 timestamp = $(shell date +%s)
 version = "v0.10.0"
+lastCommit = $(shell git log -1 --pretty=format:"%H")
 
 # Your platform
 build:
 	$(info Build time is $(timestamp))
-	go build -v -ldflags "-X 'github.com/anynines/a9s-cli-v2/cmd.BuildTimestamp="$(timestamp)"' -X 'github.com/anynines/a9s-cli-v2/cmd.CliVersion=$(version)'" -o bin/a9s main.go
+	$(info Version is $(version))
+	$(info Last commit was $(lastCommit))
+	go build -v -ldflags "-X 'github.com/anynines/a9s-cli-v2/cmd.BuildTimestamp="$(timestamp)"' -X 'github.com/anynines/a9s-cli-v2/cmd.CliVersion=$(version)' -X 'github.com/anynines/a9s-cli-v2/cmd.LastCommit=$(lastCommit)'" -o bin/a9s main.go
 	cp bin/a9s bin/kubectl-a9s
 
 # All platforms
