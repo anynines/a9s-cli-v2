@@ -164,6 +164,28 @@ RSpec.describe "a9s-cli" do
 
       expect(ret).to include("A tool to make the use of a9s Platform modules more enjoyable.")
     end
+
+    it "verifies the execution of a9s version" do
+      cmd = "a9s version"
+      logger.info(cmd)
+
+      ret = `#{cmd}`
+
+      logger.info "\t" + ret.to_s
+
+      expect(ret).to include("a9s cli version:")
+    end
+
+    it "verifies the output of a9s version against the version specified in the VERSION file check for consistency between the spec and binary" do
+      cmd = "a9s version"
+      logger.info(cmd)
+
+      ret = `#{cmd}`
+
+      logger.info "\t" + ret.to_s
+
+      expect(ret).to include(File.read(File.expand_path("../../../../VERSION", __FILE__)).chomp)
+    end
   end
 
   # Idea: use contexts to immitate the a9s command topology

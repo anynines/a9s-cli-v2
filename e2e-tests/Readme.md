@@ -14,6 +14,8 @@ The idea is that Ruby is more user friendly when it comes to writing scripts tha
 
 ## Execute the End-to-End Test Suite
 
+### Cold-Run
+
 1. Install the `a9s` cli and ensure it's in your `$PATH`.
 2. Run the `a9s demo a8s` for both `kind` and `minikube`. This ensures that all dependencies are there and creates a local working directory.
 3. In the `e2e-tests` folger run the test suite by executing: `bundle exec rspec`
@@ -21,6 +23,18 @@ The idea is that Ruby is more user friendly when it comes to writing scripts tha
     * [Recommended but optional] Install the Docker Pull Through Registry as this will speed up the test execution reducing the runtime to about 20%.    
     * Ensure that you have installed both Ruby and Bundler.
     * Execute `bundle install`
+
+### Failing Fast
+
+During development it is often helpful to stop the test suite execution after the first failing test. The test environment is then in a suitable state to debug the failing test.
+
+This behavior can be achieved by executing:
+
+    bundle exec rspec --fail-fast
+
+### Executing Test by its Description
+
+    bundle exec rspec --fail-fast -e "verifies the execution of a9s version"
 
 ## Test Logs
 
