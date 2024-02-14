@@ -7,7 +7,7 @@ arch = $(word 2, $(temp))
 
 # Metadata to be carried into the binary enabling the user/dev to relate the binary to the documentation and source code
 timestamp = $(shell date +%s)
-version = "v0.10.0"
+version = $(shell cat VERSION | tr -d '\n')
 lastCommit = $(shell git log -1 --pretty=format:"%H")
 
 # Your platform
@@ -23,8 +23,11 @@ build_all: $(PLATFORMS)
 
 # Looping through all platforms
 $(PLATFORMS):
-	$(info Building $@...)	
-	GOOS=$(os) GOARCH=$(arch) go build -o bin/a9s-$(os)-$(arch) main.go
+	$(info Building $@...)
+	$(info Build time is $(timestamp))
+	$(info Version is $(version))
+	$(info Last commit was $(lastCommit))
+	GOOS=$(os) GOARCH=$(arch) go build -v -ldflags "-X 'github.com/anynines/a9s-cli-v2/cmd.BuildTimestamp="$(timestamp)"' -X 'github.com/anynines/a9s-cli-v2/cmd.CliVersion=$(version)' -X 'github.com/anynines/a9s-cli-v2/cmd.LastCommit=$(lastCommit)'" -o bin/a9s-$(os)-$(arch) main.go
 
 test:
 	go test ./...
