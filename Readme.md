@@ -10,11 +10,25 @@ This repo is using [gitflow](https://nvie.com/posts/a-successful-git-branching-m
 
 There's a `Makefile` to help building and running the cli during development.
 
-## Build
+## Building a Local Binary
+
+Building a local binary for development purposes can be done with:
 
     make build
 
 The binary can be found in `bin/a9s`.
+
+## Building All Binaries
+
+Building binaries via cross-compilation for all selected platforms can be done with:
+
+    make build-all
+
+The binaries can be found in `bin/`.
+
+### Version Bump
+
+**Note**: The version of the a9s CLI is maintained in the file `VERSION` and used in the `Makefile` and passed via `ldflags` into the binary. Therefore, when issuing new releases the `VERSION` file needs to be updated before building the binaries.
 
 # Using the CLI
 

@@ -1,5 +1,11 @@
 # Backlog
 
+## Next 
+
+* BUG: When there's an exec format error and thus the a8s-system can't start, the a9s create demo a8s command does not recognize the failing pods but falsely thinks that the a8s-system is running.
+
+
+
 ## Release: KubeCon Pre-Release
 
 ### a8s PG Demo
@@ -37,6 +43,8 @@
 
 ## Unassigned
 
+* CHORE: Harmonize variable declaration for params. Use package config. Maybe use viper.
+
 
 * BUGFIX: `a9s create demo a8s` fails if minikube has never started before.
 
@@ -49,9 +57,7 @@
 
 * Feature: In order to script the usage of a9s I want to pass all information to a9s create demo a8s to avoid any user dialog including the creation of a work direction as well as bucket credentials.
 
-* Feature(s): `a9s version`: Prints the version of the a9s CLI
-    * Optional: Prints version of installed components on the current kubernetes cluster, e.g. versions of the a8s operators ...
-* CHORE: Harmonize variable declaration for params. Use package config. Maybe use viper.
+
 * Evaluate to use viper to handle config options: https://github.com/spf13/viper
 
 * Backup: A failed backup should be indicated to the user.
