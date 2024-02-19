@@ -4,16 +4,7 @@
 
 * BUG: When there's an exec format error and thus the a8s-system can't start, the a9s create demo a8s command does not recognize the failing pods but falsely thinks that the a8s-system is running.
 
-* Feature(s): `a9s version`: Prints the version of the a9s CLI
-    * Optional: Prints version of installed components on the current kubernetes cluster, e.g. versions of the a8s operators ...
-    * Implementation:     
-        * Define place where to store the version
-            * How and when is the version bumped?
-            * How to make sure the version is used consistently 
-                * In the code / build
-                * Git tag
-                * S3 bucket folder
-                * CI testing
+
 
 ## Release: KubeCon Pre-Release
 

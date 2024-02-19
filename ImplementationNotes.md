@@ -7,6 +7,21 @@ represent ideas that have not been implemented or that changes may have been app
 
 The implementation notes may document patterns on how certain features are developed by listing individual steps. This may help new developers to find a scaffold to start with when entering the project.
 
+## v0.11.0
+
+* Feature(s): `a9s version`: Prints the version of the a9s CLI
+    * Optional: Prints version of installed components on the current kubernetes cluster, e.g. versions of the a8s operators ...
+    * Implementation:     
+        * Define place where to store the version
+            * How and when is the version bumped?
+            * How to make sure the version is used consistently 
+                * In the code / build
+                * Git tag
+                * S3 bucket folder
+                * CI testing
+
+## v0.10.0
+
 ## v0.9.0
 
 * Observability:

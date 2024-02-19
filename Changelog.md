@@ -1,4 +1,4 @@
-# v0.10.1
+# v0.11.0
 
 * Feature: Added command `a9s version` to show the version of the a9s CLI as well as its build time and git commit.
 
