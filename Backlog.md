@@ -3,11 +3,18 @@
 ## Next 
 
 * Rename `a9s create demo a8s` to `a9s create local-dev-env` or something similar.
-    * Decide which word to use instead of `demo`
+    * [DONE] Decide which word to use instead of `demo`
         * `a9s create stack` 
         * `a9s create environment` &&|| `a9s create env`
         * `a9s create cluster`
-    * Decide which word to use instead of `a8s`
+    * Rename to `a9s create cluster`
+        * Rename cmd
+        * Adapt Readme
+        * Adapt unit tests
+        * Adapt e2e tests
+        * Write changelog
+        * Adapt implementation notes
+
 
 * BUG: When there's an exec format error and thus the a8s-system can't start, the a9s create demo a8s command does not recognize the failing pods but falsely thinks that the a8s-system is running.
 
