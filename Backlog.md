@@ -2,9 +2,14 @@
 
 ## Next 
 
+* Rename `a9s create demo a8s` to `a9s create local-dev-env` or something similar.
+    * Decide which word to use instead of `demo`
+        * `a9s create stack` 
+        * `a9s create environment` &&|| `a9s create env`
+        * `a9s create cluster`
+    * Decide which word to use instead of `a8s`
+
 * BUG: When there's an exec format error and thus the a8s-system can't start, the a9s create demo a8s command does not recognize the failing pods but falsely thinks that the a8s-system is running.
-
-
 
 ## Release: KubeCon Pre-Release
 
@@ -52,8 +57,6 @@
     minikube profile list -o json
 {"error":{"Op":"open","Path":"/home/ubuntu/.minikube/profiles","Err":2}}
 ```
-
-* Rename `a9s create demo a8s` to `a9s create local-dev-env` or something similar.
 
 * Feature: In order to script the usage of a9s I want to pass all information to a9s create demo a8s to avoid any user dialog including the creation of a work direction as well as bucket credentials.
 
