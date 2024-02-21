@@ -8,7 +8,8 @@
         * `a9s create environment` &&|| `a9s create env`
         * `a9s create cluster`
     * Rename to `a9s create cluster`
-        * Rename cmd
+        * Rename create cmd
+        * Rename delete cmd
         * Adapt Readme
         * Adapt unit tests
         * Adapt e2e tests

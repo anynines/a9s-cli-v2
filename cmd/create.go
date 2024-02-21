@@ -23,7 +23,6 @@ var cmdCreatePG = &cobra.Command{
 	Short: "Create PostgreSQL resources such as service instances, service bindings, backups and restore jobs.",
 	Long:  `Create PostgreSQL resources such as service instances, service bindings, backups and restore jobs.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		// ExecuteA8sPGDemo()
 		makeup.PrintWarning(" " + "Please select a PostgreSQL resource such as (service) instance.")
 		cmd.Help()
 	},
@@ -64,11 +63,11 @@ var cmdPGRestore = &cobra.Command{
 }
 
 var cmdCreateDemo = &cobra.Command{
-	Use:   "demo",
-	Short: "Create an a9s Platform demo environment.",
-	Long: `The demo assistent guides through the creation of a9s Platform demos, 
+	Use:   "cluster",
+	Short: "Create a local development Kubernetes cluster with a given stack.",
+	Long: `Guides through the creation of a local development Kubernetes cluster, 
 	helps to install all necessary prerequisites and finally configures and installs
-	the chosen product. Select a sub-command to create corresponding demo environments.`,
+	the chosen stack. Select a sub-command to create corresponding stack.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		makeup.PrintWarning(" " + "Please use a demo sub-command.")
 		cmd.Help()
@@ -77,8 +76,8 @@ var cmdCreateDemo = &cobra.Command{
 
 var cmdCreateDemoA8s = &cobra.Command{
 	Use:   "a8s",
-	Short: "Create a demo environment for the pod based a8s Data Services such as a8s Postgres.",
-	Long:  `The demo assistent helps with the creation of a local Kubernetes cluster, installing the a8s Data Service operator(s) including necessary dependencies.`,
+	Short: "Create a local development cluster including a8s Data Services such as a8s Postgres.",
+	Long:  `Helps with the creation of a local Kubernetes cluster, installing the a8s Data Service operator(s) including necessary dependencies.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		CreateA8sDemoEnvironment()
 	},
