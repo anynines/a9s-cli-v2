@@ -3,11 +3,21 @@
 ## Next 
 
 * Rename `a9s create demo a8s` to `a9s create local-dev-env` or something similar.
-    * Decide which word to use instead of `demo`
+    * [DONE] Decide which word to use instead of `demo`
         * `a9s create stack` 
         * `a9s create environment` &&|| `a9s create env`
         * `a9s create cluster`
-    * Decide which word to use instead of `a8s`
+    * [DONE] Rename to `a9s create cluster`
+        * Rename create cmd
+        * Rename delete cmd
+        * Adapt Readme
+        * Adapt unit tests
+        * Adapt e2e tests
+    * Go through the entire `create cluster` use case and check of occurences of the word "demo"
+    * Rename the "demo" package?
+    * Write changelog
+    * Adapt implementation notes
+
 
 * BUG: When there's an exec format error and thus the a8s-system can't start, the a9s create demo a8s command does not recognize the failing pods but falsely thinks that the a8s-system is running.
 
@@ -24,22 +34,41 @@
 ### Public a8s PG Self-Demo
 **OBJECTIVE**: A visitor can perform a a8s PG demo on a local computer without the involvement of a sales engineer and/or online documentation.
 
+* Publish repositories so that non-anynines Github users can clone the repos.
+
 * Create and publish `a9s` binaries for supported OSes
-    * Run test suite on linux
+    * [DONE] Run test suite on linux
         * Perform cold test run
         * Run test suite
-    * Run test suite on windows
+    * [POSTPONED] Run test suite on windows
         * Perform cold test run
         * Run test suite
-    * Run test suite test on macos
+    * [DONE] Run test suite test on macos
         * Perform cold test run
         * Run test suite
-* Create CI/CD pipeline that
-    * Creates binaries for each supported OS
-    * Runs tests for each supported OS
-    * Publishes binaries for each supported OS
+* [DONE] Create CI/CD pipeline that
+    * [DONE] Creates binaries for each supported OS
+    * [STARTED] Runs tests for each supported OS
+        * UPDATE: 
+            * Can't do. To much effort.
+            * Compromize: only linux is CI tested. MacOS is tested manually.
+    * [STARTED] Publishes binaries for each supported OS
         * Upload binary
         * Publish docs / changelog
+
+### Legal
+
+* Decide about LICENSE
+* Write and add LICENSE file
+
+### Build, Measure Learn
+
+* Establish means to measure creating service instances
+    * Establish means to measure container image traffic
+* [LATER] Establish means to learn about the number of service instances
+
+### Landing Page & Marketing
+
 * Create and deploy and a8s PG self-demo landing page
 * Create a marketing campaign with ads to feed the landing page
 * Establish a funnel and funnel monitoring to measure success
