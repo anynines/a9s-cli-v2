@@ -22,12 +22,12 @@ var cmdDelete = &cobra.Command{
 }
 
 var cmdDeleteDemo = &cobra.Command{
-	Use:   "demo",
-	Short: "Delete demo resources.",
-	Long:  `Delete demo resources of the corresponding resources. Use sub-commands to chose the demo resource to free.`,
+	Use:   "cluster",
+	Short: "Delete resources.",
+	Long:  `Delete given resources. Use sub-commands to chose the resource to delete.`,
 	Run: func(cmd *cobra.Command, args []string) {
 
-		makeup.PrintWarning(" " + "Use a sub-command to choose the demo resource to be freed.")
+		makeup.PrintWarning(" " + "Use a sub-command to choose the demo resource to be deleted.")
 
 		cmd.Help()
 	},
@@ -35,8 +35,8 @@ var cmdDeleteDemo = &cobra.Command{
 
 var cmdDeleteDemoA8s = &cobra.Command{
 	Use:   "a8s",
-	Short: "Delete the a8s Data Service demo Kubernetes cluster.",
-	Long: `Delete the a8s Data Service demo Kubernetes cluster in order to free corresponding 
+	Short: "Delete the given a8s Data Service Kubernetes cluster.",
+	Long: `Delete the given a8s Data Service Kubernetes cluster in order to free corresponding 
 	resources.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		clusterManager := demo.BuildKubernetesClusterManager()
@@ -50,7 +50,6 @@ var cmdDeletePG = &cobra.Command{
 	Short: "Delete PostgreSQL resources such as service instances, service bindings, backups and restore jobs.",
 	Long:  `Delete PostgreSQL resources such as service instances, service bindings, backups and restore jobs.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		// ExecuteA8sPGDemo()
 		makeup.PrintWarning(" " + "Please select a PostgreSQL resource such as (service) instance.")
 		cmd.Help()
 	},
@@ -86,7 +85,6 @@ func init() {
 	cmdDelete.AddCommand(cmdDeleteDemo)
 
 	// Service Bindings
-	//cmdDeletePG.PersistentFlags().StringVar(&demo.A8sPGServiceBinding.ApiVersion, "api-version", pg.DefaultPGAPIVersion, "api version of the PG service binding.")
 	cmdDeletePG.PersistentFlags().StringVar(&demo.A8sPGServiceBinding.Name, "name", "example-pg-1", "name of the PG service binding. NOT the name of the PG service instance.")
 	cmdDeletePG.PersistentFlags().StringVarP(&demo.A8sPGServiceBinding.Namespace, "namespace", "n", "default", "namespace of the PG service instance/servicebinding. NOT the app's namespace.")
 

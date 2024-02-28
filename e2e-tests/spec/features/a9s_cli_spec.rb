@@ -164,11 +164,33 @@ RSpec.describe "a9s-cli" do
 
       expect(ret).to include("A tool to make the use of a9s Platform modules more enjoyable.")
     end
+
+    it "verifies the execution of a9s version" do
+      cmd = "a9s version"
+      logger.info(cmd)
+
+      ret = `#{cmd}`
+
+      logger.info "\t" + ret.to_s
+
+      expect(ret).to include("a9s cli version:")
+    end
+
+    it "verifies the output of a9s version against the version specified in the VERSION file check for consistency between the spec and binary" do
+      cmd = "a9s version"
+      logger.info(cmd)
+
+      ret = `#{cmd}`
+
+      logger.info "\t" + ret.to_s
+
+      expect(ret).to include(File.read(File.expand_path("../../../../VERSION", __FILE__)).chomp)
+    end
   end
 
   # Idea: use contexts to immitate the a9s command topology
   context "create", order: :defined do
-    context "demo", order: :defined do
+    context "cluster", order: :defined do
       context "a8s", order: :defined do
         context "kind", order: :defined, kind: true do
           before (:context) do
@@ -178,8 +200,8 @@ RSpec.describe "a9s-cli" do
               Kind::delete_demo_cluster
             end
           end
-          it "creates an a8s demo cluster", :clusterop => true, :slow => true do
-            cmd = "a9s create demo a8s -p kind --yes"
+          it "creates an Kubernetes cluster with an a8s stack", :clusterop => true, :slow => true do
+            cmd = "a9s create cluster a8s -p kind --yes"
 
             logger.info cmd
 
@@ -193,8 +215,8 @@ RSpec.describe "a9s-cli" do
           include_context "a8s-pg", :include_shared => true
 
           context "delete cluster", :order => :defined do
-              it "delete the a8s demo cluster", :clusterop => true do
-                cmd = "a9s delete demo a8s -p kind --yes"
+              it "delete the a8s cluster cluster", :clusterop => true do
+                cmd = "a9s delete cluster a8s -p kind --yes"
                 logger.info cmd
 
                 ret = system(cmd)
@@ -214,8 +236,8 @@ RSpec.describe "a9s-cli" do
               end
             end
 
-            it "creates an a8s demo cluster", :clusterop => true, :slow => true do
-              cmd = "a9s create demo a8s -p minikube --yes"
+            it "creates an a8s cluster cluster", :clusterop => true, :slow => true do
+              cmd = "a9s create cluster a8s -p minikube --yes"
 
               logger.info cmd
               output = `#{cmd}`
@@ -228,8 +250,8 @@ RSpec.describe "a9s-cli" do
             include_context "a8s-pg", :include_shared => true
 
             context "delete cluster", :order => :defined do
-              it "delete the a8s demo cluster", :clusterop => true do
-                cmd = "a9s delete demo a8s -p minikube --yes"
+              it "delete the a8s cluster cluster", :clusterop => true do
+                cmd = "a9s delete cluster a8s -p minikube --yes"
 
                 logger.info cmd
 

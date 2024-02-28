@@ -9,7 +9,6 @@ import (
 var Debug bool
 
 func main() {
-
 	if os.Getenv("DEBUG") != "" {
 		Debug = true
 	}

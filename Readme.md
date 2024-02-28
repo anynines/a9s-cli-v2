@@ -10,42 +10,56 @@ This repo is using [gitflow](https://nvie.com/posts/a-successful-git-branching-m
 
 There's a `Makefile` to help building and running the cli during development.
 
-## Build
+## Building a Local Binary
+
+Building a local binary for development purposes can be done with:
 
     make build
 
 The binary can be found in `bin/a9s`.
 
+## Building All Binaries
+
+Building binaries via cross-compilation for all selected platforms can be done with:
+
+    make build-all
+
+The binaries can be found in `bin/`.
+
+### Version Bump
+
+**Note**: The version of the a9s CLI is maintained in the file `VERSION` and used in the `Makefile` and passed via `ldflags` into the binary. Therefore, when issuing new releases the `VERSION` file needs to be updated before building the binaries.
+
 # Using the CLI
 
     a9s
 
-## Creating a Demo Environment
+## Creating a Cluster
 
-    a9s create demo a8s
+    a9s create cluster a8s
 
 ### Skip Checking Prerequisites
 
 In order to skip the verification of necessary commands, a running Docker daemon and a configured Kubernetes cluster:
 
-    a9s create demo a8s --no-precheck
+    a9s create cluster a8s --no-precheck
 
 ### Number of Kubernetes Nodes
 
-    a9s create demo a8s --cluster-nr-of-nodes 1
+    a9s create cluster a8s --cluster-nr-of-nodes 1
 
 ### Cluster Memory
-    a9s create demo a8s --cluster-memory 12gb
+    a9s create cluster a8s --cluster-memory 12gb
 
 ### Deployment Version
 
 Select a particular release by providing the `--deployment-version` parameter:
 
-    a9s create demo a8s --deployment-version v0.3.0
+    a9s create cluster a8s --deployment-version v0.3.0
 
 Use
 
-    a9s create demo a8s --deployment-version latest
+    a9s create cluster a8s --deployment-version latest
 
 To get the latest, untagged version of the deployment manifests.
 
@@ -53,14 +67,14 @@ To get the latest, untagged version of the deployment manifests.
 
 If you want to select a particular Kubernetes provider:
 
-    a9s create demo a8s -p kind 
-    a9s create demo a8s -p minikube (default)
+    a9s create cluster a8s -p kind 
+    a9s create cluster a8s -p minikube (default)
 
 Follow the instructions to learn about available sub commands.
 
 ### Backup Infrastructure Region
 
-    a9s create demo a8s --backup-region us-east-1
+    a9s create cluster a8s --backup-region us-east-1
 
 **Note**: By default, an existing `backup-config.yaml` will be used. Hence, if you intend to change
 your backup config, remove the existing `backup-config.yaml`, first:
@@ -71,11 +85,11 @@ your backup config, remove the existing `backup-config.yaml`, first:
 
 It is possible to skip all yes-no questions by **enabling the unattended mode** by passing the `-y` or `--yes` flag:
 
-    a9s create demo a8s --yes
+    a9s create cluster a8s --yes
 
-## Printing the Demo Working Directory
+## Printing the cluster Working Directory
 
-    a9s demo pwd
+    a9s cluster pwd
 
 ## Creating a PG Service Instance
 
@@ -180,17 +194,17 @@ keys containing everything an application needs to connect to the PostgreSQL ser
 
 ## Cleaning Up
 
-In order to delete the Demo cluster run:
+In order to delete the cluster run:
 
-    a9s delete demo a8s
+    a9s delete cluster a8s
 
 **Note**: This will not delete config files stored.
 
-Config files are stored in the demo working directory.
+Config files are stored in the cluster working directory.
 
 They can be removed with:
 
-    rm -rf $( a9s demo pwd )
+    rm -rf $( a9s cluster pwd )
 
 # Testing the CLI
 
@@ -200,7 +214,7 @@ End-to-end testing can be done using the external Ruby/RSpec test suite located 
 
 # Design Principles / Ideals
 * The CLI acts like a personal assistent who knows the a9s products and helps to use them more easily.
-    * The CLI helps with installing a demo environment
+    * The CLI helps with installing a cluster.
     * The CLI helps with writing YAML manifests, e.g. so that users do not have to lookup attributes in the documentation.
 * The CLI should not need a tight synchronization with product releases.
     * The release of a new a8s Postgres version, for example, should be working with an existing CLI version.

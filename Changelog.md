@@ -1,3 +1,8 @@
+# v0.11.0
+
+* Change: Renamed `a9s create demo a8s` to `a9s create cluster a8s` as the cluster is no longer bound the purpose of providing demos.
+* Feature: Added command `a9s version` to show the version of the a9s CLI as well as its build time and git commit.
+
 # v0.10.0
 
 * Chore: End to end tests are now part of the repository and located in the `e2e-tests` folder.
