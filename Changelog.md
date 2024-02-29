@@ -1,3 +1,7 @@
+# v0.11.1
+
+* Bugfix: Adds missing VERSION file to repo.
+
 # v0.11.0
 
 * Change: Renamed `a9s create demo a8s` to `a9s create cluster a8s` as the cluster is no longer bound the purpose of providing demos.
