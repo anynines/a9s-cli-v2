@@ -21,6 +21,7 @@
 !ImplementationNotes.md
 !e2e-tests/Gemfile
 !e2e-tests/*/**
+!VERSION
 bin/a9s
 
 # !Makefile
