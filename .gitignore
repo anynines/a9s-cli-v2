@@ -22,6 +22,7 @@
 !e2e-tests/Gemfile
 !e2e-tests/*/**
 !VERSION
+!Development.md
 bin/a9s
 
 # !Makefile
