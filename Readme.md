@@ -227,23 +227,3 @@ Config files are stored in the cluster working directory.
 They can be removed with:
 
     rm -rf $( a9s cluster pwd )
-
-# Testing the CLI
-
-The state of unit tests is currently very poor.
-
-End-to-end testing can be done using the external Ruby/RSpec test suite located at: https://github.com/anynines/a9s-cli-v2-tests
-
-# Design Principles / Ideals
-* The CLI acts like a personal assistent who knows the a9s products and helps to use them more easily.
-    * The CLI helps with installing a cluster.
-    * The CLI helps with writing YAML manifests, e.g. so that users do not have to lookup attributes in the documentation.
-* The CLI should not need a tight synchronization with product releases.
-    * The release of a new a8s Postgres version, for example, should be working with an existing CLI version.
-
-# Known Issues / Limitations
-* Currently releases are tested on MacOS and Linux.
-* Windows binaries are available but they have not been tested.
-* Creating a backup for non-existing service instances falsely suggests that the backup has been successful.
-* Deletion of backups with `kubectl delete backup ...` get stuck and the deletion doesn't succeed.
-* When applying a sql file to an a8s Postgres database using `a9s pg apply --file` ensure that there is no change of the primary pod for clustered instances as otherwise the file might be copied to the wrong pod. There's a slight delay between determining the primary pod and uploading the file to it. 
