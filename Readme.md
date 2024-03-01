@@ -1,5 +1,29 @@
 # a9s CLI V2
 
+anynines provides a command line tool called `a9s` to fasciliate application development, devops tasks and interact with selected anynines products.
+
+# Prerequisites
+
+* Using the backup/restore feature of a8s PostgreSQL requires an S3 compatible endpoint.
+* Install Go (if you want `go env` to identify your OS and arch).
+* Install Git.
+* Install Docker.
+* Install Kubectl.
+* Install Kind and/or Minikube.
+* Install the [cert-manager CLI](https://cert-manager.io/docs/reference/cmctl/).
+
+# Installing the CLI
+
+In order to install the `a9s` CLI execute the following shell script:
+
+    RELEASE=$(curl -L -s https://a9s-cli-v2-fox4ce5.s3.eu-central-1.amazonaws.com/stable.txt); OS=$(go env GOOS); ARCH=$(go env GOARCH); curl -fsSL -o a9s https://a9s-cli-v2-fox4ce5.s3.eu-central-1.amazonaws.com/releases/$RELEASE/a9s-$OS-$ARCH
+        
+    sudo chmod 755 a9s
+    sudo mv a9s /usr/local/bin
+
+This will download the `a9s` binary suitable for your architecture and move it to `/usr/local/bin`.
+Depending on your system you have to adjust the `PATH` variable or move the binary to a folder that's already in the `PATH`.
+
 # Using the CLI
 
     a9s
@@ -7,6 +31,20 @@
 ## Creating a Cluster
 
     a9s create cluster a8s
+
+### Cold-Run
+
+When creating a cluster for the first time, a few setup steps will have to be taken which need to be performed only once:
+
+1. Setting up a working directory for the use with the `a9s` CLI.
+2. Configuring the access credentials for the S3 compatible object store which is needed if you intend to use the backup/restore feature of a8s Postgres.
+3. Cloning deployment resources required by the `a9s` CLI to create a cluster.
+
+#### Setting Up a Working Directory
+
+    cd ~
+    mkdir a9s-workspace
+    cd a9s-workspace
 
 ### Skip Checking Prerequisites
 
@@ -189,8 +227,9 @@ End-to-end testing can be done using the external Ruby/RSpec test suite located 
 * The CLI should not need a tight synchronization with product releases.
     * The release of a new a8s Postgres version, for example, should be working with an existing CLI version.
 
-# Known Issues
-
+# Known Issues / Limitations
+* Currently releases are tested on MacOS and Linux.
+* Windows binaries are available but they have not been tested.
 * Creating a backup for non-existing service instances falsely suggests that the backup has been successful.
 * Deletion of backups with `kubectl delete backup ...` get stuck and the deletion doesn't succeed.
 * When applying a sql file to an a8s Postgres database using `a9s pg apply --file` ensure that there is no change of the primary pod for clustered instances as otherwise the file might be copied to the wrong pod. There's a slight delay between determining the primary pod and uploading the file to it. 
