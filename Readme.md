@@ -34,6 +34,7 @@ Create a local Kubernetes cluster using `Minikube` or `Kind`, install a8s Postgr
 
     a9s create cluster a8s
 
+Recommended is 12 GB of free memory for the creation of three cluster nodes with each 4 GB. The number of nodes and memory size can be adjusted.
 
 ### Cold-Run
 
@@ -58,6 +59,25 @@ Establising a working directory is simple. Create an empty folder at a place of 
     a9s create cluster a8s
 
 Alternatively, provide a custom working directory at the corresponding prompt.
+
+#### (Optional) Configuring the Backup Store
+
+Defaults:
+
+* The default **infrastructure region** is `eu-central-1`.
+* The default **backup provider** is `AWS`.
+* The default **bucket** is  `a8s-backups`.
+
+See `a9s create cluster a8s --help` for the defaults of your particular CLI version and list of configuration options.
+
+When prompted provide the following pieces of information:
+
+* `ACCESS KEY ID`
+* `SECRET KEY`
+
+**Skipping the Backup Store Configuration**:
+
+In case you don't want to use the backup/restore function, paste arbitrary strings as `ACCESS KEY ID` and `SECRET KEY`. Backup and restore jobs will fail but the managing service instances and service bindings will work.
 
 
 ### Skip Checking Prerequisites
@@ -109,7 +129,7 @@ It is possible to skip all yes-no questions by **enabling the unattended mode** 
 
     a9s create cluster a8s --yes
 
-## Printing the cluster Working Directory
+## Printing the Cluster Working Directory
 
     a9s cluster pwd
 
