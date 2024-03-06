@@ -173,8 +173,7 @@ The generated YAML specification will be stored in the `usermanifests` but `kube
 
 The command:
 
-    a9s create pg instance --api-version v1beta3 --name my-pg --namespace default --replicas 3 --req
-uests-cpu 200m --limits-memory 200Mi --service-version 14 --volume-size 2Gi
+    a9s create pg instance --api-version v1beta3 --name my-pg --namespace default --replicas 3 --requests-cpu 200m --limits-memory 200Mi --service-version 14 --volume-size 2Gi
 
 Will generate a YAML spec called `usermanifests/my-pg-instance.yaml` with the following content:
 
