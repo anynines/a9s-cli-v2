@@ -23,6 +23,9 @@
 !e2e-tests/*/**
 !VERSION
 !Development.md
+
+!docs/*
+!docs/*/**
 bin/a9s
 
 # !Makefile
