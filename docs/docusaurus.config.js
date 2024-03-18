@@ -36,14 +36,14 @@ const scripts = [usercentricsScript(process.env), googleTagScript()];
 const config = {
   title: "a9s CLI Documentation",
   tagline: "a9s CLI Documentation",
-  url: "https://hub.anynines.com",
+  url: "https://www.docs.a9s-cli.anynines.com",
   baseUrl: "/",
   trailingSlash: true,
   onBrokenLinks: "warn",
   onBrokenMarkdownLinks: "warn",
   favicon: "/img/favicon.ico",
   organizationName: "anynines", // Usually your GitHub org/user name.
-  projectName: "anynines-docs", // Usually your repo name.
+  projectName: "a9s-cli-v2", // Usually your repo name.
 
   i18n: {
     defaultLocale: "en",
