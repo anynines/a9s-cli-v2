@@ -194,7 +194,7 @@ You will see a `clustered-instance-master` Kubernetes service:
 
 **Congratulations 🎉**, you've managed to create yourself a highly available PostgreSQL cluster using asynchronous streaming replication.
 
-## `Step 3`: Creating a Service Binding
+## Step 3: Creating a Service Binding
 
 In order to prepare the deployment of an application, the database need to be configured to **grant the application access to the PostgreSQL service instance**. Granting an application running in Kubernetes access to a PostgreSQL database involves the following steps:
 
