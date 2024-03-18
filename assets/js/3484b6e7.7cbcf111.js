@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunkanynines_docs=self.webpackChunkanynines_docs||[]).push([[7230],{6071:function(e){e.exports=JSON.parse('{"label":"release","permalink":"/changelog/tags/release","allTagsPath":"/changelog/tags","count":1}')}}]);
