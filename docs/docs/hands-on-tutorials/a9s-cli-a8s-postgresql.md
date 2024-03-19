@@ -321,8 +321,11 @@ Output:
     NAME                        READY   STATUS    RESTARTS   AGE
     demo-app-65f6dd4445-glgc4   1/1     Running   0          81s
 
+In order to access the app locally, create a port forward mapping the container port `3000` your local machine's port `8080`:
 
     kubectl port-forward service/demo-app -n tutorial 8080:3000
+
+Then navigate your browser to: http://localhost:8080
 
 
 ## Step 5: Interacting with PostgreSQL
@@ -332,6 +335,10 @@ Once you've created a PostgreSQL Service Instance, you can use the `a9s CLI` to 
 ### Applying a Local SQL File
 
 Although not the preferred way to load seed data into a production database, during development it might be handy to execute a SQL file to a PostgreSQL instance. This allows executing one or multiple SQL statements conveniently. 
+
+Download an exemplary SQL file:
+
+    wget https://a9s-cli-v2-fox4ce5.s3.eu-central-1.amazonaws.com/demo_data.sql
 
 Executing an SQL file is as simple as using the `--file` option:
 
