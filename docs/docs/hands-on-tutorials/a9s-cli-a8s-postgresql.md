@@ -325,8 +325,7 @@ In order to access the app locally, create a port forward mapping the container 
 
     kubectl port-forward service/demo-app -n tutorial 8080:3000
 
-Then navigate your browser to: http://localhost:8080
-
+Then navigate your browser to: [http://localhost:8080](http://localhost:8080)
 
 ## Step 5: Interacting with PostgreSQL
 

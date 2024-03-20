@@ -37,7 +37,7 @@ In this tutorial you will learn how to **create a local Kubernetes cluster**, fu
 
 * Install the [a9s CLI](https://github.com/anynines/a9s-cli-v2)
 * Create a local Kubernetes cluster
-* Install [cert-manager](https://ce
+* Install [cert-manager](https://cert-manager.io/docs/)
 * Install a8s PostgreSQL
 * Create a PostgreSQL database instance
 * Create a PostgreSQL user
@@ -82,7 +82,7 @@ When creating a cluster for the first time, a few setup steps will have to be ta
 2. Configuring the access credentials for the S3 compatible object store which is needed if you intend to use the backup/restore feature of a8s Postgres.
 3. Cloning deployment resources required by the `a9s` CLI to create a cluster.
 
-In order to **optionally skip the backup store configuration, enter random credentials for the backup store's `ACCESSKEYID` and `SECRETKEY`**, for example, in case you don't have an AWS S3 compatible object store at hand and/or don't want to use the backup/restore functionality of a8s PostgreSQL.
+In order to **optionally skip the backup store configration, enter random credentials for the backup store's `ACCESSKEYID` and `SECRETKEY`**, for example, in case you don't have an AWS S3 compatible object store at hand and/or don't want to use the backup/restore functionality of a8s PostgreSQL.
 
 ### What's Happening During the Installation
 
@@ -321,8 +321,11 @@ Output:
     NAME                        READY   STATUS    RESTARTS   AGE
     demo-app-65f6dd4445-glgc4   1/1     Running   0          81s
 
+In order to access the app locally, create a port forward mapping the container port `3000` your local machine's port `8080`:
 
     kubectl port-forward service/demo-app -n tutorial 8080:3000
+
+Then navigate your browser to: [http://localhost:8080](http://localhost:8080)
 
 
 ## Step 5: Interacting with PostgreSQL
@@ -332,6 +335,10 @@ Once you've created a PostgreSQL Service Instance, you can use the `a9s CLI` to 
 ### Applying a Local SQL File
 
 Although not the preferred way to load seed data into a production database, during development it might be handy to execute a SQL file to a PostgreSQL instance. This allows executing one or multiple SQL statements conveniently. 
+
+Download an exemplary SQL file:
+
+    wget https://a9s-cli-v2-fox4ce5.s3.eu-central-1.amazonaws.com/demo_data.sql
 
 Executing an SQL file is as simple as using the `--file` option:
 
