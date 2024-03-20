@@ -82,7 +82,7 @@ When creating a cluster for the first time, a few setup steps will have to be ta
 2. Configuring the access credentials for the S3 compatible object store which is needed if you intend to use the backup/restore feature of a8s Postgres.
 3. Cloning deployment resources required by the `a9s` CLI to create a cluster.
 
-In order to **optionally skip the backup store configration, enter random credentials for the backup store's `ACCESSKEYID` and `SECRETKEY`**, for example, in case you don't have an AWS S3 compatible object store at hand and/or don't want to use the backup/restore functionality of a8s PostgreSQL.
+In order to **optionally skip the backup store configuration, enter random credentials for the backup store's `ACCESSKEYID` and `SECRETKEY`**, for example, in case you don't have an AWS S3 compatible object store at hand and/or don't want to use the backup/restore functionality of a8s PostgreSQL.
 
 ### What's Happening During the Installation
 
