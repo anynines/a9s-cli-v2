@@ -37,7 +37,7 @@ In this tutorial you will learn how to **create a local Kubernetes cluster**, fu
 
 * Install the [a9s CLI](https://github.com/anynines/a9s-cli-v2)
 * Create a local Kubernetes cluster
-* Install [cert-manager](https://ce
+* Install [cert-manager](https://cert-manager.io/docs/)
 * Install a8s PostgreSQL
 * Create a PostgreSQL database instance
 * Create a PostgreSQL user
