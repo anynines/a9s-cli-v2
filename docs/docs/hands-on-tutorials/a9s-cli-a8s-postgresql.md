@@ -339,6 +339,10 @@ Download an exemplary SQL file:
 
     wget https://a9s-cli-v2-fox4ce5.s3.eu-central-1.amazonaws.com/demo_data.sql
 
+Download an exemplary SQL file:
+
+    wget https://a9s-cli-v2-fox4ce5.s3.eu-central-1.amazonaws.com/demo_data.sql
+
 Executing an SQL file is as simple as using the `--file` option:
 
     a9s pg apply --file demo_data.sql -i clustered-instance -n tutorial
