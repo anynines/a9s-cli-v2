@@ -35,32 +35,3 @@ $ GIT_USER=<Your GitHub username> USE_SSH=true yarn deploy
 ```
 
 If you are using GitHub pages for hosting, this command is a convenient way to build the website and push to the `gh-pages` branch.
-
-
-### Staging Deploy
-
-```
-PASSWORD=<insert "anynines-docs-staging // HTAccess" from 1pass> make staging
-```
-
-## Building Docs Manually
-
-### Latest development-docs
-
-Checkout latest develpomen
-In anynines-docs run:
-
-```
-./build_develop_manually.sh
-make live
-```
-
-### Latest release-docs
-Checkout latest release of anynines-deployment locallly
-In anynines-docs run:
-
-
-```
-./build_last_version_manually.sh
-make live
-```
