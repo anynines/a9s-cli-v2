@@ -28,4 +28,4 @@ jobs:
           cf_password: ${{ secrets.PAAS_PASSWORD }}
           cf_org: anynines
           cf_space: staging
-          command: push a9s-cliv-v2-staging -p docs/build
+          command: push a9s-cli-v2-staging -p docs/build
