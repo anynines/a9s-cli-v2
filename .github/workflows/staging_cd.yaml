@@ -17,6 +17,7 @@ jobs:
           token: ${{ secrets.GIT_TOKEN }}
       - name: Install
         run:  |
+          cd docs
           yarn
           yarn run docusaurus build
           PASSWORD=${{secrets.HTPASSWD}} make config_staging
