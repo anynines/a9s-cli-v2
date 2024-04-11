@@ -1,0 +1,30 @@
+name: Deploy staging branch
+
+on:
+  push:
+    branches:
+      - staging
+
+jobs:
+  staging_deploy:
+      runs-on: ubuntu-latest
+      steps:
+      - uses: actions/checkout@v3
+        name: "Checkout a9s-cli-v2"
+        with:
+          persist-credentials: false # otherwise, the token used is the GITHUB_TOKEN, instead of your personal access token.
+          fetch-depth: 0 # otherwise, there would be errors pushing refs to the destination repository.
+          token: ${{ secrets.GIT_TOKEN }}
+      - name: Install
+        run:  |
+          yarn
+          yarn run docusaurus build
+          PASSWORD=${{secrets.HTPASSWD}} make config_staging
+      - uses: citizen-of-planet-earth/cf-cli-action@master
+        with:
+          cf_api: https://api.de.a9s.eu
+          cf_username: ${{ secrets.PAAS_EMAIL }}
+          cf_password: ${{ secrets.PAAS_PASSWORD }}
+          cf_org: anynines
+          cf_space: staging
+          command: push a9s-cliv-v2-staging -p docs/build

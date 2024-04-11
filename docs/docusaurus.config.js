@@ -23,7 +23,7 @@ const usercentricsScript = ({ NODE_ENV }) => {
 const googleTagScript = () => {
   const config = {
     type: "text/plain",
-    src: "https://www.googletagmanager.com/gtag/js?id=GTM-NZZ5ZVC",
+    src: "https://www.googletagmanager.com/gtag/js?id=GTM-WV4MM8RQ",
     "data-usercentrics": "Google Tag Manager",
     async: true
   };
