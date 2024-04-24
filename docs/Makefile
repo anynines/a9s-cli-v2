@@ -1,5 +1,5 @@
 config_staging: guard-PASSWORD
-	cd build &&	echo "force_https: true" > Staticfile
+	cd build && echo "force_https: true" > Staticfile
 	cd build && htpasswd -nb anynines ${PASSWORD} > Staticfile.auth
 
 deploy_staging:
