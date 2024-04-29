@@ -20,17 +20,7 @@ const usercentricsScript = ({ NODE_ENV }) => {
   return config;
 };
 
-const googleTagScript = () => {
-  const config = {
-    type: "text/plain",
-    src: "https://www.googletagmanager.com/gtag/js?id=GTM-NZZ5ZVC",
-    "data-usercentrics": "Google Tag Manager",
-    async: true
-  };
-  return config;
-};
-
-const scripts = [usercentricsScript(process.env), googleTagScript()];
+const scripts = [usercentricsScript(process.env)];
 
 /** @type {import('@docusaurus/types').Config} */
 const config = {
@@ -83,6 +73,9 @@ const config = {
           },
           sidebarPath: require.resolve("./sidebars.js")
         },
+        googleTagManager: {
+          containerId: 'GTM-WV4MM8RQ',
+        },   
         blog: {
           showReadingTime: true,
           blogTitle: "Changelog",
