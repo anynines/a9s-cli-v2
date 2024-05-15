@@ -26,7 +26,10 @@ The binaries can be found in `bin/`.
 
 ## Testing the CLI
 
+### Unit Tests
 The state of unit tests is currently very poor.
+
+### End to End Tests
 
 End-to-end testing can be done using the external Ruby/RSpec test suite located at `e2e-tests` directory.
 
