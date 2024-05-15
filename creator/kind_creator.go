@@ -150,7 +150,7 @@ func (c KindCreator) Exists(clustername string) bool {
 		return false
 	}
 
-	makeup.PrintFail("There appears to be kind clusters but none with the name: " + clustername + ".")
+	makeup.PrintInfo("There appears to be kind clusters but none with the name: " + clustername + ".")
 	return false
 }
 
