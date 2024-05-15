@@ -21,7 +21,7 @@ func PrintWelcomeScreen(unattendedMode bool) {
 
 	fmt.Println()
 
-	title := "Welcome to the a8s Data Service demos"
+	title := "anynines Stack Management"
 
 	var style = lipgloss.NewStyle().
 		Bold(true).
@@ -38,7 +38,7 @@ func PrintWelcomeScreen(unattendedMode bool) {
 		BorderBackground(lipgloss.Color("e4833e"))
 	fmt.Println(style.Render(title))
 
-	PrintH2("This demo will install the a8s Postgres (a8s-pg) demo.")
+	PrintH2("Let's set up a Kubernetes stack together...")
 
 	WaitForUser(unattendedMode)
 }

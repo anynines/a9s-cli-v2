@@ -69,7 +69,19 @@ var cmdCreateCluster = &cobra.Command{
 	helps to install all necessary prerequisites and finally configures and installs
 	the chosen stack. Select a sub-command to create corresponding stack.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		makeup.PrintWarning(" " + "Please use a demo sub-command.")
+		makeup.PrintWarning(" " + "Please use a sub-command.")
+		cmd.Help()
+	},
+}
+
+var cmdCreateStack = &cobra.Command{
+	Use:   "stack",
+	Short: "Applies the specified stack to the currently selected Kubernetes cluster.",
+	Long: `Guides through the installation of the given anynines stack to the currently selected Kubernetes cluster, 
+	helps to install all necessary prerequisites and finally configures and installs
+	the chosen stack. Select a sub-command to create corresponding stack.`,
+	Run: func(cmd *cobra.Command, args []string) {
+		makeup.PrintWarning(" " + "Please use a sub-command.")
 		cmd.Help()
 	},
 }
@@ -80,6 +92,15 @@ var cmdCreateClusterA8s = &cobra.Command{
 	Long:  `Helps with the creation of a local Kubernetes cluster, installing the a8s Data Service operator(s) including necessary dependencies.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		CreateA8sCluster()
+	},
+}
+
+var cmdCreateStackA8s = &cobra.Command{
+	Use:   "a8s",
+	Short: "Applies the a8s stack to the currently selected Kubernetes cluster.",
+	Long:  `Applies the a8s stack to the currently selected Kubernetes cluster, installing the a8s Data Service operator(s) including necessary dependencies.`,
+	Run: func(cmd *cobra.Command, args []string) {
+		CreateA8sStack(false)
 	},
 }
 
@@ -148,7 +169,7 @@ func init() {
 	cmdCreatePGBinding.PersistentFlags().StringVarP(&demo.A8sPGServiceBinding.ServiceInstanceName, "service-instance", "i", "example-pg", "name of the PG service instance to bind to.")
 	cmdCreatePG.AddCommand(cmdCreatePGBinding)
 
-	// create demo a8s
+	// create cluster a8s
 	cmdCreateClusterA8s.PersistentFlags().StringVar(&demo.BackupInfrastructureRegion, "backup-region", "eu-central-1", "specify the infrastructure region to store backups such as \"us-east-1\".")
 	cmdCreateClusterA8s.PersistentFlags().StringVar(&demo.BackupInfrastructureBucket, "backup-bucket", "a8s-backups", "specify the infrastructure object store bucket name.")
 	cmdCreateClusterA8s.PersistentFlags().StringVar(&demo.BackupInfrastructureProvider, "backup-provider", "AWS", "specify the infrastructure provider as supported by the a8s Backup Manager.")
@@ -157,12 +178,23 @@ func init() {
 	cmdCreateClusterA8s.PersistentFlags().StringVar(&demo.ClusterMemory, "cluster-memory", "4gb", "specify memory of the Kubernetes cluster.")
 	cmdCreateClusterA8s.PersistentFlags().BoolVar(&demo.NoPreCheck, "no-precheck", false, "skip the verification of prerequisites.")
 
+	// create stack a8s
+	cmdCreateStackA8s.PersistentFlags().StringVar(&demo.BackupInfrastructureRegion, "backup-region", "eu-central-1", "specify the infrastructure region to store backups such as \"us-east-1\".")
+	cmdCreateStackA8s.PersistentFlags().StringVar(&demo.BackupInfrastructureBucket, "backup-bucket", "a8s-backups", "specify the infrastructure object store bucket name.")
+	cmdCreateStackA8s.PersistentFlags().StringVar(&demo.BackupInfrastructureProvider, "backup-provider", "AWS", "specify the infrastructure provider as supported by the a8s Backup Manager.")
+	cmdCreateStackA8s.PersistentFlags().StringVar(&demo.DeploymentVersion, "deployment-version", "v0.3.0", "specify the version corresponding to the a8s-deployment git version tag. Use \"latest\" to get the untagged version.")
+	cmdCreateStackA8s.PersistentFlags().BoolVar(&demo.NoPreCheck, "no-precheck", false, "skip the verification of prerequisites.")
+
 	// create demo
 	cmdCreateCluster.PersistentFlags().StringVarP(&demo.KubernetesTool, "provider", "p", "minikube", "provider for creating the Kubernetes cluster. Valid options are \"minikube\" an \"kind\"")
 	cmdCreateCluster.PersistentFlags().StringVarP(&demo.DemoClusterName, "cluster-name", "c", "a8s-demo", "name of the demo Kubernetes cluster.")
 
 	cmdCreateCluster.AddCommand(cmdCreateClusterA8s)
+	cmdCreateStack.AddCommand(cmdCreateStackA8s)
+	cmdCreateStack.PersistentFlags().StringVarP(&demo.DemoClusterName, "cluster-name", "c", "a8s-demo", "name of the demo Kubernetes cluster.")
+
 	cmdCreate.AddCommand(cmdCreateCluster)
+	cmdCreate.AddCommand(cmdCreateStack)
 	rootCmd.PersistentFlags().BoolVarP(&demo.UnattendedMode, "yes", "y", false, "skip yes-no questions by answering with \"yes\".")
 	rootCmd.PersistentFlags().BoolVarP(&makeup.Verbose, "verbose", "v", false, "enable verbose output?")
 	rootCmd.AddCommand(cmdCreate)

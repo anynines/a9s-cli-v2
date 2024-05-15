@@ -4,10 +4,18 @@
 
 * [ARCHITECTURE] Install a8s PG on an existing cluster
     * Decide which command/verb to use
-        * `a9s apply stack`
+        * [DONE] `a9s create stack`
             * Applies the a8s stack to the current k8s cluster
                 * The following cluster/context/namespace is selected:
                     Do you want to apply the a8s stack to this cluster?
+        * Make the context/namespaces configurable
+            * Per default the context `a8s-demo` with the namespace `a8s-demo` is mandatorily required. 
+                * Let the user select a different namespace / context name
+                * Make the default namespace/context not contain the word `demo`.
+                    * Point out that `-c` can be used to specify a context / clustername
+            * Add documentation for it to both
+                * Readme
+                * Tutorial / Or write a separate tutorial for that matter
 * [Question] Remove ?
     * Should there be a remove option?
     * Removes the a8s stack from the current k8s cluster
