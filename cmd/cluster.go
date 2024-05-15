@@ -35,14 +35,13 @@ var cmdClusterPwd = &cobra.Command{
 	},
 }
 
-// TODO Move. This is not the right place for business logic.
-func CreateA8sCluster() {
+func CreateA8sStack(createClusterIfNotExists bool) {
 	makeup.PrintWelcomeScreen(demo.UnattendedMode)
 
 	demo.EstablishConfig()
 
 	//TODO It's odd that a check method also creates a k8s cluster
-	demo.CheckPrerequisites(true)
+	demo.CheckPrerequisites(createClusterIfNotExists)
 
 	makeup.WaitForUser(demo.UnattendedMode)
 
@@ -63,6 +62,11 @@ func CreateA8sCluster() {
 	demo.WaitForA8sSystemToBecomeReady()
 
 	demo.PrintDemoSummary()
+}
+
+// TODO Move. This is not the right place for business logic.
+func CreateA8sCluster() {
+	CreateA8sStack(true)
 }
 
 func init() {
