@@ -47,7 +47,18 @@
 * Backup: A failed backup should be indicated to the user.
 * Restore: A failed restore should be indicated to the user.
 
-* Epic: POC on AWS
+* Epic: Add AWS-EKS as a provider to create cluster-stack
+    * `a9s create cluster a8s -p aws`
+    * Rerequisites
+        * `aws` command and `aws configure` been run
+            * Darwin: `brew install awscli`
+        * `eksctl` command
+            * Darwin: `brew install eksctl`
+    * Steps
+        * `aws configure`
+        * `eksctl create cluster --name my-eks-cluster --region us-west-2 --node-type t2.medium --nodes 3`
+
+
 * Epic: Allow Minio as Object Store
     * OBJECTIVE: Allow a local demo without a depedency to external object stores such as AWS S3.
 
