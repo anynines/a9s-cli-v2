@@ -117,19 +117,6 @@ func CheckPrerequisites() {
 	makeup.PrintH1("Checking Prerequisites...")
 
 	CheckCommandAvailability()
-
-	//TODO Remove section
-	// Docker is not a pre-requisite.
-	// if !kubernetes.CheckIfDockerIsRunning() {
-	// 	allGood = false
-	// }
-
-	// TODO Remove section
-	// We don't need to check if Kubernetes is running as we are about to
-	// create a Kubernetes cluster
-
-	//k8sCreator := kubernetes.GetKubernetesCreator(KubernetesTool, DemoConfig.WorkingDir)
-
 	clusterSpec := BuildKubernetesClusterSpec()
 
 	clusterManager := BuildKubernetesClusterManager()
