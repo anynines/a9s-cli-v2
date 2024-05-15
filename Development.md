@@ -28,7 +28,7 @@ The binaries can be found in `bin/`.
 
 The state of unit tests is currently very poor.
 
-End-to-end testing can be done using the external Ruby/RSpec test suite located at: https://github.com/anynines/a9s-cli-v2-tests
+End-to-end testing can be done using the external Ruby/RSpec test suite located at `e2e-tests` directory.
 
 ## Version Bump
 
