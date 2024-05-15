@@ -1,6 +1,7 @@
 # v0.12.0
 
 * Renames `a9s demo pwd` to `a9s cluster pwd`
+* Changes misleading error emojies to more suitable emojies when waiting for resources to become ready.
 
 # v0.11.1
 
