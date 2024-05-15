@@ -11,32 +11,20 @@ import (
 
 var TheA8sPGProductName = "a8s Postgres"
 
-var cmdDemo = &cobra.Command{
-	Use:   "demo",
+var cmdCluster = &cobra.Command{
+	Use:   "cluster",
 	Short: "Commands related to a9s Platform demos.",
 	Long:  `Commands related to a9s Platform demos, e.g. printing the local workding directory.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Printf("\n")
 		makeup.PrintWarning(" Please select a demo sub-command.\n")
 		fmt.Printf(" Examples: \n")
-		fmt.Printf("\ta9s demo pwd\t\tPrint the configured working directory.\n")
-		fmt.Printf("\ta9s demo a8s-pg\t\tExecute the a8s-pg product demo.")
+		fmt.Printf("\ta9s cluster pwd\t\tPrint the configured working directory.\n")
 		fmt.Printf("\n\n")
 	},
 }
 
-// var cmdDemoA8sPG = &cobra.Command{
-// 	Use:   "a8s-pg",
-// 	Short: "Handling a9s Platform demos.",
-// 	Long: `The demo assistent guides through the creation of a9s Platform demos,
-// 	helps to install all necessary prerequisites and finally configures and installs
-// 	the chosen product.`,
-// 	Run: func(cmd *cobra.Command, args []string) {
-// 		CreateA8sDemoEnvironment()
-// 	},
-// }
-
-var cmdDemoPwd = &cobra.Command{
+var cmdClusterPwd = &cobra.Command{
 	Use:   "pwd",
 	Short: "Print the configured working directory for demos from the ~/.a8s config file.",
 	Long:  `Print the configured working directory for demos from the ~/.a8s config file.`,
@@ -46,16 +34,6 @@ var cmdDemoPwd = &cobra.Command{
 		fmt.Printf("%s", demo.DemoConfig.WorkingDir)
 	},
 }
-
-// var cmdDemoDelete = &cobra.Command{
-// 	Use:   "delete",
-// 	Short: "Delete the demo Kubernetes cluster.",
-// 	Long: `Delete the demo Kubernetes cluster in order to free corresponding
-// 	resources.`,
-// 	Run: func(cmd *cobra.Command, args []string) {
-// 		demo.DeleteKubernetesCluster()
-// 	},
-// }
 
 // TODO Move. This is not the right place for business logic.
 func CreateA8sDemoEnvironment() {
@@ -87,6 +65,6 @@ func CreateA8sDemoEnvironment() {
 }
 
 func init() {
-	cmdDemo.AddCommand(cmdDemoPwd)
-	rootCmd.AddCommand(cmdDemo)
+	cmdCluster.AddCommand(cmdClusterPwd)
+	rootCmd.AddCommand(cmdCluster)
 }
