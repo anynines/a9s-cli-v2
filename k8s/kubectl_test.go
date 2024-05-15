@@ -49,9 +49,8 @@ func TestFindFirstPodByLabel(t *testing.T) {
 		t.Errorf("Shouldn't find a non-existing pod with label %s but found pod with name %s.", nonExistingLabel, name)
 	}
 
-	// kubectl wait --for=condition=Ready pod/busybox1
-
-	time.Sleep(30 * time.Second)
+	// Poor style
+	time.Sleep(20 * time.Second)
 
 	// Create pod with label
 	knownLabel := "test-label=ihslsd"
