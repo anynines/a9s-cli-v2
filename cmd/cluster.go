@@ -36,7 +36,7 @@ var cmdClusterPwd = &cobra.Command{
 }
 
 // TODO Move. This is not the right place for business logic.
-func CreateA8sDemoEnvironment() {
+func CreateA8sCluster() {
 	makeup.PrintWelcomeScreen(demo.UnattendedMode)
 
 	demo.EstablishConfig()

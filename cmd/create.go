@@ -79,7 +79,7 @@ var cmdCreateClusterA8s = &cobra.Command{
 	Short: "Create a local development cluster including a8s Data Services such as a8s Postgres.",
 	Long:  `Helps with the creation of a local Kubernetes cluster, installing the a8s Data Service operator(s) including necessary dependencies.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		CreateA8sDemoEnvironment()
+		CreateA8sCluster()
 	},
 }
 
