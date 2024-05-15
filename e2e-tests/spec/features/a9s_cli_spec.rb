@@ -8,7 +8,7 @@ RSpec.shared_context "a8s-pg", :shared_context => :metadata, order: :defined do
     @service_instance_name = "clustered"
     @backup_name ||= "clustered-bu"
     @restore_name ||= "clustered-rs"
-    @sql_file_small = File.expand_path(File.join(File.dirname(__FILE__), "..", "..", "assets", "pg_demo_data_small.sql"))    
+    @sql_file_small = File.expand_path(File.join(File.dirname(__FILE__), "..", "..", "assets", "pg_demo_data_small.sql"))
     @service_binding_name ||= "clustered-sb"
   end
 
@@ -37,9 +37,9 @@ RSpec.shared_context "a8s-pg", :shared_context => :metadata, order: :defined do
       expect(output).to include("Successfully applied SQL file to pod")
     end
 
-    it "verifies that data has been loaded into the a8s pg service instance" do 
+    it "verifies that data has been loaded into the a8s pg service instance" do
       cmd = "a9s pg apply --service-instance #{@service_instance_name} -n #{@workload_namespace} --sql \"SELECT COUNT(*) FROM POSTS\" --yes"
-      
+
       output = `#{cmd}`
 
       logger.info "\t" + output
@@ -65,7 +65,7 @@ RSpec.shared_context "a8s-pg", :shared_context => :metadata, order: :defined do
       logger.info(cmd)
 
       output = `#{cmd}`
-      
+
       logger.info "\t" + output
 
       expect(output).to include("The service binding has been deleted successfully.")
