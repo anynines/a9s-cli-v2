@@ -2,17 +2,21 @@
 
 ## Next
 
+* [ARCHITECTURE] Install a8s PG on an existing cluster
+    * Decide which command/verb to use
+        * `a9s apply stack`
+            * Applies the a8s stack to the current k8s cluster
+                * The following cluster/context/namespace is selected:
+                    Do you want to apply the a8s stack to this cluster?
+* [Question] Remove ?
+    * Should there be a remove option?
+    * Removes the a8s stack from the current k8s cluster
+
+## Unassigned
+
 * [POSTPONED] Run test suite on windows
         * Perform cold test run
         * Run test suite
-    
-### Build, Measure Learn
-
-* Establish means to measure creating service instances
-    * Establish means to measure container image traffic
-* [LATER] Establish means to learn about the number of service instances
-
-## Unassigned
 
 * CHORE: Harmonize variable declaration for params. Use package config. Maybe use viper.
 
