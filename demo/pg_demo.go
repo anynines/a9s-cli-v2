@@ -111,7 +111,7 @@ func BuildKubernetesClusterManager() k8s.ClusterManager {
 	return clusterManager
 }
 
-func CheckPrerequisites() {
+func CheckPrerequisites(createClusterIfNotExists bool) {
 	allGood := true
 
 	makeup.PrintH1("Checking Prerequisites...")
@@ -121,7 +121,9 @@ func CheckPrerequisites() {
 
 	clusterManager := BuildKubernetesClusterManager()
 
-	clusterManager.CreateKubernetesClusterIfNotExists(clusterSpec)
+	if createClusterIfNotExists {
+		clusterManager.CreateKubernetesClusterIfNotExists(clusterSpec)
+	}
 
 	// At this point there should be a Kubernetescluster
 	if !k8s.CheckIfAnyKubernetesIsRunning() {

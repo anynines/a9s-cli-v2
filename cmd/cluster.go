@@ -41,7 +41,8 @@ func CreateA8sCluster() {
 
 	demo.EstablishConfig()
 
-	demo.CheckPrerequisites()
+	//TODO It's odd that a check method also creates a k8s cluster
+	demo.CheckPrerequisites(true)
 
 	makeup.WaitForUser(demo.UnattendedMode)
 
