@@ -8,14 +8,18 @@
             * Applies the a8s stack to the current k8s cluster
                 * The following cluster/context/namespace is selected:
                     Do you want to apply the a8s stack to this cluster?
-        * Make the context/namespaces configurable
+    * Make the context/namespaces configurable
+        
+        * Streamline the UX for both `create cluster` and `create stack`
             * Per default the context `a8s-demo` with the namespace `a8s-demo` is mandatorily required. 
-                * Let the user select a different namespace / context name
-                * Make the default namespace/context not contain the word `demo`.
-                    * Point out that `-c` can be used to specify a context / clustername
-            * Add documentation for it to both
-                * Readme
-                * Tutorial / Or write a separate tutorial for that matter
+            * Let the user select a different namespace / context name
+            * Make the default namespace/context not contain the word `demo`.
+                * Point out that `-c` can be used to specify a context / clustername
+        * Update the readme
+            * Add `create stack` documentation
+    * Write a tutorial on how to apply a stack to an existing AWS cluster
+            
+            
 * [Question] Remove ?
     * Should there be a remove option?
     * Removes the a8s stack from the current k8s cluster

@@ -36,7 +36,19 @@ var cmdClusterPwd = &cobra.Command{
 }
 
 func CreateA8sStack(createClusterIfNotExists bool) {
-	makeup.PrintWelcomeScreen(demo.UnattendedMode)
+	title := ""
+
+	//TODO Tidy up
+	if createClusterIfNotExists {
+		title = "anynines Cluster Management"
+	} else {
+		title = "anynines Stack Management"
+	}
+
+	makeup.PrintWelcomeScreen(
+		demo.UnattendedMode,
+		title,
+		"Let's set up a Kubernetes stack together...")
 
 	demo.EstablishConfig()
 
