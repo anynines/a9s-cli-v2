@@ -57,6 +57,8 @@
     * Steps
         * `aws configure`
         * `eksctl create cluster --name my-eks-cluster --region us-west-2 --node-type t2.medium --nodes 3`
+    * Tutorial: 
+        * https://medium.com/@prateek.malhotra004/step-by-step-guide-creating-an-amazon-eks-cluster-with-aws-cli-edab2c7eac41
 
 
 * Epic: Allow Minio as Object Store
