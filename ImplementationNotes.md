@@ -7,7 +7,44 @@ represent ideas that have not been implemented or that changes may have been app
 
 The implementation notes may document patterns on how certain features are developed by listing individual steps. This may help new developers to find a scaffold to start with when entering the project.
 
+## v0.11.1
+
+* Create and publish `a9s` binaries for supported OSes
+    * [DONE] Run test suite on linux
+        * Perform cold test run
+        * Run test suite
+    * [DONE] Run test suite test on macos
+        * Perform cold test run
+        * Run test suite
+* [DONE] Create CI/CD pipeline that
+    * [DONE] Creates binaries for each supported OS
+    * [SOMEWHATDONE] Runs tests for each supported OS
+        * UPDATE: 
+            * Can't do. To0 much effort.
+            * Compromize: only linux is CI tested. MacOS is tested manually.
+    * [SOMEWHATDONE] Publishes binaries for each supported OS
+        * Upload binary
+        * Publish docs / changelog
+
+
 ## v0.11.0
+
+* Rename `a9s create demo a8s` to `a9s create local-dev-env` or something similar.
+    * [DONE] Decide which word to use instead of `demo`
+        * `a9s create stack` 
+        * `a9s create environment` &&|| `a9s create env`
+        * `a9s create cluster`
+    * [DONE] Rename to `a9s create cluster`
+        * Rename create cmd
+        * Rename delete cmd
+        * Adapt Readme
+        * Adapt unit tests
+        * Adapt e2e tests
+    * Go through the entire `create cluster` use case and check of occurences of the word "demo"
+    * Rename the "demo" package?
+    * Write changelog
+    * Adapt implementation notes
+
 
 * Feature(s): `a9s version`: Prints the version of the a9s CLI
     * Optional: Prints version of installed components on the current kubernetes cluster, e.g. versions of the a8s operators ...

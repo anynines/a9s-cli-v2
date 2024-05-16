@@ -1,0 +1,109 @@
+/**
+ * Any CSS included here will be global. The classic template
+ * bundles Infima by default. Infima is a CSS framework designed to
+ * work well for content-centric websites.
+ */
+
+/* You can override the default Infima variables here. */
+:root {
+  --ifm-color-primary: #e4833e;
+  --ifm-color-primary-dark: #B66932;
+  --ifm-color-primary-darker: #965629;
+  --ifm-color-primary-darkest: #72411F;
+  --ifm-color-primary-light: #E99C65;
+  --ifm-color-primary-lighter: #EDAD80;
+  --ifm-color-primary-lightest: #F1C19E;
+
+  --ifm-color-grey-1000: #0d1424;
+  --ifm-color-grey-900: #131f37;
+  --ifm-color-grey-800: #293858;
+  --ifm-color-grey-700: #485776;
+  --ifm-color-grey-600: #677695;
+  --ifm-color-grey-500: #909fbe;
+  --ifm-color-grey-400: #b0bfd9;
+  --ifm-color-grey-300: #b8c2d6;
+  --ifm-color-grey-200: #e0e4ed;
+  --ifm-color-grey-100: #e8eefb;
+  --ifm-color-grey-50: #f6f8fc;
+  
+  --color-code-highlight-darkmode: #096788;
+  
+  --color-background-layout: white;
+  --color-background-page: var(--ifm-color-grey-50);
+  --color-text: var(--ifm-color-grey-900);
+  --color-text-secondary: var(--ifm-color-grey-700);
+
+  --ifm-code-font-size: 95%;
+  --ifm-code-background: var(--color-code-highlight-darkmode);
+
+}
+
+html[data-theme='dark']:root {
+  --color-background-layout: var(--ifm-color-grey-1000);
+  --color-background-page: var(--ifm-color-grey-900);
+  --ifm-table-stripe-background: var(--ifm-color-grey-1000);
+  --ifm-code-background: var(--color-code-highlight-darkmode);
+  --color-text: white;
+}
+
+.docusaurus-highlight-code-line {
+  background-color: rgba(0, 0, 0, 0.1);
+  display: block;
+  margin: 0 calc(-1 * var(--ifm-pre-padding));
+  padding: 0 var(--ifm-pre-padding);
+}
+
+html[data-theme='dark'] .docusaurus-highlight-code-line {
+  background-color: rgba(0, 0, 0, 0.3);
+}
+
+pre {
+  background-color: var(--color-background-layout) !important;
+}
+
+code {
+  background-color: var(--ifm-color-grey-800);
+  color: white;
+}
+
+html[data-theme='dark'] code {
+  background-color: var(--ifm-code-background);
+  color: white;
+}
+
+.footer--dark {
+  --ifm-footer-background-color: var(--color-background-layout);
+  --ifm-footer-color: var(--color-text);
+  --ifm-footer-link-color: var(--color-text-secondary);
+  --ifm-footer-title-color: var(--color-text);
+}
+
+.navbar {
+  background-color: var(--color-background-layout);
+  align-items: center;
+}
+
+.navbar__logo {
+  margin-right: 32px;
+}
+
+.main-wrapper {
+  background-color: var(--color-background-page);
+}
+
+.hero {
+  color: white;
+}
+
+.aa-Autocomplete {
+  min-width: 200px;
+}
+
+.aa-SubmitIcon, .aa-DetachedSearchButtonPlaceholder {
+  color: var(--color-text) !important;
+}
+
+html[data-theme='dark'] .navbar {
+  background-color: var(--ifm-color-grey-1000);
+}
+

@@ -8,7 +8,7 @@ RSpec.shared_context "a8s-pg", :shared_context => :metadata, order: :defined do
     @service_instance_name = "clustered"
     @backup_name ||= "clustered-bu"
     @restore_name ||= "clustered-rs"
-    @sql_file_small = File.expand_path(File.join(File.dirname(__FILE__), "..", "..", "assets", "pg_demo_data_small.sql"))    
+    @sql_file_small = File.expand_path(File.join(File.dirname(__FILE__), "..", "..", "assets", "pg_demo_data_small.sql"))
     @service_binding_name ||= "clustered-sb"
   end
 
@@ -37,9 +37,9 @@ RSpec.shared_context "a8s-pg", :shared_context => :metadata, order: :defined do
       expect(output).to include("Successfully applied SQL file to pod")
     end
 
-    it "verifies that data has been loaded into the a8s pg service instance" do 
+    it "verifies that data has been loaded into the a8s pg service instance" do
       cmd = "a9s pg apply --service-instance #{@service_instance_name} -n #{@workload_namespace} --sql \"SELECT COUNT(*) FROM POSTS\" --yes"
-      
+
       output = `#{cmd}`
 
       logger.info "\t" + output
@@ -65,7 +65,7 @@ RSpec.shared_context "a8s-pg", :shared_context => :metadata, order: :defined do
       logger.info(cmd)
 
       output = `#{cmd}`
-      
+
       logger.info "\t" + output
 
       expect(output).to include("The service binding has been deleted successfully.")
@@ -190,6 +190,29 @@ RSpec.describe "a9s-cli" do
 
   # Idea: use contexts to immitate the a9s command topology
   context "create", order: :defined do
+    context "stack", order: :defined do
+      before :context do
+        Minikube.create_cluster
+      end
+
+      it "creates an a8s stack on a given Kubernetes cluster", :clusterop => true, :slow => true do
+            cmd = "a9s create stack a8s -c a9s-create-stack-rspec --yes"
+
+            logger.info cmd
+
+            output = `#{cmd}`
+
+            logger.info "\t" + output
+
+            expect(output).to include("You are now ready to create a8s Postgres service instances.")
+            kubectl_create_namespace(@workload_namespace)
+          end
+          include_context "a8s-pg", :include_shared => true
+
+      after :context do
+        Minikube.delete_cluster
+      end
+    end
     context "cluster", order: :defined do
       context "a8s", order: :defined do
         context "kind", order: :defined, kind: true do
@@ -200,7 +223,7 @@ RSpec.describe "a9s-cli" do
               Kind::delete_demo_cluster
             end
           end
-          it "creates an Kubernetes cluster with an a8s stack", :clusterop => true, :slow => true do
+          it "creates a Kubernetes cluster with an a8s stack", :clusterop => true, :slow => true do
             cmd = "a9s create cluster a8s -p kind --yes"
 
             logger.info cmd

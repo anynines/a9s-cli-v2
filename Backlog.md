@@ -1,84 +1,35 @@
 # Backlog
 
-## Next 
+## Next
 
-* Rename `a9s create demo a8s` to `a9s create local-dev-env` or something similar.
-    * [DONE] Decide which word to use instead of `demo`
-        * `a9s create stack` 
-        * `a9s create environment` &&|| `a9s create env`
-        * `a9s create cluster`
-    * [DONE] Rename to `a9s create cluster`
-        * Rename create cmd
-        * Rename delete cmd
-        * Adapt Readme
-        * Adapt unit tests
-        * Adapt e2e tests
-    * Go through the entire `create cluster` use case and check of occurences of the word "demo"
-    * Rename the "demo" package?
-    * Write changelog
-    * Adapt implementation notes
+* [ARCHITECTURE] Install a8s PG on an existing cluster
+    * Decide which command/verb to use
+        * [DONE] `a9s create stack`
+            * Applies the a8s stack to the current k8s cluster
+                * The following cluster/context/namespace is selected:
+                    Do you want to apply the a8s stack to this cluster?
+    * Make the context/namespaces configurable        
+        * Streamline the UX for both `create cluster` and `create stack`        
+                * Point out that `-c` can be used to specify a context / clustername
+        * Update the readme
+            * Add `create stack` documentation
+    * Write a tutorial on how to apply a stack to an existing AWS cluster
+        * Use `-c` option to point to the right context
 
-
-* BUG: When there's an exec format error and thus the a8s-system can't start, the a9s create demo a8s command does not recognize the failing pods but falsely thinks that the a8s-system is running.
-
-## Release: KubeCon Pre-Release
-
-### a8s PG Demo
-**OBJECTIVE**: Given a local computer and the `a9s` CLI, a local a8s PG demo can be performed.
-
-* **Github authentication**: A non-anynines user must be able to perform the a8s PG demo
-    * There mustn't be a requirement to have certain access privileges for any anynines github repository.
-    * Possible solution: Include github authentication into the CLI
-        * Currently it is assumed that `gh auth login` is performed.
-
-### Public a8s PG Self-Demo
-**OBJECTIVE**: A visitor can perform a a8s PG demo on a local computer without the involvement of a sales engineer and/or online documentation.
-
-* Publish repositories so that non-anynines Github users can clone the repos.
-
-* Create and publish `a9s` binaries for supported OSes
-    * [DONE] Run test suite on linux
-        * Perform cold test run
-        * Run test suite
-    * [POSTPONED] Run test suite on windows
-        * Perform cold test run
-        * Run test suite
-    * [DONE] Run test suite test on macos
-        * Perform cold test run
-        * Run test suite
-* [DONE] Create CI/CD pipeline that
-    * [DONE] Creates binaries for each supported OS
-    * [STARTED] Runs tests for each supported OS
-        * UPDATE: 
-            * Can't do. To much effort.
-            * Compromize: only linux is CI tested. MacOS is tested manually.
-    * [STARTED] Publishes binaries for each supported OS
-        * Upload binary
-        * Publish docs / changelog
-
-### Legal
-
-* Decide about LICENSE
-* Write and add LICENSE file
-
-### Build, Measure Learn
-
-* Establish means to measure creating service instances
-    * Establish means to measure container image traffic
-* [LATER] Establish means to learn about the number of service instances
-
-### Landing Page & Marketing
-
-* Create and deploy and a8s PG self-demo landing page
-* Create a marketing campaign with ads to feed the landing page
-* Establish a funnel and funnel monitoring to measure success
-
-## Release: KubeCon Final
+* Make the default namespace/context not contain the word `demo`.
+            
+* [Question] Remove ?
+    * Should there be a remove option?
+        * Yes
+    * Removes the a8s stack from the current k8s cluster
 
 ## Unassigned
 
-* CHORE: Harmonize variable declaration for params. Use package config. Maybe use viper.
+* [POSTPONED] Run test suite on windows
+        * Perform cold test run
+        * Run test suite
 
+* CHORE: Harmonize variable declaration for params. Use package config. Maybe use viper.
 
 * BUGFIX: `a9s create demo a8s` fails if minikube has never started before.
 
@@ -95,7 +46,41 @@
 * Backup: A failed backup should be indicated to the user.
 * Restore: A failed restore should be indicated to the user.
 
-* Epic: POC on AWS
+* Epic: Add AWS-EKS as a provider to create cluster-stack
+    * `a9s create cluster a8s -p aws`
+    * Rerequisites
+        * `aws` command and `aws configure` been run
+            * Darwin: `brew install awscli`
+        * `eksctl` command
+            * Darwin: `brew install eksctl`
+    * Steps
+        * `aws configure`
+        * `eksctl create cluster --name my-eks-cluster --region us-west-2 --node-type t2.medium --nodes 3`
+        * `eksctl utils write-kubeconfig --cluster='my-eks-cluster' --region=us-west-2`
+        * Activate EBS for dynamic volume provisioning
+            * eksctl utils associate-iam-oidc-provider --region=us-west-2 --cluster=my-eks-cluster --approve
+            * eksctl create iamserviceaccount \
+                --name ebs-csi-controller-sa \
+                --namespace kube-system \
+                --cluster my-eks-cluster \
+                --role-name AmazonEKS_EBS_CSI_DriverRole \
+                --role-only \
+                --attach-policy-arn arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy \
+                --approve \
+                --region=us-west-2
+            * Then add the add-on "aws-ebs-csi-driver"
+                * eksctl create addon --name aws-ebs-csi-driver --cluster my-eks-cluster
+                --region=us-west-2
+                --service-account-role-arn arn:aws:iam::${ACCOUNT_ID}:role/AmazonEKS_EBS_CSI_DriverRole --force
+
+
+    * Tutorial: 
+        * https://medium.com/@prateek.malhotra004/step-by-step-guide-creating-an-amazon-eks-cluster-with-aws-cli-edab2c7eac41        
+            * https://docs.aws.amazon.com/eks/latest/userguide/create-kubeconfig.html
+            * `eksctl utils write-kubeconfig --cluster=<name> [--kubeconfig=<path>] [--set-kubeconfig-context=<bool>]`
+
+
+
 * Epic: Allow Minio as Object Store
     * OBJECTIVE: Allow a local demo without a depedency to external object stores such as AWS S3.
 

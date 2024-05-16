@@ -1,9 +1,9 @@
 package k8s
 
 import (
-	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/anynines/a9s-cli-v2/creator"
 )
@@ -42,16 +42,27 @@ func TestFindFirstPodByLabel(t *testing.T) {
 	nonExistingLabel := "non-existing-label=true"
 	name, err := FindFirstPodByLabel("default", nonExistingLabel)
 	if err != nil {
+		if err != ErrNotFound {
+			t.Errorf("Unexpected error: %s", err.Error())
+		}
+	} else {
 		t.Errorf("Shouldn't find a non-existing pod with label %s but found pod with name %s.", nonExistingLabel, name)
 	}
 
+	// Poor style
+	time.Sleep(20 * time.Second)
+
 	// Create pod with label
 	knownLabel := "test-label=ihslsd"
-	Kubectl(false, "run", "tst-first-pod-by-label", "--image=busybox", "--labels", knownLabel)
+	Kubectl(true, "run", "randomxxkdj", "--image=busybox", "--labels", knownLabel, "--", "sleep", "600")
 
 	_, err = FindFirstPodByLabel("default", knownLabel)
 	if err != nil {
-		t.Errorf("Should find a pod with label %s but didn't find any pod with that label.", knownLabel)
+		if err == ErrNotFound {
+			t.Errorf("Should find a pod with label %s but didn't find any pod with that label.", knownLabel)
+		} else {
+			t.Errorf("Unexpected error: %s", err.Error())
+		}
 	}
 }
 
@@ -68,7 +79,7 @@ func BuildStandardClusterSpec() creator.KubernetesClusterSpec {
 
 func getTestCreator() creator.KubernetesCreator {
 	if KubectlTestCreator == nil {
-		KubectlTestCreator = creator.KindCreator{LocalWorkDir: os.TempDir()}
+		KubectlTestCreator = creator.MinikubeCreator{} // creator.KindCreator{LocalWorkDir: os.TempDir()}
 	}
 
 	return KubectlTestCreator

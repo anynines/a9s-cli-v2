@@ -16,12 +16,10 @@ var Verbose bool
 The makeup package contains helper methods to format output and print messages to the user.
 */
 
-func PrintWelcomeScreen(unattendedMode bool) {
+func PrintWelcomeScreen(unattendedMode bool, title, subtitle string) {
 	physicalWidth, _, _ := term.GetSize(int(os.Stdout.Fd()))
 
 	fmt.Println()
-
-	title := "Welcome to the a8s Data Service demos"
 
 	var style = lipgloss.NewStyle().
 		Bold(true).
@@ -38,7 +36,7 @@ func PrintWelcomeScreen(unattendedMode bool) {
 		BorderBackground(lipgloss.Color("e4833e"))
 	fmt.Println(style.Render(title))
 
-	PrintH2("This demo will install the a8s Postgres (a8s-pg) demo.")
+	PrintH2(subtitle)
 
 	WaitForUser(unattendedMode)
 }
