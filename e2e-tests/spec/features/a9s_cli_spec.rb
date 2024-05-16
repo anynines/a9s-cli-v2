@@ -190,6 +190,29 @@ RSpec.describe "a9s-cli" do
 
   # Idea: use contexts to immitate the a9s command topology
   context "create", order: :defined do
+    context "stack", order: :defined do
+      before :context do
+        Minikube.create_cluster
+      end
+
+      it "creates an a8s stack on a given Kubernetes cluster", :clusterop => true, :slow => true do
+            cmd = "a9s create stack a8s -c a9s-create-stack-rspec --yes"
+
+            logger.info cmd
+
+            output = `#{cmd}`
+
+            logger.info "\t" + output
+
+            expect(output).to include("You are now ready to create a8s Postgres service instances.")
+            kubectl_create_namespace(@workload_namespace)
+          end
+          include_context "a8s-pg", :include_shared => true
+
+      after :context do
+        Minikube.delete_cluster
+      end
+    end
     context "cluster", order: :defined do
       context "a8s", order: :defined do
         context "kind", order: :defined, kind: true do
@@ -200,7 +223,7 @@ RSpec.describe "a9s-cli" do
               Kind::delete_demo_cluster
             end
           end
-          it "creates an Kubernetes cluster with an a8s stack", :clusterop => true, :slow => true do
+          it "creates a Kubernetes cluster with an a8s stack", :clusterop => true, :slow => true do
             cmd = "a9s create cluster a8s -p kind --yes"
 
             logger.info cmd
