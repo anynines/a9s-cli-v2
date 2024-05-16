@@ -138,7 +138,7 @@ func CheckPrerequisites(createClusterIfNotExists bool) {
 
 	// !NoPreCheck > Perform a pre-check
 	if !NoPreCheck && !allGood {
-		makeup.PrintFailSummary("Sadly, mandatory prerequisited haven't been met. Aborting...")
+		makeup.PrintFailSummary("Sadly, mandatory prerequisites haven't been met. Aborting...")
 		os.Exit(1)
 	}
 }
