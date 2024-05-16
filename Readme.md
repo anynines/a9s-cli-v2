@@ -151,6 +151,22 @@ To print the working directory execute:
 
     a9s cluster pwd
 
+# Creating Stack on a Given Cluster
+
+Similar to creating a cluster, **the a8s PostgreSQL stack can also be applied to an existing cluster**.
+
+The behavior of `a9s create stack a8s` is nearly identical with `a9s create cluster` with the expection that `create stack` does not create a cluster.
+
+Creating a stack on a given cluster can be accomplished by executing:
+
+    a9s create stack a8s
+
+## Selecting a Particular `kubectl` Context
+
+Select the desired context from your Kubernetes configuration using the `-c` or `--cluster-name` option:
+
+    a9s create stack a8s -c iam-root-account@my-eks-cluster.us-west-2.eksctl.io
+
 # a8s PostgreSQL
 
 A selected subset of the a8s PostgreSQL features are available through the `a9s` CLI.

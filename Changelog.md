@@ -1,7 +1,8 @@
 # v0.12.0
 
-* Renames `a9s demo pwd` to `a9s cluster pwd`
-* Changes misleading error emojies to more suitable emojies when waiting for resources to become ready.
+* Feature: Create the a8s stack on an existing Kubernetes cluster with `a9s create stack a8s`.
+* Change: Renames `a9s demo pwd` to `a9s cluster pwd`
+* Bugfix: Changes misleading error emojies to more suitable emojies when waiting for resources to become ready.
 
 # v0.11.1
 
