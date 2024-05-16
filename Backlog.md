@@ -8,20 +8,19 @@
             * Applies the a8s stack to the current k8s cluster
                 * The following cluster/context/namespace is selected:
                     Do you want to apply the a8s stack to this cluster?
-    * Make the context/namespaces configurable
-        
-        * Streamline the UX for both `create cluster` and `create stack`
-            * Per default the context `a8s-demo` with the namespace `a8s-demo` is mandatorily required. 
-            * Let the user select a different namespace / context name
-            * Make the default namespace/context not contain the word `demo`.
+    * Make the context/namespaces configurable        
+        * Streamline the UX for both `create cluster` and `create stack`        
                 * Point out that `-c` can be used to specify a context / clustername
         * Update the readme
             * Add `create stack` documentation
     * Write a tutorial on how to apply a stack to an existing AWS cluster
-            
+        * Use `-c` option to point to the right context
+
+* Make the default namespace/context not contain the word `demo`.
             
 * [Question] Remove ?
     * Should there be a remove option?
+        * Yes
     * Removes the a8s stack from the current k8s cluster
 
 ## Unassigned
@@ -57,8 +56,29 @@
     * Steps
         * `aws configure`
         * `eksctl create cluster --name my-eks-cluster --region us-west-2 --node-type t2.medium --nodes 3`
+        * `eksctl utils write-kubeconfig --cluster='my-eks-cluster' --region=us-west-2`
+        * Activate EBS for dynamic volume provisioning
+            * eksctl utils associate-iam-oidc-provider --region=us-west-2 --cluster=my-eks-cluster --approve
+            * eksctl create iamserviceaccount \
+                --name ebs-csi-controller-sa \
+                --namespace kube-system \
+                --cluster my-eks-cluster \
+                --role-name AmazonEKS_EBS_CSI_DriverRole \
+                --role-only \
+                --attach-policy-arn arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy \
+                --approve \
+                --region=us-west-2
+            * Then add the add-on "aws-ebs-csi-driver"
+                * eksctl create addon --name aws-ebs-csi-driver --cluster my-eks-cluster
+                --region=us-west-2
+                --service-account-role-arn arn:aws:iam::${ACCOUNT_ID}:role/AmazonEKS_EBS_CSI_DriverRole --force
+
+
     * Tutorial: 
-        * https://medium.com/@prateek.malhotra004/step-by-step-guide-creating-an-amazon-eks-cluster-with-aws-cli-edab2c7eac41
+        * https://medium.com/@prateek.malhotra004/step-by-step-guide-creating-an-amazon-eks-cluster-with-aws-cli-edab2c7eac41        
+            * https://docs.aws.amazon.com/eks/latest/userguide/create-kubeconfig.html
+            * `eksctl utils write-kubeconfig --cluster=<name> [--kubeconfig=<path>] [--set-kubeconfig-context=<bool>]`
+
 
 
 * Epic: Allow Minio as Object Store
