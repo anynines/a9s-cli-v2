@@ -32,4 +32,7 @@ $(PLATFORMS):
 test:
 	go test ./...
 
+test_failfast:
+	go test -failfast ./... 
+
 # Further reading: https://vic.demuzere.be/articles/golang-makefile-crosscompile/

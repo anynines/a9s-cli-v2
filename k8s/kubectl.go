@@ -131,6 +131,8 @@ func FindFirstPodByLabel(namespace, label string) (string, error) {
 	commandElements = append(commandElements, label)
 
 	// Output jsonpath
+	// In a shell you want to quote 'jsonpath ...'
+	// Here you don't otherwise you'll get '' added to the result string
 	commandElements = append(commandElements, "-o=jsonpath={.items[*].metadata.name}")
 
 	cmd, output, err := Kubectl(unattendedMode, commandElements...)
@@ -146,7 +148,10 @@ func FindFirstPodByLabel(namespace, label string) (string, error) {
 
 	podNames := strings.Fields(outputString)
 
-	podName := podNames[0]
-
-	return podName, nil
+	if len(podNames) > 0 {
+		podName := podNames[0]
+		return podName, nil
+	} else {
+		return "", ErrNotFound
+	}
 }
