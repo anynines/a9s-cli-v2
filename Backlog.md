@@ -118,6 +118,8 @@
                 --region=us-west-2
                 --service-account-role-arn arn:aws:iam::${ACCOUNT_ID}:role/AmazonEKS_EBS_CSI_DriverRole --force
 
+* `a9s delete cluster -p aws`
+    `eksctl delete cluster --name my-eks-cluster --region us-west-2`
 
     * Tutorial: 
         * https://medium.com/@prateek.malhotra004/step-by-step-guide-creating-an-amazon-eks-cluster-with-aws-cli-edab2c7eac41        
