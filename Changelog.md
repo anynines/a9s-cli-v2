@@ -1,3 +1,9 @@
+# v0.12.0
+
+* Feature: Create the a8s stack on an existing Kubernetes cluster with `a9s create stack a8s`.
+* Change: Renames `a9s demo pwd` to `a9s cluster pwd`
+* Bugfix: Changes misleading error emojies to more suitable emojies when waiting for resources to become ready.
+
 # v0.11.1
 
 * Bugfix: Adds missing VERSION file to repo.
@@ -15,7 +21,7 @@
 
 * Feature: `a9s create pg servicebinding`: creates a PG username/password and Kubernetes Secret for the given PG service instance.
 * Bugfix: `a9s create backup`: waiting for a backup
-* Change: `a9s demo pwd`: prints the demo working directory without newlines to fascilitate the use within scripts.
+* Change: `a9s cluster pwd`: prints the demo working directory without newlines to fascilitate the use within scripts.
 * Feature: `a9s pg apply --sql` allows the execution of a SQL statement on the primary pod of a PostgreSQL service instance.
 * Bugfix: `--file` is now a param of `a9s pg apply` and not `a9s pg`.
 * Change: `a9s create pg backup` now returns an error if the backup reaches the "PermanentlyFailed" state.
@@ -108,7 +114,7 @@
 * New command structure
 
     * `a9s demo a8s-pg`: Executes the demo and is preferred over `a9s a8s-pg-demo`. This fascilitates adding more demos in future releases.
-    * `a9s demo pwd`: Prints the current demo working directory.
+    * `a9s cluster pwd`: Prints the current demo working directory.
 * CHORE: Added Makefile.
 * CHORE: Renamed modules.
 

@@ -52,7 +52,7 @@ out:
 				expectedPodPrefix.Running = true
 			} else {
 				// Sadly, at least one pod isn't running so we need another loop iteration
-				makeup.PrintFail("The " + expectedPodPrefix.Name + " is not ready (yet).")
+				makeup.PrintWait("The " + expectedPodPrefix.Name + " is not ready (yet).")
 				allGood = false
 			}
 

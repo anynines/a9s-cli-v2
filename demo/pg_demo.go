@@ -111,30 +111,19 @@ func BuildKubernetesClusterManager() k8s.ClusterManager {
 	return clusterManager
 }
 
-func CheckPrerequisites() {
+func CheckPrerequisites(createClusterIfNotExists bool) {
 	allGood := true
 
 	makeup.PrintH1("Checking Prerequisites...")
 
 	CheckCommandAvailability()
-
-	//TODO Remove section
-	// Docker is not a pre-requisite.
-	// if !kubernetes.CheckIfDockerIsRunning() {
-	// 	allGood = false
-	// }
-
-	// TODO Remove section
-	// We don't need to check if Kubernetes is running as we are about to
-	// create a Kubernetes cluster
-
-	//k8sCreator := kubernetes.GetKubernetesCreator(KubernetesTool, DemoConfig.WorkingDir)
-
 	clusterSpec := BuildKubernetesClusterSpec()
 
 	clusterManager := BuildKubernetesClusterManager()
 
-	clusterManager.CreateKubernetesClusterIfNotExists(clusterSpec)
+	if createClusterIfNotExists {
+		clusterManager.CreateKubernetesClusterIfNotExists(clusterSpec)
+	}
 
 	// At this point there should be a Kubernetescluster
 	if !k8s.CheckIfAnyKubernetesIsRunning() {
@@ -149,7 +138,7 @@ func CheckPrerequisites() {
 
 	// !NoPreCheck > Perform a pre-check
 	if !NoPreCheck && !allGood {
-		makeup.PrintFailSummary("Sadly, mandatory prerequisited haven't been met. Aborting...")
+		makeup.PrintFailSummary("Sadly, mandatory prerequisites haven't been met. Aborting...")
 		os.Exit(1)
 	}
 }

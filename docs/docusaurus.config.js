@@ -74,7 +74,11 @@ const config = {
           sidebarPath: require.resolve("./sidebars.js")
         },
         googleTagManager: {
+<<<<<<< HEAD
           containerId: 'GTM-WV4MM8RQ',
+=======
+          containerId: 'GTM-NZZ5ZVC',
+>>>>>>> feature/ISS-1272--Update-googleTag
         },   
         blog: {
           showReadingTime: true,
