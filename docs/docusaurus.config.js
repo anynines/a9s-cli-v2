@@ -74,7 +74,7 @@ const config = {
           sidebarPath: require.resolve("./sidebars.js")
         },
         googleTagManager: {
-          containerId: 'GTM-WV4MM8RQ',
+          containerId: 'GTM-NZZ5ZVC',
         },   
         blog: {
           showReadingTime: true,
