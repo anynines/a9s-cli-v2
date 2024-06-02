@@ -44,7 +44,7 @@ func EstablishWorkingDir() {
 		}
 
 		fmt.Println("The current working directory is: ", cwd)
-		fmt.Print("Can we the current directory as a working directory? (y/n): ")
+		fmt.Print("Do you want to use this directory as a working directory? (y/n): ")
 		choice, _ := reader.ReadString('\n')
 
 		if strings.HasPrefix(choice, "y") {
