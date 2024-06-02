@@ -2,21 +2,22 @@
 
 ## Next
 
-* Update https://docs.a9s-cli.anynines.com/ to v0.12.0
+* Generate configs before creating a cluster, this saves time if something is wrong with configs as the cluster creation is likely to also have problem then.
 
-* In versioned docs the install command under "installing the CLI" refers so the lastest version. This is misleading as the downloaded version should match the version of the doc.
-
-* Suggest a more meaningful working directory.
+* [DONE] Suggest a more meaningful working directory.
     * Using the current directory as the default directory is often not a good choice. We want the default values to be meaningful.
     * Decide about default directory
         * How about $HOME/.a9s/ ?
             * Why hidden?
 
-* New default config file location.
-    * It is confusing for a user to use the `a9s` CLI but then have an `.a8s` config file.
-    * Decide
-        * $HOME/.a9s/cli.yml  
-        * $HOME/.a9s
+* [DONE] New default config file location.
+    * It is confusing for a user to use the `a9s` CLI but then have an `.a8s` config file.    
+    * $HOME/.a9s
+
+* Update https://docs.a9s-cli.anynines.com/ to v0.12.0
+
+* In versioned docs the install command under "installing the CLI" refers so the lastest version. This is misleading as the downloaded version should match the version of the doc.
+
 
 * [Optional] Apply chmod 600 to the config file
 
@@ -84,8 +85,7 @@
 {"error":{"Op":"open","Path":"/home/ubuntu/.minikube/profiles","Err":2}}
 ```
 
-* Feature: In order to script the usage of a9s I want to pass all information to a9s create demo a8s to avoid any user dialog including the creation of a work direction as well as bucket credentials.
-
+* Feature: In order to script the usage of a9s I want to pass all information to a9s create cluster a8s to avoid any user dialog including the creation of a work direction as well as bucket credentials.
 
 * Evaluate to use viper to handle config options: https://github.com/spf13/viper
 
@@ -127,11 +127,6 @@
             * https://docs.aws.amazon.com/eks/latest/userguide/create-kubeconfig.html
             * `eksctl utils write-kubeconfig --cluster=<name> [--kubeconfig=<path>] [--set-kubeconfig-context=<bool>]`
 
-
-
-* Epic: Allow Minio as Object Store
-    * OBJECTIVE: Allow a local demo without a depedency to external object stores such as AWS S3.
-
 * Epic: Use case: **Deploy the demo app**
     * Feature: a9s create app -k directoryWithKustomize.yaml
     * Demo App
@@ -154,8 +149,6 @@
 * FEATURE: Backups: Deleting Backups and Restore CRs
     * For completeness: Create command `a9s delete pg backup ...`
     * For completeness: Create command `a9s delete pg restore ...`
-
-* Usability: Backup, Infrastructure Region: When executing a9s create demo a8s for the first time, the infrastructure-region should be queried as a user input instead of being a default-parameter. The probability is too high that the user choses a non-viable default option instead of providing a valid region.
 
 * Create binaries in a release matrix, e.g. using Go Release Binaries with Gihub Action Matrix Strategy
     * https://github.com/marketplace/actions/go-release-binaries

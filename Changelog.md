@@ -1,3 +1,8 @@
+# v0.13.0
+
+* Change: Changes config filename from `.a8s` to `.a9s`.
+* Change: Proposes a meaningful working directory under the user's home directory when used for the first time.
+
 # v0.12.0
 
 * Feature: Create the a8s stack on an existing Kubernetes cluster with `a9s create stack a8s`.
