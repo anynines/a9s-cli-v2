@@ -4,6 +4,7 @@
 
 * Generate configs before creating a cluster, this saves time if something is wrong with configs as the cluster creation is likely to also have problem then.
     * Move creating a cluster out of `CheckPrerequisites` as it is an odd-place to create a cluster.
+        * Split env and config checks from 
 
 * [In Progress] Add params for Endpoint and Pathstyle
     * [DONE] Add params

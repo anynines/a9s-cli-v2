@@ -101,45 +101,12 @@ func BuildKubernetesClusterSpec() creator.KubernetesClusterSpec {
 	return spec
 }
 
-/*
-Builds a cluster manager without params by using shared package variables.
-*/
-func BuildKubernetesClusterManager() k8s.ClusterManager {
-
-	clusterManager := k8s.BuildClusterManager(
-		DemoConfig.WorkingDir,
-		DemoClusterName,
-		KubernetesTool,
-		UnattendedMode,
-	)
-
-	return clusterManager
-}
-
-func CheckPrerequisites(createClusterIfNotExists bool) {
+func CheckPrerequisites() {
 	allGood := true
 
 	makeup.PrintH1("Checking Prerequisites...")
 
 	CheckCommandAvailability()
-	clusterSpec := BuildKubernetesClusterSpec()
-
-	clusterManager := BuildKubernetesClusterManager()
-
-	if createClusterIfNotExists {
-		clusterManager.CreateKubernetesClusterIfNotExists(clusterSpec)
-	}
-
-	// At this point there should be a Kubernetescluster
-	if !k8s.CheckIfAnyKubernetesIsRunning() {
-		allGood = false
-	}
-
-	// Only if there's a suitable cluster, the cluster may also be selected.
-	// In any other case, the demo cluster has to be created, first.
-	if !clusterManager.IsClusterSelectedAsCurrentContext(DemoClusterName) {
-		allGood = false
-	}
 
 	// !NoPreCheck > Perform a pre-check
 	if !NoPreCheck && !allGood {

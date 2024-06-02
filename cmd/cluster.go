@@ -53,7 +53,7 @@ func CreateA8sStack(createClusterIfNotExists bool) {
 	demo.EstablishConfig()
 
 	//TODO It's odd that a check method also creates a k8s cluster
-	demo.CheckPrerequisites(createClusterIfNotExists)
+	demo.CheckPrerequisites()
 
 	makeup.WaitForUser(demo.UnattendedMode)
 
@@ -61,11 +61,13 @@ func CreateA8sStack(createClusterIfNotExists bool) {
 
 	demo.CheckoutDemoAppGitRepository()
 
+	demo.EstablishBackupStoreCredentials()
+
+	demo.CheckK8sCluster(createClusterIfNotExists)
+
 	if demo.CountPodsInDemoNamespace() == 0 {
 		makeup.PrintCheckmark("Kubernetes cluster has no pods in " + demo.GetConfig().DemoSpace + " namespace.")
 	}
-
-	demo.EstablishBackupStoreCredentials()
 
 	k8s.ApplyCertManagerManifests(demo.UnattendedMode)
 
