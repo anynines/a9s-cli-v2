@@ -2,6 +2,7 @@
 
 * Change: Changes config filename from `.a8s` to `.a9s`.
 * Change: Proposes a meaningful working directory under the user's home directory when used for the first time.
+* Change: On first use, the backup store config is now established before creating a Kubernetes cluster.
 
 # v0.12.0
 
