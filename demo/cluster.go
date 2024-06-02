@@ -2,10 +2,29 @@ package demo
 
 import (
 	"os"
+	"strconv"
 
+	"github.com/anynines/a9s-cli-v2/creator"
 	"github.com/anynines/a9s-cli-v2/k8s"
 	"github.com/anynines/a9s-cli-v2/makeup"
 )
+
+func BuildKubernetesClusterSpec() creator.KubernetesClusterSpec {
+	nrOfNodes, err := strconv.Atoi(ClusterNrOfNodes)
+
+	if err != nil {
+		makeup.ExitDueToFatalError(err, "Couldn't determine the number of Kubernetes nodes from the param: "+ClusterNrOfNodes)
+	}
+
+	spec := creator.KubernetesClusterSpec{
+		Name:                 DemoClusterName,
+		NrOfNodes:            nrOfNodes,
+		NodeMemory:           ClusterMemory,
+		InfrastructureRegion: BackupInfrastructureRegion,
+	}
+
+	return spec
+}
 
 func CheckK8sCluster(createClusterIfNotExists bool) {
 	makeup.PrintH1("Checking Kubernetes Cluster...")

@@ -8,9 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 
-	"github.com/anynines/a9s-cli-v2/creator"
 	"github.com/anynines/a9s-cli-v2/k8s"
 	"github.com/anynines/a9s-cli-v2/makeup"
 	"github.com/anynines/a9s-cli-v2/pg"
@@ -83,37 +81,6 @@ var DemoClusterName string
 var UnattendedMode bool // Ask yes-no questions or assume "yes"
 var ClusterNrOfNodes string
 var ClusterMemory string
-
-func BuildKubernetesClusterSpec() creator.KubernetesClusterSpec {
-	nrOfNodes, err := strconv.Atoi(ClusterNrOfNodes)
-
-	if err != nil {
-		makeup.ExitDueToFatalError(err, "Couldn't determine the number of Kubernetes nodes from the param: "+ClusterNrOfNodes)
-	}
-
-	spec := creator.KubernetesClusterSpec{
-		Name:                 DemoClusterName,
-		NrOfNodes:            nrOfNodes,
-		NodeMemory:           ClusterMemory,
-		InfrastructureRegion: BackupInfrastructureRegion,
-	}
-
-	return spec
-}
-
-func CheckPrerequisites() {
-	allGood := true
-
-	makeup.PrintH1("Checking Prerequisites...")
-
-	CheckCommandAvailability()
-
-	// !NoPreCheck > Perform a pre-check
-	if !NoPreCheck && !allGood {
-		makeup.PrintFailSummary("Sadly, mandatory prerequisites haven't been met. Aborting...")
-		os.Exit(1)
-	}
-}
 
 /*
 Applies the manifests of the a8s-deployment repository and thus installs a8s PG.
