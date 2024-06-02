@@ -3,6 +3,13 @@
 ## Next
 
 * Generate configs before creating a cluster, this saves time if something is wrong with configs as the cluster creation is likely to also have problem then.
+    * Move creating a cluster out of `CheckPrerequisites` as it is an odd-place to create a cluster.
+
+* [In Progress] Add params for Endpoint and Pathstyle
+    * [DONE] Add params
+    * Ensure that the defaults work for Minio
+    * Ensure that is still intuitive to configure S3
+        * Avoid empty Endpoint or non-meaningful PathStyle settings
 
 * [DONE] Suggest a more meaningful working directory.
     * Using the current directory as the default directory is often not a good choice. We want the default values to be meaningful.
