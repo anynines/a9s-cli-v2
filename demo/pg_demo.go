@@ -20,11 +20,12 @@ import (
 
 // Settings
 // TODO make configurable / cli param
-const configFileName = ".a8s"
+const configFileName = ".a9s"
 const demoGitRepo = "https://github.com/anynines/a8s-deployment.git" // "git@github.com:anynines/a8s-deployment.git"
 const demoAppGitRepo = "https://github.com/anynines/a8s-demo.git"
 const demoAppLocalDir = "a8s-demo"
 const demoA8sDeploymentLocalDir = "a8s-deployment"
+const defaultWorkDir = "a9s" // $home/WorkDir as the default proposal for a work dir.
 
 const defaultDemoSpace = "a8s-demo"
 const A8sSystemName = "a8s Postgres Control Plane"
@@ -34,6 +35,8 @@ const A8sSystemNamespace = "a8s-system"
 var BackupInfrastructureProvider string // e.g. AWS
 var BackupInfrastructureRegion string   // e.g. us-east-1
 var BackupInfrastructureBucket string   // e.g. a8s-backups
+var BackupInfrastructureEndpoint string // e.g. https://localhost:9000 for local minio
+var BackupInfrastructurePathStyle bool  // e.g. false // Must be true for minio
 
 var A8sPGServiceInstance pg.ServiceInstance
 var DeleteA8sPGInstanceName string
@@ -67,6 +70,8 @@ type BlobStoreCloudConfiguration struct {
 	Provider  string `yaml:"provider"`
 	Container string `yaml:"container"`
 	Region    string `yaml:"region"`
+	Endpoint  string `yaml:"endpoint,omitempty"`
+	PathStyle bool   `yaml:"path_style,omitempty"`
 }
 
 var configFilePath string

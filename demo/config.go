@@ -37,11 +37,13 @@ func EstablishWorkingDir() {
 	reader := bufio.NewReader(os.Stdin)
 
 	for {
-		cwd, err := os.Getwd()
+		homeDir, err := os.UserHomeDir()
 
 		if err != nil {
-			makeup.ExitDueToFatalError(err, "Couldn't obtain your current working directory.")
+			makeup.ExitDueToFatalError(err, "Couldn't obtain your home directory.")
 		}
+
+		cwd := filepath.Join(homeDir, defaultWorkDir)
 
 		fmt.Println("The current working directory is: ", cwd)
 		fmt.Print("Do you want to use this directory as a working directory? (y/n): ")
@@ -323,6 +325,8 @@ func establishBackupStoreConfigYaml() {
 					Provider:  BackupInfrastructureProvider,
 					Container: BackupInfrastructureBucket,
 					Region:    BackupInfrastructureRegion,
+					Endpoint:  BackupInfrastructureEndpoint,
+					PathStyle: BackupInfrastructurePathStyle,
 				},
 			},
 		}
