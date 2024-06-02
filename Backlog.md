@@ -4,6 +4,7 @@
 
 * Update https://docs.a9s-cli.anynines.com/ to v0.12.0
 
+* In versioned docs the install command under "installing the CLI" refers so the lastest version. This is misleading as the downloaded version should match the version of the doc.
 
 * Suggest a more meaningful working directory.
     * Using the current directory as the default directory is often not a good choice. We want the default values to be meaningful.
