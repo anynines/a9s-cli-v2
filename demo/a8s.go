@@ -95,9 +95,8 @@ func ApplyA8sManifests() {
 
 func WaitForA8sSystemToBecomeReady() {
 	expectedPods := []k8s.PodExpectationState{
-		// BAD STYLE
-		// It is very misleading that one has to initialize Running with false as it suggests that this is
-		// the desired state where it actually is just the initial state and Running is set to true in the process
+
+		// Initialize Running with false as it the initial state and Running is set to true in the process
 		// which is then also the break condition of the waiting loop.
 		{Name: "a8s-backup-controller-manager", Running: false},
 		{Name: "postgresql-controller-manager", Running: false},
