@@ -121,7 +121,6 @@ func WaitForServiceInstanceToBecomeReady(namespace, serviceInstanceName string, 
 	makeup.WaitForUser(UnattendedMode)
 }
 
-// TODO Move to pg package
 func CreatePGServiceInstance() {
 	makeup.PrintH1("Creating a a8s Postgres Service Instance...")
 
@@ -147,8 +146,6 @@ func getServiceInstanceManifestPath(serviceInstanceName string) string {
 	return GetUserManifestPath("a8s-pg-instance-" + serviceInstanceName + ".yaml")
 }
 
-// TODO Move to pg package
-// Refactor to DRY with Create ... > CRUDPGServiceInstance
 func DeletePGServiceInstance(namespace, serviceInstanceName string) {
 	makeup.PrintH1("Deleting a a8s Postgres Service Instance...")
 
@@ -185,7 +182,6 @@ func getRestoreManifestPath(backupName string) string {
 	return GetUserManifestPath("a8s-pg-restore-" + backupName + ".yaml")
 }
 
-// TODO Move to pg package
 func CreatePGServiceInstanceBackup() {
 	EnsureConfigIsLoaded()
 
@@ -284,8 +280,5 @@ func PrintDemoSummary() {
 	makeup.PrintCheckmark("Installed cert-manager on the Kubernetes cluster.")
 	makeup.PrintCheckmark("Created a configuration for the backup object store.")
 	makeup.PrintCheckmark("Installing the a8s Postgres control plane.\n")
-
-	//TODO Check whether Pods- from the a8s-system are ready
-	//makeup.PrintCheckmark("Installed the a8s Postgres control plane.\n")
 	makeup.PrintSuccessSummary("You are now ready to create a8s Postgres service instances.")
 }
