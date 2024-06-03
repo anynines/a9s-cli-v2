@@ -2,34 +2,34 @@
 
 ## Next
 
-* Generate configs before creating a cluster, this saves time if something is wrong with configs as the cluster creation is likely to also have problem then.
-    * Move creating a cluster out of `CheckPrerequisites` as it is an odd-place to create a cluster.
-        * Split env and config checks from 
+* Allow using a custom provided container image for the a8s-backup-manager for `create cluster a8s` and `create stack a8s`.
+    `a9s create cluster a8s --backup-manager-image=myuser/myimage:mytag` 
+    * Implement the param for
+        * [DONE] `create stack`
+        * [DONE] `create cluster`
+    * Locate where the param needs to be applied
+        * Try to use `kustomize` to overwrite the default image
+            * spec
+                * versions
+                    * "v1beta3"
+                        * schema
+                            * openAPIV3Schema
+                                * image                                    
+            * line 639: `public.ecr.aws/w5n9a2g2/a9s-ds-for-k8s/dev/backup-manager:2616f22c4fe670541c3c78131ae018902f8471bf`
 
-* [In Progress] Add params for Endpoint and Pathstyle
+
+* [**In Progress**] Add params for Endpoint and Pathstyle
     * [DONE] Add params
     * Ensure that the defaults work for Minio
     * Ensure that is still intuitive to configure S3
         * Avoid empty Endpoint or non-meaningful PathStyle settings
-
-* [DONE] Suggest a more meaningful working directory.
-    * Using the current directory as the default directory is often not a good choice. We want the default values to be meaningful.
-    * Decide about default directory
-        * How about $HOME/.a9s/ ?
-            * Why hidden?
-
-* [DONE] New default config file location.
-    * It is confusing for a user to use the `a9s` CLI but then have an `.a8s` config file.    
-    * $HOME/.a9s
 
 * Update https://docs.a9s-cli.anynines.com/ to v0.12.0
 
 * In versioned docs the install command under "installing the CLI" refers so the lastest version. This is misleading as the downloaded version should match the version of the doc.
 
 
-* [Optional] Apply chmod 600 to the config file
-
-* Epic: Minio as an alternative to AWS S3
+* [**In Progress**] Epic: Minio as an alternative to AWS S3
     * Steps:
         * Manually deploy minio into a local cluster and record all command & steps
             * Install minio client
@@ -67,11 +67,21 @@
         * Update Changelog
         * Update Readme
     * Update a9s CLI Tutorial at https://docs.a9s-cli.anynines.com/
-* Epic: Custom essential container images to fascilitate development
-    * For each essential container image allow providing a custom container image
-        * a8s-backup-manager
-        * ...
 
+* [DONE] Generate configs before creating a cluster, this saves time if something is wrong with configs as the cluster creation is likely to also have problem then.
+    * Move creating a cluster out of `CheckPrerequisites` as it is an odd-place to create a cluster.
+        * Split env and config checks from 
+
+
+* [DONE] Suggest a more meaningful working directory.
+    * Using the current directory as the default directory is often not a good choice. We want the default values to be meaningful.
+    * Decide about default directory
+        * How about $HOME/.a9s/ ?
+            * Why hidden?
+
+* [DONE] New default config file location.
+    * It is confusing for a user to use the `a9s` CLI but then have an `.a8s` config file.    
+    * $HOME/.a9s
 
 * [Question] Remove ?
     * Should there be a remove option?
@@ -166,39 +176,4 @@
     * Alternatively: Install a local storage provider, e.g. minio.
         * Costly dependency: add the local storage provider to the backup agent.
 
-
-# Questions
-
-## Command Structure
-* Question: Should the de   mo a8s-pg execute the entire demo or just install the operator? Other commands could be: 
-    * Issue: What if a9s-pg is added to the a9s CLI?
-        * How should it be resolved?
-            * Option a)
-                * `a9s pg instance create --isolation pod` > a8s PG
-                * `a9s pg instance create --isolation vm` > a9s PG
-            * Option b)
-                * `a9s a8s-pg instance create ...`
-                * `a9s a9s-pg instance create ...`
-    * Issue: What if support for the a9s CrossBind services is added to the `a9s`-cli?
-        * Then we not only need to differenciate a8s from a9s services but also local from remote service instances.
-        * How should it be resolved?
-            * Option a) Explicit commands/params/flags
-                * Option a-1)
-                    * `a9s create remote pg instance`
-                    * `a9s create local pg instance`
-                        * Allows each variant to have its own set of params/flags
-                * Option a-2)
-                    * `a9s create pg instance --local`
-                    * `a9s create pg instance --remote`
-                        * This variant may be harder to implement as local and remote PGs may have different attributes.
-
-            * Option b) Implicit detection of the context
-                * Not possible if both a local operator and a remote version of, let's say, a8s-pg is available
-    * a8s-pg  
-        * `a9s pg instance`
-                * `a9s pg create instance --isolation pod`
-            * `create`
-        * `a9s pg service-binding`
-            * `a9s pg binding` 
-            * `a9s pg sb`
 
