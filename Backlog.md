@@ -16,7 +16,7 @@
                             * openAPIV3Schema
                                 * image                                    
             * line 639: `public.ecr.aws/w5n9a2g2/a9s-ds-for-k8s/dev/backup-manager:2616f22c4fe670541c3c78131ae018902f8471bf`
-
+        * Using `kubectl apply -k deploy/a8s/manifests --dry-run=server -o yaml | bat -l yaml` the existing container image can be replaced using the `images` functionality of `kustomize` as described in (here)[https://github.com/kubernetes-sigs/kustomize/blob/master/examples/image.md]. Note that `--dry-run=client` won't show the substituted container image as the patching is done in the interaction with the live Kubernetes cluster.
 
 * [**In Progress**] Add params for Endpoint and Pathstyle
     * [DONE] Add params
@@ -42,13 +42,15 @@
                             * kubernetes.io/hostname: kubealpha.local # Specify a node label associated to the Worker Node on which you want to deploy the pod.
                 *   `kubectl apply -f minio-dev.yaml`
                 * Start a kubectl proxy: `kubectl port-forward pod/minio 9000 9090 -n minio-dev`
-                * Create an alias for the a8s-demo-minio target:
-                
+                * Create an alias for the a8s-demo-minio target:                
                     `mc alias set a8s-demo-minio http://127.0.0.1:9000 minioadmin minioadmin`
                 * Test the communication with the target: `mc admin info a8s-demo-minio`
                 * Create minio user `a8s-user`:
                     `mc admin user add a8s-demo-minio a8s-user a8s-password`
                 * Create a bucket `a8s-backups`: `mc mb a8s-demo-minio/a8s-backups`
+                    * Assign bucket a policy
+                        * localhost:9090 > minioadmin:minioadmin
+                        * > Identity > users > a8s-user > Assign Policy > ReadWrite
         * Enable a8s-backup-manager
             * [DONE] Implement support for minio by allowing to set custom s3 endpoint and enable pathStyle
             * [Waiting] Release updated container image version of a8s-backup-manager
