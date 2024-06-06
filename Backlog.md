@@ -4,9 +4,10 @@
 
 * [**In Progress**] Add minio deployment
     * [DONE] Apply manifests
-    * [Next] Implement WaitForMinioToBecomeReady
-
-* When using minio, set accesskey and secretaccesskey automatically.
+    * [DONE] Implement WaitForMinioToBecomeReady
+    * When using minio, set accesskey and secretaccesskey automatically.
+    * Create a user
+    * Create / attach the readwrite policy to the user
 
 * [**In Progress**] Add params for Endpoint and Pathstyle
     * [DONE] Add params
