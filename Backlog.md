@@ -2,21 +2,6 @@
 
 ## Next
 
-* Allow using a custom provided container image for the a8s-backup-manager for `create cluster a8s` and `create stack a8s`.
-    `a9s create cluster a8s --backup-manager-image=myuser/myimage:mytag` 
-    * Implement the param for
-        * [DONE] `create stack`
-        * [DONE] `create cluster`
-    * Locate where the param needs to be applied
-        * Try to use `kustomize` to overwrite the default image
-            * spec
-                * versions
-                    * "v1beta3"
-                        * schema
-                            * openAPIV3Schema
-                                * image                                    
-            * line 639: `public.ecr.aws/w5n9a2g2/a9s-ds-for-k8s/dev/backup-manager:2616f22c4fe670541c3c78131ae018902f8471bf`
-        * Using `kubectl apply -k deploy/a8s/manifests --dry-run=server -o yaml | bat -l yaml` the existing container image can be replaced using the `images` functionality of `kustomize` as described in (here)[https://github.com/kubernetes-sigs/kustomize/blob/master/examples/image.md]. Note that `--dry-run=client` won't show the substituted container image as the patching is done in the interaction with the live Kubernetes cluster.
 
 * [**In Progress**] Add params for Endpoint and Pathstyle
     * [DONE] Add params

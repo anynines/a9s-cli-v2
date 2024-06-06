@@ -35,7 +35,6 @@ var BackupInfrastructureRegion string   // e.g. us-east-1
 var BackupInfrastructureBucket string   // e.g. a8s-backups
 var BackupInfrastructureEndpoint string // e.g. https://localhost:9000 for local minio
 var BackupInfrastructurePathStyle bool  // e.g. false // Must be true for minio
-var BackupManagerImage string           // e.g. myuser/myimage:mytag > Use default container image if empty
 
 var A8sPGServiceInstance pg.ServiceInstance
 var DeleteA8sPGInstanceName string

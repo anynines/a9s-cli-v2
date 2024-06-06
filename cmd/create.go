@@ -175,7 +175,6 @@ func init() {
 	cmdCreateClusterA8s.PersistentFlags().StringVar(&demo.BackupInfrastructureProvider, "backup-provider", "AWS", "specify the infrastructure provider as supported by the a8s Backup Manager.")
 	cmdCreateClusterA8s.PersistentFlags().StringVar(&demo.BackupInfrastructureEndpoint, "backup-storage-endpoint", "http://minio.minio-dev.svc.cluster.local:9000", "the endpoint of the S3 compatible backup object storage. Default is for non-prod Minio setups.")
 	cmdCreateClusterA8s.PersistentFlags().BoolVar(&demo.BackupInfrastructurePathStyle, "backup-storage-pathstyle", true, "influences the URI schema used to talk to the S3 compatible backup object store. Set to false for S3 and true for Minio.")
-	cmdCreateClusterA8s.PersistentFlags().StringVar(&demo.BackupManagerImage, "backup-manager-image", "", "if non-empty the given container image will be used instead of the default a8s-backup-manager container image. Mainly for testing and development purposes.")
 	cmdCreateClusterA8s.PersistentFlags().StringVar(&demo.DeploymentVersion, "deployment-version", "v0.3.0", "specify the version corresponding to the a8s-deployment git version tag. Use \"latest\" to get the untagged version.")
 	cmdCreateClusterA8s.PersistentFlags().StringVar(&demo.ClusterNrOfNodes, "cluster-nr-of-nodes", "3", "specify number of Kubernetes nodes.")
 	cmdCreateClusterA8s.PersistentFlags().StringVar(&demo.ClusterMemory, "cluster-memory", "4gb", "specify memory of the Kubernetes cluster.")
