@@ -327,11 +327,20 @@ func establishBackupStoreConfigYaml() {
 	} else {
 		makeup.Print("Writing a backup-store-config.yaml with defaults to " + filePath)
 
+		var actualProvider string
+
+		// For minio the backup_agent will be configured using an S3 compatible storage client
+		if strings.ToLower(BackupInfrastructureProvider) == "minio" {
+			actualProvider = "AWS"
+		} else {
+			actualProvider = BackupInfrastructureProvider
+		}
+
 		// TODO Make backup store configurable
 		blobStoreConfig := BlobStore{
 			Config: BlobStoreConfig{
 				CloudConfig: BlobStoreCloudConfiguration{
-					Provider:  BackupInfrastructureProvider,
+					Provider:  actualProvider,
 					Container: BackupInfrastructureBucket,
 					Region:    BackupInfrastructureRegion,
 					Endpoint:  BackupInfrastructureEndpoint,

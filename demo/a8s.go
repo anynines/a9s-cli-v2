@@ -17,11 +17,12 @@ import (
 //TODO Separate generic, non-pg methods into a separate file
 
 // Settings
-// TODO make configurable / cli param
+// TODO There's clutter of package variables here. Reorganize these variables in to more meaningful
+// structures.
 const configFileName = ".a9s"
 const demoGitRepo = "https://github.com/anynines/a8s-deployment.git" // "git@github.com:anynines/a8s-deployment.git"
 const demoAppGitRepo = "https://github.com/anynines/a8s-demo.git"
-const demoAppLocalDir = "a8s-demo"
+const DemoAppLocalDir = "a8s-demo"
 const demoA8sDeploymentLocalDir = "a8s-deployment"
 const defaultWorkDir = "a9s" // $home/WorkDir as the default proposal for a work dir.
 

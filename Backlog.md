@@ -2,6 +2,11 @@
 
 ## Next
 
+* [**In Progress**] Add minio deployment
+    * [DONE] Apply manifests
+    * [Next] Implement WaitForMinioToBecomeReady
+
+* When using minio, set accesskey and secretaccesskey automatically.
 
 * [**In Progress**] Add params for Endpoint and Pathstyle
     * [DONE] Add params

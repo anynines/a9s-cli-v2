@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/anynines/a9s-cli-v2/demo"
 	"github.com/anynines/a9s-cli-v2/k8s"
@@ -67,6 +68,11 @@ func CreateA8sStack(createClusterIfNotExists bool) {
 
 	if demo.CountPodsInDemoNamespace() == 0 {
 		makeup.PrintCheckmark("Kubernetes cluster has no pods in " + demo.GetConfig().DemoSpace + " namespace.")
+	}
+
+	if strings.ToLower(demo.BackupInfrastructureProvider) == "minio" {
+		demo.ApplyMinioManifests()
+		demo.WaitForMinioToBecomeReady()
 	}
 
 	k8s.ApplyCertManagerManifests(demo.UnattendedMode)
