@@ -14,6 +14,11 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+/*
+TODO Correct misleading naming. This function does not establish a config file path
+but sets a package variable. This appears to be a left-over from earlier versions
+and needs refactoring.
+*/
 func EstablishConfigFilePath() {
 	makeup.PrintVerbose("Setting a config file path in order to persist settings...")
 
@@ -30,6 +35,10 @@ func EstablishConfigFilePath() {
 
 }
 
+/*
+Proposes and creates a meaningful working directory on first time use.
+TODO Reduce code complexity in this function.
+*/
 func EstablishWorkingDir() {
 	makeup.PrintH1("Setting up a Working Directory")
 	makeup.PrintVerbose("We will need a working directory for the demo. Let's find one..")
