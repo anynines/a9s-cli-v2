@@ -2,13 +2,10 @@
 
 ## Next
 
-* When using minio, use fixed credentials to establish backup store credentials
-
 * Refactor `EstablishBackupStoreCredentials`
   * Set accesskey and secretaccesskey automatically.  
   * Make generating the access and secret key the default but allow passing it as an argument for AWS and others
-    * Requires updating the Readme and Tutorial
-
+    * Requires updating the Readme and Tutorial    
 
 * [**In Progress**] Add minio deployment
     * [DONE] Apply manifests
@@ -24,56 +21,28 @@
         * Add Job to a9s-cli creation of minio
         
 
-* [**In Progress**] Add params for Endpoint and Pathstyle
-    * [DONE] Add params
-    * Ensure that the defaults work for Minio
-    * Ensure that is still intuitive to configure S3
-        * Avoid empty Endpoint or non-meaningful PathStyle settings
+* [DONE] Add params for Endpoint and Pathstyle
+    * [DONE] Add params 
+    
 
 * Update https://docs.a9s-cli.anynines.com/ to v0.12.0
+* Update https://docs.a9s-cli.anynines.com/ to v0.13.0
 
 * In versioned docs the install command under "installing the CLI" refers so the lastest version. This is misleading as the downloaded version should match the version of the doc.
 
 
 * [**In Progress**] Epic: Minio as an alternative to AWS S3
-    * Steps:
-        * Manually deploy minio into a local cluster and record all command & steps
-            * Install minio client
-                * `brew install minio-mc`
-            * Install minio operator
-                * https://min.io/docs/minio/kubernetes/upstream/index.html
-                    * Don't install the regular operator. Instead, install the non-prod minimal version of minio. We neither need nor want multi-tenancy.
-                    * Remove the following lines:
-                        * nodeSelector:
-                            * kubernetes.io/hostname: kubealpha.local # Specify a node label associated to the Worker Node on which you want to deploy the pod.
-                *   `kubectl apply -f minio-dev.yaml`
-                * Start a kubectl proxy: `kubectl port-forward pod/minio 9000 9090 -n minio-dev`
-                * Create an alias for the a8s-demo-minio target:                
-                    `mc alias set a8s-demo-minio http://127.0.0.1:9000 minioadmin minioadmin`
-                * Test the communication with the target: `mc admin info a8s-demo-minio`
-                * Create minio user `a8s-user`:
-                    `mc admin user add a8s-demo-minio a8s-user a8s-password`
-                * Create a bucket `a8s-backups`: `mc mb a8s-demo-minio/a8s-backups`
-                    * Assign bucket a policy
-                        * localhost:9090 > minioadmin:minioadmin
-                        * > Identity > users > a8s-user > Assign Policy > ReadWrite
-        * Enable a8s-backup-manager
-            * [DONE] Implement support for minio by allowing to set custom s3 endpoint and enable pathStyle
-            * [Waiting] Release updated container image version of a8s-backup-manager
-            * Update a8s-deployment to use new version of a8s-backup-manager
-            * Update a9s-CLI to use new version of a8s-deployment && a8s-backup-manager
-        * Implement CLI functionality    
-            * When using the minikube stack, the `mc` command is required
-                * Introduce stack-dependencies
-            * UX:
-                * Make minio the default storage option
-                    * When minio is selected, we don't need to ask for backup credentials, this is only necessary when S3 is selected.
-                    * `a9s create stack|cluster a8s --backup-provider=AWS`
-                    * `a9s create stack|cluster a8s --backup-provider=minio` (default)
-                * 
-        * Update Backlog and Implementation log
-        * Update Changelog
-        * Update Readme
+    * Enable a8s-backup-manager
+        * [DONE] Implement support for minio by allowing to set custom s3 endpoint and enable pathStyle
+        * [Waiting] Release updated container image version of a8s-backup-manager
+        * Update a8s-deployment to use new version of a8s-backup-manager
+        * Update a9s-CLI to use new version of a8s-deployment && a8s-backup-manager
+    * Implement CLI functionality    
+        
+* [Epic] Make Release v0.13.0
+    * Update Backlog and Implementation log
+    * Update Changelog
+    * Update Readme
     * Update a9s CLI Tutorial at https://docs.a9s-cli.anynines.com/
 
 * [DONE] Generate configs before creating a cluster, this saves time if something is wrong with configs as the cluster creation is likely to also have problem then.
@@ -91,12 +60,14 @@
     * It is confusing for a user to use the `a9s` CLI but then have an `.a8s` config file.    
     * $HOME/.a9s
 
+
+## Unassigned
+
 * [Question] Remove ?
     * Should there be a remove option?
         * Yes
     * Removes the a8s stack from the current k8s cluster
 
-## Unassigned
 
 * [POSTPONED] Run test suite on windows
         * Perform cold test run

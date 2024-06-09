@@ -305,12 +305,11 @@ func establishAccessKeyId() {
 
 	filePath := BackupConfigAccessKeyIdFilePath()
 
-	value := ReadStringFromFileOrConsole(filePath, "ACCESS KEY ID", true)
-
-	if value != "" {
-		// Write file
-		saveStringToFile(filePath, value)
+	if BackupStoreAccessKey == "" {
+		makeup.ExitDueToFatalError(nil, "The backup-store-accesskey can't be empty!")
 	}
+
+	saveStringToFile(filePath, BackupStoreAccessKey)
 }
 
 func establishSecretAccessKey() {
@@ -318,11 +317,11 @@ func establishSecretAccessKey() {
 
 	filePath := BackupConfigSecretAccessKeyFilePath()
 
-	value := ReadStringFromFileOrConsole(filePath, "SECRET KEY", false)
-
-	if value != "" {
-		saveStringToFile(filePath, value)
+	if BackupStoreSecretKey == "" {
+		makeup.ExitDueToFatalError(nil, "The backup-store-secretkey can't be empty!")
 	}
+
+	saveStringToFile(filePath, BackupStoreSecretKey)
 }
 
 func backupStoreConfigFilePath() string {
