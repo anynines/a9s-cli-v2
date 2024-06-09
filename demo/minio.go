@@ -20,8 +20,8 @@ Applies minio related manifests.
 func ApplyMinioManifests() {
 	makeup.PrintH1("Applying Minio manifests...")
 
-	minioManifestPath := filepath.Join(DemoConfig.WorkingDir, DemoAppLocalDir, "minio", "minio-dev.yaml")
-	k8s.KubectlApplyF(minioManifestPath, UnattendedMode)
+	minioManifestPath := filepath.Join(DemoConfig.WorkingDir, DemoAppLocalDir, "minio")
+	k8s.KubectlApplyKustomize(minioManifestPath, UnattendedMode)
 
 	makeup.PrintCheckmark("Done applying Minio manifests.")
 }
