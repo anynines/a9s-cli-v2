@@ -2,12 +2,27 @@
 
 ## Next
 
+* When using minio, use fixed credentials to establish backup store credentials
+
+* Refactor `EstablishBackupStoreCredentials`
+  * Set accesskey and secretaccesskey automatically.  
+  * Make generating the access and secret key the default but allow passing it as an argument for AWS and others
+    * Requires updating the Readme and Tutorial
+
+
 * [**In Progress**] Add minio deployment
     * [DONE] Apply manifests
     * [DONE] Implement WaitForMinioToBecomeReady
-    * When using minio, set accesskey and secretaccesskey automatically.
-    * Create a user
-    * Create / attach the readwrite policy to the user
+            * Read credentials from Secret
+                * Can't use the existing secret for two reasons
+                    1. Can't use the secret from `a8s-system` in another (`minio-dev`) namespace
+                    2. The `a8s-system` secret is in file format: keys are filenames and values are content, a volume mount would be required. While this is possible, it is not what is desired for the config script.
+    * Implement a K8s Job to configure minio    
+        * Add configmap for `minio_config.sh` script
+        * Create job defninition `minio-config-job.yaml`
+        * Add configmap and scripts to a8s-demo repo
+        * Add Job to a9s-cli creation of minio
+        
 
 * [**In Progress**] Add params for Endpoint and Pathstyle
     * [DONE] Add params
