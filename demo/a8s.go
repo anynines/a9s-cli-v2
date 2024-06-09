@@ -37,6 +37,9 @@ var BackupInfrastructureBucket string   // e.g. a8s-backups
 var BackupInfrastructureEndpoint string // e.g. https://localhost:9000 for local minio
 var BackupInfrastructurePathStyle bool  // e.g. false // Must be true for minio
 
+var BackupStoreAccessKey string
+var BackupStoreSecretKey string
+
 var A8sPGServiceInstance pg.ServiceInstance
 var DeleteA8sPGInstanceName string
 

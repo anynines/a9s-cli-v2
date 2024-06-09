@@ -62,6 +62,7 @@ func CreateA8sStack(createClusterIfNotExists bool) {
 
 	demo.CheckoutDemoAppGitRepository()
 
+	// TODO Refactor - See backlog "Refactor `EstablishBackupStoreCredentials`"
 	demo.EstablishBackupStoreCredentials()
 
 	demo.CheckK8sCluster(createClusterIfNotExists)
@@ -70,6 +71,7 @@ func CreateA8sStack(createClusterIfNotExists bool) {
 		makeup.PrintCheckmark("Kubernetes cluster has no pods in " + demo.GetConfig().DemoSpace + " namespace.")
 	}
 
+	//TODO find a more elegant way to deal with minio
 	if strings.ToLower(demo.BackupInfrastructureProvider) == "minio" {
 		demo.ApplyMinioManifests()
 		demo.WaitForMinioToBecomeReady()

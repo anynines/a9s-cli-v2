@@ -171,8 +171,10 @@ func promptPath() string {
 /*
 Generates an encryption password file for backups if it doesnt exist.
 Does nothing if the file already exists.
+
+TODO Make this an optional parameter so that users can set this value
 */
-func EstablishEncryptionPasswordFile() {
+func establishEncryptionPasswordFile() {
 	makeup.PrintVerbose("In order to encrypt backups we need an encryption password.")
 	makeup.Print("Checking if encryption password file for backups already exists...")
 
@@ -263,33 +265,34 @@ func BackupConfigEncryptionPasswordFilePath() string {
 }
 
 /*
+TODO A function called read... should not write a file > Should be separate functions
 Checks if there's a file.
 If not it prompts to read the file content from STDIN.
 Skips if the file is already present
 */
-func ReadStringFromFileOrConsole(filePath, contentType string, showContent bool) {
+func ReadStringFromFileOrConsole(filePath, contentType string, showContent bool) string {
 
+	//TODO This is not a good way to handle the existence of the file.
 	if _, err := os.Stat(filePath); !os.IsNotExist(err) {
 		makeup.Print("There's already an " + contentType + " file...")
-		return
+		return ""
 	}
 
 	// Enter access key id as the access-key-id-file doesnt exist, yet.
 	reader := bufio.NewReader(os.Stdin)
 	fmt.Print("Enter your " + contentType + ": ")
 
-	accessKeyId, err := reader.ReadString('\n')
+	content, err := reader.ReadString('\n')
 
 	if err != nil {
 		makeup.ExitDueToFatalError(err, "Can't read  "+contentType+"  from STDIN.")
 	}
 
 	if showContent {
-		makeup.Print(contentType + " : " + accessKeyId)
+		makeup.Print(contentType + " : " + content)
 	}
 
-	// Write file
-	saveStringToFile(filePath, accessKeyId)
+	return content
 }
 
 /*
@@ -297,12 +300,17 @@ Checks if there's an access key id file.
 If not it prompts to read the access key id from STDIN.
 Skips if the access key id file is already present
 */
-func EstablishAccessKeyId() {
+func establishAccessKeyId() {
 	makeup.PrintH2("In order to store backups on an object store such as S3, we need an ACCESS KEY ID.")
 
 	filePath := BackupConfigAccessKeyIdFilePath()
 
-	ReadStringFromFileOrConsole(filePath, "ACCESS KEY ID", true)
+	value := ReadStringFromFileOrConsole(filePath, "ACCESS KEY ID", true)
+
+	if value != "" {
+		// Write file
+		saveStringToFile(filePath, value)
+	}
 }
 
 func establishSecretAccessKey() {
@@ -310,7 +318,11 @@ func establishSecretAccessKey() {
 
 	filePath := BackupConfigSecretAccessKeyFilePath()
 
-	ReadStringFromFileOrConsole(filePath, "SECRET KEY", false)
+	value := ReadStringFromFileOrConsole(filePath, "SECRET KEY", false)
+
+	if value != "" {
+		saveStringToFile(filePath, value)
+	}
 }
 
 func backupStoreConfigFilePath() string {
@@ -369,10 +381,9 @@ func GetConfig() Config {
 }
 
 func EstablishBackupStoreCredentials() {
-	EstablishEncryptionPasswordFile()
-	EstablishAccessKeyId()
+	establishEncryptionPasswordFile()
+	establishAccessKeyId()
 	establishSecretAccessKey()
-
 	establishBackupStoreConfigYaml()
 
 	//TODO deploy/a8s/backup-config/backup-store-config.yaml.template
