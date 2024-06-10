@@ -8,6 +8,20 @@ import (
 	"github.com/anynines/a9s-cli-v2/makeup"
 )
 
+func CheckPrerequisites() {
+	allGood := true
+
+	makeup.PrintH1("Checking Prerequisites...")
+
+	CheckCommandAvailability()
+
+	// !NoPreCheck > Perform a pre-check
+	if !NoPreCheck && !allGood {
+		makeup.PrintFailSummary("Sadly, mandatory prerequisites haven't been met. Aborting...")
+		os.Exit(1)
+	}
+}
+
 func IsCommandAvailable(cmdName string) bool {
 	//	cmd := exec.Command("/bin/sh", "-c", "command -v "+name)
 	//	cmd := exec.Command("command", "-v", cmdName)

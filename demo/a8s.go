@@ -8,9 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 
-	"github.com/anynines/a9s-cli-v2/creator"
 	"github.com/anynines/a9s-cli-v2/k8s"
 	"github.com/anynines/a9s-cli-v2/makeup"
 	"github.com/anynines/a9s-cli-v2/pg"
@@ -19,12 +17,14 @@ import (
 //TODO Separate generic, non-pg methods into a separate file
 
 // Settings
-// TODO make configurable / cli param
-const configFileName = ".a8s"
+// TODO There's clutter of package variables here. Reorganize these variables in to more meaningful
+// structures.
+const configFileName = ".a9s"
 const demoGitRepo = "https://github.com/anynines/a8s-deployment.git" // "git@github.com:anynines/a8s-deployment.git"
 const demoAppGitRepo = "https://github.com/anynines/a8s-demo.git"
-const demoAppLocalDir = "a8s-demo"
+const DemoAppLocalDir = "a8s-demo"
 const demoA8sDeploymentLocalDir = "a8s-deployment"
+const defaultWorkDir = "a9s" // $home/WorkDir as the default proposal for a work dir.
 
 const defaultDemoSpace = "a8s-demo"
 const A8sSystemName = "a8s Postgres Control Plane"
@@ -34,6 +34,11 @@ const A8sSystemNamespace = "a8s-system"
 var BackupInfrastructureProvider string // e.g. AWS
 var BackupInfrastructureRegion string   // e.g. us-east-1
 var BackupInfrastructureBucket string   // e.g. a8s-backups
+var BackupInfrastructureEndpoint string // e.g. https://localhost:9000 for local minio
+var BackupInfrastructurePathStyle bool  // e.g. false // Must be true for minio
+
+var BackupStoreAccessKey string
+var BackupStoreSecretKey string
 
 var A8sPGServiceInstance pg.ServiceInstance
 var DeleteA8sPGInstanceName string
@@ -67,6 +72,8 @@ type BlobStoreCloudConfiguration struct {
 	Provider  string `yaml:"provider"`
 	Container string `yaml:"container"`
 	Region    string `yaml:"region"`
+	Endpoint  string `yaml:"endpoint,omitempty"`
+	PathStyle bool   `yaml:"path_style,omitempty"`
 }
 
 var configFilePath string
@@ -78,70 +85,6 @@ var DemoClusterName string
 var UnattendedMode bool // Ask yes-no questions or assume "yes"
 var ClusterNrOfNodes string
 var ClusterMemory string
-
-func BuildKubernetesClusterSpec() creator.KubernetesClusterSpec {
-	nrOfNodes, err := strconv.Atoi(ClusterNrOfNodes)
-
-	if err != nil {
-		makeup.ExitDueToFatalError(err, "Couldn't determine the number of Kubernetes nodes from the param: "+ClusterNrOfNodes)
-	}
-
-	spec := creator.KubernetesClusterSpec{
-		Name:                 DemoClusterName,
-		NrOfNodes:            nrOfNodes,
-		NodeMemory:           ClusterMemory,
-		InfrastructureRegion: BackupInfrastructureRegion,
-	}
-
-	return spec
-}
-
-/*
-Builds a cluster manager without params by using shared package variables.
-*/
-func BuildKubernetesClusterManager() k8s.ClusterManager {
-
-	clusterManager := k8s.BuildClusterManager(
-		DemoConfig.WorkingDir,
-		DemoClusterName,
-		KubernetesTool,
-		UnattendedMode,
-	)
-
-	return clusterManager
-}
-
-func CheckPrerequisites(createClusterIfNotExists bool) {
-	allGood := true
-
-	makeup.PrintH1("Checking Prerequisites...")
-
-	CheckCommandAvailability()
-	clusterSpec := BuildKubernetesClusterSpec()
-
-	clusterManager := BuildKubernetesClusterManager()
-
-	if createClusterIfNotExists {
-		clusterManager.CreateKubernetesClusterIfNotExists(clusterSpec)
-	}
-
-	// At this point there should be a Kubernetescluster
-	if !k8s.CheckIfAnyKubernetesIsRunning() {
-		allGood = false
-	}
-
-	// Only if there's a suitable cluster, the cluster may also be selected.
-	// In any other case, the demo cluster has to be created, first.
-	if !clusterManager.IsClusterSelectedAsCurrentContext(DemoClusterName) {
-		allGood = false
-	}
-
-	// !NoPreCheck > Perform a pre-check
-	if !NoPreCheck && !allGood {
-		makeup.PrintFailSummary("Sadly, mandatory prerequisites haven't been met. Aborting...")
-		os.Exit(1)
-	}
-}
 
 /*
 Applies the manifests of the a8s-deployment repository and thus installs a8s PG.
@@ -155,9 +98,8 @@ func ApplyA8sManifests() {
 
 func WaitForA8sSystemToBecomeReady() {
 	expectedPods := []k8s.PodExpectationState{
-		// BAD STYLE
-		// It is very misleading that one has to initialize Running with false as it suggests that this is
-		// the desired state where it actually is just the initial state and Running is set to true in the process
+
+		// Initialize Running with false as it the initial state and Running is set to true in the process
 		// which is then also the break condition of the waiting loop.
 		{Name: "a8s-backup-controller-manager", Running: false},
 		{Name: "postgresql-controller-manager", Running: false},
@@ -182,7 +124,6 @@ func WaitForServiceInstanceToBecomeReady(namespace, serviceInstanceName string, 
 	makeup.WaitForUser(UnattendedMode)
 }
 
-// TODO Move to pg package
 func CreatePGServiceInstance() {
 	makeup.PrintH1("Creating a a8s Postgres Service Instance...")
 
@@ -208,8 +149,6 @@ func getServiceInstanceManifestPath(serviceInstanceName string) string {
 	return GetUserManifestPath("a8s-pg-instance-" + serviceInstanceName + ".yaml")
 }
 
-// TODO Move to pg package
-// Refactor to DRY with Create ... > CRUDPGServiceInstance
 func DeletePGServiceInstance(namespace, serviceInstanceName string) {
 	makeup.PrintH1("Deleting a a8s Postgres Service Instance...")
 
@@ -246,7 +185,6 @@ func getRestoreManifestPath(backupName string) string {
 	return GetUserManifestPath("a8s-pg-restore-" + backupName + ".yaml")
 }
 
-// TODO Move to pg package
 func CreatePGServiceInstanceBackup() {
 	EnsureConfigIsLoaded()
 
@@ -345,8 +283,5 @@ func PrintDemoSummary() {
 	makeup.PrintCheckmark("Installed cert-manager on the Kubernetes cluster.")
 	makeup.PrintCheckmark("Created a configuration for the backup object store.")
 	makeup.PrintCheckmark("Installing the a8s Postgres control plane.\n")
-
-	//TODO Check whether Pods- from the a8s-system are ready
-	//makeup.PrintCheckmark("Installed the a8s Postgres control plane.\n")
 	makeup.PrintSuccessSummary("You are now ready to create a8s Postgres service instances.")
 }

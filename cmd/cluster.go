@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/anynines/a9s-cli-v2/demo"
 	"github.com/anynines/a9s-cli-v2/k8s"
@@ -53,7 +54,7 @@ func CreateA8sStack(createClusterIfNotExists bool) {
 	demo.EstablishConfig()
 
 	//TODO It's odd that a check method also creates a k8s cluster
-	demo.CheckPrerequisites(createClusterIfNotExists)
+	demo.CheckPrerequisites()
 
 	makeup.WaitForUser(demo.UnattendedMode)
 
@@ -61,11 +62,20 @@ func CreateA8sStack(createClusterIfNotExists bool) {
 
 	demo.CheckoutDemoAppGitRepository()
 
+	// TODO Refactor - See backlog "Refactor `EstablishBackupStoreCredentials`"
+	demo.EstablishBackupStoreCredentials()
+
+	demo.CheckK8sCluster(createClusterIfNotExists)
+
 	if demo.CountPodsInDemoNamespace() == 0 {
 		makeup.PrintCheckmark("Kubernetes cluster has no pods in " + demo.GetConfig().DemoSpace + " namespace.")
 	}
 
-	demo.EstablishBackupStoreCredentials()
+	//TODO find a more elegant way to deal with minio
+	if strings.ToLower(demo.BackupInfrastructureProvider) == "minio" {
+		demo.ApplyMinioManifests()
+		demo.WaitForMinioToBecomeReady()
+	}
 
 	k8s.ApplyCertManagerManifests(demo.UnattendedMode)
 

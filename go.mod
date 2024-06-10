@@ -4,7 +4,6 @@ go 1.20
 
 require (
 	github.com/NilPointer-Software/emoji v0.0.0-20230626160233-14b453685d90
-	github.com/alessio/shellescape v1.4.2
 	github.com/charmbracelet/lipgloss v0.7.1
 	github.com/fatih/color v1.15.0
 	github.com/goccy/go-yaml v1.11.2

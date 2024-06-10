@@ -14,6 +14,11 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+/*
+TODO Correct misleading naming. This function does not establish a config file path
+but sets a package variable. This appears to be a left-over from earlier versions
+and needs refactoring.
+*/
 func EstablishConfigFilePath() {
 	makeup.PrintVerbose("Setting a config file path in order to persist settings...")
 
@@ -30,6 +35,10 @@ func EstablishConfigFilePath() {
 
 }
 
+/*
+Proposes and creates a meaningful working directory on first time use.
+TODO Reduce code complexity in this function.
+*/
 func EstablishWorkingDir() {
 	makeup.PrintH1("Setting up a Working Directory")
 	makeup.PrintVerbose("We will need a working directory for the demo. Let's find one..")
@@ -37,11 +46,13 @@ func EstablishWorkingDir() {
 	reader := bufio.NewReader(os.Stdin)
 
 	for {
-		cwd, err := os.Getwd()
+		homeDir, err := os.UserHomeDir()
 
 		if err != nil {
-			makeup.ExitDueToFatalError(err, "Couldn't obtain your current working directory.")
+			makeup.ExitDueToFatalError(err, "Couldn't obtain your home directory.")
 		}
+
+		cwd := filepath.Join(homeDir, defaultWorkDir)
 
 		fmt.Println("The current working directory is: ", cwd)
 		fmt.Print("Do you want to use this directory as a working directory? (y/n): ")
@@ -160,8 +171,10 @@ func promptPath() string {
 /*
 Generates an encryption password file for backups if it doesnt exist.
 Does nothing if the file already exists.
+
+TODO Make this an optional parameter so that users can set this value
 */
-func EstablishEncryptionPasswordFile() {
+func establishEncryptionPasswordFile() {
 	makeup.PrintVerbose("In order to encrypt backups we need an encryption password.")
 	makeup.Print("Checking if encryption password file for backups already exists...")
 
@@ -252,33 +265,34 @@ func BackupConfigEncryptionPasswordFilePath() string {
 }
 
 /*
+TODO A function called read... should not write a file > Should be separate functions
 Checks if there's a file.
 If not it prompts to read the file content from STDIN.
 Skips if the file is already present
 */
-func ReadStringFromFileOrConsole(filePath, contentType string, showContent bool) {
+func ReadStringFromFileOrConsole(filePath, contentType string, showContent bool) string {
 
+	//TODO This is not a good way to handle the existence of the file.
 	if _, err := os.Stat(filePath); !os.IsNotExist(err) {
 		makeup.Print("There's already an " + contentType + " file...")
-		return
+		return ""
 	}
 
 	// Enter access key id as the access-key-id-file doesnt exist, yet.
 	reader := bufio.NewReader(os.Stdin)
 	fmt.Print("Enter your " + contentType + ": ")
 
-	accessKeyId, err := reader.ReadString('\n')
+	content, err := reader.ReadString('\n')
 
 	if err != nil {
 		makeup.ExitDueToFatalError(err, "Can't read  "+contentType+"  from STDIN.")
 	}
 
 	if showContent {
-		makeup.Print(contentType + " : " + accessKeyId)
+		makeup.Print(contentType + " : " + content)
 	}
 
-	// Write file
-	saveStringToFile(filePath, accessKeyId)
+	return content
 }
 
 /*
@@ -286,12 +300,16 @@ Checks if there's an access key id file.
 If not it prompts to read the access key id from STDIN.
 Skips if the access key id file is already present
 */
-func EstablishAccessKeyId() {
+func establishAccessKeyId() {
 	makeup.PrintH2("In order to store backups on an object store such as S3, we need an ACCESS KEY ID.")
 
 	filePath := BackupConfigAccessKeyIdFilePath()
 
-	ReadStringFromFileOrConsole(filePath, "ACCESS KEY ID", true)
+	if BackupStoreAccessKey == "" {
+		makeup.ExitDueToFatalError(nil, "The backup-store-accesskey can't be empty!")
+	}
+
+	saveStringToFile(filePath, BackupStoreAccessKey)
 }
 
 func establishSecretAccessKey() {
@@ -299,7 +317,11 @@ func establishSecretAccessKey() {
 
 	filePath := BackupConfigSecretAccessKeyFilePath()
 
-	ReadStringFromFileOrConsole(filePath, "SECRET KEY", false)
+	if BackupStoreSecretKey == "" {
+		makeup.ExitDueToFatalError(nil, "The backup-store-secretkey can't be empty!")
+	}
+
+	saveStringToFile(filePath, BackupStoreSecretKey)
 }
 
 func backupStoreConfigFilePath() string {
@@ -316,13 +338,24 @@ func establishBackupStoreConfigYaml() {
 	} else {
 		makeup.Print("Writing a backup-store-config.yaml with defaults to " + filePath)
 
+		var actualProvider string
+
+		// For minio the backup_agent will be configured using an S3 compatible storage client
+		if strings.ToLower(BackupInfrastructureProvider) == "minio" {
+			actualProvider = "AWS"
+		} else {
+			actualProvider = BackupInfrastructureProvider
+		}
+
 		// TODO Make backup store configurable
 		blobStoreConfig := BlobStore{
 			Config: BlobStoreConfig{
 				CloudConfig: BlobStoreCloudConfiguration{
-					Provider:  BackupInfrastructureProvider,
+					Provider:  actualProvider,
 					Container: BackupInfrastructureBucket,
 					Region:    BackupInfrastructureRegion,
+					Endpoint:  BackupInfrastructureEndpoint,
+					PathStyle: BackupInfrastructurePathStyle,
 				},
 			},
 		}
@@ -347,10 +380,9 @@ func GetConfig() Config {
 }
 
 func EstablishBackupStoreCredentials() {
-	EstablishEncryptionPasswordFile()
-	EstablishAccessKeyId()
+	establishEncryptionPasswordFile()
+	establishAccessKeyId()
 	establishSecretAccessKey()
-
 	establishBackupStoreConfigYaml()
 
 	//TODO deploy/a8s/backup-config/backup-store-config.yaml.template

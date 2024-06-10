@@ -7,6 +7,76 @@ represent ideas that have not been implemented or that changes may have been app
 
 The implementation notes may document patterns on how certain features are developed by listing individual steps. This may help new developers to find a scaffold to start with when entering the project.
 
+## v0.13.0
+
+
+* Epic: Minio as an alternative to AWS S3
+    * Steps:
+        * Manually deploy minio into a local cluster and record all command & steps
+            * Install minio client
+                * `brew install minio-mc`
+            * Install minio operator
+                * https://min.io/docs/minio/kubernetes/upstream/index.html
+                    * Don't install the regular operator. Instead, install the non-prod minimal version of minio. We neither need nor want multi-tenancy.
+                    * Remove the following lines:
+                        * nodeSelector:
+                            * kubernetes.io/hostname: kubealpha.local # Specify a node label associated to the Worker Node on which you want to deploy the pod.
+                *   `kubectl apply -f minio-dev.yaml`
+                * Start a kubectl proxy: `kubectl port-forward pod/minio 9000 9090 -n minio-dev`
+                * Create an alias for the a8s-demo-minio target:                
+                    `mc alias set a8s-demo-minio http://127.0.0.1:9000 minioadmin minioadmin`
+                * Test the communication with the target: `mc admin info a8s-demo-minio`
+                * Create minio user `a8s-user`:
+                    `mc admin user add a8s-demo-minio a8s-user a8s-password`
+                * Create a bucket `a8s-backups`: `mc mb a8s-demo-minio/a8s-backups`
+                    * Assign bucket a policy
+                        * localhost:9090 > minioadmin:minioadmin
+                        * > Identity > users > a8s-user > Assign Policy > ReadWrite
+                * When using the minikube stack, the `mc` command is required
+            * Introduce stack-dependencies
+        * UX:
+            * Make minio the default storage option
+                * When minio is selected, we don't need to ask for backup credentials, this is only necessary when S3 is selected.
+                * `a9s create stack|cluster a8s --backup-provider=AWS`
+                * `a9s create stack|cluster a8s --backup-provider=minio` (default)
+    
+
+* [**Abandonded**] Allow using a custom provided container image for the a8s-backup-manager for `create cluster a8s` and `create stack a8s`.
+    `a9s create cluster a8s --backup-manager-image=myuser/myimage:mytag` 
+    * Implement the param for
+        * [DONE] `create stack`
+        * [DONE] `create cluster`
+    * Locate where the param needs to be applied
+        * Try to use `kustomize` to overwrite the default image
+            * spec
+                * versions
+                    * "v1beta3"
+                        * schema
+                            * openAPIV3Schema
+                                * image                                    
+            * line 639: `public.ecr.aws/w5n9a2g2/a9s-ds-for-k8s/dev/backup-manager:2616f22c4fe670541c3c78131ae018902f8471bf`
+        * Using `kubectl apply -k deploy/a8s/manifests --dry-run=server -o yaml | bat -l yaml` the existing container image can be replaced using the `images` functionality of `kustomize` as described in (here)[https://github.com/kubernetes-sigs/kustomize/blob/master/examples/image.md]. Note that `--dry-run=client` won't show the substituted container image as the patching is done in the interaction with the live Kubernetes cluster.
+    * Reason: This feature is not worth the effort. Applying a custom image is not frequently demanded and for local development and modified kustomization.yaml will cause the same effect.
+
+
+## v0.12.0
+
+* [ARCHITECTURE] Install a8s PG on an existing cluster
+    * Decide which command/verb to use
+        * [DONE] `a9s create stack`
+            * Applies the a8s stack to the current k8s cluster
+                * The following cluster/context/namespace is selected:
+                    Do you want to apply the a8s stack to this cluster?
+    * Make the context/namespaces configurable        
+        * Streamline the UX for both `create cluster` and `create stack`        
+                * Point out that `-c` can be used to specify a context / clustername
+        * Update the readme
+            * Add `create stack` documentation
+    * Write a tutorial on how to apply a stack to an existing AWS cluster
+        * Use `-c` option to point to the right context
+
+* Make the default namespace/context not contain the word `demo`.
+
 ## v0.12.0
 
 * [ARCHITECTURE] Install a8s PG on an existing cluster
