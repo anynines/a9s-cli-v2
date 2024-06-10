@@ -24,7 +24,7 @@ func CheckoutDemoAppGitRepository() {
 	makeup.Print("Remote Repository is at: " + demoAppGitRepo)
 	makeup.Print("Local working dir: " + DemoConfig.WorkingDir)
 
-	demoAppLocalFilepath := filepath.Join(DemoConfig.WorkingDir, demoAppLocalDir)
+	demoAppLocalFilepath := filepath.Join(DemoConfig.WorkingDir, DemoAppLocalDir)
 
 	//TODO Introduce releases for the demo app
 	CheckoutGitRepository(demoAppGitRepo, demoAppLocalFilepath, "latest")

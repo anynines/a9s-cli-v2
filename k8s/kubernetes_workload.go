@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"strings"
 	"time"
 
@@ -19,8 +18,8 @@ import (
 	"k8s.io/client-go/dynamic"
 )
 
-const certManagerNamespace = "cert-manager"
-const certManagerManifestUrl = "https://github.com/cert-manager/cert-manager/releases/download/v1.12.0/cert-manager.yaml"
+const CertManagerNamespace = "cert-manager"
+const CertManagerManifestUrl = "https://github.com/cert-manager/cert-manager/releases/download/v1.12.0/cert-manager.yaml"
 
 /*
 Represents the state of a Pod which is expected to be running at some point.
@@ -125,51 +124,6 @@ func CountPodsInNamespace(namespace string) int {
 	}
 
 	return len(pods.Items)
-}
-
-func WaitForCertManagerToBecomeReady() {
-	makeup.PrintH1("Waiting for the cert-manager API to become ready.")
-	crashLoopBackoffCount := 10
-
-	for i := 1; i <= crashLoopBackoffCount; i++ {
-		cmd := exec.Command("cmctl", "check", "api")
-		output, err := cmd.CombinedOutput()
-
-		makeup.Print(cmd.String())
-
-		//TODO Crash loop detection / timeout
-		if err != nil {
-			makeup.PrintWait("Continuing to wait for the cert-manager API...")
-		}
-
-		strOutput := string(output)
-
-		fmt.Println(strOutput)
-
-		if strings.TrimSpace(strOutput) == "The cert-manager API is ready" {
-			makeup.PrintCheckmark("The cert-manager is ready")
-			return
-		} else {
-			makeup.PrintWait("Continuing to wait for the cert-manager API...")
-		}
-
-		time.Sleep(30 * time.Second)
-	}
-
-	makeup.PrintFailSummary("The cert-manager did not become ready within reasonable time.")
-}
-
-func ApplyCertManagerManifests(waitForUser bool) {
-	makeup.PrintH1("Installing the cert-manager")
-	count := CountPodsInNamespace(certManagerNamespace)
-
-	if count > 0 {
-		makeup.Print(fmt.Sprintf("Found %d pods in the %s namespace", count, certManagerNamespace))
-	}
-
-	KubectlApplyF(certManagerManifestUrl, waitForUser)
-
-	WaitForCertManagerToBecomeReady()
 }
 
 /*
