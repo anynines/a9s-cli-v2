@@ -77,6 +77,24 @@ The implementation notes may document patterns on how certain features are devel
 
 * Make the default namespace/context not contain the word `demo`.
 
+## v0.12.0
+
+* [ARCHITECTURE] Install a8s PG on an existing cluster
+    * Decide which command/verb to use
+        * [DONE] `a9s create stack`
+            * Applies the a8s stack to the current k8s cluster
+                * The following cluster/context/namespace is selected:
+                    Do you want to apply the a8s stack to this cluster?
+    * Make the context/namespaces configurable        
+        * Streamline the UX for both `create cluster` and `create stack`        
+                * Point out that `-c` can be used to specify a context / clustername
+        * Update the readme
+            * Add `create stack` documentation
+    * Write a tutorial on how to apply a stack to an existing AWS cluster
+        * Use `-c` option to point to the right context
+
+* Make the default namespace/context not contain the word `demo`.
+
 ## v0.11.1
 
 * Create and publish `a9s` binaries for supported OSes

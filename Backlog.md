@@ -2,67 +2,22 @@
 
 ## Next
 
-* Refactor `EstablishBackupStoreCredentials`
-  * Set accesskey and secretaccesskey automatically.  
-  * Make generating the access and secret key the default but allow passing it as an argument for AWS and others
-    * Requires updating the Readme and Tutorial    
+* [ARCHITECTURE] Install a8s PG on an existing cluster
+    * Decide which command/verb to use
+        * [DONE] `a9s create stack`
+            * Applies the a8s stack to the current k8s cluster
+                * The following cluster/context/namespace is selected:
+                    Do you want to apply the a8s stack to this cluster?
+    * Make the context/namespaces configurable        
+        * Streamline the UX for both `create cluster` and `create stack`        
+                * Point out that `-c` can be used to specify a context / clustername
+        * Update the readme
+            * Add `create stack` documentation
+    * Write a tutorial on how to apply a stack to an existing AWS cluster
+        * Use `-c` option to point to the right context
 
-* [**In Progress**] Add minio deployment
-    * [DONE] Apply manifests
-    * [DONE] Implement WaitForMinioToBecomeReady
-            * Read credentials from Secret
-                * Can't use the existing secret for two reasons
-                    1. Can't use the secret from `a8s-system` in another (`minio-dev`) namespace
-                    2. The `a8s-system` secret is in file format: keys are filenames and values are content, a volume mount would be required. While this is possible, it is not what is desired for the config script.
-    * Implement a K8s Job to configure minio    
-        * Add configmap for `minio_config.sh` script
-        * Create job defninition `minio-config-job.yaml`
-        * Add configmap and scripts to a8s-demo repo
-        * Add Job to a9s-cli creation of minio
-        
-
-* [DONE] Add params for Endpoint and Pathstyle
-    * [DONE] Add params 
-    
-
-* Update https://docs.a9s-cli.anynines.com/ to v0.12.0
-* Update https://docs.a9s-cli.anynines.com/ to v0.13.0
-
-* In versioned docs the install command under "installing the CLI" refers so the lastest version. This is misleading as the downloaded version should match the version of the doc.
-
-
-* [**In Progress**] Epic: Minio as an alternative to AWS S3
-    * Enable a8s-backup-manager
-        * [DONE] Implement support for minio by allowing to set custom s3 endpoint and enable pathStyle
-        * [Waiting] Release updated container image version of a8s-backup-manager
-        * Update a8s-deployment to use new version of a8s-backup-manager
-        * Update a9s-CLI to use new version of a8s-deployment && a8s-backup-manager
-    * Implement CLI functionality    
-        
-* [Epic] Make Release v0.13.0
-    * Update Backlog and Implementation log
-    * Update Changelog
-    * Update Readme
-    * Update a9s CLI Tutorial at https://docs.a9s-cli.anynines.com/
-
-* [DONE] Generate configs before creating a cluster, this saves time if something is wrong with configs as the cluster creation is likely to also have problem then.
-    * Move creating a cluster out of `CheckPrerequisites` as it is an odd-place to create a cluster.
-        * Split env and config checks from 
-
-
-* [DONE] Suggest a more meaningful working directory.
-    * Using the current directory as the default directory is often not a good choice. We want the default values to be meaningful.
-    * Decide about default directory
-        * How about $HOME/.a9s/ ?
-            * Why hidden?
-
-* [DONE] New default config file location.
-    * It is confusing for a user to use the `a9s` CLI but then have an `.a8s` config file.    
-    * $HOME/.a9s
-
-
-## Unassigned
-
+* Make the default namespace/context not contain the word `demo`.
+            
 * [Question] Remove ?
     * Should there be a remove option?
         * Yes
