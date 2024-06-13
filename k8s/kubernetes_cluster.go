@@ -38,7 +38,7 @@ func CheckIfAnyKubernetesIsRunning() bool {
 	if err != nil {
 		makeup.PrintFail("Kubernetes is not running.")
 		makeup.PrintInfo("Please try to restart it or recreate it (delete and re-run the creation).")
-		makeup.PrintInfo("Try deleting the Kubernetes cluster with: \"a9s demo delete\". Then recreate it.")
+		makeup.PrintInfo("Try deleting the Kubernetes cluster with: \"a9s delete cluster a8s\". Then recreate it.")
 		return false
 	}
 	makeup.PrintCheckmark("Kubernetes is running.")
