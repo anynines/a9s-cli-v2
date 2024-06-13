@@ -2,6 +2,8 @@
 
 ## Next
 
+* Remove `mc` as this command is not really necessary since the config happens as a Job which uses mc internally
+
 * [ARCHITECTURE] Install a8s PG on an existing cluster
     * Decide which command/verb to use
         * [DONE] `a9s create stack`
