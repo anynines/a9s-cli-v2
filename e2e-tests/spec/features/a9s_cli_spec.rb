@@ -229,7 +229,7 @@ RSpec.describe "a9s-cli" do
           include_context "a8s-pg", :include_shared => true
 
       after :context do
-        # Minikube.delete_cluster(@minikube_stack_cluster_name)
+        Minikube.delete_cluster(@minikube_stack_cluster_name)
       end
     end
     context "cluster", order: :defined do
