@@ -2,6 +2,9 @@
 
 ## Next
 
+* BUGIX: Minio apply -k after the creation of its namespace requires waiting for the serviceaccount "default" in the minio-dev namespace to become ready
+    * Otherwise the following error message is seen on some systems (e.g. the AWS CI linux server): `+Error from server (Forbidden): error when creating "/home/ubuntu/a9s/a8s-demo/minio": pods "minio" is forbidden: error looking up service account minio-dev/default: serviceaccount "default" not found`
+
 * Remove `mc` as this command is not really necessary since the config happens as a Job which uses mc internally
 
 * [ARCHITECTURE] Install a8s PG on an existing cluster
@@ -111,5 +114,5 @@
 * Create S3 bucket with configs
     * Alternatively: Install a local storage provider, e.g. minio.
         * Costly dependency: add the local storage provider to the backup agent.
-
+* CHORE: Switch to https://docs.github.com/de/get-started/using-github/github-flow over git flow
 
