@@ -20,6 +20,13 @@ Applies minio related manifests.
 func ApplyMinioManifests() {
 	makeup.PrintH1("Applying Minio manifests...")
 
+	// TODO Make CLI parameter
+	minioNamespace := "minio-dev"
+
+	k8s.CreateNamespace(UnattendedMode, minioNamespace)
+
+	k8s.WaitForServiceAccount(UnattendedMode, minioNamespace, "default")
+
 	minioManifestPath := filepath.Join(DemoConfig.WorkingDir, DemoAppLocalDir, "minio")
 	k8s.KubectlApplyKustomize(minioManifestPath, UnattendedMode)
 

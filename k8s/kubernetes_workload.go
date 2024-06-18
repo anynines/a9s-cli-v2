@@ -358,3 +358,43 @@ func ConditionsAreMet(actualConditionsMap, expectedConditionsMap map[string]inte
 	}
 	return true
 }
+
+/*
+Wait for the given service account in the given namespace to become ready.
+Blocks during wait.
+*/
+func WaitForServiceAccount(unattendedMode bool, namespace, serviceAccountName string) {
+
+	for nrAttempts := 0; nrAttempts <= 600; nrAttempts++ {
+
+		// Wait x s for the the serviceAccountToShowUp
+		_, output, err := Kubectl(unattendedMode, "get", "serviceaccount", "-n", namespace, serviceAccountName)
+
+		if err == nil {
+
+			// Found the service account
+			return
+		}
+
+		if strings.Contains(string(output), "serviceaccounts \""+serviceAccountName+"\" not found") {
+
+			// Did not find the service account
+			makeup.Print(fmt.Sprintf("The service account %s does not exist (yet) in namespace %s.", serviceAccountName, namespace))
+		} else {
+
+			// Some other error occured
+			makeup.ExitDueToFatalError(err, "Can't get service account "+serviceAccountName+" in namespace "+namespace)
+		}
+
+		time.Sleep(2 * time.Second)
+	}
+	makeup.ExitDueToFatalError(nil, fmt.Sprintf("Timeout. Can't get service account "+serviceAccountName+" in namespace "+namespace))
+}
+
+func CreateNamespace(unattendedMode bool, namespace string) {
+	_, output, err := Kubectl(unattendedMode, "create", "namespace", namespace)
+
+	if err != nil {
+		makeup.ExitDueToFatalError(err, fmt.Sprintf("Couldn't create namespace %s. Output was: %s", namespace, string(output)))
+	}
+}
