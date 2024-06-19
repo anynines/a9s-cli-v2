@@ -97,16 +97,16 @@ func ApplyA8sManifests() {
 }
 
 func WaitForA8sSystemToBecomeReady() {
-	expectedPods := []k8s.PodExpectationState{
-
-		// Initialize Running with false as it the initial state and Running is set to true in the process
-		// which is then also the break condition of the waiting loop.
-		{Name: "a8s-backup-controller-manager", Running: false},
-		{Name: "postgresql-controller-manager", Running: false},
-		{Name: "service-binding-controller-manager", Running: false},
+	makeup.PrintH1("Waiting for the a8s System to become ready...")
+	expectedPodsByLabels := []string{
+		"app.kubernetes.io/name=backup-manager",                     // a8s-backup-controller-manager
+		"app.kubernetes.io/name=postgresql-controller-manager",      // postgresql-controller-manager
+		"app.kubernetes.io/name=service-binding-controller-manager", // service-binding-controller-manager
 	}
 
-	k8s.WaitForSystemToBecomeReady(A8sSystemNamespace, A8sSystemName, expectedPods)
+	k8s.KubectlWaitForSystemToBecomeReady(A8sSystemNamespace, expectedPodsByLabels)
+
+	makeup.PrintCheckmark("The a8s System appears to be ready.")
 	makeup.WaitForUser(UnattendedMode)
 }
 
