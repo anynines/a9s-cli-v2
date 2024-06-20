@@ -2,10 +2,9 @@
 
 ## Next
 
-* BUGIX: Minio apply -k after the creation of its namespace requires waiting for the serviceaccount "default" in the minio-dev namespace to become ready
-    * Otherwise the following error message is seen on some systems (e.g. the AWS CI linux server): `+Error from server (Forbidden): error when creating "/home/ubuntu/a9s/a8s-demo/minio": pods "minio" is forbidden: error looking up service account minio-dev/default: serviceaccount "default" not found`
-
-* Remove `mc` as this command is not really necessary since the config happens as a Job which uses mc internally
+* BUG: There can be an error message when trying to create a service instance instantly after installing the a8s system.
+    * Error message: `+Error from server (InternalError): error when creating "/Users/jfischer/a9s/usermanifests/a8s-pg-instance-clustered.yaml": Internal error occurred: failed calling webhook "mpostgresql.kb.io": failed to call webhook: Post "https://postgresql-webhook-service.a8s-system.svc:443/mutate-postgresql-anynines-com-v1beta3-postgresql?timeout=10s": dial tcp 10.104.231.248:443: connect: connection refused`
+    * Reproduction: Remove `sleep(10)` from `a9s_cli_spec.rb` and run e2e-tests
 
 * [ARCHITECTURE] Install a8s PG on an existing cluster
     * Decide which command/verb to use

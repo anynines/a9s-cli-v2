@@ -14,6 +14,7 @@ RSpec.shared_context "a8s-pg", :shared_context => :metadata, order: :defined do
 
   context "service instances" do
     it "creates a clustered a8s pg service instance" do
+      sleep(10)
       cmd = "a9s create pg instance --name #{@service_instance_name} --replicas 3 -n #{@workload_namespace} --verbose --yes"
       logger.info(cmd)
 

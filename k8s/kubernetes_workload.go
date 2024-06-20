@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -20,6 +21,9 @@ import (
 
 const CertManagerNamespace = "cert-manager"
 const CertManagerManifestUrl = "https://github.com/cert-manager/cert-manager/releases/download/v1.12.0/cert-manager.yaml"
+
+// TODO Make configurable
+const kubectlWaitTimeoutOption = "--timeout=120s"
 
 /*
 Represents the state of a Pod which is expected to be running at some point.
@@ -66,6 +70,39 @@ out:
 	}
 }
 
+/*
+Uses kubectl wait to wait for each expected pod to become ready.
+Pods are identified by label and namespace.
+*/
+func KubectlWaitForSystemToBecomeReady(namespace string, expectedPodsByLabels []string) {
+	for _, podLabel := range expectedPodsByLabels {
+		KubectlWaitForPod(namespace, podLabel)
+	}
+}
+
+func KubectlWaitForPod(namespace, podLabel string) {
+
+	// kubectl wait --for=condition=Ready pod -l "app.kubernetes.io/name=backup-manager" -n a8s-system
+	// Outcome 1: error: timed out waiting for the condition on pods/a8s-backup-controller-manager-788fcd578d-kzb4f
+	// Outcome 2: pod/postgresql-controller-manager-7f8c7758d-28lc2 condition met
+	cmd := exec.Command("kubectl", "wait", "--for=condition=Ready", "pod", "-l", podLabel, "-n", namespace, kubectlWaitTimeoutOption)
+
+	output, err := cmd.CombinedOutput()
+
+	strOutput := string(output)
+
+	if err != nil {
+		makeup.ExitDueToFatalError(err, fmt.Sprintf("Pod with label %s in namespace %s has not become ready on time", podLabel, namespace))
+	}
+
+	if !strings.Contains(strOutput, "condition met") {
+		makeup.ExitDueToFatalError(nil, fmt.Sprintf("Pod with label %s in namespace %s has not become ready but conditions haven't been met. Got: %s", podLabel, namespace, strOutput))
+	}
+}
+
+/*
+TODO This method did not work when the backup-manager went into a CrashLoopBackOff. There is likely a bug here.
+*/
 func checkIfPodHasStatusRunningInNamespace(podNameStartsWith string, namespace string) bool {
 	clientset := GetKubernetesClientSet()
 

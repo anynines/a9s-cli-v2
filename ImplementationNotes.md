@@ -9,6 +9,13 @@ The implementation notes may document patterns on how certain features are devel
 
 ## v0.13.0
 
+* Remove `mc` as this command is not really necessary since the config happens as a Job which uses mc internally
+
+
+* BUGFIX: Minio apply -k after the creation of its namespace requires waiting for the serviceaccount "default" in the minio-dev namespace to become ready
+    * Otherwise the following error message is seen on some systems (e.g. the AWS CI linux server): `+Error from server (Forbidden): error when creating "/home/ubuntu/a9s/a8s-demo/minio": pods "minio" is forbidden: error looking up service account minio-dev/default: serviceaccount "default" not found`
+
+* BUGFIX: WaitForA8sSystemToBecomeReady does not detect that a8s-backup-manager is in CrashLoopBackOff
 
 * Epic: Minio as an alternative to AWS S3
     * Steps:
