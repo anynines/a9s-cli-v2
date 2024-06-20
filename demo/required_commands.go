@@ -18,8 +18,5 @@ func RequiredCommands() map[string]map[string]string {
 	cmds["cmctl"] = make(map[string]string)
 	cmds["cmctl"]["darwin"] = "brew install cmctl"
 
-	cmds["mc"] = make(map[string]string)
-	cmds["cmctl"]["darwin"] = "brew install minio-mc"
-
 	return cmds
 }
