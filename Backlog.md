@@ -2,11 +2,6 @@
 
 ## Next
 
-* BUGIX: Minio apply -k after the creation of its namespace requires waiting for the serviceaccount "default" in the minio-dev namespace to become ready
-    * Otherwise the following error message is seen on some systems (e.g. the AWS CI linux server): `+Error from server (Forbidden): error when creating "/home/ubuntu/a9s/a8s-demo/minio": pods "minio" is forbidden: error looking up service account minio-dev/default: serviceaccount "default" not found`
-
-* Remove `mc` as this command is not really necessary since the config happens as a Job which uses mc internally
-
 * [ARCHITECTURE] Install a8s PG on an existing cluster
     * Decide which command/verb to use
         * [DONE] `a9s create stack`
