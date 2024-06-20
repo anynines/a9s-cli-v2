@@ -100,6 +100,9 @@ func KubectlWaitForPod(namespace, podLabel string) {
 	}
 }
 
+/*
+TODO This method did not work when the backup-manager went into a CrashLoopBackOff. There is likely a bug here.
+*/
 func checkIfPodHasStatusRunningInNamespace(podNameStartsWith string, namespace string) bool {
 	clientset := GetKubernetesClientSet()
 
