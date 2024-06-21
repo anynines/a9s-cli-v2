@@ -343,6 +343,10 @@ func establishBackupStoreConfigYaml() {
 		// For minio the backup_agent will be configured using an S3 compatible storage client
 		if strings.ToLower(BackupInfrastructureProvider) == "minio" {
 			actualProvider = "AWS"
+
+			// The endpoint is not set as a default cmd param as with AWS as a provider, this endpoint would cause problems
+			BackupInfrastructureEndpoint = "http://minio.minio-dev.svc.cluster.local:9000"
+			BackupInfrastructurePathStyle = true
 		} else {
 			actualProvider = BackupInfrastructureProvider
 		}
