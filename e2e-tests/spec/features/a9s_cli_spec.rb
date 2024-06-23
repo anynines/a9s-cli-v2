@@ -2,6 +2,8 @@ require_relative '../spec_helper'
 require_relative '../support/minikube'
 require_relative '../support/kind'
 
+require 'fileutils'
+
 RSpec.shared_context "a8s-pg", :shared_context => :metadata, order: :defined do
   before(:context) do
 
