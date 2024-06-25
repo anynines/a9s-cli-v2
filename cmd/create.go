@@ -177,11 +177,12 @@ func init() {
 	cmdCreateClusterA8s.PersistentFlags().BoolVar(&demo.BackupInfrastructurePathStyle, "backup-store-pathstyle", false, "influences the URI schema used to talk to the S3 compatible backup object store. Default is false but is set to true when minio is selected as backup-provider.")
 	cmdCreateClusterA8s.PersistentFlags().StringVar(&demo.BackupStoreAccessKey, "backup-store-accesskey", "a8s-user", "the access key id for the backup store.")
 	cmdCreateClusterA8s.PersistentFlags().StringVar(&demo.BackupStoreSecretKey, "backup-store-secretkey", "a8s-password", "the secret key for the backup store.")
-	cmdCreateClusterA8s.PersistentFlags().StringVar(&demo.DeploymentVersion, "deployment-version", "v0.3.0", "specify the version corresponding to the a8s-deployment git version tag. Use \"latest\" to get the untagged version.")
+	cmdCreateClusterA8s.PersistentFlags().StringVar(&demo.DeploymentVersion, "deployment-version", "v1.2.0", "specify the version corresponding to the a8s-deployment git version tag. Use \"latest\" to get the untagged version.")
 	cmdCreateClusterA8s.PersistentFlags().StringVar(&demo.ClusterNrOfNodes, "cluster-nr-of-nodes", "3", "specify number of Kubernetes nodes.")
 	cmdCreateClusterA8s.PersistentFlags().StringVar(&demo.ClusterMemory, "cluster-memory", "4gb", "specify memory of the Kubernetes cluster.")
 	cmdCreateClusterA8s.PersistentFlags().BoolVar(&demo.NoPreCheck, "no-precheck", false, "skip the verification of prerequisites.")
 
+	//TODO Remove duplicate code in default values between cluster and stack.
 	// create stack a8s
 	cmdCreateStackA8s.PersistentFlags().StringVar(&demo.BackupInfrastructureRegion, "backup-region", "eu-central-1", "specify the infrastructure region to store backups such as \"us-east-1\".")
 	cmdCreateStackA8s.PersistentFlags().StringVar(&demo.BackupInfrastructureBucket, "backup-bucket", "a8s-backups", "specify the infrastructure object store bucket name.")
@@ -190,7 +191,7 @@ func init() {
 	cmdCreateStackA8s.PersistentFlags().BoolVar(&demo.BackupInfrastructurePathStyle, "backup-store-pathstyle", false, "influences the URI schema used to talk to the S3 compatible backup object store. Default is false but is set to true when minio is selected as backup-provider.")
 	cmdCreateStackA8s.PersistentFlags().StringVar(&demo.BackupStoreAccessKey, "backup-store-accesskey", "a8s-user", "the access key id for the backup store.")
 	cmdCreateStackA8s.PersistentFlags().StringVar(&demo.BackupStoreSecretKey, "backup-store-secretkey", "a8s-password", "the secret key for the backup store.")
-	cmdCreateStackA8s.PersistentFlags().StringVar(&demo.DeploymentVersion, "deployment-version", "v0.3.0", "specify the version corresponding to the a8s-deployment git version tag. Use \"latest\" to get the untagged version.")
+	cmdCreateStackA8s.PersistentFlags().StringVar(&demo.DeploymentVersion, "deployment-version", "v1.2.0", "specify the version corresponding to the a8s-deployment git version tag. Use \"latest\" to get the untagged version.")
 	cmdCreateStackA8s.PersistentFlags().BoolVar(&demo.NoPreCheck, "no-precheck", false, "skip the verification of prerequisites.")
 
 	// create demo

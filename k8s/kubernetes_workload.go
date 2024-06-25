@@ -20,6 +20,8 @@ import (
 )
 
 const CertManagerNamespace = "cert-manager"
+
+// TODO Make version configurable
 const CertManagerManifestUrl = "https://github.com/cert-manager/cert-manager/releases/download/v1.12.0/cert-manager.yaml"
 
 // TODO Make configurable
