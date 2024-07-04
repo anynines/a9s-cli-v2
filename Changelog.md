@@ -1,5 +1,6 @@
 # v0.13.0
 * Feature: Minio instead of S3 as the default backup storage service to enable using Backup and Restore in local environments.    
+* Change: Changes default version of `a8s-deployment` from `v0.3.0` to `v1.2.0`.
 * Change: Changes config filename from `.a8s` to `.a9s`.
 * Change: Proposes a meaningful working directory under the user's home directory when used for the first time.
 * Change: On first use, the backup store config is now established before creating a Kubernetes cluster.
