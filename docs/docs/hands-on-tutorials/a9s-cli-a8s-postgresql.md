@@ -302,7 +302,7 @@ With the PostgreSQL database at hand, an exemplary application can be deployed.
 
 The demo app has already been checked out for you. Hence, installing it just a single command away:
 
-    kubectl apply -k $(a9s cluster pwd)/a8s-demo/demo-app -n tutorial
+    kubectl apply -k $(a9s cluster pwd)/a8s-demo/demo-postgresql-app -n tutorial
 
 Output:
 
@@ -336,11 +336,7 @@ Although not the preferred way to load seed data into a production database, dur
 
 Download an exemplary SQL file:
 
-    wget https://a9s-cli-v2-fox4ce5.s3.eu-central-1.amazonaws.com/demo_data.sql
-
-Download an exemplary SQL file:
-
-    wget https://a9s-cli-v2-fox4ce5.s3.eu-central-1.amazonaws.com/demo_data.sql
+    curl https://a9s-cli-v2-fox4ce5.s3.eu-central-1.amazonaws.com/demo_data.sql -o demo_data.sql
 
 Executing an SQL file is as simple as using the `--file` option:
 
