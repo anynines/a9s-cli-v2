@@ -227,7 +227,8 @@ const config = {
       },
       prism: {
         theme: lightTheme,
-        darkTheme: darkTheme
+        darkTheme: darkTheme,
+        additionalLanguages: ['ruby', 'bash']
       }
     })
 };

@@ -65,17 +65,21 @@ The `a9s` CLI can be used to install and use the following stacks:
 
 In order to install the `a9s` CLI execute the following shell script:
 
-    RELEASE=$(curl -L -s https://a9s-cli-v2-fox4ce5.s3.eu-central-1.amazonaws.com/stable.txt); OS=$(go env GOOS); ARCH=$(go env GOARCH); curl -fsSL -o a9s https://a9s-cli-v2-fox4ce5.s3.eu-central-1.amazonaws.com/releases/$RELEASE/a9s-$OS-$ARCH
-        
-    sudo chmod 755 a9s
-    sudo mv a9s /usr/local/bin
+```bash
+RELEASE=$(curl -L -s https://a9s-cli-v2-fox4ce5.s3.eu-central-1.amazonaws.com/stable.txt); OS=$(go env GOOS); ARCH=$(go env GOARCH); curl -fsSL -o a9s https://a9s-cli-v2-fox4ce5.s3.eu-central-1.amazonaws.com/releases/$RELEASE/a9s-$OS-$ARCH
+    
+sudo chmod 755 a9s
+sudo mv a9s /usr/local/bin
+```
 
 This will download the `a9s` binary suitable for your architecture and move it to `/usr/local/bin`.
 Depending on your system you have to adjust the `PATH` variable or move the binary to a folder that's already in the `PATH`.
 
 # Using the CLI
 
-    a9s
+```bash
+a9s
+```
 
 # Creating a Local a8s Postgres Cluster
 
@@ -83,7 +87,9 @@ Create a local Kubernetes cluster using `Minikube` or `Kind`, **install a8s Post
 
 Get ready for **local development of applications with PostgreSQL** and/or **experimentation with a8s Postgres** by issuing the command:
 
-    a9s create cluster a8s
+```bash
+a9s create cluster a8s
+```
 
 Recommended is 12 GB of free memory for the creation of three cluster nodes with each 4 GB. The number of nodes and memory size can be adjusted.
 
@@ -120,20 +126,25 @@ It is possible to skip the verification of prerequisites. This includes skipping
 
 In order to skip precheck use the `--no-precheck` option:
 
-    a9s create cluster a8s --no-precheck
+```bash
+a9s create cluster a8s --no-precheck
+```
 
 ## Number of Kubernetes Nodes
 
 Specifying the number of Nodes in the Kubernetes cluster:
 
-    a9s create cluster a8s --cluster-nr-of-nodes 1
+```bash
+a9s create cluster a8s --cluster-nr-of-nodes 1
+```
 
 ## Cluster Memory
 
 Specifying the memory of **each** Node of the Kubernetes cluster:
 
-
-    a9s create cluster a8s --cluster-memory 4gb
+```bash
+a9s create cluster a8s --cluster-memory 4gb
+```
 
 ## Deployment Version
 
@@ -142,11 +153,15 @@ The deployment version refers to the version of manifests used for installing so
 
 Select a particular release by providing the `--deployment-version` parameter:
 
-    a9s create cluster a8s --deployment-version v1.2.0
+```bash
+a9s create cluster a8s --deployment-version v1.2.0
+```
 
 Use:
 
-    a9s create cluster a8s --deployment-version latest
+```bash
+a9s create cluster a8s --deployment-version latest
+```
 
 To get the latest, untagged version of the deployment manifests.
 
@@ -154,27 +169,34 @@ To get the latest, untagged version of the deployment manifests.
 
 When creating a Kubernetes cluster, the mechanism to manage the cluster can be selected by specifying the `--provider` option:
 
-    a9s create cluster a8s -p kind 
-    a9s create cluster a8s -p minikube (default)
-
+```bash
+a9s create cluster a8s -p kind 
+a9s create cluster a8s -p minikube (default)
+```
 Follow the instructions to learn about available sub commands.
 
 ## Backup Infrastructure Region
 
 When using the backup and restore functionality, a backup infrastructure region must be specified by using the `--backup-region` option:
 
-    a9s create cluster a8s --backup-region us-east-1
+```bash
+a9s create cluster a8s --backup-region us-east-1
+```
 
 **Note**: By default, an existing `backup-config.yaml` will be used. Hence, if you intend to change
 your backup config, remove the existing `backup-config.yaml`, first:
 
-    rm a8s-deployment/deploy/a8s/backup-config/backup-store-config.yaml
+```bash
+rm a8s-deployment/deploy/a8s/backup-config/backup-store-config.yaml
+```
 
 ## Unattended Mode
 
 It is possible to skip all yes-no questions by **enabling the unattended mode** by passing the `-y` or `--yes` flag:
 
-    a9s create cluster a8s --yes
+```bash
+a9s create cluster a8s --yes
+```
 
 ## Printing the Working Directory
 
@@ -182,8 +204,9 @@ The working directory is stored in the `~/.a8s` configuration file. The working 
 
 To print the working directory execute:
 
-
-    a9s cluster pwd
+```bash
+a9s cluster pwd
+```
 
 # a8s PostgreSQL
 
@@ -193,13 +216,17 @@ A selected subset of the a8s PostgreSQL features are available through the `a9s`
 
 Creating a service instance with the name `sample-pg-cluster`:
 
-    a9s create pg instance --name sample-pg-cluster
+```bash
+a9s create pg instance --name sample-pg-cluster
+```
 
 The generated YAML specification will be stored in the `usermanifests`.
 
 ### Creating PostgreSQL Service Instance YAML Without Applying it
 
-    a9s create pg instance --name sample-pg-cluster --no-apply
+```bash
+a9s create pg instance --name sample-pg-cluster --no-apply
+```
 
 The generated YAML specification will be stored in the `usermanifests` but `kubectl apply` won't be executed.
 
@@ -207,7 +234,9 @@ The generated YAML specification will be stored in the `usermanifests` but `kube
 
 The command:
 
-    a9s create pg instance --api-version v1beta3 --name sample-pg-cluster --namespace default --replicas 3 --requests-cpu 200m --limits-memory 200Mi --service-version 14 --volume-size 2Gi
+```bash
+a9s create pg instance --api-version v1beta3 --name sample-pg-cluster --namespace default --replicas 3 --requests-cpu 200m --limits-memory 200Mi --service-version 14 --volume-size 2Gi
+```
 
 Will generate a YAML spec called `usermanifests/my-pg-instance.yaml` with the following content:
 
@@ -231,11 +260,15 @@ spec:
 
 Deleting a service instance with the name `sample-pg-cluster`:
 
-    a9s delete pg instance --name sample-pg-cluster
+```bash
+a9s delete pg instance --name sample-pg-cluster
+```
 
 Or by providing an explicit namespace:
 
-    a9s delete pg instance --name sample-pg-cluster -n default
+```bash
+a9s delete pg instance --name sample-pg-cluster -n default
+```
 
 **Note**: If the service instance doesn't exist, a warning is printed and the command exists with the
 return code `0` as the desired state of the service instance being delete is reached.
@@ -245,7 +278,9 @@ return code `0` as the desired state of the service instance being delete is rea
 
 Uploading a SQL file, executing it using `psql` and deleting the file can be done with:
 
-    a9s pg apply --file /path/to/sql/file --service-instance sample-pg-cluster
+```bash
+a9s pg apply --file /path/to/sql/file --service-instance sample-pg-cluster
+```
 
 The file is uploaded to the current primary pod of the service instance. 
 
@@ -253,32 +288,44 @@ The file is uploaded to the current primary pod of the service instance.
 
 Use `--yes` to skip the confirmation prompt.
 
-    a9s pg apply --file /path/to/sql/file --service-instance sample-pg-cluster --yes
+```bash
+a9s pg apply --file /path/to/sql/file --service-instance sample-pg-cluster --yes
+```
 
 Use `--no-delete` to leave the file in the pod:
 
-    a9s pg apply --file /path/to/sql/file --service-instance sample-pg-cluster --no-delete
+```bash
+a9s pg apply --file /path/to/sql/file --service-instance sample-pg-cluster --no-delete
+```
 
 ## Applying a SQL Statement to a PostgreSQL Service Instance
 
 Applying a SQL statement on the primary pod of a PostgreSQL service instance can be accomplished with:
 
-    a9s pg apply -i sample-pg-cluster --sql "select count(*) from posts" --yes
+```bash
+a9s pg apply -i sample-pg-cluster --sql "select count(*) from posts" --yes
+```
 
 ## Creating a Backup of a PostgreSQL Service Instance
 
-    a9s create pg backup --name sample-pg-cluster-backup-1 -i sample-pg-cluster
+```bash
+a9s create pg backup --name sample-pg-cluster-backup-1 -i sample-pg-cluster
+```
 
 ## Restoring a Backup of PostgreSQL Service Instance
 
-    a9s create pg restore --name sample-pg-cluster-restore-1 -b sample-pg-cluster-backup-1 -i sample-pg-cluster
+```bash
+a9s create pg restore --name sample-pg-cluster-restore-1 -b sample-pg-cluster-backup-1 -i sample-pg-cluster
+```
 
 ## Creating a PostgreSQL Service Binding
 
 A Service Binding is an entity facilitating the secure consumption of a service instance.
 By creating a service instance, a Postgres user is created along with a corresponding Kubernetes Secret.
 
-    a9s create pg servicebinding --name sb-clustered-1 -i sample-pg-cluster
+```bash
+a9s create pg servicebinding --name sb-clustered-1 -i sample-pg-cluster
+```
 
 Will therefore create a Kubernetes Secret named `sb-clustered-1-service-binding` and provide the following 
 keys containing everything an application needs to connect to the PostgreSQL service instance:
@@ -293,7 +340,9 @@ keys containing everything an application needs to connect to the PostgreSQL ser
 
 In order to delete the cluster run:
 
-    a9s delete cluster a8s
+```bash
+a9s delete cluster a8s
+```
 
 **Note**: This will not delete config files.
 
@@ -301,4 +350,6 @@ Config files are stored in the cluster working directory.
 
 They can be removed with:
 
-    rm -rf $( a9s cluster pwd )
+```bash
+rm -rf $( a9s cluster pwd )
+```
