@@ -187,8 +187,8 @@ By executing:
 You will see a `clustered-instance-master` Kubernetes service:
 
     NAME                        TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)             AGE
-    clustered-instance-config   ClusterIP   None           <none>        <none>              74m
-    clustered-instance-master   ClusterIP   10.105.7.211   <none>        5432/TCP,8008/TCP   75m
+    clustered-instance-config   ClusterIP   None           \<none\>        \<none\>              74m
+    clustered-instance-master   ClusterIP   10.105.7.211   \<none\>        5432/TCP,8008/TCP   75m
 
 **The `clustered-instance-master` service provides a reference to the primary PostgreSQL server within the clustered Service Instance**. As the cluster comes with failure-detection and automatic failover capabilities, the primary role may be assigned to another Pod in the cluster during leading election. However, the `clustered-instance-master` service will be updated so that any application connecting through the `clustered-instance-master` service automatically connects to the **current** primary.
 

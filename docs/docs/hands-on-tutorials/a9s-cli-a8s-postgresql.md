@@ -61,7 +61,7 @@ In this tutorial you will learn how to **create a local Kubernetes cluster**, fu
 
 In this tutorial you will be using the `a9s` CLI to facilitate the creation of both a local Kubernetes cluster and a PostgreSQL database instance. 
 
-The `a9s` CLI will guide you through the process while providing you with transparency and ability to set your own pace. Transparency means that you will see the exact commands to be executed. By default, the commands are executed only after you have confirmed the execution by pressing the `<ENTER>` key. This allows you to have a closer look at the command and/or the YAML specifications to understand what the current step in the tutorial is about. If all you care about is the result, the `--yes` option will answer all yes-no questions with yes. See [[1]](https://github.com/anynines/a9s-cli-v2) for documentation and source code of the `a9s` CLI.
+The `a9s` CLI will guide you through the process while providing you with transparency and ability to set your own pace. Transparency means that you will see the exact commands to be executed. By default, the commands are executed only after you have confirmed the execution by pressing the `ENTER` key. This allows you to have a closer look at the command and/or the YAML specifications to understand what the current step in the tutorial is about. If all you care about is the result, the `--yes` option will answer all yes-no questions with yes. See [[1]](https://github.com/anynines/a9s-cli-v2) for documentation and source code of the `a9s` CLI.
 
 ## Step 1: Creating a Kubernetes Cluster with a8s PostgreSQL
 
@@ -186,8 +186,8 @@ By executing:
 You will see a `clustered-instance-master` Kubernetes service:
 
     NAME                        TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)             AGE
-    clustered-instance-config   ClusterIP   None           <none>        <none>              74m
-    clustered-instance-master   ClusterIP   10.105.7.211   <none>        5432/TCP,8008/TCP   75m
+    clustered-instance-config   ClusterIP   None           \<none\>        \<none\>              74m
+    clustered-instance-master   ClusterIP   10.105.7.211   \<none\>        5432/TCP,8008/TCP   75m
 
 **The `clustered-instance-master` service provides a reference to the primary PostgreSQL server within the clustered Service Instance**. As the cluster comes with failure-detection and automatic failover capabilities, the primary role may be assigned to another Pod in the cluster during leading election. However, the `clustered-instance-master` service will be updated so that any application connecting through the `clustered-instance-master` service automatically connects to the **current** primary.
 
