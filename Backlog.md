@@ -2,6 +2,14 @@
 
 ## Next
 
+* BUGFIX: a9s create cluster a8s, Im Summary des Befehls wird vergessen, dass minio installiert wurde
+
+* BUGFIX: a9s create cluster a8s -p kind
+funktioniert nicht, CLI versucht beim Start immer zu prüfen ob Minikube installiert ist, egal welcher Provider gewählt wurde
+
+* FEATURE: CLI sollte automatisch erkennen, ob Minikube oder Kind installiert ist. Alternativ: In der Doku den Abschnitt „Setting Kubernetes Provider“ nach oben ziehen, vor den „Creating a Local a8s Postgres Cluster“-Abschnitt
+
+
 * Change: When backup-store params are supplied, they should cause existing configuration to be altered. Currently, the existing config is used regardless of parameters supplied to the CLI. This is not intuitive.
     * Plan:
         `demo/config.go#establishBackupStoreConfigYaml`
