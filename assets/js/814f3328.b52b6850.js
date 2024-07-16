@@ -1,1 +1,0 @@
-"use strict";(self.webpackChunkanynines_docs=self.webpackChunkanynines_docs||[]).push([[2535],{5641:function(e){e.exports=JSON.parse('{"title":"Versions","items":[{"title":"0.11.1","permalink":"/changelog/changelog-0.11.1"}]}')}}]);

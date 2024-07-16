@@ -1,1 +1,0 @@
-"use strict";(self.webpackChunkanynines_docs=self.webpackChunkanynines_docs||[]).push([[5336],{433:function(e){e.exports=JSON.parse('[{"label":"a9s","permalink":"/changelog/tags/a-9-s","count":1},{"label":"changelog","permalink":"/changelog/tags/changelog","count":1},{"label":"release","permalink":"/changelog/tags/release","count":1}]')}}]);
