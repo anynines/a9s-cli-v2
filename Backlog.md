@@ -13,6 +13,8 @@
     * Error message: `+Error from server (InternalError): error when creating "/Users/jfischer/a9s/usermanifests/a8s-pg-instance-clustered.yaml": Internal error occurred: failed calling webhook "mpostgresql.kb.io": failed to call webhook: Post "https://postgresql-webhook-service.a8s-system.svc:443/mutate-postgresql-anynines-com-v1beta3-postgresql?timeout=10s": dial tcp 10.104.231.248:443: connect: connection refused`
     * Reproduction: Remove `sleep(10)` from `a9s_cli_spec.rb` and run e2e-tests
 
+* Change: Currently, the CLI uses the latest, non-tagged version the `a8s-demo` repository. However, to ensure the integrity of the a9s CLI it would be better to use the latest release.
+
 * [ARCHITECTURE] Install a8s PG on an existing cluster
     * Decide which command/verb to use
         * [DONE] `a9s create stack`
