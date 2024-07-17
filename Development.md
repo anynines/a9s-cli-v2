@@ -57,7 +57,9 @@ Then execute:
 Example: Release `v0.10.0`.
 
 1. Ensure that all tests are run including `e2e-tests`.
-1. Ensure that the documentation is updated incl. adding a version under docs/versioned_docs
+1. Ensure that the documentation is updated incl. 
+    1. adding a copy of the docs to the corresponding version directory under `docs/versioned_docs`
+    2. updating `docs/versions.json` by adding the new version to the array
 1. Ensure the Readme is updated.
 1. Ensure the Changelog is updated.
 1. Ensure the `main` branch is up to date and clean with all necessary changes comitted.
@@ -70,13 +72,16 @@ Example: Release `v0.10.0`.
 1. Deploy the documentation 
 
 # Design Principles / Ideals
-* The CLI acts like a personal assistent who knows the a9s products and helps to use them more easily.
+* The CLI acts like a personal assistent who knows how to install and use certain Kubernetes extensions including a list of anynines products facilitating their use.
     * The CLI helps with installing a cluster.
     * The CLI helps with writing YAML manifests, e.g. so that users do not have to lookup attributes in the documentation.
 * The CLI should not need a tight synchronization with product releases.
     * The release of a new a8s Postgres version, for example, should be working with an existing CLI version.
 * Minimize the code owned in the CLI for achieving a specified goal.
-    * The use of other CLI tools is preferred over implementing existing functionality again.
+    * The use of other CLI tools is preferred over implementing existing functionality again. Just like a human assistent would use existing tools to achieve a certain goal, so does the CLI.
+* Automation over documentation.
+    * If the CLI can do a task, the task should be automated instead of adding a paragraph to the documentation.
+        * Documentation is wonderful but the CLI can interact much better with the user than any documentation could.
 
 # Known Issues / Limitations
 * Currently releases are tested on MacOS and Linux.
