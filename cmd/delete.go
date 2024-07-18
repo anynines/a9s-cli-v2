@@ -39,8 +39,8 @@ var cmdDeleteDemoA8s = &cobra.Command{
 	Long: `Delete the given a8s Data Service Kubernetes cluster in order to free corresponding 
 	resources.`,
 	Run: func(cmd *cobra.Command, args []string) {
+		demo.SelectClusterProvider()
 		clusterManager := demo.BuildKubernetesClusterManager()
-
 		clusterManager.DeleteKubernetesCluster()
 	},
 }
@@ -90,7 +90,7 @@ func init() {
 
 	cmdDeletePG.AddCommand(cmdDeletePGBinding)
 
-	cmdDeleteDemo.PersistentFlags().StringVarP(&demo.KubernetesTool, "provider", "p", "minikube", "provider for creating the Kubernetes cluster. Valid options are \"minikube\" an \"kind\"")
+	cmdDeleteDemo.PersistentFlags().StringVarP(&demo.KubernetesTool, "provider", "p", "", "provider for creating the Kubernetes cluster. Valid options are \"minikube\" an \"kind\"")
 	cmdDeleteDemo.PersistentFlags().StringVarP(&demo.DemoClusterName, "cluster-name", "c", "a8s-demo", "name of the demo Kubernetes cluster.")
 	cmdDeleteDemo.PersistentFlags().BoolVarP(&demo.UnattendedMode, "yes", "y", false, "skip yes-no questions by answering with \"yes\".")
 
