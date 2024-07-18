@@ -1,3 +1,7 @@
+# Develop
+
+* Fixes wording issues in the `a9s cluster` command.
+
 # v0.13.0
 * Feature: Minio instead of S3 as the default backup storage service to enable using Backup and Restore in local environments.    
 * Change: Changes default version of `a8s-deployment` from `v0.3.0` to `v1.2.0`.
