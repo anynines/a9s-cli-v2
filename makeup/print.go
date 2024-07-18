@@ -128,6 +128,10 @@ func WaitForUser(unattendedMode bool) {
 
 func ExitDueToFatalError(err error, msg string) {
 	PrintFail(msg)
-	fmt.Print(err)
+
+	if err != nil {
+		fmt.Print(err)
+	}
+
 	os.Exit(1)
 }
