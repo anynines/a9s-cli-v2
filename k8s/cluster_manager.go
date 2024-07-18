@@ -31,6 +31,7 @@ func BuildClusterManager(workDir, name, creatorName string, unattendedMode bool)
 		UnattendedMode: unattendedMode,
 	}
 
+	//TODO There are several places where the knowledge what creators exist is valuable. Therefore, the list should be at a central place
 	switch creatorName {
 	case "kind":
 		manager.Creator = creator.KindCreator{LocalWorkDir: workDir}
