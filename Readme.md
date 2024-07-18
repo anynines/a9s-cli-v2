@@ -4,6 +4,8 @@ anynines provides a command line tool called `a9s` to fasciliate application dev
 
 # Prerequisites
 
+* MacOS / Linux.
+    * The `a9s` binary is also compiled on Windows and executes. However, the `cmctl` binary is not released under Windows but is required by the `a9s` CLI.
 * Using the backup/restore feature of a8s PostgreSQL requires an S3 compatible endpoint. Per default, a non-production installation of [Minio](https://min.io/) is provided as an S3 compatible backup store.
 * Install Go (if you want `go env` to identify your OS and arch).
 * Install Git.
