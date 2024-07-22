@@ -19,5 +19,9 @@ The `a9s` CLI can be used to install and use the following stacks:
     * ability to easily create database users and Kubernetes Secrets by using the Service Bindings abstraction
 * Easily apply `.sql` files and SQL commands to PostgreSQL clusters.
 
+### In Action
+
+[![asciicast](https://asciinema.org/a/669151.svg)](https://asciinema.org/a/669151)
+
 # Next Steps
 Please refer to the [a9s CLI](https://docs.a9s-cli.anynines.com) documentation for detailed instructions as well as a [hands-on tutorial](https://docs.a9s-cli.anynines.com/docs/hands-on-tutorials/).
