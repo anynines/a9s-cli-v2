@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/anynines/a9s-cli-v2/k8s"
 	"github.com/anynines/a9s-cli-v2/makeup"
@@ -281,6 +282,9 @@ func PrintDemoSummary() {
 	makeup.Print("You've successfully accomplished the followings steps:")
 	makeup.PrintCheckmark("Created a Kubernetes Cluster using " + KubernetesTool + " named: " + DemoClusterName + ".")
 	makeup.PrintCheckmark("Installed cert-manager on the Kubernetes cluster.")
+	if strings.ToLower(BackupInfrastructureProvider) == "minio" {
+		makeup.PrintCheckmark("Installed the MinIO object store.")
+	}
 	makeup.PrintCheckmark("Created a configuration for the backup object store.")
 	makeup.PrintCheckmark("Installing the a8s Postgres control plane.\n")
 	makeup.PrintSuccessSummary("You are now ready to create a8s Postgres service instances.")
