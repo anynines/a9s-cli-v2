@@ -1,5 +1,6 @@
 # Develop
 
+* Bugfix: Won't require `minikube` if `kind` is selected and vice versa.
 * Bugfix: Fixes wording issues in the `a9s cluster` command.
 * Change: Adds `git` to the list of required commands.
 * Change: If no `--provider` param is given, the CLI will use `minikube` by default but now falls back to `kind` in case there is no `minikube` command available.
