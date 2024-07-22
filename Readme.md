@@ -2,6 +2,7 @@
 
 anynines provides a command line tool called `a9s` to fasciliate application development, devops tasks and interact with selected anynines products.
 
+
 ## Use Cases
 
 The `a9s` CLI can be used to install and use the following stacks:
@@ -20,7 +21,3 @@ The `a9s` CLI can be used to install and use the following stacks:
 
 # Next Steps
 Please refer to the [a9s CLI](https://docs.a9s-cli.anynines.com) documentation for detailed instructions as well as a [hands-on tutorial](https://docs.a9s-cli.anynines.com/docs/hands-on-tutorials/).
-
-# Links
-* a9s CLI Documentation, https://docs.a9s-cli.anynines.com/
-* a9s CLI hands-on tutorial, https://docs.a9s-cli.anynines.com/docs/hands-on-tutorials/
