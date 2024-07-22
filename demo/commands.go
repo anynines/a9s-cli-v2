@@ -1,6 +1,7 @@
 package demo
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"runtime"
@@ -13,6 +14,7 @@ func CheckPrerequisites() {
 
 	makeup.PrintH1("Checking Prerequisites...")
 
+	SelectClusterProvider()
 	CheckCommandAvailability()
 
 	// !NoPreCheck > Perform a pre-check
@@ -23,9 +25,6 @@ func CheckPrerequisites() {
 }
 
 func IsCommandAvailable(cmdName string) bool {
-	//	cmd := exec.Command("/bin/sh", "-c", "command -v "+name)
-	//	cmd := exec.Command("command", "-v", cmdName)
-	// if err := cmd.Run(); err != nil {
 	path, err := exec.LookPath(cmdName)
 	if err != nil {
 		requiredCmds := RequiredCommands()
@@ -53,7 +52,7 @@ func CheckCommandAvailability() {
 	requiredCmds := RequiredCommands()
 
 	// cmdDetails
-	for cmdName, _ := range requiredCmds {
+	for cmdName := range requiredCmds {
 
 		if !IsCommandAvailable(cmdName) {
 			allGood = false
@@ -65,5 +64,41 @@ func CheckCommandAvailability() {
 		os.Exit(1)
 	} else {
 		makeup.PrintSuccessSummary("All necessary commands are present.")
+	}
+}
+
+/*
+Try to use the provided KubernetesTool if one was explicitly given as a param.
+If no param is provided:
+If only minikube is present, use minikube.
+If only kind is present, use kind.
+If multiple kubernetes tools are present, use minikube.
+If no suitable kubernetes tool is present, abort with an error message.
+*/
+func SelectClusterProvider() {
+	if KubernetesTool != "" {
+
+		// The user has provided a provider param
+		if IsCommandAvailable(KubernetesTool) {
+			makeup.PrintCheckmark("Using " + KubernetesTool)
+			return
+		} else {
+			makeup.ExitDueToFatalError(nil, fmt.Sprintf("The selected Kubernetes provider %s can't be found. Please verify that it is installed and in the search PATH.", KubernetesTool))
+		}
+	} else {
+		// No param was set.
+
+		// Minikube has priority
+		if IsCommandAvailable("minikube") {
+			KubernetesTool = "minikube"
+			makeup.PrintCheckmark("Using " + KubernetesTool)
+			return
+		} else if IsCommandAvailable("kind") {
+			KubernetesTool = "kind"
+			makeup.PrintCheckmark("Using " + KubernetesTool)
+			return
+		} else {
+			makeup.ExitDueToFatalError(nil, "No suitable Kubernetes provider was found. Please install either Minikube or Kind.")
+		}
 	}
 }

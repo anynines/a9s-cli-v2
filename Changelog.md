@@ -1,3 +1,10 @@
+# Develop
+
+* Bugfix: Won't require `minikube` if `kind` is selected and vice versa.
+* Bugfix: Fixes wording issues in the `a9s cluster` command.
+* Change: Adds `git` to the list of required commands.
+* Change: If no `--provider` param is given, the CLI will use `minikube` by default but now falls back to `kind` in case there is no `minikube` command available.
+
 # v0.13.0
 * Feature: Minio instead of S3 as the default backup storage service to enable using Backup and Restore in local environments.    
 * Change: Changes default version of `a8s-deployment` from `v0.3.0` to `v1.2.0`.
