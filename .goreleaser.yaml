@@ -22,6 +22,16 @@ builds:
       - linux
       - windows
       - darwin
+    goarch:
+      - amd64
+      - arm64
+    main: ./main.go
+    binary: a9s
+    ldflags:
+      - -s -w
+      - -X 'github.com/anynines/a9s-cli-v2/cmd.BuildTimestamp={{ .Date }}'
+      - -X 'github.com/anynines/a9s-cli-v2/cmd.CliVersion={{ .Version }}'
+      - -X 'github.com/anynines/a9s-cli-v2/cmd.LastCommit={{ .Commit }}'
 
 archives:
   - format: tar.gz
