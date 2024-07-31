@@ -4,9 +4,6 @@
 #
 # Recommended: Go.AllowList.gitignore
 
-# Ignore everything
-*
-
 # But not these files...
 !/.gitignore
 
@@ -32,3 +29,5 @@ bin/a9s
 
 # ...even if they are in subdirectories
 !*/
+
+dist/
