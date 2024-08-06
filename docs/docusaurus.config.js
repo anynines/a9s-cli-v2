@@ -27,7 +27,7 @@ const scripts = [usercentricsScript(process.env)];
 const config = {
   title: "a9s CLI Documentation",
   tagline: "a9s CLI Documentation",
-  url: "https://www.docs.a9s-cli.anynines.com",
+  url: "https://docs.a9s-cli.anynines.com",
   baseUrl: "/",
   trailingSlash: true,
   onBrokenLinks: "warn",
