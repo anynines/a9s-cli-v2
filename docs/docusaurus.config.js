@@ -1,8 +1,9 @@
 // @ts-check
 // Note: type annotations allow type checking and IDEs autocompletion
 
-const lightCodeTheme = require("prism-react-renderer/themes/github");
-const darkCodeTheme = require("prism-react-renderer/themes/dracula");
+const {themes} = require('prism-react-renderer');
+const lightTheme = themes.github;
+const darkTheme = themes.dracula;
 
 const Versions = require("./versions.json");
 const usercentricsScript = ({ NODE_ENV }) => {
@@ -26,7 +27,7 @@ const scripts = [usercentricsScript(process.env)];
 const config = {
   title: "a9s CLI Documentation",
   tagline: "a9s CLI Documentation",
-  url: "https://www.docs.a9s-cli.anynines.com",
+  url: "https://docs.a9s-cli.anynines.com",
   baseUrl: "/",
   trailingSlash: true,
   onBrokenLinks: "warn",
@@ -225,8 +226,9 @@ const config = {
         copyright: `Copyright © ${new Date().getFullYear()} anynines`
       },
       prism: {
-        theme: lightCodeTheme,
-        darkTheme: darkCodeTheme
+        theme: lightTheme,
+        darkTheme: darkTheme,
+        additionalLanguages: ['ruby', 'bash']
       }
     })
 };

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/anynines/a9s-cli-v2/demo"
 	"github.com/anynines/a9s-cli-v2/k8s"
@@ -13,11 +14,11 @@ var TheA8sPGProductName = "a8s Postgres"
 
 var cmdCluster = &cobra.Command{
 	Use:   "cluster",
-	Short: "Commands related to a9s Platform demos.",
-	Long:  `Commands related to a9s Platform demos, e.g. printing the local workding directory.`,
+	Short: "Commands related to Kubernetes clusters.",
+	Long:  `Commands related to Kubernetes clusters, e.g. printing the local workding directory.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Printf("\n")
-		makeup.PrintWarning(" Please select a demo sub-command.\n")
+		makeup.PrintWarning(" Please select a cluster sub-command.\n")
 		fmt.Printf(" Examples: \n")
 		fmt.Printf("\ta9s cluster pwd\t\tPrint the configured working directory.\n")
 		fmt.Printf("\n\n")
@@ -26,8 +27,8 @@ var cmdCluster = &cobra.Command{
 
 var cmdClusterPwd = &cobra.Command{
 	Use:   "pwd",
-	Short: "Print the configured working directory for demos from the ~/.a8s config file.",
-	Long:  `Print the configured working directory for demos from the ~/.a8s config file.`,
+	Short: "Print the configured working directory from the ~/.a9s config file.",
+	Long:  `Print the configured working directory from the ~/.a9s config file.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		demo.EstablishConfig()
 
@@ -53,7 +54,7 @@ func CreateA8sStack(createClusterIfNotExists bool) {
 	demo.EstablishConfig()
 
 	//TODO It's odd that a check method also creates a k8s cluster
-	demo.CheckPrerequisites(createClusterIfNotExists)
+	demo.CheckPrerequisites()
 
 	makeup.WaitForUser(demo.UnattendedMode)
 
@@ -61,11 +62,20 @@ func CreateA8sStack(createClusterIfNotExists bool) {
 
 	demo.CheckoutDemoAppGitRepository()
 
+	// TODO Refactor - See backlog "Refactor `EstablishBackupStoreCredentials`"
+	demo.EstablishBackupStoreCredentials()
+
+	demo.CheckK8sCluster(createClusterIfNotExists)
+
 	if demo.CountPodsInDemoNamespace() == 0 {
 		makeup.PrintCheckmark("Kubernetes cluster has no pods in " + demo.GetConfig().DemoSpace + " namespace.")
 	}
 
-	demo.EstablishBackupStoreCredentials()
+	//TODO find a more elegant way to deal with minio
+	if strings.ToLower(demo.BackupInfrastructureProvider) == "minio" {
+		demo.ApplyMinioManifests()
+		demo.WaitForMinioToBecomeReady()
+	}
 
 	k8s.ApplyCertManagerManifests(demo.UnattendedMode)
 

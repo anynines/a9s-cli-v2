@@ -2,6 +2,27 @@
 
 ## Next
 
+* BUGFIX: a9s create cluster a8s, Im Summary des Befehls wird vergessen, dass minio installiert wurde
+
+* BUGFIX: a9s create cluster a8s -p kind
+funktioniert nicht, CLI versucht beim Start immer zu prüfen ob Minikube installiert ist, egal welcher Provider gewählt wurde
+
+* FEATURE: CLI sollte automatisch erkennen, ob Minikube oder Kind installiert ist. Alternativ: In der Doku den Abschnitt „Setting Kubernetes Provider“ nach oben ziehen, vor den „Creating a Local a8s Postgres Cluster“-Abschnitt
+
+
+* Change: When backup-store params are supplied, they should cause existing configuration to be altered. Currently, the existing config is used regardless of parameters supplied to the CLI. This is not intuitive.
+    * Plan:
+        `demo/config.go#establishBackupStoreConfigYaml`
+            * When back-store params are supplied, this file must be regenerated
+            * The file may not be regenerated if no or insufficient arguments are supplied
+                * Or params need to be merged?!
+
+* BUG: There can be an error message when trying to create a service instance instantly after installing the a8s system.
+    * Error message: `+Error from server (InternalError): error when creating "/Users/jfischer/a9s/usermanifests/a8s-pg-instance-clustered.yaml": Internal error occurred: failed calling webhook "mpostgresql.kb.io": failed to call webhook: Post "https://postgresql-webhook-service.a8s-system.svc:443/mutate-postgresql-anynines-com-v1beta3-postgresql?timeout=10s": dial tcp 10.104.231.248:443: connect: connection refused`
+    * Reproduction: Remove `sleep(10)` from `a9s_cli_spec.rb` and run e2e-tests
+
+* Change: Currently, the CLI uses the latest, non-tagged version the `a8s-demo` repository. However, to ensure the integrity of the a9s CLI it would be better to use the latest release.
+
 * [ARCHITECTURE] Install a8s PG on an existing cluster
     * Decide which command/verb to use
         * [DONE] `a9s create stack`
@@ -23,7 +44,6 @@
         * Yes
     * Removes the a8s stack from the current k8s cluster
 
-## Unassigned
 
 * [POSTPONED] Run test suite on windows
         * Perform cold test run
@@ -38,8 +58,7 @@
 {"error":{"Op":"open","Path":"/home/ubuntu/.minikube/profiles","Err":2}}
 ```
 
-* Feature: In order to script the usage of a9s I want to pass all information to a9s create demo a8s to avoid any user dialog including the creation of a work direction as well as bucket credentials.
-
+* Feature: In order to script the usage of a9s I want to pass all information to a9s create cluster a8s to avoid any user dialog including the creation of a work direction as well as bucket credentials.
 
 * Evaluate to use viper to handle config options: https://github.com/spf13/viper
 
@@ -73,16 +92,13 @@
                 --region=us-west-2
                 --service-account-role-arn arn:aws:iam::${ACCOUNT_ID}:role/AmazonEKS_EBS_CSI_DriverRole --force
 
+* `a9s delete cluster -p aws`
+    `eksctl delete cluster --name my-eks-cluster --region us-west-2`
 
     * Tutorial: 
         * https://medium.com/@prateek.malhotra004/step-by-step-guide-creating-an-amazon-eks-cluster-with-aws-cli-edab2c7eac41        
             * https://docs.aws.amazon.com/eks/latest/userguide/create-kubeconfig.html
             * `eksctl utils write-kubeconfig --cluster=<name> [--kubeconfig=<path>] [--set-kubeconfig-context=<bool>]`
-
-
-
-* Epic: Allow Minio as Object Store
-    * OBJECTIVE: Allow a local demo without a depedency to external object stores such as AWS S3.
 
 * Epic: Use case: **Deploy the demo app**
     * Feature: a9s create app -k directoryWithKustomize.yaml
@@ -107,8 +123,6 @@
     * For completeness: Create command `a9s delete pg backup ...`
     * For completeness: Create command `a9s delete pg restore ...`
 
-* Usability: Backup, Infrastructure Region: When executing a9s create demo a8s for the first time, the infrastructure-region should be queried as a user input instead of being a default-parameter. The probability is too high that the user choses a non-viable default option instead of providing a valid region.
-
 * Create binaries in a release matrix, e.g. using Go Release Binaries with Gihub Action Matrix Strategy
     * https://github.com/marketplace/actions/go-release-binaries
     * https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idstrategymatrix
@@ -116,40 +130,5 @@
 * Create S3 bucket with configs
     * Alternatively: Install a local storage provider, e.g. minio.
         * Costly dependency: add the local storage provider to the backup agent.
-
-
-# Questions
-
-## Command Structure
-* Question: Should the de   mo a8s-pg execute the entire demo or just install the operator? Other commands could be: 
-    * Issue: What if a9s-pg is added to the a9s CLI?
-        * How should it be resolved?
-            * Option a)
-                * `a9s pg instance create --isolation pod` > a8s PG
-                * `a9s pg instance create --isolation vm` > a9s PG
-            * Option b)
-                * `a9s a8s-pg instance create ...`
-                * `a9s a9s-pg instance create ...`
-    * Issue: What if support for the a9s CrossBind services is added to the `a9s`-cli?
-        * Then we not only need to differenciate a8s from a9s services but also local from remote service instances.
-        * How should it be resolved?
-            * Option a) Explicit commands/params/flags
-                * Option a-1)
-                    * `a9s create remote pg instance`
-                    * `a9s create local pg instance`
-                        * Allows each variant to have its own set of params/flags
-                * Option a-2)
-                    * `a9s create pg instance --local`
-                    * `a9s create pg instance --remote`
-                        * This variant may be harder to implement as local and remote PGs may have different attributes.
-
-            * Option b) Implicit detection of the context
-                * Not possible if both a local operator and a remote version of, let's say, a8s-pg is available
-    * a8s-pg  
-        * `a9s pg instance`
-                * `a9s pg create instance --isolation pod`
-            * `create`
-        * `a9s pg service-binding`
-            * `a9s pg binding` 
-            * `a9s pg sb`
+* CHORE: Switch to https://docs.github.com/de/get-started/using-github/github-flow over git flow
 

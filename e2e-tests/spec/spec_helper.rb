@@ -120,3 +120,11 @@ def kubectl_create_namespace(namespace)
   ret = system(cmd)
   raise "Can't create namespace" unless ret
 end
+
+def a9s_backup_store_config_file
+  File.expand_path("~/a9s/a8s-deployment/deploy/a8s/backup-config/backup-store-config.yaml")
+end
+
+def delete_a9s_backup_store_config
+  FileUtils.rm(a9s_backup_store_config_file) if File.exist?(a9s_backup_store_config_file)
+end

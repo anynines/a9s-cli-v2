@@ -19,8 +19,13 @@ import (
 	"k8s.io/client-go/dynamic"
 )
 
-const certManagerNamespace = "cert-manager"
-const certManagerManifestUrl = "https://github.com/cert-manager/cert-manager/releases/download/v1.12.0/cert-manager.yaml"
+const CertManagerNamespace = "cert-manager"
+
+// TODO Make version configurable
+const CertManagerManifestUrl = "https://github.com/cert-manager/cert-manager/releases/download/v1.12.0/cert-manager.yaml"
+
+// TODO Make configurable
+const kubectlWaitTimeoutOption = "--timeout=120s"
 
 /*
 Represents the state of a Pod which is expected to be running at some point.
@@ -67,6 +72,39 @@ out:
 	}
 }
 
+/*
+Uses kubectl wait to wait for each expected pod to become ready.
+Pods are identified by label and namespace.
+*/
+func KubectlWaitForSystemToBecomeReady(namespace string, expectedPodsByLabels []string) {
+	for _, podLabel := range expectedPodsByLabels {
+		KubectlWaitForPod(namespace, podLabel)
+	}
+}
+
+func KubectlWaitForPod(namespace, podLabel string) {
+
+	// kubectl wait --for=condition=Ready pod -l "app.kubernetes.io/name=backup-manager" -n a8s-system
+	// Outcome 1: error: timed out waiting for the condition on pods/a8s-backup-controller-manager-788fcd578d-kzb4f
+	// Outcome 2: pod/postgresql-controller-manager-7f8c7758d-28lc2 condition met
+	cmd := exec.Command("kubectl", "wait", "--for=condition=Ready", "pod", "-l", podLabel, "-n", namespace, kubectlWaitTimeoutOption)
+
+	output, err := cmd.CombinedOutput()
+
+	strOutput := string(output)
+
+	if err != nil {
+		makeup.ExitDueToFatalError(err, fmt.Sprintf("Pod with label %s in namespace %s has not become ready on time", podLabel, namespace))
+	}
+
+	if !strings.Contains(strOutput, "condition met") {
+		makeup.ExitDueToFatalError(nil, fmt.Sprintf("Pod with label %s in namespace %s has not become ready but conditions haven't been met. Got: %s", podLabel, namespace, strOutput))
+	}
+}
+
+/*
+TODO This method did not work when the backup-manager went into a CrashLoopBackOff. There is likely a bug here.
+*/
 func checkIfPodHasStatusRunningInNamespace(podNameStartsWith string, namespace string) bool {
 	clientset := GetKubernetesClientSet()
 
@@ -125,51 +163,6 @@ func CountPodsInNamespace(namespace string) int {
 	}
 
 	return len(pods.Items)
-}
-
-func WaitForCertManagerToBecomeReady() {
-	makeup.PrintH1("Waiting for the cert-manager API to become ready.")
-	crashLoopBackoffCount := 10
-
-	for i := 1; i <= crashLoopBackoffCount; i++ {
-		cmd := exec.Command("cmctl", "check", "api")
-		output, err := cmd.CombinedOutput()
-
-		makeup.Print(cmd.String())
-
-		//TODO Crash loop detection / timeout
-		if err != nil {
-			makeup.PrintWait("Continuing to wait for the cert-manager API...")
-		}
-
-		strOutput := string(output)
-
-		fmt.Println(strOutput)
-
-		if strings.TrimSpace(strOutput) == "The cert-manager API is ready" {
-			makeup.PrintCheckmark("The cert-manager is ready")
-			return
-		} else {
-			makeup.PrintWait("Continuing to wait for the cert-manager API...")
-		}
-
-		time.Sleep(30 * time.Second)
-	}
-
-	makeup.PrintFailSummary("The cert-manager did not become ready within reasonable time.")
-}
-
-func ApplyCertManagerManifests(waitForUser bool) {
-	makeup.PrintH1("Installing the cert-manager")
-	count := CountPodsInNamespace(certManagerNamespace)
-
-	if count > 0 {
-		makeup.Print(fmt.Sprintf("Found %d pods in the %s namespace", count, certManagerNamespace))
-	}
-
-	KubectlApplyF(certManagerManifestUrl, waitForUser)
-
-	WaitForCertManagerToBecomeReady()
 }
 
 /*
@@ -403,4 +396,44 @@ func ConditionsAreMet(actualConditionsMap, expectedConditionsMap map[string]inte
 		}
 	}
 	return true
+}
+
+/*
+Wait for the given service account in the given namespace to become ready.
+Blocks during wait.
+*/
+func WaitForServiceAccount(unattendedMode bool, namespace, serviceAccountName string) {
+
+	for nrAttempts := 0; nrAttempts <= 600; nrAttempts++ {
+
+		// Wait x s for the the serviceAccountToShowUp
+		_, output, err := Kubectl(unattendedMode, "get", "serviceaccount", "-n", namespace, serviceAccountName)
+
+		if err == nil {
+
+			// Found the service account
+			return
+		}
+
+		if strings.Contains(string(output), "serviceaccounts \""+serviceAccountName+"\" not found") {
+
+			// Did not find the service account
+			makeup.Print(fmt.Sprintf("The service account %s does not exist (yet) in namespace %s.", serviceAccountName, namespace))
+		} else {
+
+			// Some other error occured
+			makeup.ExitDueToFatalError(err, "Can't get service account "+serviceAccountName+" in namespace "+namespace)
+		}
+
+		time.Sleep(2 * time.Second)
+	}
+	makeup.ExitDueToFatalError(nil, fmt.Sprintf("Timeout. Can't get service account "+serviceAccountName+" in namespace "+namespace))
+}
+
+func CreateNamespace(unattendedMode bool, namespace string) {
+	_, output, err := Kubectl(unattendedMode, "create", "namespace", namespace)
+
+	if err != nil {
+		makeup.ExitDueToFatalError(err, fmt.Sprintf("Couldn't create namespace %s. Output was: %s", namespace, string(output)))
+	}
 }

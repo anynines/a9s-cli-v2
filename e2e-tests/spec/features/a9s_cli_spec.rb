@@ -2,8 +2,12 @@ require_relative '../spec_helper'
 require_relative '../support/minikube'
 require_relative '../support/kind'
 
+require 'fileutils'
+
 RSpec.shared_context "a8s-pg", :shared_context => :metadata, order: :defined do
   before(:context) do
+
+    # Authenticate at the beiginning in case of 1password is being used
     @workload_namespace = "a8s-workload"
     @service_instance_name = "clustered"
     @backup_name ||= "clustered-bu"
@@ -14,7 +18,8 @@ RSpec.shared_context "a8s-pg", :shared_context => :metadata, order: :defined do
 
   context "service instances" do
     it "creates a clustered a8s pg service instance" do
-      cmd = "a9s create pg instance --name #{@service_instance_name} --replicas 3 -n #{@workload_namespace} --yes"
+      sleep(10)
+      cmd = "a9s create pg instance --name #{@service_instance_name} --replicas 3 -n #{@workload_namespace} --verbose --yes"
       logger.info(cmd)
 
       output = `#{cmd}`
@@ -27,7 +32,7 @@ RSpec.shared_context "a8s-pg", :shared_context => :metadata, order: :defined do
 
   context "load SQL data" do
     it "loads SQL data into the a8s pg service instance" do
-      cmd = "a9s pg apply --file #{@sql_file_small} --service-instance #{@service_instance_name} -n #{@workload_namespace} --yes"
+      cmd = "a9s pg apply --file #{@sql_file_small} --service-instance #{@service_instance_name} -n #{@workload_namespace} --verbose --yes"
       logger.info(cmd)
 
       output = `#{cmd}`
@@ -50,7 +55,7 @@ RSpec.shared_context "a8s-pg", :shared_context => :metadata, order: :defined do
 
   context "service bindings" do
     it "creates a service binding for the a8s pg service instance" do
-      cmd = "a9s create pg servicebinding --name #{@service_binding_name} --service-instance #{@service_instance_name} -n #{@workload_namespace} --yes"
+      cmd = "a9s create pg servicebinding --name #{@service_binding_name} --service-instance #{@service_instance_name} -n #{@workload_namespace} --verbose --yes"
       logger.info(cmd)
 
       output = `#{cmd}`
@@ -61,7 +66,7 @@ RSpec.shared_context "a8s-pg", :shared_context => :metadata, order: :defined do
     end
 
     it "deletes a given service binding" do
-      cmd = "a9s delete pg servicebinding --name #{@service_binding_name} -n #{@workload_namespace} --yes"
+      cmd = "a9s delete pg servicebinding --name #{@service_binding_name} -n #{@workload_namespace} --verbose --yes"
       logger.info(cmd)
 
       output = `#{cmd}`
@@ -76,7 +81,7 @@ RSpec.shared_context "a8s-pg", :shared_context => :metadata, order: :defined do
 
   context "backups" do
     it "creates a backup of an a8s pg service instance" do
-      cmd = "a9s create pg backup --name #{@backup_name} -i #{@service_instance_name} -n #{@workload_namespace} --yes"
+      cmd = "a9s create pg backup --name #{@backup_name} -i #{@service_instance_name} -n #{@workload_namespace} --verbose --yes"
 
       logger.info(cmd)
 
@@ -89,8 +94,7 @@ RSpec.shared_context "a8s-pg", :shared_context => :metadata, order: :defined do
 
     it "fails to create a backup of a non-existing service instance" do
 
-
-      cmd = "a9s create pg backup --name #{@backup_name} -i nonexistinginstance -n #{@workload_namespace} --yes"
+      cmd = "a9s create pg backup --name #{@backup_name} -i nonexistinginstance -n #{@workload_namespace} --verbose --yes"
 
       logger.info(cmd)
 
@@ -104,7 +108,7 @@ RSpec.shared_context "a8s-pg", :shared_context => :metadata, order: :defined do
 
   context "restore" do
     it "creates a restore of a backup" do
-      cmd = "a9s create pg restore --name #{@restore_name} -b #{@backup_name} -i #{@service_instance_name} -n #{@workload_namespace} --yes"
+      cmd = "a9s create pg restore --name #{@restore_name} -b #{@backup_name} -i #{@service_instance_name} -n #{@workload_namespace} --verbose --yes"
 
       logger.info(cmd)
 
@@ -116,7 +120,7 @@ RSpec.shared_context "a8s-pg", :shared_context => :metadata, order: :defined do
     end
 
     it "fails to create a restore of a non existing service instance" do
-      cmd = "a9s create pg restore --name #{@restore_name} -b nonobackup -i #{@service_instance_name} -n #{@workload_namespace} --yes"
+      cmd = "a9s create pg restore --name #{@restore_name} -b nonobackup -i #{@service_instance_name} -n #{@workload_namespace} --verbose --yes"
 
       logger.info(cmd)
 
@@ -128,7 +132,7 @@ RSpec.shared_context "a8s-pg", :shared_context => :metadata, order: :defined do
     end
 
     it "fails to create a restore of a non existing backup" do
-      cmd = "a9s create pg restore --name #{@restore_name} -b #{@backup_name} -i idontexist -n #{@workload_namespace} --yes"
+      cmd = "a9s create pg restore --name #{@restore_name} -b #{@backup_name} -i idontexist -n #{@workload_namespace} --verbose --yes"
 
       logger.info(cmd)
 
@@ -145,7 +149,6 @@ end
 RSpec.describe "a9s-cli" do
   context "about the a9s executable" do
     it "verifies the existence of an a9s executable" do
-
       cmd = "a9s --help"
       logger.info(cmd)
       # surpresses stdout with File::NULL
@@ -192,15 +195,37 @@ RSpec.describe "a9s-cli" do
   context "create", order: :defined do
     context "stack", order: :defined do
       before :context do
-        Minikube.create_cluster
+        @minikube_stack_cluster_name = "a9s-create-stack-rspec"
+
+        logger.info "About to create Minikube cluster to enable stack testing..."
+
+        if Minikube::does_cluster_exist?(@minikube_stack_cluster_name) then
+          logger.info "Found a #{@minikube_stack_cluster_name} cluster. Deleting it..."
+          Minikube::delete_cluster(@minikube_stack_cluster_name)
+          logger.info "Done deleting #{@minikube_stack_cluster_name} cluster."
+        end
+
+        delete_a9s_backup_store_config
+
+        logger.info "Creating Minikube cluster to enable stack testing..."
+        unless Minikube.create_cluster then
+          raise "Couldn't create Minikube cluster."
+        end
+
+        logger.info "Minikube cluster created."
       end
 
+
       it "creates an a8s stack on a given Kubernetes cluster", :clusterop => true, :slow => true do
-            cmd = "a9s create stack a8s -c a9s-create-stack-rspec --yes"
+            logger.info "Creating stack a8s..."
+
+            cmd = "a9s create stack a8s -c #{@minikube_stack_cluster_name} --verbose --yes"
 
             logger.info cmd
 
             output = `#{cmd}`
+
+            logger.info "Done creating stack:"
 
             logger.info "\t" + output
 
@@ -210,21 +235,25 @@ RSpec.describe "a9s-cli" do
           include_context "a8s-pg", :include_shared => true
 
       after :context do
-        Minikube.delete_cluster
+        Minikube.delete_cluster(@minikube_stack_cluster_name)
       end
     end
     context "cluster", order: :defined do
       context "a8s", order: :defined do
         context "kind", order: :defined, kind: true do
+
           before (:context) do
             @backup_name = "kind-clustered-bu"
             if Kind::does_demo_cluster_exist? then
               logger.info "Deleting existing kind cluster..."
               Kind::delete_demo_cluster
             end
+
+            delete_a9s_backup_store_config
           end
+
           it "creates a Kubernetes cluster with an a8s stack", :clusterop => true, :slow => true do
-            cmd = "a9s create cluster a8s -p kind --yes"
+            cmd = "a9s create cluster a8s -p kind --verbose --yes"
 
             logger.info cmd
 
@@ -235,11 +264,12 @@ RSpec.describe "a9s-cli" do
             expect(output).to include("You are now ready to create a8s Postgres service instances.")
             kubectl_create_namespace(@workload_namespace)
           end
+
           include_context "a8s-pg", :include_shared => true
 
           context "delete cluster", :order => :defined do
               it "delete the a8s cluster cluster", :clusterop => true do
-                cmd = "a9s delete cluster a8s -p kind --yes"
+                cmd = "a9s delete cluster a8s -p kind --verbose --yes"
                 logger.info cmd
 
                 ret = system(cmd)
@@ -249,6 +279,7 @@ RSpec.describe "a9s-cli" do
               end
             end
         end
+
         context "minikube", order: :defined, minikube: :true do
           context "use cluster" do
             before(:context) do
@@ -257,10 +288,12 @@ RSpec.describe "a9s-cli" do
                 logger.info "Found a minikube demo cluster."
                 Minikube::delete_demo_cluster
               end
+
+              delete_a9s_backup_store_config
             end
 
             it "creates an a8s cluster cluster", :clusterop => true, :slow => true do
-              cmd = "a9s create cluster a8s -p minikube --yes"
+              cmd = "a9s create cluster a8s -p minikube --verbose --yes"
 
               logger.info cmd
               output = `#{cmd}`
@@ -274,7 +307,56 @@ RSpec.describe "a9s-cli" do
 
             context "delete cluster", :order => :defined do
               it "delete the a8s cluster cluster", :clusterop => true do
-                cmd = "a9s delete cluster a8s -p minikube --yes"
+                cmd = "a9s delete cluster a8s -p minikube --verbose --yes"
+
+                logger.info cmd
+
+                ret = system(cmd)
+
+                logger.info "\t" + ret.to_s
+
+                expect(ret).to be(true)
+                expect(Minikube::does_demo_cluster_exist?).to be(false)
+              end
+            end
+          end
+        end
+        context "minikube with AWS S3", order: :defined, minikube: :true do
+          context "use cluster" do
+            before(:context) do
+              @backup_name = "minikube-clustered-bu"
+              if Minikube::does_demo_cluster_exist? then
+                logger.info "Found a minikube demo cluster."
+                Minikube::delete_demo_cluster
+              end
+
+              delete_a9s_backup_store_config
+            end
+
+            it "creates an a8s cluster cluster", :clusterop => true, :slow => true do
+              cmd = 'a9s create cluster a8s -p minikube --verbose --yes' \
+                  ' --backup-provider="AWS"' \
+                  ' --backup-region="eu-central-1"'
+              cmd += ' --backup-store-accesskey="'
+              cmd += ENV.fetch('AWS_ACCESSKEYID')
+              cmd += "\""
+              cmd += ' --backup-store-secretkey="'
+              cmd += ENV.fetch('AWS_SECRETKEY')
+              cmd += "\""
+
+              logger.info cmd
+              output = `#{cmd}`
+              logger.info "\t" + output
+
+              expect(output).to include("You are now ready to create a8s Postgres service instances.")
+              kubectl_create_namespace(@workload_namespace)
+            end
+
+            include_context "a8s-pg", :include_shared => true
+
+            context "delete cluster", :order => :defined do
+              it "delete the a8s cluster cluster", :clusterop => true do
+                cmd = "a9s delete cluster a8s -p minikube --verbose --yes"
 
                 logger.info cmd
 
