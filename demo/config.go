@@ -180,9 +180,14 @@ func establishEncryptionPasswordFile() {
 
 	filePath := BackupConfigEncryptionPasswordFilePath()
 
-	if _, err := os.Stat(filePath); !os.IsNotExist(err) {
+	_, err := os.Stat(filePath)
+	if err == nil {
 		makeup.Print("There's already an encryption password file. Skipping password generation...")
 		return
+	}
+
+	if !os.IsNotExist(err) {
+		makeup.ExitDueToFatalError(err, "Could not check the encryption password file.")
 	}
 
 	// Generate a password that is 64 characters long with 10 digits, 10 symbols,

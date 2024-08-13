@@ -30,9 +30,15 @@ func PrintYAMLFile(yamlFilepath string) error {
 	if err != nil {
 		return err
 	}
+
+	PrintYAML(bytes, true)
+	return nil
+}
+
+func PrintYAML(bytes []byte, lineNumbers bool) {
 	tokens := lexer.Tokenize(string(bytes))
 	var p printer.Printer
-	p.LineNumber = true
+	p.LineNumber = lineNumbers
 	p.LineNumberFormat = func(num int) string {
 		fn := color.New(color.Bold, color.FgHiWhite).SprintFunc()
 		return fn(fmt.Sprintf("%2d | ", num))
@@ -75,5 +81,4 @@ func PrintYAMLFile(yamlFilepath string) error {
 	}
 	writer := colorable.NewColorableStdout()
 	writer.Write([]byte(p.PrintTokens(tokens) + "\n"))
-	return nil
 }

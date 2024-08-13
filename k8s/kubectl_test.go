@@ -19,7 +19,9 @@ But its tests whether kubectl is there and wether a trivial command succeeds.
 Run with: go test ./... -run TestKubectl -v -count=1
 */
 func TestKubectl(t *testing.T) {
-	cmd, output, err := Kubectl(false, "--help")
+	k := NewKubeClient("")
+
+	cmd, output, err := k.Kubectl(false, "--help")
 
 	if err != nil {
 		t.Fatalf("Couldn't execute \"kubectl --help\": %v", err)
@@ -38,9 +40,31 @@ func TestKubectl(t *testing.T) {
 	}
 }
 
+func TestKubectlWithContext(t *testing.T) {
+	k := NewKubeClient("a8s-test-kubectl")
+	cmd, output, err := k.Kubectl(false, "get", "pod")
+
+	if err != nil {
+		t.Fatalf("Couldn't execute \"kubectl kubectl get pod --context a8s-test-kubectl\": %v : %v", err, string(output))
+	}
+
+	expectedCmd := "kubectl get pod --context a8s-test-kubectl"
+
+	if !strings.Contains(cmd.String(), expectedCmd) {
+		t.Fatalf("Kubectl did not issue the right kubectl command. Expected: %s but got %s", expectedCmd, cmd.String())
+	}
+
+	expectedOutput := "No resources found in default namespace."
+	outputString := string(output)
+	if !strings.Contains(outputString, expectedOutput) {
+		t.Fatalf("kubectl get pod --context a8s-test-kubectl should contain \"%s\" but was: %s", outputString, expectedCmd)
+	}
+}
+
 func TestFindFirstPodByLabel(t *testing.T) {
+	k := NewKubeClient("")
 	nonExistingLabel := "non-existing-label=true"
-	name, err := FindFirstPodByLabel("default", nonExistingLabel)
+	name, err := k.FindFirstPodByLabel("default", nonExistingLabel)
 	if err != nil {
 		if err != ErrNotFound {
 			t.Errorf("Unexpected error: %s", err.Error())
@@ -54,9 +78,9 @@ func TestFindFirstPodByLabel(t *testing.T) {
 
 	// Create pod with label
 	knownLabel := "test-label=ihslsd"
-	Kubectl(true, "run", "randomxxkdj", "--image=busybox", "--labels", knownLabel, "--", "sleep", "600")
+	k.Kubectl(true, "run", "randomxxkdj", "--image=busybox", "--labels", knownLabel, "--", "sleep", "600")
 
-	_, err = FindFirstPodByLabel("default", knownLabel)
+	_, err = k.FindFirstPodByLabel("default", knownLabel)
 	if err != nil {
 		if err == ErrNotFound {
 			t.Errorf("Should find a pod with label %s but didn't find any pod with that label.", knownLabel)

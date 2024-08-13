@@ -60,7 +60,8 @@ var cmdDeletePGInstance = &cobra.Command{
 	Short: "Delete a PostgreSQL service instance.",
 	Long:  `Delete a PostgreSQL service instance`,
 	Run: func(cmd *cobra.Command, args []string) {
-		demo.DeletePGServiceInstance(Namespace, ServiceInstanceName)
+		a8s := demo.NewA8sDemoManager("")
+		a8s.DeletePGServiceInstance(Namespace, ServiceInstanceName)
 
 		//TODO Make configurable
 		// demo.WaitForServiceInstanceToBecomeReady("default", "sample-pg-cluster", 3)
@@ -72,7 +73,8 @@ var cmdDeletePGBinding = &cobra.Command{
 	Short: "Delete a PostgreSQL service binding.",
 	Long:  "Delete a PostgreSQL service binding.",
 	Run: func(cmd *cobra.Command, args []string) {
-		demo.DeletePGServiceBinding()
+		a8s := demo.NewA8sDemoManager("")
+		a8s.DeletePGServiceBinding()
 	},
 }
 

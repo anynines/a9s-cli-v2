@@ -17,27 +17,29 @@ Minio related automation.
 /*
 Applies minio related manifests.
 */
-func ApplyMinioManifests() {
+func (m *A8sDemoManager) ApplyMinioManifests() {
 	makeup.PrintH1("Applying Minio manifests...")
 
 	// TODO Make CLI parameter
 	minioNamespace := "minio-dev"
 
-	k8s.CreateNamespace(UnattendedMode, minioNamespace)
+	m.K8s.CreateNamespaceIfNotExists(UnattendedMode, minioNamespace)
 
-	k8s.WaitForServiceAccount(UnattendedMode, minioNamespace, "default")
+	m.K8s.WaitForServiceAccount(UnattendedMode, minioNamespace, "default")
+	// TODO: Above commands are probably needed because the minio manifests in a8s-demo repo are
+	// for a simple pod, and not a deployment.
 
 	minioManifestPath := filepath.Join(DemoConfig.WorkingDir, DemoAppLocalDir, "minio")
-	k8s.KubectlApplyKustomize(minioManifestPath, UnattendedMode)
+	m.K8s.KubectlApplyKustomize(minioManifestPath, UnattendedMode)
 
 	makeup.PrintCheckmark("Done applying Minio manifests.")
 }
 
-func WaitForMinioToBecomeReady() {
+func (m *A8sDemoManager) WaitForMinioToBecomeReady() {
 	expectedPods := []k8s.PodExpectationState{
 		{Name: "minio", Running: false},
 	}
 
-	k8s.WaitForSystemToBecomeReady(MinioNamespace, MinioSystemName, expectedPods)
+	m.K8s.WaitForSystemToBecomeReady(MinioNamespace, MinioSystemName, expectedPods)
 	makeup.WaitForUser(UnattendedMode)
 }

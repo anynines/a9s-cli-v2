@@ -22,6 +22,10 @@ The `a9s` CLI can be used to install and use the following stacks:
     * ability to easily create database users and Kubernetes Secrets by using the Service Bindings abstraction
 * Easily apply `.sql` files and SQL commands to PostgreSQL clusters.
 
+### `klutch` Stack
+* Install a local Klutch central management cluster using `kind`
+* Install Crossplane and the a8s stack on the central management cluster
+* Bind resources from a consumer cluster to the management cluster
 
 # Next Steps
 Please refer to the [a9s CLI](https://docs.a9s-cli.anynines.com) documentation for detailed instructions as well as a [hands-on tutorial](https://docs.a9s-cli.anynines.com/docs/hands-on-tutorials/).

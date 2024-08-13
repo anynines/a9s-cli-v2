@@ -64,19 +64,23 @@ func GetKubernetesConfigPath() string {
 	return kubeconfig
 }
 
-func GetKubernetesConfig() *rest.Config {
-	kubeconfig := GetKubernetesConfigPath()
-	makeup.PrintVerbose("Kubernetes config located at: " + kubeconfig)
+func (k *KubeClient) GetKubernetesConfig() *rest.Config {
+	kubeconfigPath := GetKubernetesConfigPath()
+	makeup.PrintVerbose("Kubernetes config located at: " + kubeconfigPath)
 
-	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
+	config, err := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
+		&clientcmd.ClientConfigLoadingRules{ExplicitPath: kubeconfigPath},
+		&clientcmd.ConfigOverrides{CurrentContext: k.KubeContext}).ClientConfig()
+
 	if err != nil {
 		makeup.ExitDueToFatalError(err, "Can't create Kubernetes config.")
 	}
+
 	return config
 }
 
-func GetKubernetesClientSet() *kubernetes.Clientset {
-	config := GetKubernetesConfig()
+func (k *KubeClient) GetKubernetesClientSet() *kubernetes.Clientset {
+	config := k.GetKubernetesConfig()
 
 	// create the clientset
 	clientset, err := kubernetes.NewForConfig(config)

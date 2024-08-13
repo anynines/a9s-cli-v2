@@ -33,11 +33,12 @@ var cmdPGInstance = &cobra.Command{
 	Short: "Create a PostgreSQL service instance.",
 	Long:  `Create a PostgreSQL service instance`,
 	Run: func(cmd *cobra.Command, args []string) {
-		demo.CreatePGServiceInstance()
+		a8s := demo.NewA8sDemoManager("")
+		a8s.CreatePGServiceInstance()
 
 		if !(demo.DoNotApply) {
 			instance := demo.A8sPGServiceInstance
-			demo.WaitForServiceInstanceToBecomeReady(instance.Namespace, instance.Name, instance.Replicas)
+			a8s.WaitForServiceInstanceToBecomeReady(instance.Namespace, instance.Name, instance.Replicas)
 		}
 	},
 }
@@ -47,8 +48,10 @@ var cmdPGBackup = &cobra.Command{
 	Short: "Create a PostgreSQL backup of a PostgreSQL service instance.",
 	Long:  `Create a PostgreSQL backup of a PostgreSQL service instance`,
 	Run: func(cmd *cobra.Command, args []string) {
+		a8s := demo.NewA8sDemoManager("")
+
 		// DoNotApply is processed in the Create func
-		demo.CreatePGServiceInstanceBackup()
+		a8s.CreatePGServiceInstanceBackup()
 	},
 }
 
@@ -57,8 +60,10 @@ var cmdPGRestore = &cobra.Command{
 	Short: "Create a PostgreSQL restore of a PostgreSQL backup.",
 	Long:  `Create a PostgreSQL restore of a PostgreSQL backup of a PostgreSQL service instance.`,
 	Run: func(cmd *cobra.Command, args []string) {
+		a8s := demo.NewA8sDemoManager("")
+
 		// DoNotApply is processed in the Create func
-		demo.CreatePGServiceInstanceRestore()
+		a8s.CreatePGServiceInstanceRestore()
 	},
 }
 
@@ -91,7 +96,8 @@ var cmdCreateClusterA8s = &cobra.Command{
 	Short: "Create a local development cluster including a8s Data Services such as a8s Postgres.",
 	Long:  `Helps with the creation of a local Kubernetes cluster, installing the a8s Data Service operator(s) including necessary dependencies.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		CreateA8sCluster()
+		a8s := demo.NewA8sDemoManager("")
+		a8s.CreateA8sStack(true)
 	},
 }
 
@@ -100,7 +106,8 @@ var cmdCreateStackA8s = &cobra.Command{
 	Short: "Applies the a8s stack to the currently selected Kubernetes cluster.",
 	Long:  `Applies the a8s stack to the currently selected Kubernetes cluster, installing the a8s Data Service operator(s) including necessary dependencies.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		CreateA8sStack(false)
+		a8s := demo.NewA8sDemoManager("")
+		a8s.CreateA8sStack(false)
 	},
 }
 
@@ -109,8 +116,9 @@ var cmdCreatePGBinding = &cobra.Command{
 	Short: "Create a PostgreSQL service binding = Postgres user/pass + Kubernets Secret.",
 	Long:  `Create a PostgreSQL service binding and thus a Kubernetes Secret containing username/password credentials unique to the service binding.`,
 	Run: func(cmd *cobra.Command, args []string) {
+		a8s := demo.NewA8sDemoManager("")
 		demo.A8sPGServiceBinding.ServiceInstanceKind = pg.A8sPGServiceInstanceKind
-		demo.CreatePGServiceBinding()
+		a8s.CreatePGServiceBinding()
 	},
 }
 

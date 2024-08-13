@@ -16,11 +16,6 @@ type KindCreator struct {
 	LocalWorkDir string
 }
 
-// type KindCluserConfigNode struct {
-// 	role string
-
-// }
-
 type KindClusterConfig struct {
 	Kind       string              `yaml:"kind"`
 	ApiVersion string              `yaml:"apiVersion"`
@@ -136,12 +131,12 @@ func (c KindCreator) Exists(clustername string) bool {
 
 	makeup.PrintListFromMultilineString("Kind Clusters", strOutput)
 
-	// fmt.Println("\nKind clusters:")
-	// fmt.Println(strOutput)
-
-	if strings.Contains(strOutput, clustername) {
-		makeup.PrintCheckmark("There is a suitable Kind cluster with the name " + clustername + " running.")
-		return true
+	split := strings.Split(strOutput, "\n")
+	for _, entry := range split {
+		if entry == clustername {
+			makeup.PrintCheckmark("There is a suitable Kind cluster with the name " + clustername + " running.")
+			return true
+		}
 	}
 
 	// Check if the output contains the string "No kind clusters found."
@@ -160,7 +155,6 @@ func (c KindCreator) Running(clustername string) bool {
 		return false
 	}
 
-	//TODO This assumes the context to be selected. This may not be the case.
 	cmd := exec.Command("kubectl", "cluster-info", "--context", "kind-"+clustername)
 
 	output, err := cmd.CombinedOutput()
