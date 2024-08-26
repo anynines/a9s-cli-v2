@@ -2,7 +2,7 @@
 <rss version="2.0" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:content="http://purl.org/rss/1.0/modules/content/">
     <channel>
         <title>a9s CLI Documentation Blog</title>
-        <link>https://www.docs.a9s-cli.anynines.com/changelog/</link>
+        <link>https://docs.a9s-cli.anynines.com/changelog/</link>
         <description>a9s CLI Documentation Blog</description>
         <lastBuildDate>Thu, 29 Feb 2024 00:00:00 GMT</lastBuildDate>
         <docs>https://validator.w3.org/feed/docs/rss2.html</docs>
@@ -10,15 +10,15 @@
         <language>en</language>
         <item>
             <title><![CDATA[0.11.1]]></title>
-            <link>https://www.docs.a9s-cli.anynines.com/changelog/changelog-0.11.1/</link>
-            <guid>https://www.docs.a9s-cli.anynines.com/changelog/changelog-0.11.1/</guid>
+            <link>https://docs.a9s-cli.anynines.com/changelog/changelog-0.11.1/</link>
+            <guid>https://docs.a9s-cli.anynines.com/changelog/changelog-0.11.1/</guid>
             <pubDate>Thu, 29 Feb 2024 00:00:00 GMT</pubDate>
             <description><![CDATA[Added]]></description>
             <content:encoded><![CDATA[<h2></h2>
-<h3 class="anchor anchorWithStickyNavbar_LWe7" id="added">Added<a class="hash-link" aria-label="Direct link to Added" title="Direct link to Added" href="https://www.docs.a9s-cli.anynines.com/changelog/changelog-0.11.1/#added">​</a></h3>
-<h3 class="anchor anchorWithStickyNavbar_LWe7" id="changed">Changed<a class="hash-link" aria-label="Direct link to Changed" title="Direct link to Changed" href="https://www.docs.a9s-cli.anynines.com/changelog/changelog-0.11.1/#changed">​</a></h3>
-<h3 class="anchor anchorWithStickyNavbar_LWe7" id="removed">Removed<a class="hash-link" aria-label="Direct link to Removed" title="Direct link to Removed" href="https://www.docs.a9s-cli.anynines.com/changelog/changelog-0.11.1/#removed">​</a></h3>
-<h3 class="anchor anchorWithStickyNavbar_LWe7" id="fixed">Fixed<a class="hash-link" aria-label="Direct link to Fixed" title="Direct link to Fixed" href="https://www.docs.a9s-cli.anynines.com/changelog/changelog-0.11.1/#fixed">​</a></h3>]]></content:encoded>
+<h3 class="anchor anchorWithStickyNavbar_LWe7" id="added">Added<a class="hash-link" aria-label="Direct link to Added" title="Direct link to Added" href="https://docs.a9s-cli.anynines.com/changelog/changelog-0.11.1/#added">​</a></h3>
+<h3 class="anchor anchorWithStickyNavbar_LWe7" id="changed">Changed<a class="hash-link" aria-label="Direct link to Changed" title="Direct link to Changed" href="https://docs.a9s-cli.anynines.com/changelog/changelog-0.11.1/#changed">​</a></h3>
+<h3 class="anchor anchorWithStickyNavbar_LWe7" id="removed">Removed<a class="hash-link" aria-label="Direct link to Removed" title="Direct link to Removed" href="https://docs.a9s-cli.anynines.com/changelog/changelog-0.11.1/#removed">​</a></h3>
+<h3 class="anchor anchorWithStickyNavbar_LWe7" id="fixed">Fixed<a class="hash-link" aria-label="Direct link to Fixed" title="Direct link to Fixed" href="https://docs.a9s-cli.anynines.com/changelog/changelog-0.11.1/#fixed">​</a></h3>]]></content:encoded>
             <category>a9s</category>
             <category>changelog</category>
             <category>release</category>
