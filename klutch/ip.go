@@ -16,12 +16,14 @@ var (
 // TODO: listening on this IP implies that the kind cluster and ingress will be reachable by anyone in the user's local network.
 // Find/review alternative solutions to avoid this security risk
 func determineHostLocalIP() (string, error) {
-	ifAddrs, err := net.InterfaceAddrs()
-	if err != nil {
-		return "", err
-	}
+	return "host.docker.internal", nil
 
-	return getFirstPrivateIPv4(ifAddrs)
+	// ifAddrs, err := net.InterfaceAddrs()
+	// if err != nil {
+	// 	return "", err
+	// }
+
+	// return getFirstPrivateIPv4(ifAddrs)
 }
 
 func getFirstPrivateIPv4(ifAddrs []net.Addr) (string, error) {
