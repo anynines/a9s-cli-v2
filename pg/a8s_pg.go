@@ -72,6 +72,18 @@ type ServiceBinding struct {
 	ServiceInstanceKind string
 }
 
+type PgManager struct {
+	K8s *k8s.KubeClient
+}
+
+// NewPgManager returns a PgManager for the given kube context. If the context is empty,
+// it is ignored.
+func NewPgManager(kubeContext string) *PgManager {
+	return &PgManager{
+		K8s: k8s.NewKubeClient(kubeContext),
+	}
+}
+
 func ServiceInstanceToYAML(instance ServiceInstance) string {
 	instanceMap := make(map[string]interface{})
 	instanceMap["apiVersion"] = A8sPGServiceInstanceAPIGroup + "/" + instance.ApiVersion
@@ -211,7 +223,7 @@ func ServiceBindingToYAML(binding ServiceBinding) string {
 Similar to kubectl watch ...
 Needed: Namespace and name of the resource to be observed.
 */
-func WaitForPGBackupResourceToBecomeReady(namespace, name string, resource string) error {
+func (pgm *PgManager) WaitForPGBackupResourceToBecomeReady(namespace, name string, resource string) error {
 	makeup.PrintWait(fmt.Sprintf("Waiting for %s to become ready...", resource))
 
 	//TODO Get API Group and API Version from a constant or the backup object
@@ -226,13 +238,13 @@ func WaitForPGBackupResourceToBecomeReady(namespace, name string, resource strin
 	failedConditionsMap["type"] = "PermanentlyFailed"
 	failedConditionsMap["status"] = "True"
 
-	err := k8s.WaitForKubernetesResource(namespace, name, gvr, desiredConditionsMap, failedConditionsMap)
+	err := pgm.K8s.WaitForKubernetesResource(namespace, name, gvr, desiredConditionsMap, failedConditionsMap)
 
 	return err
 }
 
-func WaitForPGBackupToBecomeReady(namespace, name string) {
-	err := WaitForPGBackupResourceToBecomeReady(namespace, name, "backups")
+func (pgm *PgManager) WaitForPGBackupToBecomeReady(namespace, name string) {
+	err := pgm.WaitForPGBackupResourceToBecomeReady(namespace, name, "backups")
 
 	if err != nil {
 		makeup.PrintFail("The backup has not been successful: " + err.Error() + ". Does the service instance exist?")
@@ -241,8 +253,8 @@ func WaitForPGBackupToBecomeReady(namespace, name string) {
 	}
 }
 
-func WaitForPGRestoreToBecomeReady(namespace, name string) {
-	err := WaitForPGBackupResourceToBecomeReady(namespace, name, "restores")
+func (pgm *PgManager) WaitForPGRestoreToBecomeReady(namespace, name string) {
+	err := pgm.WaitForPGBackupResourceToBecomeReady(namespace, name, "restores")
 
 	if err != nil {
 		makeup.PrintFail("The restore has not been completed. Does the service instance and backup exist?")
@@ -251,7 +263,7 @@ func WaitForPGRestoreToBecomeReady(namespace, name string) {
 	}
 }
 
-func DoesServiceInstanceExist(namespace, name string) bool {
+func (pgm *PgManager) DoesServiceInstanceExist(namespace, name string) bool {
 	// Ignore the Don't Execute flag
 	unattendedMode := true
 
@@ -266,7 +278,7 @@ func DoesServiceInstanceExist(namespace, name string) bool {
 	// Output jsonpath
 	commandElements = append(commandElements, "-o=jsonpath={.items[*].metadata.name}")
 
-	cmd, output, err := k8s.Kubectl(unattendedMode, commandElements...)
+	cmd, output, err := pgm.K8s.Kubectl(unattendedMode, commandElements...)
 
 	if err != nil {
 		makeup.ExitDueToFatalError(err, "Can't kubectl using the command: "+cmd.String())
@@ -283,7 +295,7 @@ func DoesServiceInstanceExist(namespace, name string) bool {
 	return slices.Contains(instanceNames, name)
 }
 
-func DoesBackupExist(namespace, backupName string) bool {
+func (pgm *PgManager) DoesBackupExist(namespace, backupName string) bool {
 	// Ignore the Don't Execute flag
 	unattendedMode := true
 
@@ -298,7 +310,7 @@ func DoesBackupExist(namespace, backupName string) bool {
 	// Output jsonpath
 	commandElements = append(commandElements, "-o=jsonpath={.items[*].metadata.name}")
 
-	cmd, output, err := k8s.Kubectl(unattendedMode, commandElements...)
+	cmd, output, err := pgm.K8s.Kubectl(unattendedMode, commandElements...)
 
 	if err != nil {
 		makeup.ExitDueToFatalError(err, "Can't kubectl using the command: "+cmd.String())
@@ -315,7 +327,7 @@ func DoesBackupExist(namespace, backupName string) bool {
 	return slices.Contains(instanceNames, backupName)
 }
 
-func WaitForPGServiceBindingToBecomeReady(binding ServiceBinding) error {
+func (pgm *PgManager) WaitForPGServiceBindingToBecomeReady(binding ServiceBinding) error {
 	makeup.PrintWait("Waiting for service binding to become ready...")
 	gvr := schema.GroupVersionResource{Group: A8sPGServiceBindingAPIGroup, Version: DefaultPGAPIVersion, Resource: "servicebindings"}
 
@@ -327,7 +339,7 @@ func WaitForPGServiceBindingToBecomeReady(binding ServiceBinding) error {
 	failedConditionsMap["type"] = "PermanentlyFailed"
 	failedConditionsMap["status"] = "True"
 
-	err := k8s.WaitForKubernetesResourceWithFunction(binding.Namespace, binding.Name, gvr, func(object *m1u.Unstructured) bool {
+	err := pgm.K8s.WaitForKubernetesResourceWithFunction(binding.Namespace, binding.Name, gvr, func(object *m1u.Unstructured) bool {
 		statusImplmentedInterface, exists, err := m1u.NestedFieldCopy(object.Object, "status", "implemented")
 
 		makeup.PrintVerbose(fmt.Sprintf("Status implemented interface: %v", statusImplmentedInterface))

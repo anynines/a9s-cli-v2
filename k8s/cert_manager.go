@@ -9,25 +9,30 @@ import (
 	"github.com/anynines/a9s-cli-v2/makeup"
 )
 
-func ApplyCertManagerManifests(waitForUser bool) {
+func (k *KubeClient) ApplyCertManagerManifests(waitForUser bool) {
 	makeup.PrintH1("Installing the cert-manager")
-	count := CountPodsInNamespace(CertManagerNamespace)
+	count := k.CountPodsInNamespace(CertManagerNamespace)
 
 	if count > 0 {
 		makeup.Print(fmt.Sprintf("Found %d pods in the %s namespace", count, CertManagerNamespace))
 	}
 
-	KubectlApplyF(CertManagerManifestUrl, waitForUser)
+	k.KubectlApplyF(CertManagerManifestUrl, waitForUser)
 
-	WaitForCertManagerToBecomeReady()
+	k.WaitForCertManagerToBecomeReady()
 }
 
-func WaitForCertManagerToBecomeReady() {
+func (k *KubeClient) WaitForCertManagerToBecomeReady() {
 	makeup.PrintH1("Waiting for the cert-manager API to become ready.")
 	crashLoopBackoffCount := 10
 
 	for i := 1; i <= crashLoopBackoffCount; i++ {
 		cmd := exec.Command("cmctl", "check", "api")
+
+		if k.KubeContext != "" {
+			cmd.Args = append(cmd.Args, "--context", k.KubeContext)
+		}
+
 		output, err := cmd.CombinedOutput()
 
 		makeup.Print(cmd.String())

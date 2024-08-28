@@ -2,10 +2,8 @@ package cmd
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/anynines/a9s-cli-v2/demo"
-	"github.com/anynines/a9s-cli-v2/k8s"
 	"github.com/anynines/a9s-cli-v2/makeup"
 	"github.com/spf13/cobra"
 )
@@ -34,61 +32,6 @@ var cmdClusterPwd = &cobra.Command{
 
 		fmt.Printf("%s", demo.DemoConfig.WorkingDir)
 	},
-}
-
-func CreateA8sStack(createClusterIfNotExists bool) {
-	title := ""
-
-	//TODO Tidy up
-	if createClusterIfNotExists {
-		title = "anynines Cluster Management"
-	} else {
-		title = "anynines Stack Management"
-	}
-
-	makeup.PrintWelcomeScreen(
-		demo.UnattendedMode,
-		title,
-		"Let's set up a Kubernetes stack together...")
-
-	demo.EstablishConfig()
-
-	//TODO It's odd that a check method also creates a k8s cluster
-	demo.CheckPrerequisites()
-
-	makeup.WaitForUser(demo.UnattendedMode)
-
-	demo.CheckoutDeploymentGitRepository()
-
-	demo.CheckoutDemoAppGitRepository()
-
-	// TODO Refactor - See backlog "Refactor `EstablishBackupStoreCredentials`"
-	demo.EstablishBackupStoreCredentials()
-
-	demo.CheckK8sCluster(createClusterIfNotExists)
-
-	if demo.CountPodsInDemoNamespace() == 0 {
-		makeup.PrintCheckmark("Kubernetes cluster has no pods in " + demo.GetConfig().DemoSpace + " namespace.")
-	}
-
-	//TODO find a more elegant way to deal with minio
-	if strings.ToLower(demo.BackupInfrastructureProvider) == "minio" {
-		demo.ApplyMinioManifests()
-		demo.WaitForMinioToBecomeReady()
-	}
-
-	k8s.ApplyCertManagerManifests(demo.UnattendedMode)
-
-	demo.ApplyA8sManifests()
-
-	demo.WaitForA8sSystemToBecomeReady()
-
-	demo.PrintDemoSummary()
-}
-
-// TODO Move. This is not the right place for business logic.
-func CreateA8sCluster() {
-	CreateA8sStack(true)
 }
 
 func init() {

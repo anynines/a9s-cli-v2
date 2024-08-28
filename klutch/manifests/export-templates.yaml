@@ -1,0 +1,54 @@
+apiVersion: bind.anynines.com/v1alpha1
+kind: APIServiceExportTemplate
+metadata:
+  name: postgresqlinstances
+  namespace: crossplane-system
+spec:
+  APIServiceSelector:
+    group: anynines.com
+    resource: postgresqlinstances
+  permissionClaims:
+  - group: ""
+    resource: secrets
+    version: v1
+---
+apiVersion: bind.anynines.com/v1alpha1
+kind: APIServiceExportTemplate
+metadata:
+  name: servicebindings
+  namespace: crossplane-system
+spec:
+  APIServiceSelector:
+    resource: servicebindings
+    group: anynines.com
+  permissionClaims:
+  - group: ""
+    resource: secrets
+    version: v1
+    selector:
+      owner: Provider
+  - group: ""
+    resource: configmaps
+    version: v1
+    selector:
+      owner: Provider
+---
+apiVersion: bind.anynines.com/v1alpha1
+kind: APIServiceExportTemplate
+metadata:
+  name: backups
+  namespace: crossplane-system
+spec:
+  APIServiceSelector:
+    resource: backups
+    group: anynines.com
+---
+apiVersion: bind.anynines.com/v1alpha1
+kind: APIServiceExportTemplate
+metadata:
+  name: restores
+  namespace: crossplane-system
+spec:
+  APIServiceSelector:
+    resource: restores
+    group: anynines.com

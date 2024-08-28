@@ -28,11 +28,12 @@ var cmdPGApply = &cobra.Command{
 	Short: "Apply an SQL file to the given Postgres instance",
 	Long:  "Applying an SQL file will upload the file, use psql to apply it and then delete the file within the target pod.",
 	Run: func(cmd *cobra.Command, args []string) {
+		pgm := pg.NewPgManager("")
 
 		if ApplySQLStatement != "" {
-			pg.ApplySQLStatementToPGServiceInstance(UnattendedMode, demo.A8sPGServiceInstance.Namespace, demo.A8sPGServiceInstance.Name, ApplySQLStatement)
+			pgm.ApplySQLStatementToPGServiceInstance(UnattendedMode, demo.A8sPGServiceInstance.Namespace, demo.A8sPGServiceInstance.Name, ApplySQLStatement)
 		} else if pg.SQLFilename != "" {
-			pg.ApplySQLFileToPGServiceInstance(UnattendedMode, demo.A8sPGServiceInstance.Namespace, demo.A8sPGServiceInstance.Name, pg.SQLFilename, NoDeleteSQLFile)
+			pgm.ApplySQLFileToPGServiceInstance(UnattendedMode, demo.A8sPGServiceInstance.Namespace, demo.A8sPGServiceInstance.Name, pg.SQLFilename, NoDeleteSQLFile)
 		} else {
 			makeup.ExitDueToFatalError(nil, "Please supply either --sql with an SQL statement or --file with a path to a sql file.")
 		}

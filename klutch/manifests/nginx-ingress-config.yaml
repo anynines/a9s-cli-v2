@@ -1,0 +1,26 @@
+# This configMap is needed because currently the kube-bind backend writes adds a new cookie each time the interactive binding process is executed, which
+# causes the request header to exceed nginx's default limit.
+# It overrides the one that comes with the standard manifests.
+# Once this is fixed, this config will no longer be needed.
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  labels:
+    app.kubernetes.io/component: controller
+    app.kubernetes.io/instance: ingress-nginx
+    app.kubernetes.io/name: ingress-nginx
+    app.kubernetes.io/part-of: ingress-nginx
+    app.kubernetes.io/version: 1.11.1
+  name: ingress-nginx-controller
+  namespace: ingress-nginx
+data:
+  allow-snippet-annotations: "false"
+  proxy-connect-timeout: "10s"
+  proxy-read-timeout: "10s"
+  client-max-body-size: "2m"
+  proxy-buffer-size: "64k"
+  proxy-buffers-number: "4"
+  arge-client-header-buffers: "4 64k"
+  client-header-buffer-size: "64k"
+  http2-max-field-size: "16k"
+  http2-max-header-size: "64k"
