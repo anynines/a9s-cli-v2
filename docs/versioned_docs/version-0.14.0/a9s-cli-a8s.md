@@ -1,6 +1,6 @@
 ---
-id: a9s-cli
-title: a9s CLI
+id: a9s-cli-a8s
+title: a9s CLI a8s
 tags:
   - a9s cli
   - a9s hub  
@@ -13,6 +13,7 @@ tags:
   - kubernetes
   - minikube
   - kind
+  - klutch
 keywords:
   - a9s cli
   - a9s hub
@@ -27,59 +28,10 @@ keywords:
   - kubernetes
   - minikube
   - kind
+  - klutch
 ---
 
-# a9s CLI
-
-anynines provides a command line tool called `a9s` to facilitate application development, devops tasks and interact with selected anynines products.
-
-## Use Cases
-
-The `a9s` CLI can be used to install and use the following stacks:
-
-### `a8s` Stack
-* Install a local Kubernetes cluster (`minikube` or `kind`).
-* Install the [cert-manager](https://cert-manager.io/).
-* Install a local Minio object store for storing Backups.
-* Install the a8s PostgreSQL Operator PostgreSQL supporting
-    * creating dedicated PostgreSQL clusters with 
-        * synchronous and asynchronous streaming replication.
-        * automatic failure detection and automatic failover.
-    * backup and restore capabilities storing backups in an S3 compatible object store such as AWS S3 or Minio.
-    * ability to easily create database users and Kubernetes Secrets by using the Service Bindings abstraction
-* Easily apply `.sql` files and SQL commands to PostgreSQL clusters.
-
-# Prerequisites
-
-* MacOS / Linux.
-    * The `a9s` binary is also compiled on Windows and executes. However, the `cmctl` binary is not released under Windows but is required by the `a9s` CLI.
-* Using the backup/restore feature of a8s PostgreSQL requires an S3 compatible endpoint.
-* Install Go (if you want `go env` to identify your OS and arch).
-* Install Git.
-* Install Docker.
-* Install Kubectl.
-* Install Kind and/or Minikube.
-* Install the [cert-manager CLI](https://cert-manager.io/docs/reference/cmctl/).
-
-# Installing the CLI
-
-In order to install the `a9s` CLI execute the following shell script:
-
-```bash
-RELEASE=$(curl -L -s https://a9s-cli-v2-fox4ce5.s3.eu-central-1.amazonaws.com/stable.txt); OS=$(go env GOOS); ARCH=$(go env GOARCH); curl -fsSL -o a9s https://a9s-cli-v2-fox4ce5.s3.eu-central-1.amazonaws.com/releases/$RELEASE/a9s-$OS-$ARCH
-    
-sudo chmod 755 a9s
-sudo mv a9s /usr/local/bin
-```
-
-This will download the `a9s` binary suitable for your architecture and move it to `/usr/local/bin`.
-Depending on your system you have to adjust the `PATH` variable or move the binary to a folder that's already in the `PATH`.
-
-# Using the CLI
-
-```bash
-a9s
-```
+# a8s Stack
 
 # Creating a Local a8s Postgres Cluster
 
