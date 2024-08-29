@@ -36,6 +36,33 @@ keywords:
 Create a local Klutch central management cluster using `Kind`, including the `a8s` stack. Deploy a consumer cluster and **bind** resources to the management cluster.
 This will allow you to use `a8s` resource instances such as `postgresql` on the consumer cluster, which will run on the management cluster.
 
+## Prerequisites
+- [General prerequisites](./a9s-cli-index.md#prerequisites) are met.
+- Install [Helm](https://helm.sh/docs/intro/install/).
+- Install the [Crossplane CLI](https://docs.crossplane.io/latest/cli/).
+- Install `kubectl-bind` plugin (see below).
+- On **linux**, docker must be runnable without sudo. See the [docker documentation](https://docs.docker.com/engine/install/linux-postinstall/#manage-docker-as-a-non-root-user) for further details.
+
+### Installing the `kubectl-bind` plugin:
+
+Download a binary for your platform with the following URL, make it executable and place it in a location in your `PATH`:
+
+`https://anynines-artifacts.s3.eu-central-1.amazonaws.com/central-management/v1.3.0/$OS-$ARCH/kubectl-bind`
+
+Replace `OS` and `ARCH` with values for your platform, e.g. `darwin-arm64` or `linux-amd64`. You can also use the following script to achieve this:
+
+```bash
+RELEASE="v1.3.0"
+OS=$(go env GOOS); ARCH=$(go env GOARCH); curl -fsSL -o kubectl-bind https://anynines-artifacts.s3.eu-central-1.amazonaws.com/central-management/$RELEASE/$OS-$ARCH/kubectl-bind
+
+sudo chmod 755 kubectl-bind
+sudo mv kubectl-bind /usr/local/bin
+```
+
+### Running on Linux
+
+To avoid issues with `Kind` on Linux, increase the `inotify` resource limits as described [here](https://kind.sigs.k8s.io/docs/user/known-issues/#pod-errors-due-to-too-many-open-files).
+
 ## Commands 
 
 ### 1. `deploy`
@@ -82,26 +109,6 @@ a9s klutch bind [options]
 |----|-----------|-------|
 |`-y`, `--yes`| Skip confirmation prompts | `a9s klutch bind --yes` |
 
-**Prerequisites**:
-- `kubectl`
-- `kube-bind` plugin (see below)
-
-#### Installing the `kubectl-bind` plugin:
-
-Download a binary for your platform with the following URL, make it executable and place it in a location in your `PATH`:
-
-`https://anynines-artifacts.s3.eu-central-1.amazonaws.com/central-management/v1.3.0/$OS-$ARCH/kubectl-bind`
-
-Replace `OS` and `ARCH` with values for your platform, e.g. `darwin-arm64` or `linux-amd64`. You can also use the following script to achieve this:
-
-```bash
-RELEASE="v1.3.0"
-OS=$(go env GOOS); ARCH=$(go env GOARCH); curl -fsSL -o kubectl-bind https://anynines-artifacts.s3.eu-central-1.amazonaws.com/central-management/$RELEASE/$OS-$ARCH/kubectl-bind
-
-sudo chmod 755 kubectl-bind
-sudo mv kubectl-bind /usr/local/bin
-```
-
 **Description**:
 
 This command will invoke `kubectl bind` in order to bind a resource exported by the management cluster. This process will open a browser window for you where you can authenticate with the dummy dex OIDC provider using these credentials:
@@ -112,7 +119,13 @@ Password: `password`
 
 After logging in, grant access, and then **choose the resource you would like to bind**. Once this is done, return to your terminal and wait for the process to finish.
 
-After the `bind` command has succeeded, you can deploy instances of the chosen resource on your consumer cluster, which will run in the management cluster. The command will print an example manifest for the resource you bound that you can apply to the consumer cluster with `kubectl`.
+After the `bind` command has succeeded, you can deploy instances of the chosen resource on your consumer cluster, which will run in the management cluster. The command will print an example manifest for the resource you bound that you can apply to the consumer cluster with `kubectl`. You can do this easily by copying the printed yaml and using a heredoc, like so:
+
+```bash
+kubectl apply -f - <<EOF
+<paste your manifests>
+EOF
+```
 
 ### 3. `delete`
 

@@ -35,7 +35,7 @@ keywords:
 
 anynines provides a command line tool called `a9s` to facilitate application development, devops tasks and interact with selected anynines products.
 
-# Prerequisites
+## Prerequisites
 
 * MacOS / Linux.
     * The `a9s` binary is also compiled on Windows and executes. However, the `cmctl` binary is not released under Windows but is required by the `a9s` CLI.
@@ -47,7 +47,7 @@ anynines provides a command line tool called `a9s` to facilitate application dev
 * Install Kind and/or Minikube.
 * Install the [cert-manager CLI](https://cert-manager.io/docs/reference/cmctl/).
 
-# Installing the CLI
+## Installing the CLI
 
 In order to install the `a9s` CLI execute the following shell script:
 
@@ -61,7 +61,7 @@ sudo mv a9s /usr/local/bin
 This will download the `a9s` binary suitable for your architecture and move it to `/usr/local/bin`.
 Depending on your system you have to adjust the `PATH` variable or move the binary to a folder that's already in the `PATH`.
 
-# Using the CLI
+## Using the CLI
 
 ```bash
 a9s
