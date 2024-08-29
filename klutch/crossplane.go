@@ -17,6 +17,7 @@ import (
 const (
 	configPackageName  = "w5n9a2g2-anynines-dataservices"
 	configPackageImage = "public.ecr.aws/w5n9a2g2/anynines/dataservices:v1.3.0"
+	helmChartUrl       = "https://charts.crossplane.io/stable/crossplane-1.16.0.tgz"
 )
 
 //go:embed manifests/provider-kubernetes.yaml
@@ -52,7 +53,7 @@ func (k *KlutchManager) DeployCrossplaneHelmChart() {
 		"crossplane",
 		"--kube-context", contextMgmt,
 		"--namespace", "crossplane-system", "--create-namespace",
-		"crossplane-stable/crossplane",
+		helmChartUrl,
 		"--set", `args={"--enable-ssa-claims"}`,
 	)
 
