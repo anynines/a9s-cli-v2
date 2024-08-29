@@ -16,6 +16,7 @@ The following assumptions for using `klutch` commands are made:
     - `dexidp/dex` image
     - `curlimages/curl` image
     - `xpkg.upbound.io/crossplane-contrib/provider-kubernetes:v0.14.1` image
+    - https://charts.crossplane.io
 
 ## `deploy` command
 

@@ -189,9 +189,10 @@ func scanInteractiveBindStderr(stderr io.ReadCloser, mgmtHost string, mgmtPort s
 				urlFound = true
 				err := openURL(url)
 				if err != nil {
-					errChan <- err
-					close(errChan)
-					return
+					// Instead of returning an error, be lenient because the user can still open
+					// the URL by hand if openURL didn't work (e.g. xdg-open not present)
+					makeup.PrintWarning("Could not open the URL automatically. Please open above URL in a browser to proceed.")
+					continue
 				}
 			}
 
@@ -393,7 +394,7 @@ func openURL(url string) error {
 	}
 
 	args = append(args, url)
-	return exec.Command(cmd, args...).Start()
+	return exec.Command(cmd, args...).Run()
 }
 
 // Loads the management cluster information from the workspace. If it doesn't exists, prints a suggestion to the user to run the
