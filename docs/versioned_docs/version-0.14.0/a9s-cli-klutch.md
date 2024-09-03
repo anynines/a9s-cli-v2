@@ -40,7 +40,7 @@ This will allow you to use `a8s` resource instances such as `postgresql` on the 
 - [General prerequisites](./a9s-cli-index.md#prerequisites) are met.
 - Install [Helm](https://helm.sh/docs/intro/install/).
 - Install the [Crossplane CLI](https://docs.crossplane.io/latest/cli/).
-- Install `kubectl-bind` plugin (see below).
+- Install `kubectl-bind` plugin version 1.3.0 or higher (see below).
 - On **linux**, docker must be runnable without sudo. See the [docker documentation](https://docs.docker.com/engine/install/linux-postinstall/#manage-docker-as-a-non-root-user) for further details.
 
 ### Installing the `kubectl-bind` plugin:
