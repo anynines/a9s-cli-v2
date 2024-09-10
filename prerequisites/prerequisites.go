@@ -31,7 +31,6 @@ const (
 	ToolDocker     = "docker"
 	ToolKind       = "kind"
 	ToolMinikube   = "minikube"
-	ToolCmctl      = "cmctl"
 	ToolKubectl    = "kubectl"
 	ToolCrossplane = "crossplane"
 	ToolHelm       = "helm"
@@ -76,15 +75,6 @@ func GetCommonRequiredTools() map[string]RequiredTool {
 			},
 			HelpURLs: map[string]string{
 				GOOSLinux: "https://minikube.sigs.k8s.io/docs/start",
-			},
-		},
-		ToolCmctl: {
-			CommandName: ToolCmctl,
-			HelpCommands: map[string]string{
-				GOOSDarwin: "brew install cmctl",
-			},
-			HelpURLs: map[string]string{
-				GOOSLinux: "https://cert-manager.io/docs/reference/cmctl/#manual-installation",
 			},
 		},
 		ToolKubectl: {

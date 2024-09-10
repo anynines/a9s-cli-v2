@@ -30,7 +30,6 @@ func checkCommandAvailability() {
 	requiredTools := []prereq.RequiredTool{
 		commonTools[prereq.ToolGit],
 		commonTools[prereq.ToolDocker],
-		commonTools[prereq.ToolCmctl],
 		commonTools[prereq.ToolKubectl],
 	}
 
