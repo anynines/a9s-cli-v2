@@ -8,12 +8,13 @@ import (
 
 	"github.com/anynines/a9s-cli-v2/demo"
 	"github.com/anynines/a9s-cli-v2/makeup"
+	prereq "github.com/anynines/a9s-cli-v2/prerequisites"
 )
 
 func DeleteClusters() {
 	demo.EstablishConfig()
 
-	checkKlutchDemoPrerequisites()
+	checkDeletePrerequisites()
 
 	makeup.PrintH1("Are you sure you want to delete the Klutch clusters?")
 	makeup.WaitForUser(demo.UnattendedMode)
@@ -42,4 +43,20 @@ func deleteManagementInfoFile(workDir string) {
 	if err != nil && !os.IsNotExist(err) {
 		makeup.ExitDueToFatalError(err, fmt.Sprintf("Unexpected error while deleting management cluster info to file %s", path))
 	}
+}
+
+// Checks if prerequisites of the delete command are met.
+func checkDeletePrerequisites() {
+	makeup.PrintH1("Checking Prerequisites...")
+
+	commonTools := prereq.GetCommonRequiredTools()
+
+	requiredTools := []prereq.RequiredTool{
+		commonTools[prereq.ToolDocker],
+		commonTools[prereq.ToolKind],
+	}
+
+	prereq.CheckRequiredTools(requiredTools)
+
+	prereq.CheckDockerRunning()
 }

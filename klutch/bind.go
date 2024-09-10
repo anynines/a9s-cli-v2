@@ -16,6 +16,7 @@ import (
 
 	"github.com/anynines/a9s-cli-v2/demo"
 	"github.com/anynines/a9s-cli-v2/makeup"
+	prereq "github.com/anynines/a9s-cli-v2/prerequisites"
 	"gopkg.in/yaml.v2"
 	"k8s.io/apimachinery/pkg/types"
 )
@@ -55,8 +56,9 @@ func Bind() {
 		demoTitle,
 		"Let's bind an API from the consumer to the management cluster...")
 
-	checkKlutchDemoPrerequisites()
 	demo.EstablishConfig()
+
+	checkBindPrerequisites()
 
 	km := NewKlutchManager()
 	resource := km.bindResource()
@@ -427,4 +429,17 @@ func getMgmtClusterInfoFromFile(workDir string) *ManagementClusterInfo {
 func isYAMLStart(line string) bool {
 	trimmed := strings.TrimSpace(line)
 	return strings.HasPrefix(trimmed, "apiVersion:")
+}
+
+// Checks if prerequisites of the bind command are met.
+func checkBindPrerequisites() {
+	makeup.PrintH1("Checking Prerequisites...")
+
+	commonTools := prereq.GetCommonRequiredTools()
+
+	requiredTools := []prereq.RequiredTool{
+		commonTools[prereq.ToolKubectl], commonTools[prereq.ToolBind],
+	}
+
+	prereq.CheckRequiredTools(requiredTools)
 }

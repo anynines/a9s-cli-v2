@@ -71,6 +71,60 @@ Example: Release `v0.10.0`.
 1. Update and upload the `releases.json` file to the S3 bucket.
 1. Deploy the documentation 
 
+## GitHub Release with GoReleaser
+
+This section contains targets for creating GitHub releases using GoReleaser.
+GoReleaser automates the build, packaging and release process for Go projects,
+integrating with GitHub's release functionality.
+
+> **Note:** This approach is intended for providing releases to end users and
+> exists in parallel with our current release process. It will be maintained
+> alongside the existing approach until we decide to fully implement the
+> release process with GitHub and GitHub Actions.
+
+### Creating GitHub Releases with GoReleaser
+
+This guide outlines the process for creating GitHub releases using GoReleaser.
+Following these steps will automate the build, packaging, and release process
+for your Go project, streamlining the creation of consistent and professional
+releases on GitHub.
+
+#### Prerequisites
+
+1. Install [GoReleaser](https://goreleaser.com/).
+2. Set up a GitHub Personal Access Token with appropriate permissions.
+
+#### Steps to Create a Release
+
+1. Set your GitHub token as an environment variable:
+
+    ```bash
+    export GITHUB_TOKEN="your_personal_access_token_here"
+    ```
+
+2. Add a git tag to the main branch:
+
+    ```bash
+    git tag -a v1.0.0 -m "Release v1.0.0"
+    ```
+
+3. Run GoReleaser:
+
+    ```bash
+    goreleaser release
+    ```
+
+#### Testing the Release Process
+
+To test the release process without creating an actual release, use:
+
+```bash
+goreleaser release --snapshot --clean
+```
+
+This command will simulate the release process without publishing or creating
+any permanent artifacts.
+
 # Design Principles / Ideals
 * The CLI acts like a personal assistent who knows how to install and use certain Kubernetes extensions including a list of anynines products facilitating their use.
     * The CLI helps with installing a cluster.
