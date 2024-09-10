@@ -158,7 +158,6 @@ func checkDeployPrerequisites() {
 		commonTools[prereq.ToolKubectl],
 		commonTools[prereq.ToolCrossplane],
 		commonTools[prereq.ToolHelm],
-		commonTools[prereq.ToolCmctl],
 	}
 
 	prereq.CheckRequiredTools(requiredTools)

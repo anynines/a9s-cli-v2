@@ -3,7 +3,6 @@ package k8s
 import (
 	"fmt"
 	"os/exec"
-	"strings"
 	"time"
 
 	"github.com/anynines/a9s-cli-v2/makeup"
@@ -24,10 +23,12 @@ func (k *KubeClient) ApplyCertManagerManifests(waitForUser bool) {
 
 func (k *KubeClient) WaitForCertManagerToBecomeReady() {
 	makeup.PrintH1("Waiting for the cert-manager API to become ready.")
-	crashLoopBackoffCount := 10
 
-	for i := 1; i <= crashLoopBackoffCount; i++ {
-		cmd := exec.Command("cmctl", "check", "api")
+	allReady := true
+	deployments := []string{"cert-manager", "cert-manager-webhook", "cert-manager-cainjector"}
+
+	for _, deployment := range deployments {
+		cmd := exec.Command("kubectl", "rollout", "status", fmt.Sprintf("deployment/%s", deployment), "-n", "cert-manager", "--timeout=180s")
 
 		if k.KubeContext != "" {
 			cmd.Args = append(cmd.Args, "--context", k.KubeContext)
@@ -37,17 +38,17 @@ func (k *KubeClient) WaitForCertManagerToBecomeReady() {
 
 		makeup.Print(cmd.String())
 
-		//TODO Crash loop detection / timeout
-		if err != nil {
-			makeup.PrintWait("Continuing to wait for the cert-manager API...")
-		}
-
 		strOutput := string(output)
 
 		fmt.Println(strOutput)
 
-		if strings.TrimSpace(strOutput) == "The cert-manager API is ready" {
-			makeup.PrintCheckmark("The cert-manager is ready")
+		if err != nil {
+			allReady = false
+			makeup.PrintWait(fmt.Sprintf("Continuing to wait for the %s deployment...", deployment))
+		}
+
+		if allReady {
+			makeup.PrintCheckmark("All cert-manager components are ready")
 			return
 		} else {
 			makeup.PrintWait("Continuing to wait for the cert-manager API...")
