@@ -10,6 +10,7 @@ import (
 	"github.com/anynines/a9s-cli-v2/demo"
 	"github.com/anynines/a9s-cli-v2/k8s"
 	"github.com/anynines/a9s-cli-v2/makeup"
+	prereq "github.com/anynines/a9s-cli-v2/prerequisites"
 	"gopkg.in/yaml.v2"
 )
 
@@ -53,6 +54,13 @@ func DeployKlutchClusters() {
 		demoTitle,
 		"Let's deploy a Klutch setup with Kind...")
 
+	// Makes sure the "WorkingDir" variable is set. This allows us to re-use existing code to deploy
+	// the a8s stack, and write information about the created cluster to a file in the user's
+	// configured working dir.
+	demo.EstablishConfig()
+
+	checkDeployPrerequisites()
+
 	klutch := NewKlutchManager()
 	klutch.deployCentralManagementCluster()
 	klutch.deployConsumerCluster()
@@ -60,13 +68,6 @@ func DeployKlutchClusters() {
 }
 
 func (k *KlutchManager) deployCentralManagementCluster() {
-	// Makes sure the "WorkingDir" variable is set. This allows us to re-use existing code to deploy the a8s stack,
-	// and write information about the created cluster to a file in the user's configured working dir.
-	demo.EstablishConfig()
-
-	checkKlutchDemoPrerequisites()
-	makeup.WaitForUser(demo.UnattendedMode)
-
 	hostIP, err := determineHostLocalIP()
 	if err != nil {
 		makeup.ExitDueToFatalError(err, "Couldn't obtain the host's local IP address. Aborting...")
@@ -142,4 +143,25 @@ func writeManagementClusterInfoToFile(workDir string, hostIP string, ingressPort
 	}
 
 	makeup.PrintInfo(fmt.Sprintf("Wrote management cluster information to %s", file))
+}
+
+// Checks if prerequisites of the deploy command are met.
+func checkDeployPrerequisites() {
+	makeup.PrintH1("Checking Prerequisites...")
+
+	commonTools := prereq.GetCommonRequiredTools()
+
+	requiredTools := []prereq.RequiredTool{
+		commonTools[prereq.ToolGit],
+		commonTools[prereq.ToolDocker],
+		commonTools[prereq.ToolKind],
+		commonTools[prereq.ToolKubectl],
+		commonTools[prereq.ToolCrossplane],
+		commonTools[prereq.ToolHelm],
+		commonTools[prereq.ToolCmctl],
+	}
+
+	prereq.CheckRequiredTools(requiredTools)
+
+	prereq.CheckDockerRunning()
 }

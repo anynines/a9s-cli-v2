@@ -3,10 +3,9 @@ package demo
 import (
 	"fmt"
 	"os"
-	"os/exec"
-	"runtime"
 
 	"github.com/anynines/a9s-cli-v2/makeup"
+	prereq "github.com/anynines/a9s-cli-v2/prerequisites"
 )
 
 func CheckPrerequisites() {
@@ -15,7 +14,7 @@ func CheckPrerequisites() {
 	makeup.PrintH1("Checking Prerequisites...")
 
 	SelectClusterProvider()
-	CheckCommandAvailability()
+	checkCommandAvailability()
 
 	// !NoPreCheck > Perform a pre-check
 	if !NoPreCheck && !allGood {
@@ -24,47 +23,18 @@ func CheckPrerequisites() {
 	}
 }
 
-func IsCommandAvailable(cmdName string) bool {
-	path, err := exec.LookPath(cmdName)
-	if err != nil {
-		requiredCmds := RequiredCommands()
+// checkCommandAvailability checks if the required tools are present on the system.
+func checkCommandAvailability() {
+	commonTools := prereq.GetCommonRequiredTools()
 
-		msg := "Couldn't find " + cmdName + " command: " + err.Error() + "."
-
-		if requiredCmds[cmdName][runtime.GOOS] != "" {
-			msg += " Try running: " + requiredCmds[cmdName][runtime.GOOS]
-		}
-
-		makeup.PrintFail(msg)
-
-		return false
+	requiredTools := []prereq.RequiredTool{
+		commonTools[prereq.ToolGit],
+		commonTools[prereq.ToolDocker],
+		commonTools[prereq.ToolCmctl],
+		commonTools[prereq.ToolKubectl],
 	}
 
-	makeup.PrintCheckmark("Found " + cmdName + " at path " + path + ".")
-
-	return true
-}
-
-func CheckCommandAvailability() {
-
-	allGood := true
-
-	requiredCmds := RequiredCommands()
-
-	// cmdDetails
-	for cmdName := range requiredCmds {
-
-		if !IsCommandAvailable(cmdName) {
-			allGood = false
-		}
-	}
-
-	if !allGood {
-		makeup.PrintFailSummary("Sadly, mandatory commands are missing. Aborting...")
-		os.Exit(1)
-	} else {
-		makeup.PrintSuccessSummary("All necessary commands are present.")
-	}
+	prereq.CheckRequiredTools(requiredTools)
 }
 
 /*
@@ -76,10 +46,21 @@ If multiple kubernetes tools are present, use minikube.
 If no suitable kubernetes tool is present, abort with an error message.
 */
 func SelectClusterProvider() {
+	var tool prereq.RequiredTool
+	commonTools := prereq.GetCommonRequiredTools()
+
 	if KubernetesTool != "" {
+		switch KubernetesTool {
+		case "minikube":
+			tool = commonTools[prereq.ToolMinikube]
+		case "kind":
+			tool = commonTools[prereq.ToolKind]
+		default:
+			makeup.ExitDueToFatalError(nil, "The selected Kubernetes provider %s is not valid. Valid values are `minikube` or `kind`.")
+		}
 
 		// The user has provided a provider param
-		if IsCommandAvailable(KubernetesTool) {
+		if prereq.IsToolAvailable(tool) {
 			makeup.PrintCheckmark("Using " + KubernetesTool)
 			return
 		} else {
@@ -89,12 +70,12 @@ func SelectClusterProvider() {
 		// No param was set.
 
 		// Minikube has priority
-		if IsCommandAvailable("minikube") {
-			KubernetesTool = "minikube"
+		if prereq.IsToolAvailable(commonTools[prereq.ToolMinikube]) {
+			KubernetesTool = prereq.ToolMinikube
 			makeup.PrintCheckmark("Using " + KubernetesTool)
 			return
-		} else if IsCommandAvailable("kind") {
-			KubernetesTool = "kind"
+		} else if prereq.IsToolAvailable(commonTools[prereq.ToolKind]) {
+			KubernetesTool = prereq.ToolKind
 			makeup.PrintCheckmark("Using " + KubernetesTool)
 			return
 		} else {
