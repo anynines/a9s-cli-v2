@@ -1,5 +1,7 @@
 # Develop
 
+# v0.14.0
+* Feature: `klutch` subcommands to automate the local deployment and usage of Klutch with an `a8s` stack.
 * Bugfix: Won't require `minikube` if `kind` is selected and vice versa.
 * Bugfix: Fixes wording issues in the `a9s cluster` command.
 * Change: Adds `git` to the list of required commands.
