@@ -15,7 +15,6 @@ The following assumptions for using `klutch` commands are made:
     - `public.ecr.aws/w5n9a2g2/anynines/` image repositories
     - `dexidp/dex` image
     - `curlimages/curl` image
-    - https://raw.githubusercontent.com/anynines/klutchio/main/crossplane-api/deploy/config-pkg-anynines.yaml
     - https://charts.crossplane.io
 
 ## `deploy` command

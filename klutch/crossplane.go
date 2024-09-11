@@ -11,9 +11,9 @@ import (
 )
 
 const (
-	configPackageName = "anynines-dataservices"
-	configFile        = "https://raw.githubusercontent.com/anynines/klutchio/main/crossplane-api/deploy/config-pkg-anynines.yaml"
-	helmChartUrl      = "https://charts.crossplane.io/stable/crossplane-1.16.0.tgz"
+	configPackageName        = "anynines-dataservices"
+	configPackageManifestUrl = "https://raw.githubusercontent.com/anynines/klutchio/main/crossplane-api/deploy/config-pkg-anynines.yaml"
+	helmChartUrl             = "https://charts.crossplane.io/stable/crossplane-1.16.0.tgz"
 )
 
 //go:embed manifests/provider-kubernetes.yaml
@@ -120,17 +120,9 @@ func (k *KlutchManager) DeployProviderKubernetesConfig() {
 func (k *KlutchManager) DeployKlutchCrossplaneConfigPkg() {
 	makeup.PrintH1("Deploying the Klutch Crossplane configuration package...")
 
-	cmd := exec.Command("kubectl", "apply", "--context", contextMgmt, "-f", configFile)
+	k.mgmtK8s.KubectlApplyF(configPackageManifestUrl, true)
 
-	makeup.PrintCommandBox(cmd.String())
-	makeup.WaitForUser(demo.UnattendedMode)
-
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		makeup.ExitDueToFatalError(err, fmt.Sprintf("Could not execute the apply command: %v", string(output)))
-	}
-
-	makeup.Print("Klutch Crossplane configuration package applied.")
+	makeup.PrintCheckmark("Klutch Crossplane configuration package applied.")
 }
 
 func (k *KlutchManager) WaitForKlutchCrossplaneConfigPkg() {
