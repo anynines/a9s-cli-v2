@@ -2,22 +2,18 @@ package klutch
 
 import (
 	"bytes"
-	"context"
 	_ "embed"
 	"fmt"
 	"os/exec"
 
 	"github.com/anynines/a9s-cli-v2/demo"
 	"github.com/anynines/a9s-cli-v2/makeup"
-	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 const (
-	configPackageName  = "w5n9a2g2-anynines-dataservices"
-	configPackageImage = "public.ecr.aws/w5n9a2g2/anynines/dataservices:v1.3.0"
-	helmChartUrl       = "https://charts.crossplane.io/stable/crossplane-1.16.0.tgz"
+	configPackageName        = "anynines-dataservices"
+	configPackageManifestUrl = "https://raw.githubusercontent.com/anynines/klutchio/main/crossplane-api/deploy/config-pkg-anynines.yaml"
+	helmChartUrl             = "https://charts.crossplane.io/stable/crossplane-1.16.0.tgz"
 )
 
 //go:embed manifests/provider-kubernetes.yaml
@@ -121,41 +117,12 @@ func (k *KlutchManager) DeployProviderKubernetesConfig() {
 }
 
 // Deploys the a8s APIs (CRDs and Compositions).
-// Currently uses the `crossplane xpkg` method because the manifests are closed source. Once they are open source,
-// the manifests can be referred directly via URL. This would avoid the dependency on the crossplane CLI, which is poorly featured.
 func (k *KlutchManager) DeployKlutchCrossplaneConfigPkg() {
 	makeup.PrintH1("Deploying the Klutch Crossplane configuration package...")
 
-	// In order to be idempotent, we want the configuration package to be re-applied if it already exist.
-	// `crossplane xpkg install configuration` fails if it already exists, and `crossplane xpkg update` fails if it doesn't exist.
-	// So we need to first determine if the xpkg is already installed or not.
-	client := k.mgmtK8s.GetDynamicKubernetesClient()
+	k.mgmtK8s.KubectlApplyF(configPackageManifestUrl, true)
 
-	gvr := schema.GroupVersionResource{Group: "pkg.crossplane.io", Version: "v1", Resource: "configurations"}
-	_, err := client.Resource(gvr).Get(context.TODO(), configPackageName, metav1.GetOptions{})
-
-	verb := "install"
-	if err == nil {
-		makeup.PrintWarning("Klutch Crossplane configuration package already exists. Updating it...")
-		verb = "update"
-	} else {
-		if !errors.IsNotFound(err) {
-			makeup.ExitDueToFatalError(err, "An unexpected error occured while checking if the Klutch Crossplane configuration package exist")
-		}
-	}
-
-	switchContext(contextMgmt) // Crossplane CLI does not allow specifying the context via flag.
-	cmd := exec.Command("crossplane", "xpkg", verb, "configuration", configPackageImage)
-
-	makeup.PrintCommandBox(cmd.String())
-	makeup.WaitForUser(demo.UnattendedMode)
-
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		makeup.ExitDueToFatalError(err, fmt.Sprintf("Could not execute crossplane CLI: %v", string(output)))
-	}
-
-	makeup.Print("Klutch Crossplane configuration package applied.")
+	makeup.PrintCheckmark("Klutch Crossplane configuration package applied.")
 }
 
 func (k *KlutchManager) WaitForKlutchCrossplaneConfigPkg() {
