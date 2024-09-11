@@ -38,14 +38,12 @@ anynines provides a command line tool called `a9s` to facilitate application dev
 ## Prerequisites
 
 * MacOS / Linux.
-    * The `a9s` binary is also compiled on Windows and executes. However, the `cmctl` binary is not released under Windows but is required by the `a9s` CLI.
 * Using the backup/restore feature of a8s PostgreSQL requires an S3 compatible endpoint.
 * Install Go (if you want `go env` to identify your OS and arch).
 * Install Git.
 * Install Docker.
 * Install Kubectl.
 * Install Kind and/or Minikube.
-* Install the [cert-manager CLI](https://cert-manager.io/docs/reference/cmctl/).
 
 ## Installing the CLI
 
