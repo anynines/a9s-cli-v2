@@ -156,7 +156,6 @@ func checkDeployPrerequisites() {
 		commonTools[prereq.ToolDocker],
 		commonTools[prereq.ToolKind],
 		commonTools[prereq.ToolKubectl],
-		commonTools[prereq.ToolCrossplane],
 		commonTools[prereq.ToolHelm],
 	}
 
