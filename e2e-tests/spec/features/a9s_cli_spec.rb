@@ -26,7 +26,7 @@ RSpec.shared_context "a8s-pg", :shared_context => :metadata, order: :defined do
 
       logger.info "\t" + output
 
-      expect(output).to include("The #{@service_instance_name} appears to be ready. All expected pods are running.")
+      expect(output).to include("The #{@service_instance_name} system appears to be ready. All expected pods are running.")
     end
   end
 
