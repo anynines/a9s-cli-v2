@@ -1,0 +1,112 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: minio-dev # Change this value if you want a different namespace name
+  labels:
+    name: minio-dev # Change this value to match metadata.name
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: minio
+  namespace: minio-dev
+  labels:
+    app: minio
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: minio
+  template:
+    metadata:
+      labels:
+        app: minio
+    spec:
+      containers:
+      - name: minio
+        image: quay.io/minio/minio:latest
+        command:
+        - /bin/bash
+        - -c
+        args: 
+        - minio server /data --console-address :9090
+        ports:
+        - containerPort: 9000
+          name: api
+        - containerPort: 9090
+          name: console
+        volumeMounts:
+        - name: data
+          mountPath: /data
+      volumes:
+      - name: data
+        hostPath:
+          path: /mnt/disk1/data
+          type: DirectoryOrCreate
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio
+  namespace: minio-dev
+spec:
+  selector:
+    app: minio
+  ports:
+    - port: 9000
+      name: api
+    - port: 9090
+      name: console
+  clusterIP: None
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: minio-config-script
+  namespace: minio-dev
+data:
+  minio_config.sh: |
+    #!/bin/env sh
+
+    #TODO Read from ENV or use defaults
+    MINIO_HOST="http://minio.minio-dev.svc.cluster.local:9000" # http://localhost:9000
+    MINIO_ADMIN_ACCESS_KEY="minioadmin"
+    MINIO_ADMIN_SECRET_KEY="minioadmin"
+    MINIO_BACKUP_USER_ACCESS_KEY="a8s-user"
+    MINIO_BACKUP_USER_SECRET_KEY="a8s-password"
+    MINIO_ALIAS="minio"
+
+    MINIO_BACKUP_POLICY="readwrite"
+    MINIO_BACKUP_BUCKET_NAME="a8s-backups"
+
+    mc alias set $MINIO_ALIAS $MINIO_HOST $MINIO_ADMIN_ACCESS_KEY $MINIO_ADMIN_SECRET_KEY
+
+    mc admin user add $MINIO_ALIAS $MINIO_BACKUP_USER_ACCESS_KEY $MINIO_BACKUP_USER_SECRET_KEY
+    mc mb $MINIO_ALIAS/$MINIO_BACKUP_BUCKET_NAME
+    mc admin policy attach $MINIO_ALIAS $MINIO_BACKUP_POLICY --user=$MINIO_BACKUP_USER_ACCESS_KEY
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: minio-config-job
+  namespace: minio-dev
+spec:
+  completions: 1
+  parallelism: 1
+  backoffLimit: 4
+  template:
+    spec:      
+      containers:
+      - name: config
+        image: minio/mc
+        command: ["sh",  "-c", "/config/minio_config.sh"]
+        volumeMounts:
+          - mountPath: /config
+            name: minio-config-volume            
+      volumes:
+      - name: minio-config-volume
+        configMap: 
+          name: "minio-config-script"
+          # 493 in decimal = 755 octal
+          defaultMode: 493
+      restartPolicy: OnFailure

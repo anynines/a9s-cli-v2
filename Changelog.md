@@ -1,4 +1,5 @@
 # Develop
+* Change: Removed dependency on a8s-demo repository.
 
 # v0.14.0
 * Feature: `klutch` subcommands to automate the local deployment and usage of Klutch with an `a8s` stack.
