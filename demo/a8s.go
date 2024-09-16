@@ -12,6 +12,7 @@ import (
 
 	"github.com/anynines/a9s-cli-v2/k8s"
 	"github.com/anynines/a9s-cli-v2/makeup"
+	"github.com/anynines/a9s-cli-v2/minio"
 	"github.com/anynines/a9s-cli-v2/pg"
 )
 
@@ -22,8 +23,6 @@ import (
 // structures.
 const configFileName = ".a9s"
 const demoGitRepo = "https://github.com/anynines/a8s-deployment.git" // "git@github.com:anynines/a8s-deployment.git"
-const demoAppGitRepo = "https://github.com/anynines/a8s-demo.git"
-const DemoAppLocalDir = "a8s-demo"
 const demoA8sDeploymentLocalDir = "a8s-deployment"
 const defaultWorkDir = "a9s" // $home/WorkDir as the default proposal for a work dir.
 
@@ -91,6 +90,7 @@ type A8sDemoManager struct {
 	KubeContext string
 	K8s         *k8s.KubeClient
 	Pg          *pg.PgManager
+	Minio       *minio.MinioManager
 }
 
 // NewA8sDemoManager returns a A8sDemoManager for the given kube context. If the context is empty,
@@ -100,6 +100,7 @@ func NewA8sDemoManager(kubeContext string) *A8sDemoManager {
 		KubeContext: kubeContext,
 		K8s:         k8s.NewKubeClient(kubeContext),
 		Pg:          pg.NewPgManager(kubeContext),
+		Minio:       minio.NewMinioManager(kubeContext, UnattendedMode),
 	}
 }
 
@@ -140,15 +141,15 @@ func (m *A8sDemoManager) CreateA8sStack(createClusterIfNotExists bool) {
 func (m *A8sDemoManager) DeployA8sStack() {
 	CheckoutDeploymentGitRepository()
 
-	CheckoutDemoAppGitRepository()
+	minio.SetupMinioRepository(DemoConfig.WorkingDir)
 
 	// TODO Refactor - See backlog "Refactor `EstablishBackupStoreCredentials`"
 	EstablishBackupStoreCredentials()
 
 	//TODO find a more elegant way to deal with minio
 	if strings.ToLower(BackupInfrastructureProvider) == "minio" {
-		m.ApplyMinioManifests()
-		m.WaitForMinioToBecomeReady()
+		m.Minio.ApplyMinioManifests(DemoConfig.WorkingDir)
+		m.Minio.WaitForMinioToBecomeReady()
 	}
 
 	m.K8s.ApplyCertManagerManifests(UnattendedMode)
