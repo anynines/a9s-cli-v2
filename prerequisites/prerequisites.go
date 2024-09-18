@@ -27,15 +27,13 @@ type RequiredTool struct {
 }
 
 const (
-	ToolGit        = "git"
-	ToolDocker     = "docker"
-	ToolKind       = "kind"
-	ToolMinikube   = "minikube"
-	ToolCmctl      = "cmctl"
-	ToolKubectl    = "kubectl"
-	ToolCrossplane = "crossplane"
-	ToolHelm       = "helm"
-	ToolBind       = "kubectl-bind"
+	ToolGit      = "git"
+	ToolDocker   = "docker"
+	ToolKind     = "kind"
+	ToolMinikube = "minikube"
+	ToolKubectl  = "kubectl"
+	ToolHelm     = "helm"
+	ToolBind     = "kubectl-bind"
 )
 
 // GetCommonRequiredTools returns a set of tools commonly required by different CLI commands.
@@ -78,15 +76,6 @@ func GetCommonRequiredTools() map[string]RequiredTool {
 				GOOSLinux: "https://minikube.sigs.k8s.io/docs/start",
 			},
 		},
-		ToolCmctl: {
-			CommandName: ToolCmctl,
-			HelpCommands: map[string]string{
-				GOOSDarwin: "brew install cmctl",
-			},
-			HelpURLs: map[string]string{
-				GOOSLinux: "https://cert-manager.io/docs/reference/cmctl/#manual-installation",
-			},
-		},
 		ToolKubectl: {
 			CommandName: ToolKubectl,
 			HelpCommands: map[string]string{
@@ -94,13 +83,6 @@ func GetCommonRequiredTools() map[string]RequiredTool {
 			},
 			HelpURLs: map[string]string{
 				GOOSLinux: "https://kubernetes.io/docs/tasks/tools/install-kubectl-linux/",
-			},
-		},
-		ToolCrossplane: {
-			CommandName: ToolCrossplane,
-			HelpURLs: map[string]string{
-				GOOSDarwin: "https://docs.crossplane.io/latest/cli/",
-				GOOSLinux:  "https://docs.crossplane.io/latest/cli/",
 			},
 		},
 		ToolHelm: {

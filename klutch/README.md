@@ -8,14 +8,13 @@ There are three subcommands:
 - `delete`
 
 The following assumptions for using `klutch` commands are made:
-- `kind`, `kubectl`, `helm`, `crossplane`, `git`, `cmctl` are present in the PATH.
+- `kind`, `kubectl`, `helm`, `git` are present in the PATH.
 - The following external resources are reachable:
     - Files on https://raw.githubusercontent.com/
     - https://anynines-artifacts.s3.eu-central-1.amazonaws.com/central-management/v1.3.0/crds.yaml
     - `public.ecr.aws/w5n9a2g2/anynines/` image repositories
     - `dexidp/dex` image
     - `curlimages/curl` image
-    - `xpkg.upbound.io/crossplane-contrib/provider-kubernetes:v0.14.1` image
     - https://charts.crossplane.io
 
 ## `deploy` command
