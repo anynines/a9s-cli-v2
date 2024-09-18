@@ -71,7 +71,7 @@ func (k *KlutchManager) bindResource() string {
 	mgmtInfo := getMgmtClusterInfoFromFile(demo.DemoConfig.WorkingDir)
 
 	secret, exportRequestYaml := k.startInteractiveBind(mgmtInfo.Host, mgmtInfo.IngressPort)
-	k.finishInteractiveBinding(secret, *exportRequestYaml)
+	k.finishInteractiveBinding(mgmtInfo.Host, secret, *exportRequestYaml)
 
 	resource, group, err := determineBoundResource(exportRequestYaml)
 	if err != nil {
@@ -254,7 +254,7 @@ func scanInteractiveBindStdout(stdout io.ReadCloser, yamlChan chan *bytes.Buffer
 }
 
 // Finishes the interactive binding process by calling `kubectl bind apiservice` with the extracted secret name and namespace and APIServiceBinding yaml.
-func (k *KlutchManager) finishInteractiveBinding(secret NamespacedName, exportRequestYaml bytes.Buffer) {
+func (k *KlutchManager) finishInteractiveBinding(mgmtHost string, secret NamespacedName, exportRequestYaml bytes.Buffer) {
 	secretName := secret.Name
 	secretNamespace := secret.Namespace
 
@@ -268,6 +268,8 @@ func (k *KlutchManager) finishInteractiveBinding(secret NamespacedName, exportRe
 		makeup.ExitDueToFatalError(err, "Error occured while setting up the bind command.")
 	}
 
+	port := getClusterExternalPort(contextMgmt)
+
 	cmd := k.consumerK8s.KubectlWithContextCommand(
 		"bind",
 		"apiservice",
@@ -277,6 +279,8 @@ func (k *KlutchManager) finishInteractiveBinding(secret NamespacedName, exportRe
 		secretName,
 		"--konnector-image",
 		konnectorImage,
+		"--remote-host-override",
+		fmt.Sprintf("%s:%s", mgmtHost, port),
 		"-f",
 		yamlTempFile.Name(),
 	)

@@ -30,6 +30,8 @@ spec:
               sleep 5;
             done
       containers:
+        # Note: Assumes dex is deployed and the configmap containing the node ip has been written.
+        # TODO: It might make sense to move backend and dex to a single pod since they are coupled.
       - name: anynines-backend
         image: public.ecr.aws/w5n9a2g2/anynines/kubebind-backend:v1.3.0
         args:
@@ -38,12 +40,13 @@ spec:
         - --consumer-scope=Namespaced
         - --oidc-issuer-client-id=$(OIDC-ISSUER-CLIENT-ID)
         - --oidc-issuer-client-secret=$(OIDC-ISSUER-CLIENT-SECRET)
-        - --oidc-issuer-url=$(OIDC-ISSUER-URL)
-        - --oidc-callback-url=$(OIDC-CALLBACK-URL)
+        - --oidc-issuer-url=http://$(NODE-IP):{{ .InternalIngressPort }}/dex
+        - --oidc-auth-url-override=http://{{ .ExternalHost }}:{{ .ExternalIngressPort }}/dex/auth
+        - --oidc-callback-url=http://{{ .ExternalHost }}:{{ .ExternalIngressPort }}/callback
         - --listen-address=0.0.0.0:9443
         - --cookie-signing-key=$(COOKIE-SIGNING-KEY)
         - --cookie-encryption-key=$(COOKIE-ENCRYPTION-KEY)
-        - --external-address=https://{{ .Host }}:{{ .K8sApiPort }}
+        - --external-address=https://$(NODE-IP):{{ .K8sApiPort }}
         - --external-ca-file=/certa/ca
         env:
         - name: OIDC-ISSUER-CLIENT-ID
@@ -56,16 +59,6 @@ spec:
             secretKeyRef:
               name: oidc-config
               key: oidc-issuer-client-secret
-        - name: OIDC-ISSUER-URL
-          valueFrom:
-            secretKeyRef:
-              name: oidc-config
-              key: oidc-issuer-url
-        - name: OIDC-CALLBACK-URL
-          valueFrom:
-            secretKeyRef:
-              name: oidc-config
-              key: oidc-callback-url
         - name: COOKIE-SIGNING-KEY
           valueFrom:
             secretKeyRef:
@@ -76,6 +69,11 @@ spec:
             secretKeyRef:
               name: cookie-config
               key: encryption-key
+        - name: NODE-IP
+          valueFrom:
+            configMapKeyRef:
+              name: klutch-management-node-ip
+              key: ip
         resources:
           limits:
             cpu: "500m"

@@ -68,25 +68,18 @@ func DeployKlutchClusters() {
 }
 
 func (k *KlutchManager) deployCentralManagementCluster() {
-	hostIP, err := determineHostLocalIP()
-	if err != nil {
-		makeup.ExitDueToFatalError(err, "Couldn't obtain the host's local IP address. Aborting...")
-	}
-
-	makeup.PrintInfo(fmt.Sprintf("Using IP address `%s` for the central management cluster.", hostIP))
-
 	port := strconv.Itoa(PortFlag)
-	DeployManagementKindCluster(mgmtClusterName, hostIP, port)
+	DeployManagementKindCluster(mgmtClusterName, port)
 	WaitForKindCluster(k.mgmtK8s)
-	writeManagementClusterInfoToFile(demo.DemoConfig.WorkingDir, hostIP, port)
+	writeManagementClusterInfoToFile(demo.DemoConfig.WorkingDir, "127.0.0.1", port)
 
 	k.DeployIngressNginx()
 	k.WaitForIngressNginx()
 
-	k.DeployDex(hostIP, port)
+	k.DeployDex(port)
 	k.WaitForDex()
 
-	k.DeployBindBackend(hostIP)
+	k.DeployBindBackend(port)
 	k.WaitForBindBackend()
 
 	k.DeployCrossplaneComponents()

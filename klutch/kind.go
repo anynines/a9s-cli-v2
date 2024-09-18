@@ -22,7 +22,7 @@ type clusterConfigTemplateVars struct {
 
 // DeployManagementKindCluster creates a new kind cluster configured to act as a local central management cluster.
 // It enables the ingress feature for the provided port and configures the k8s API Server to listen on the provided IP.
-func DeployManagementKindCluster(clusterName string, hostIP string, ingressPort string) {
+func DeployManagementKindCluster(clusterName string, ingressPort string) {
 	exists, err := clusterExists(clusterName)
 	if err != nil {
 		makeup.ExitDueToFatalError(err, fmt.Sprintf("unexpected error while checking if cluster %s exists:", clusterName))
@@ -37,7 +37,6 @@ func DeployManagementKindCluster(clusterName string, hostIP string, ingressPort 
 	templateVars := clusterConfigTemplateVars{
 		Name:            clusterName,
 		BackendHostPort: ingressPort,
-		HostLanIP:       hostIP,
 	}
 
 	renderedTemplate, err := renderTemplate(cmcKindConfigTemplate, templateVars)

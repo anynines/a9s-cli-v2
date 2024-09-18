@@ -11,20 +11,29 @@ import (
 var dexManifestsTemplate string
 
 type dexTemplateVars struct {
-	Host            string
-	IngressPort     string
-	DexClientSecret string
+	// Used to determine the node name of the management cluster
+	MgmtClusterName string
+	// Host name by which dex is accessed from outside the docker network. Should be "127.0.0.1".
+	ExternalHost string
+	// External ingress port accessed from outside the docker network. Should be the flag passed by the user.
+	ExternalIngressPort string
+	// Internal ingress port, corresponds to the one defined in the applied nginx-ingress manifests. Should be "80".
+	InternalIngressPort string
+	DexClientSecret     string
 }
 
-func (k *KlutchManager) DeployDex(hostIP string, ingressPort string) {
+func (k *KlutchManager) DeployDex(ingressPort string) {
 	makeup.PrintH1("Deploying Dex Idp...")
 
 	dexClientSecret := generateRandom32BytesBase64()
 
 	templateVars := &dexTemplateVars{
-		Host:            hostIP,
-		IngressPort:     ingressPort,
-		DexClientSecret: dexClientSecret,
+		// Host:                hostIP,
+		MgmtClusterName:     mgmtClusterName,
+		ExternalHost:        "127.0.0.1",
+		InternalIngressPort: "80",
+		ExternalIngressPort: ingressPort,
+		DexClientSecret:     dexClientSecret,
 	}
 
 	manifests, err := renderTemplate(dexManifestsTemplate, templateVars)

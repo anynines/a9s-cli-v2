@@ -16,15 +16,21 @@ const (
 var bindBackendManifestsTemplate string
 
 type backendTemplateVars struct {
-	Host                string
+	// Host name by which the backend is accessed from outside the docker network. Should be "127.0.0.1".
+	ExternalHost string
+	// External ingress port accessed from outside the docker network. Should be the flag passed by the user.
+	ExternalIngressPort string
+	// Internal ingress port, corresponds to the one defined in the applied nginx-ingress manifests. Should be "80".
+	InternalIngressPort string
 	CookieEncryptionKey string
 	CookieSigningKey    string
-	K8sApiPort          string
-	K8sApiCaCertB64     string
+	// Docker internal k8s api port. Should be 6443 by default.
+	K8sApiPort      string
+	K8sApiCaCertB64 string
 }
 
 // Deploys dex and the klutch-bind backend.
-func (k *KlutchManager) DeployBindBackend(hostIP string) {
+func (k *KlutchManager) DeployBindBackend(port string) {
 	makeup.PrintH1("Deploying the klutch-bind backend...")
 
 	makeup.PrintH2("Applying the klutch-bind backend CRDs...")
@@ -38,16 +44,16 @@ func (k *KlutchManager) DeployBindBackend(hostIP string) {
 	clusterCert := getClusterCert(k.mgmtK8s)
 	encodedCert := base64.StdEncoding.EncodeToString(clusterCert)
 
-	clusterPort := getClusterExternalPort(contextMgmt)
-
 	cookieSigningKey := generateRandom32BytesBase64()
 	cookieEncryptionKey := generateRandom32BytesBase64()
 
 	templateVars := &backendTemplateVars{
-		Host:                hostIP,
+		ExternalHost:        "127.0.0.1",
+		ExternalIngressPort: port,
+		InternalIngressPort: "80",
 		CookieEncryptionKey: cookieEncryptionKey,
 		CookieSigningKey:    cookieSigningKey,
-		K8sApiPort:          clusterPort,
+		K8sApiPort:          "6443",
 		K8sApiCaCertB64:     encodedCert,
 	}
 

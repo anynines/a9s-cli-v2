@@ -41,16 +41,14 @@ type: Opaque
 stringData:
   oidc-issuer-client-id: "kube-bind"
   oidc-issuer-client-secret: "{{ .DexClientSecret }}"
-  oidc-issuer-url: "http://{{ .Host }}:{{ .IngressPort }}/dex"
-  oidc-callback-url: "http://{{ .Host }}:{{ .IngressPort }}/callback"
 ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: dex-config
 data:
-  config: |
-    issuer: http://{{ .Host }}:{{ .IngressPort }}/dex
+  config.yaml: |
+    issuer: http://{{"{{"}} .Env.NODE_IP {{"}}"}}:{{ .InternalIngressPort }}/dex
 
     storage:
       type: memory
@@ -67,7 +65,7 @@ data:
     staticClients:
       - idEnv: DEX_ISSUER_CLIENT_ID
         redirectURIs:
-        - 'http://{{ .Host }}:{{ .IngressPort }}/callback'
+        - 'http://{{ .ExternalHost }}:{{ .ExternalIngressPort }}/callback'
         name: 'Kube Bind'
         secretEnv: DEX_ISSUER_CLIENT_SECRET
 
@@ -93,13 +91,43 @@ spec:
       labels:
         app: dex
     spec:
+      serviceAccountName: node-ip-reader
+      initContainers:
+        # Get the IP of the management cluster node and write it to a configmap that can be read by 
+        # the dex and backend container.
+      - name: determine-node-ip
+        image: bitnami/kubectl:1.30.5
+        env:
+        - name: MGMT_CLUSTER_NAME
+          value: {{ .MgmtClusterName }}
+        command:
+        - sh
+        - -c
+        - |
+          NODE_NAME=${MGMT_CLUSTER_NAME}-control-plane
+          IP=$(kubectl get node $NODE_NAME -o jsonpath='{.status.addresses[?(@.type=="InternalIP")].address}' | awk '{printf "%s", $1}')
+
+          CONFIGMAP_NAME="klutch-management-node-ip"
+          KEY="ip"
+          NAMESPACE=$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)
+
+          if kubectl get configmap $CONFIGMAP_NAME -n $NAMESPACE > /dev/null 2>&1; then
+              echo "ConfigMap $CONFIGMAP_NAME exists, updating it..."
+              kubectl create configmap $CONFIGMAP_NAME --from-literal=$KEY=$IP -n $NAMESPACE -o yaml --dry-run=client | kubectl replace -f -
+          else
+              echo "ConfigMap $CONFIGMAP_NAME does not exist, creating it..."
+              kubectl create configmap $CONFIGMAP_NAME --from-literal=$KEY=$IP -n $NAMESPACE
+          fi
+
+          echo "Operation completed."
+
       containers:
       - name: dex
         image: dexidp/dex:v2.41.1-distroless
         args:
         - dex
         - serve
-        - /conf/dex/config
+        - /conf/dex/config.yaml
         resources:
           requests:
             cpu: 100m
@@ -118,6 +146,11 @@ spec:
             secretKeyRef:
               name: oidc-config
               key: oidc-issuer-client-id
+        - name: NODE_IP
+          valueFrom:
+            configMapKeyRef:
+              name: klutch-management-node-ip
+              key: ip
         ports:
         - containerPort: 5556
           name: dex
@@ -135,3 +168,33 @@ spec:
       - name: data
         emptyDir: {}
 ---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: node-ip-reader
+  namespace: default
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: node-reader-ip-role
+rules:
+- apiGroups: [""]
+  resources: ["nodes"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get", "list", "watch", "create", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: node-reader-ip-binding
+subjects:
+- kind: ServiceAccount
+  name: node-ip-reader
+  namespace: default
+roleRef:
+  kind: ClusterRole
+  name: node-reader-ip-role
+  apiGroup: rbac.authorization.k8s.io
