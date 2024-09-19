@@ -27,8 +27,16 @@ func switchContext(context string) {
 	}
 }
 
-// generateRandom32BytesBase64 returns a random base64 string of length 32.
-func generateRandom32BytesBase64() string {
+// ByteGenerator is an interface for a basic random byte generator.
+type ByteGenerator interface {
+	GenerateRandom32BytesBase64() string
+}
+
+// RandomByteGenerator implements ByteGenerator.
+type RandomByteGenerator struct{}
+
+// GenerateRandom32BytesBase64 returns a random base64 string of length 32.
+func (RandomByteGenerator) GenerateRandom32BytesBase64() string {
 	randomBytes := make([]byte, 32)
 	_, err := rand.Read(randomBytes)
 	if err != nil {
