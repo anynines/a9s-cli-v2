@@ -23,9 +23,9 @@ The `a9s` CLI can be used to install and use the following stacks:
 * Easily apply `.sql` files and SQL commands to PostgreSQL clusters.
 
 ### `klutch` Stack
-* Install a local Klutch central management cluster using `kind`
-* Install Crossplane and the a8s stack on the central management cluster
-* Bind resources from a consumer cluster to the management cluster
+* Install a local Klutch Control Plane Cluster using `kind`
+* Install Crossplane and the a8s stack on the Control Plane Cluster
+* Bind resources from an App Cluster to the Control Plane Cluster
 
 # Next Steps
 Please refer to the [a9s CLI](https://docs.a9s-cli.anynines.com) documentation for detailed instructions as well as a [hands-on tutorial](https://docs.a9s-cli.anynines.com/docs/hands-on-tutorials/).
