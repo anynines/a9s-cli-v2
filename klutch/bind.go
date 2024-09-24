@@ -55,7 +55,7 @@ func Bind() {
 	makeup.PrintWelcomeScreen(
 		demo.UnattendedMode,
 		demoTitle,
-		"Let's bind an API from the consumer to the management cluster...")
+		"Let's bind an API from the App Cluster to the Control Plane Cluster...")
 
 	demo.EstablishConfig()
 
@@ -69,12 +69,12 @@ func Bind() {
 }
 
 func (k *KlutchManager) bindResource() string {
-	mgmtInfo := getMgmtClusterInfoFromFile(demo.DemoConfig.WorkingDir)
+	controlPlaneInfo := getControlPlaneClusterInfoFromFile(demo.DemoConfig.WorkingDir)
 
 	// Only proceed if the backend is ready.
-	checkBackendEndpoint(mgmtInfo)
+	checkBackendEndpoint(controlPlaneInfo)
 
-	secret, exportRequestYaml := k.startInteractiveBind(mgmtInfo)
+	secret, exportRequestYaml := k.startInteractiveBind(controlPlaneInfo)
 	k.finishInteractiveBinding(secret, *exportRequestYaml)
 
 	resource, group, err := determineBoundResource(exportRequestYaml)
@@ -82,20 +82,20 @@ func (k *KlutchManager) bindResource() string {
 		makeup.ExitDueToFatalError(err, "Failed to determine which resource was bound")
 	}
 
-	k.consumerK8s.WaitForCRDCreationAndReady(resource + "." + group)
+	k.appK8s.WaitForCRDCreationAndReady(resource + "." + group)
 
 	return resource
 }
 
-// Starts the interactive binding process by calling `kubectl bind` against the consumer cluster,
-// with the URL targetting the management cluster backend.
+// Starts the interactive binding process by calling `kubectl bind` against the App cluster,
+// with the URL targetting the Control Plane Cluster backend.
 // Automatically opens the URL presented by bind's output, waits for the user to authorize in the browser,
 // and captures the resulting APIServiceExportRequest yaml file and other needed information for the next phase.
 // Returns the captured secret name and namespace, and a buffer containing the yaml file.
-func (k *KlutchManager) startInteractiveBind(info ManagementClusterInfo) (NamespacedName, *bytes.Buffer) {
+func (k *KlutchManager) startInteractiveBind(info ControlPlaneInfo) (NamespacedName, *bytes.Buffer) {
 	url := getExportUrl(info)
 
-	cmd := k.consumerK8s.KubectlWithContextCommand(
+	cmd := k.appK8s.KubectlWithContextCommand(
 		"bind",
 		url,
 		"--konnector-image",
@@ -170,7 +170,7 @@ func (k *KlutchManager) startInteractiveBind(info ManagementClusterInfo) (Namesp
 }
 
 // Scans the bind command's stderr for the URL to open (and opens it) and the secret printed afterward.
-func scanInteractiveBindStderr(stderr io.ReadCloser, info ManagementClusterInfo, secretChan chan NamespacedName, errChan chan error) {
+func scanInteractiveBindStderr(stderr io.ReadCloser, info ControlPlaneInfo, secretChan chan NamespacedName, errChan chan error) {
 	urlFound := false
 	secret := NamespacedName{}
 
@@ -268,7 +268,7 @@ func (k *KlutchManager) finishInteractiveBinding(secret NamespacedName, exportRe
 		makeup.ExitDueToFatalError(err, "Error occured while setting up the bind command.")
 	}
 
-	cmd := k.consumerK8s.KubectlWithContextCommand(
+	cmd := k.appK8s.KubectlWithContextCommand(
 		"bind",
 		"apiservice",
 		"--remote-kubeconfig-namespace",
@@ -376,7 +376,7 @@ func printBindSummary() {
 	makeup.PrintH1("Summary")
 	makeup.Print("You've successfully accomplished the followings steps:")
 	makeup.PrintCheckmark("Called the kubectl bind plugin to start the interactive binding process")
-	makeup.PrintCheckmark("Authorized the management cluster to manage the selected API on your consumer cluster.")
+	makeup.PrintCheckmark("Authorized the Control Plane Cluster to manage the selected API on your App Cluster.")
 }
 
 func openURL(url string) error {
@@ -397,30 +397,30 @@ func openURL(url string) error {
 	return exec.Command(cmd, args...).Run()
 }
 
-// Loads the management cluster information from the workspace. If it doesn't exists, prints a suggestion to the user to run the
+// Loads the Control Plane Cluster information from the workspace. If it doesn't exists, prints a suggestion to the user to run the
 // deploy command first.
-func getMgmtClusterInfoFromFile(workDir string) ManagementClusterInfo {
-	path := filepath.Join(workDir, mgmtClusterInfoFilePath, mgmtClusterInfoFileName)
+func getControlPlaneClusterInfoFromFile(workDir string) ControlPlaneClusterInfo {
+	path := filepath.Join(workDir, controlPlaneClusterInfoFilePath, controlPlaneClusterInfoFilePath)
 	bytes, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			makeup.ExitDueToFatalError(err, "The management cluster info file does not exist. Have you created a management cluster with `deploy`?")
+			makeup.ExitDueToFatalError(err, "The Control Plane Cluster info file does not exist. Have you created a Control Plane Cluster with `deploy`?")
 		}
 
-		makeup.ExitDueToFatalError(err, fmt.Sprintf("Unexpected error while reading from management cluster info to file %s", path))
+		makeup.ExitDueToFatalError(err, fmt.Sprintf("Unexpected error while reading from Control Plane Cluster info to file %s", path))
 	}
 
-	var mgmtClusterInfo ManagementClusterInfo
-	err = yaml.Unmarshal(bytes, &mgmtClusterInfo)
+	var controlPlaneClusterInfo ControlPlaneClusterInfo
+	err = yaml.Unmarshal(bytes, &controlPlaneClusterInfo)
 	if err != nil {
-		makeup.ExitDueToFatalError(err, fmt.Sprintf("Unexpected error while reading from management cluster info to file %s", path))
+		makeup.ExitDueToFatalError(err, fmt.Sprintf("Unexpected error while reading from Control Plane Cluster info to file %s", path))
 	}
 
-	if mgmtClusterInfo.IngressPort == "" || mgmtClusterInfo.Host == "" {
-		makeup.ExitDueToFatalError(err, "The management cluster info file is incomplete. Please try deploying the management cluster again with `deploy`")
+	if controlPlaneClusterInfo.IngressPort == "" || controlPlaneClusterInfo.Host == "" {
+		makeup.ExitDueToFatalError(err, "The Control Plane Cluster info file is incomplete. Please try deploying the Control Plane Cluster again with `deploy`")
 	}
 
-	return mgmtClusterInfo
+	return controlPlaneClusterInfo
 }
 
 // Checks if a given string represents the start of a the APIServiceExportRequest yaml file.
@@ -445,22 +445,22 @@ func checkBindPrerequisites() {
 }
 
 // checkBackendEndpoint checks if the backend is reachable.
-func checkBackendEndpoint(info ManagementClusterInfo) {
+func checkBackendEndpoint(info ControlPlaneClusterInfo) {
 	url := getExportUrl(info)
 
 	resp, err := http.Get(url)
 	if err != nil {
-		makeup.ExitDueToFatalError(err, "Got unexpected error trying to reach the backend. Please verify or wait for the management cluster to be fully ready.")
+		makeup.ExitDueToFatalError(err, "Got unexpected error trying to reach the backend. Please verify or wait for the Control Plane Cluster to be fully ready.")
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		makeup.ExitDueToFatalError(nil, "The backend does not appear to be ready. Please verify or wait for the management cluster to be fully ready.")
+		makeup.ExitDueToFatalError(nil, "The backend does not appear to be ready. Please verify or wait for the Control Plane Cluster to be fully ready.")
 	}
 }
 
 // getExportUrl returns the export URL of the backend.
-func getExportUrl(info ManagementClusterInfo) string {
+func getExportUrl(info ControlPlaneClusterInfo) string {
 	url := (&url.URL{
 		Scheme: "http",
 		Host:   fmt.Sprintf("%s:%s", info.Host, info.IngressPort),

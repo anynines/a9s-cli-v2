@@ -9,7 +9,7 @@ var (
 	errNoSuitableIp = errors.New("no suitable local IP address found")
 )
 
-// determineHostLocalIP retrieves a local IP address of the host to be used for the central management cluster.
+// determineHostLocalIP retrieves a local IP address of the host to be used for the Control Plane Cluster.
 // It only considers ipv4 IPs from private ranges.
 // TODO: is a ipv4 address always guaranteed in the local network?
 // TODO: inform users that a network change will cause their demo to break

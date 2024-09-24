@@ -29,16 +29,16 @@ func (k *KlutchManager) DeployBindBackend(hostIP string) {
 
 	makeup.PrintH2("Applying the klutch-bind backend CRDs...")
 
-	k.mgmtK8s.KubectlApplyF(backendCRDManifestsURL, true)
+	k.cpK8s.KubectlApplyF(backendCRDManifestsURL, true)
 
 	makeup.PrintCheckmark("klutch-bind backend CRDs applied.")
 	makeup.PrintH2("Applying the klutch-bind backend manifests...")
 
 	// We need the provider cluster's CA certificate
-	clusterCert := getClusterCert(k.mgmtK8s)
+	clusterCert := getClusterCert(k.cpK8s)
 	encodedCert := base64.StdEncoding.EncodeToString(clusterCert)
 
-	clusterPort := getClusterExternalPort(contextMgmt)
+	clusterPort := getClusterExternalPort(contextcp)
 
 	cookieSigningKey := generateRandom32BytesBase64()
 	cookieEncryptionKey := generateRandom32BytesBase64()
@@ -60,7 +60,7 @@ func (k *KlutchManager) DeployBindBackend(hostIP string) {
 	makeup.PrintYAML(manifests.Bytes(), false)
 	makeup.WaitForUser(demo.UnattendedMode)
 
-	k.mgmtK8s.KubectlApplyStdin(manifests)
+	k.cpK8s.KubectlApplyStdin(manifests)
 
 	makeup.Print("klutch-bind backend applied.")
 }
@@ -72,7 +72,7 @@ func (k *KlutchManager) DeployBindBackend(hostIP string) {
 func (k *KlutchManager) WaitForBindBackend() {
 	makeup.PrintH1("Waiting for the klutch-bind backend to become ready...")
 
-	k.mgmtK8s.KubectlWaitForRollout("deployment", "anynines-backend", "default")
+	k.cpK8s.KubectlWaitForRollout("deployment", "anynines-backend", "default")
 
 	makeup.PrintCheckmark("The klutch-bind backend appears to be ready.")
 	makeup.WaitForUser(demo.UnattendedMode)
