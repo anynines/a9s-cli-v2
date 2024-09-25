@@ -6,6 +6,7 @@ import (
 	_ "embed"
 	"fmt"
 	"io"
+	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
@@ -70,7 +71,10 @@ func Bind() {
 func (k *KlutchManager) bindResource() string {
 	mgmtInfo := getMgmtClusterInfoFromFile(demo.DemoConfig.WorkingDir)
 
-	secret, exportRequestYaml := k.startInteractiveBind(mgmtInfo.Host, mgmtInfo.IngressPort)
+	// Only proceed if the backend is ready.
+	checkBackendEndpoint(mgmtInfo)
+
+	secret, exportRequestYaml := k.startInteractiveBind(mgmtInfo)
 	k.finishInteractiveBinding(secret, *exportRequestYaml)
 
 	resource, group, err := determineBoundResource(exportRequestYaml)
@@ -88,12 +92,8 @@ func (k *KlutchManager) bindResource() string {
 // Automatically opens the URL presented by bind's output, waits for the user to authorize in the browser,
 // and captures the resulting APIServiceExportRequest yaml file and other needed information for the next phase.
 // Returns the captured secret name and namespace, and a buffer containing the yaml file.
-func (k *KlutchManager) startInteractiveBind(mgmtHost string, mgmtPort string) (NamespacedName, *bytes.Buffer) {
-	url := (&url.URL{
-		Scheme: "http",
-		Host:   fmt.Sprintf("%s:%s", mgmtHost, mgmtPort),
-		Path:   "export",
-	}).String()
+func (k *KlutchManager) startInteractiveBind(info ManagementClusterInfo) (NamespacedName, *bytes.Buffer) {
+	url := getExportUrl(info)
 
 	cmd := k.consumerK8s.KubectlWithContextCommand(
 		"bind",
@@ -130,7 +130,7 @@ func (k *KlutchManager) startInteractiveBind(mgmtHost string, mgmtPort string) (
 	yamlChan := make(chan *bytes.Buffer, 1)
 	stdoutErrChan := make(chan error, 1)
 
-	go scanInteractiveBindStderr(stderr, mgmtHost, mgmtPort, secretChan, stderrErrChan)
+	go scanInteractiveBindStderr(stderr, info, secretChan, stderrErrChan)
 	go scanInteractiveBindStdout(stdout, yamlChan, stdoutErrChan)
 
 	if err := cmd.Start(); err != nil {
@@ -170,12 +170,12 @@ func (k *KlutchManager) startInteractiveBind(mgmtHost string, mgmtPort string) (
 }
 
 // Scans the bind command's stderr for the URL to open (and opens it) and the secret printed afterward.
-func scanInteractiveBindStderr(stderr io.ReadCloser, mgmtHost string, mgmtPort string, secretChan chan NamespacedName, errChan chan error) {
+func scanInteractiveBindStderr(stderr io.ReadCloser, info ManagementClusterInfo, secretChan chan NamespacedName, errChan chan error) {
 	urlFound := false
 	secret := NamespacedName{}
 
 	// The following patterns can break if the backend/konnector change their output format. Review them if changing image versions.
-	urlPattern := regexp.MustCompile(fmt.Sprintf(`http://%s:%s/authorize\?.*`, mgmtHost, mgmtPort))
+	urlPattern := regexp.MustCompile(fmt.Sprintf(`http://%s:%s/authorize\?.*`, info.Host, info.IngressPort))
 	// We are looking for <namespace>/<name> where namespace and name are k8s compliant.
 	secretPattern := regexp.MustCompile(`secret ([a-z0-9][-a-z0-9]*[a-z0-9]?)/([a-z0-9][-a-z0-9]*[a-z0-9]?) for host`)
 
@@ -280,8 +280,6 @@ func (k *KlutchManager) finishInteractiveBinding(secret NamespacedName, exportRe
 		"-f",
 		yamlTempFile.Name(),
 	)
-
-	makeup.PrintCommandBox(cmd.String())
 
 	// We have to write "Yes" to "Yes/No" questions via stdin.
 	stdin, err := cmd.StdinPipe()
@@ -401,7 +399,7 @@ func openURL(url string) error {
 
 // Loads the management cluster information from the workspace. If it doesn't exists, prints a suggestion to the user to run the
 // deploy command first.
-func getMgmtClusterInfoFromFile(workDir string) *ManagementClusterInfo {
+func getMgmtClusterInfoFromFile(workDir string) ManagementClusterInfo {
 	path := filepath.Join(workDir, mgmtClusterInfoFilePath, mgmtClusterInfoFileName)
 	bytes, err := os.ReadFile(path)
 	if err != nil {
@@ -422,7 +420,7 @@ func getMgmtClusterInfoFromFile(workDir string) *ManagementClusterInfo {
 		makeup.ExitDueToFatalError(err, "The management cluster info file is incomplete. Please try deploying the management cluster again with `deploy`")
 	}
 
-	return &mgmtClusterInfo
+	return mgmtClusterInfo
 }
 
 // Checks if a given string represents the start of a the APIServiceExportRequest yaml file.
@@ -442,4 +440,32 @@ func checkBindPrerequisites() {
 	}
 
 	prereq.CheckRequiredTools(requiredTools)
+
+	prereq.CheckDockerRunning()
+}
+
+// checkBackendEndpoint checks if the backend is reachable.
+func checkBackendEndpoint(info ManagementClusterInfo) {
+	url := getExportUrl(info)
+
+	resp, err := http.Get(url)
+	if err != nil {
+		makeup.ExitDueToFatalError(err, "Got unexpected error trying to reach the backend. Please verify or wait for the management cluster to be fully ready.")
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		makeup.ExitDueToFatalError(nil, "The backend does not appear to be ready. Please verify or wait for the management cluster to be fully ready.")
+	}
+}
+
+// getExportUrl returns the export URL of the backend.
+func getExportUrl(info ManagementClusterInfo) string {
+	url := (&url.URL{
+		Scheme: "http",
+		Host:   fmt.Sprintf("%s:%s", info.Host, info.IngressPort),
+		Path:   "export",
+	})
+
+	return url.String()
 }

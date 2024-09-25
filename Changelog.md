@@ -1,5 +1,7 @@
 # Develop
 * Change: Removed dependency on a8s-demo repository.
+* Change: If the user chooses a relative working directory, it is converted to an absolute path before being stored.
+* Change: Bind command now checks if the backend can be reached first.
 
 # v0.14.0
 * Feature: `klutch` subcommands to automate the local deployment and usage of Klutch with an `a8s` stack.
@@ -7,7 +9,6 @@
 * Bugfix: Fixes wording issues in the `a9s cluster` command.
 * Change: Adds `git` to the list of required commands.
 * Change: If no `--provider` param is given, the CLI will use `minikube` by default but now falls back to `kind` in case there is no `minikube` command available.
-* Change: If the user chose a relative working directory, it is converted to an absolute path before being stored.
 
 # v0.13.0
 * Feature: Minio instead of S3 as the default backup storage service to enable using Backup and Restore in local environments.    
