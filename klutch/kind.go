@@ -20,9 +20,9 @@ type clusterConfigTemplateVars struct {
 	HostLanIP       string
 }
 
-// DeployManagementKindCluster creates a new kind cluster configured to act as a local central management cluster.
+// DeployControlPlaneKindCluster creates a new kind cluster configured to act as a local Control Plane Cluster.
 // It enables the ingress feature for the provided port and configures the k8s API Server to listen on the provided IP.
-func DeployManagementKindCluster(clusterName string, hostIP string, ingressPort string) {
+func DeployControlPlaneKindCluster(clusterName string, hostIP string, ingressPort string) {
 	exists, err := clusterExists(clusterName)
 	if err != nil {
 		makeup.ExitDueToFatalError(err, fmt.Sprintf("unexpected error while checking if cluster %s exists:", clusterName))
@@ -84,9 +84,9 @@ func WaitForKindCluster(k8s *k8s.KubeClient) {
 	makeup.PrintCheckmark("Kind cluster appears to be ready.")
 }
 
-// DeployConsumerCluster deploys a simple kind cluster with the given name if it doesn't already exists.
-func DeployConsumerCluster(clusterName string) {
-	makeup.PrintH1("Deploying a Consumer Kind cluster...")
+// DeployAppCluster deploys a simple kind cluster with the given name if it doesn't already exists.
+func DeployAppCluster(clusterName string) {
+	makeup.PrintH1("Deploying an App Cluster with Kind ...")
 	exists, err := clusterExists(clusterName)
 	if err != nil {
 		makeup.ExitDueToFatalError(err, fmt.Sprintf("Unexpected error while checking if cluster %s exists", clusterName))

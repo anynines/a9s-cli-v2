@@ -19,11 +19,11 @@ var ingressConfigMap string
 func (k *KlutchManager) DeployIngressNginx() {
 	makeup.PrintH1("Applying ingress-nginx manifests...")
 
-	k.mgmtK8s.KubectlApplyF(ingressManifestsUrl, true)
+	k.cpK8s.KubectlApplyF(ingressManifestsUrl, true)
 
 	// Apply configmap
 	in := bytes.NewBufferString(ingressConfigMap)
-	k.mgmtK8s.KubectlApplyStdin(in)
+	k.cpK8s.KubectlApplyStdin(in)
 
 	makeup.Print("Done applying ingress-nginx manifests.")
 }
@@ -31,9 +31,9 @@ func (k *KlutchManager) DeployIngressNginx() {
 func (k *KlutchManager) WaitForIngressNginx() {
 	makeup.PrintH1("Waiting for ingress-nginx to become ready...")
 
-	k.mgmtK8s.KubectlWaitForRollout("deployment", "ingress-nginx-controller", "ingress-nginx")
-	k.mgmtK8s.KubectlWaitForResourceCondition("complete", "job", "ingress-nginx-admission-create", "ingress-nginx")
-	k.mgmtK8s.KubectlWaitForResourceCondition("complete", "job", "ingress-nginx-admission-patch", "ingress-nginx")
+	k.cpK8s.KubectlWaitForRollout("deployment", "ingress-nginx-controller", "ingress-nginx")
+	k.cpK8s.KubectlWaitForResourceCondition("complete", "job", "ingress-nginx-admission-create", "ingress-nginx")
+	k.cpK8s.KubectlWaitForResourceCondition("complete", "job", "ingress-nginx-admission-patch", "ingress-nginx")
 
 	makeup.PrintCheckmark("ingress-nginx appears to be ready.")
 }

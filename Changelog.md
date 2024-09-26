@@ -2,6 +2,7 @@
 * Change: Removed dependency on a8s-demo repository.
 * Change: If the user chooses a relative working directory, it is converted to an absolute path before being stored.
 * Change: Bind command now checks if the backend can be reached first.
+* Change: Updated naming conventions. `Consumer Cluster` is now `App Cluster` and `Management Cluster` is now `Control Plane Cluster`.
 
 # v0.14.0
 * Feature: `klutch` subcommands to automate the local deployment and usage of Klutch with an `a8s` stack.

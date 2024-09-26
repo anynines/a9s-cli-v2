@@ -47,7 +47,7 @@ func (k *KlutchManager) DeployCrossplaneHelmChart() {
 	cmd := exec.Command("helm",
 		"upgrade", "-i",
 		"crossplane",
-		"--kube-context", contextMgmt,
+		"--kube-context", contextControlPlane,
 		"--namespace", "crossplane-system", "--create-namespace",
 		helmChartUrl,
 		"--set", `args={"--enable-ssa-claims"}`,
@@ -67,7 +67,7 @@ func (k *KlutchManager) DeployCrossplaneHelmChart() {
 func (k *KlutchManager) WaitForCrossplaneHelmChart() {
 	makeup.PrintH1("Waiting for the Crossplane components to become ready...")
 
-	k.mgmtK8s.KubectlWaitForSystemToBecomeReady("crossplane-system", []string{
+	k.cpK8s.KubectlWaitForSystemToBecomeReady("crossplane-system", []string{
 		"app=crossplane",
 		"app=crossplane-rbac-manager",
 	})
@@ -84,7 +84,7 @@ func (k *KlutchManager) DeployProviderKubernetes() {
 	makeup.PrintH2("Applying the following manifests: ")
 	makeup.PrintYAML(in.Bytes(), false)
 
-	k.mgmtK8s.KubectlApplyStdin(in)
+	k.cpK8s.KubectlApplyStdin(in)
 
 	makeup.Print("Kubernetes Crossplane provider applied.")
 }
@@ -92,11 +92,11 @@ func (k *KlutchManager) DeployProviderKubernetes() {
 func (k *KlutchManager) WaitForProviderKubernetes() {
 	makeup.PrintH1("Waiting for the Kubernetes Crossplane provider to become ready...")
 
-	k.mgmtK8s.KubectlWaitForResourceCondition("healthy", "providers", "provider-kubernetes", "crossplane-system")
-	k.mgmtK8s.KubectlWaitForResourceConditionWithSelector("healthy", "providerrevision", "pkg.crossplane.io/package=provider-kubernetes", "crossplane-system")
-	k.mgmtK8s.KubectlWaitForRolloutWithSelector("deployment", "klutch-provider=provider-kubernetes", "crossplane-system")
-	k.mgmtK8s.KubectlWaitForResourceConditionWithSelector("ready", "pod", "pkg.crossplane.io/provider=provider-kubernetes", "crossplane-system")
-	k.mgmtK8s.KubectlWaitForResourceCondition("established", "crd", "configurations.pkg.crossplane.io", "crossplane-system")
+	k.cpK8s.KubectlWaitForResourceCondition("healthy", "providers", "provider-kubernetes", "crossplane-system")
+	k.cpK8s.KubectlWaitForResourceConditionWithSelector("healthy", "providerrevision", "pkg.crossplane.io/package=provider-kubernetes", "crossplane-system")
+	k.cpK8s.KubectlWaitForRolloutWithSelector("deployment", "klutch-provider=provider-kubernetes", "crossplane-system")
+	k.cpK8s.KubectlWaitForResourceConditionWithSelector("ready", "pod", "pkg.crossplane.io/provider=provider-kubernetes", "crossplane-system")
+	k.cpK8s.KubectlWaitForResourceCondition("established", "crd", "configurations.pkg.crossplane.io", "crossplane-system")
 
 	makeup.PrintCheckmark("The Kubernetes Crossplane provider appears to be ready.")
 	makeup.WaitForUser(demo.UnattendedMode)
@@ -111,7 +111,7 @@ func (k *KlutchManager) DeployProviderKubernetesConfig() {
 	makeup.PrintYAML(in.Bytes(), false)
 	makeup.WaitForUser(demo.UnattendedMode)
 
-	k.mgmtK8s.KubectlApplyStdin(in)
+	k.cpK8s.KubectlApplyStdin(in)
 
 	makeup.PrintCheckmark("Kubernetes Crossplane provider config applied.")
 }
@@ -120,7 +120,7 @@ func (k *KlutchManager) DeployProviderKubernetesConfig() {
 func (k *KlutchManager) DeployKlutchCrossplaneConfigPkg() {
 	makeup.PrintH1("Deploying the Klutch Crossplane configuration package...")
 
-	k.mgmtK8s.KubectlApplyF(configPackageManifestUrl, true)
+	k.cpK8s.KubectlApplyF(configPackageManifestUrl, true)
 
 	makeup.PrintCheckmark("Klutch Crossplane configuration package applied.")
 }
@@ -128,7 +128,7 @@ func (k *KlutchManager) DeployKlutchCrossplaneConfigPkg() {
 func (k *KlutchManager) WaitForKlutchCrossplaneConfigPkg() {
 	makeup.PrintH1("Waiting for the Klutch Crossplane configuration package to become ready...")
 
-	k.mgmtK8s.KubectlWaitForResourceCondition("healthy", "configuration", configPackageName, "crossplane-system")
+	k.cpK8s.KubectlWaitForResourceCondition("healthy", "configuration", configPackageName, "crossplane-system")
 
 	makeup.PrintCheckmark("The Klutch Crossplane configuration package appears to be ready.")
 	makeup.WaitForUser(demo.UnattendedMode)
@@ -144,7 +144,7 @@ func (k *KlutchManager) DeployKlutchExportTemplates() {
 	makeup.PrintYAML(in.Bytes(), false)
 	makeup.WaitForUser(demo.UnattendedMode)
 
-	k.mgmtK8s.KubectlApplyStdin(in)
+	k.cpK8s.KubectlApplyStdin(in)
 
 	makeup.PrintCheckmark("Klutch APIServiceExportTemplates applied.")
 }

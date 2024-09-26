@@ -21,8 +21,8 @@ func DeleteClusters() {
 
 	makeup.PrintInfo("Deleting Klutch clusters...")
 	deleteManagementInfoFile(demo.DemoConfig.WorkingDir)
-	deleteCluster(mgmtClusterName)
-	deleteCluster(consumerClusterName)
+	deleteCluster(controlPlaneClusterName)
+	deleteCluster(appClusterName)
 }
 
 // deleteCluster deletes a kind cluster with the given name.
@@ -37,11 +37,11 @@ func deleteCluster(name string) {
 
 // deleteManagementInfoFile deletes the management info file in the configured working dir.
 func deleteManagementInfoFile(workDir string) {
-	path := filepath.Join(workDir, mgmtClusterInfoFilePath, mgmtClusterInfoFileName)
+	path := filepath.Join(workDir, controlPlaneClusterInfoFilePath, controlPlaneClusterInfoFileName)
 
 	err := os.Remove(path)
 	if err != nil && !os.IsNotExist(err) {
-		makeup.ExitDueToFatalError(err, fmt.Sprintf("Unexpected error while deleting management cluster info to file %s", path))
+		makeup.ExitDueToFatalError(err, fmt.Sprintf("Unexpected error while deleting Control Plane Cluster info to file %s", path))
 	}
 }
 

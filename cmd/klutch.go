@@ -20,10 +20,10 @@ var klutchCmd = &cobra.Command{
 
 var deployKlutchCmd = &cobra.Command{
 	Use:   "deploy",
-	Short: "Deploy Klutch central management cluster",
-	Long: `Deploys a Kind cluster which serves as the Klutch central management cluster.
+	Short: "Deploy Klutch Control Plane Cluster",
+	Long: `Deploys a Kind cluster which serves as the Klutch Control Plane Cluster.
 It includes components such as crossplane, the klutch-bind backend and the a8s-framework.
-Additionally deploys a consumer Kind cluster which can be used to bind to the management cluster.`,
+Additionally deploys an App Cluster with Kind which can be used to bind to the Control Plane Cluster.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		var port = klutch.PortFlag
 		if port < 1 || port > 65535 {
@@ -37,8 +37,8 @@ Additionally deploys a consumer Kind cluster which can be used to bind to the ma
 
 var bindKlutchCmd = &cobra.Command{
 	Use:   "bind",
-	Short: "Bind from a consumer cluster to the management cluster",
-	Long:  `Starts the binding process to the management cluster.`,
+	Short: "Bind from an App Cluster to the Control Plane Cluster",
+	Long:  `Starts the binding process to the Control Plane Cluster.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		klutch.Bind()
 	},
@@ -47,14 +47,14 @@ var bindKlutchCmd = &cobra.Command{
 var deleteKlutchCmd = &cobra.Command{
 	Use:   "delete",
 	Short: "Delete the klutch clusters",
-	Long:  `Deletes the central management and consumer kind clusters.`,
+	Long:  `Deletes the Control Plane and App kind clusters.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		klutch.DeleteClusters()
 	},
 }
 
 func init() {
-	deployKlutchCmd.Flags().IntVar(&klutch.PortFlag, "port", 8080, "Port the management cluster backend should listen on")
+	deployKlutchCmd.Flags().IntVar(&klutch.PortFlag, "port", 8080, "Port the Control Plane Cluster backend should listen on")
 	klutchCmd.AddCommand(deployKlutchCmd)
 
 	klutchCmd.AddCommand(bindKlutchCmd)

@@ -84,8 +84,8 @@ The `a9s` CLI can be used to install and use the following stacks:
 ### [Go to the a8s Stack documentation](/docs/a9s-cli-a8s/)
 
 ### `klutch` Stack
-* Install a local Klutch central management cluster using `kind`
-* Install Crossplane and the a8s stack on the central management cluster
-* Bind resources from a consumer cluster to the management cluster
+* Install a local Klutch Control Plane Cluster using `kind`
+* Install Crossplane and the a8s stack on the Control Plane Cluster
+* Bind resources from an App Cluster to the Control Plane Cluster
 
 ### [Go to the klutch Stack documentation](/docs/a9s-cli-klutch/)

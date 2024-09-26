@@ -36,7 +36,7 @@ func (k *KlutchManager) DeployDex(hostIP string, ingressPort string) {
 	makeup.PrintYAML(manifests.Bytes(), false)
 	makeup.WaitForUser(demo.UnattendedMode)
 
-	k.mgmtK8s.KubectlApplyStdin(manifests)
+	k.cpK8s.KubectlApplyStdin(manifests)
 
 	makeup.Print("Done applying the dex manifests.")
 }
@@ -45,7 +45,7 @@ func (k *KlutchManager) DeployDex(hostIP string, ingressPort string) {
 func (k *KlutchManager) WaitForDex() {
 	makeup.PrintH1("Waiting for dex to become ready...")
 
-	k.mgmtK8s.KubectlWaitForRollout("deployment", "dex", "default")
+	k.cpK8s.KubectlWaitForRollout("deployment", "dex", "default")
 
 	makeup.PrintCheckmark("Dex appears to be ready.")
 	makeup.WaitForUser(demo.UnattendedMode)
