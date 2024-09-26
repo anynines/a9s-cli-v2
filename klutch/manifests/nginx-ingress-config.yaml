@@ -14,13 +14,6 @@ metadata:
   name: ingress-nginx-controller
   namespace: ingress-nginx
 data:
-  allow-snippet-annotations: "false"
-  proxy-connect-timeout: "10s"
-  proxy-read-timeout: "10s"
-  client-max-body-size: "2m"
+  proxy-buffering: "on"
   proxy-buffer-size: "64k"
   proxy-buffers-number: "4"
-  arge-client-header-buffers: "4 64k"
-  client-header-buffer-size: "64k"
-  http2-max-field-size: "16k"
-  http2-max-header-size: "64k"

@@ -31,7 +31,8 @@ spec:
             done
       containers:
       - name: anynines-backend
-        image: public.ecr.aws/w5n9a2g2/anynines/kubebind-backend:v1.3.0
+        image: anynines-backend-onecookie:0.1
+        # image: public.ecr.aws/w5n9a2g2/anynines/kubebind-backend:v1.3.0
         args:
         - --namespace-prefix=kube-bind-
         - --pretty-name=anynines

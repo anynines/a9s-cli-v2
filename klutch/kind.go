@@ -67,6 +67,12 @@ func DeployControlPlaneKindCluster(clusterName string, hostIP string, ingressPor
 	if err := cmd.Wait(); err != nil {
 		makeup.ExitDueToFatalError(err, "Error occured while executing the command.")
 	}
+
+	cmd2 := exec.Command("kind", "load", "docker-image", "anynines-backend-onecookie:0.1", "-n", "klutch-management")
+	err2 := cmd2.Run()
+	if err2 != nil {
+		makeup.ExitDueToFatalError(err2, "could not load kind image")
+	}
 }
 
 func WaitForKindCluster(k8s *k8s.KubeClient) {
