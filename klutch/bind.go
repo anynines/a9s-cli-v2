@@ -92,7 +92,7 @@ func (k *KlutchManager) bindResource() string {
 // Automatically opens the URL presented by bind's output, waits for the user to authorize in the browser,
 // and captures the resulting APIServiceExportRequest yaml file and other needed information for the next phase.
 // Returns the captured secret name and namespace, and a buffer containing the yaml file.
-func (k *KlutchManager) startInteractiveBind(info ControlPlaneInfo) (NamespacedName, *bytes.Buffer) {
+func (k *KlutchManager) startInteractiveBind(info ControlPlaneClusterInfo) (NamespacedName, *bytes.Buffer) {
 	url := getExportUrl(info)
 
 	cmd := k.appK8s.KubectlWithContextCommand(
@@ -170,7 +170,7 @@ func (k *KlutchManager) startInteractiveBind(info ControlPlaneInfo) (NamespacedN
 }
 
 // Scans the bind command's stderr for the URL to open (and opens it) and the secret printed afterward.
-func scanInteractiveBindStderr(stderr io.ReadCloser, info ControlPlaneInfo, secretChan chan NamespacedName, errChan chan error) {
+func scanInteractiveBindStderr(stderr io.ReadCloser, info ControlPlaneClusterInfo, secretChan chan NamespacedName, errChan chan error) {
 	urlFound := false
 	secret := NamespacedName{}
 
@@ -400,7 +400,7 @@ func openURL(url string) error {
 // Loads the Control Plane Cluster information from the workspace. If it doesn't exists, prints a suggestion to the user to run the
 // deploy command first.
 func getControlPlaneClusterInfoFromFile(workDir string) ControlPlaneClusterInfo {
-	path := filepath.Join(workDir, controlPlaneClusterInfoFilePath, controlPlaneClusterInfoFilePath)
+	path := filepath.Join(workDir, controlPlaneClusterInfoFilePath, controlPlaneClusterInfoFileName)
 	bytes, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {

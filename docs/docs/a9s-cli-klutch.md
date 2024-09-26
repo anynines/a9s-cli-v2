@@ -85,16 +85,16 @@ components for Klutch. These components include:
 - Crossplane and the anynines configuration packages.
 - The complete `a8s` stack including `Postgresql` operator, backup, restore and service binding capabilities.
 
-In addition to the Control Plane Cluster, an App Cluster named `klutch-app` is deployed. This cluster can be used for the `a9s klutch bind` command to bind resources to the  Control Plane Cluster.
+In addition to the Control Plane Cluster, an App Cluster named `klutch-app` is deployed. This cluster can be used for the `a9s klutch bind` command to bind resources to the Control Plane Cluster.
 
-The  Control Plane Cluster exports the following resources for binding:
+The Control Plane Cluster exports the following resources for binding:
 
 - `postgresqlinstance.anynines.com`
 - `servicebinding.anynines.com`
 - `backup.anynines.com`
 - `restore.anynines.com`
 
-**Important**: For technical reasons, the  Control Plane Cluster is exposed on the local network using the local IP address. If your IP or network changes, the  Control Plane Cluster may become unreachable and will have to be redeployed.
+**Important**: For technical reasons, the Control Plane Cluster is exposed on the local network using the local IP address. If your IP or network changes, the Control Plane Cluster may become unreachable and will have to be redeployed.
 
 ### 2. `bind`
 
@@ -110,7 +110,7 @@ a9s klutch bind [options]
 
 **Description**:
 
-This command will invoke `kubectl bind` in order to bind a resource exported by the  Control Plane Cluster. This process will open a browser window for you where you can authenticate with the dummy dex OIDC provider using these credentials:
+This command will invoke `kubectl bind` in order to bind a resource exported by the Control Plane Cluster. This process will open a browser window for you where you can authenticate with the dummy dex OIDC provider using these credentials:
 
 Email: `admin@example.com`
 
@@ -118,7 +118,7 @@ Password: `password`
 
 After logging in, grant access, and then **choose the resource you would like to bind**. Once this is done, return to your terminal and wait for the process to finish.
 
-After the `bind` command has succeeded, you can deploy instances of the chosen resource on your App Cluster, which will run in the  Control Plane Cluster. The command will print an example manifest for the resource you bound that you can apply to the App Cluster with `kubectl`. You can do this easily by copying the printed yaml and using a heredoc, like so:
+After the `bind` command has succeeded, you can deploy instances of the chosen resource on your App Cluster, which will run in the Control Plane Cluster. The command will print an example manifest for the resource you bound that you can apply to the App Cluster with `kubectl`. You can do this easily by copying the printed yaml and using a heredoc, like so:
 
 ```bash
 kubectl apply -f - <<EOF

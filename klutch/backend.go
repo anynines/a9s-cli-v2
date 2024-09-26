@@ -38,7 +38,7 @@ func (k *KlutchManager) DeployBindBackend(hostIP string) {
 	clusterCert := getClusterCert(k.cpK8s)
 	encodedCert := base64.StdEncoding.EncodeToString(clusterCert)
 
-	clusterPort := getClusterExternalPort(contextcp)
+	clusterPort := getClusterExternalPort(contextControlPlane)
 
 	cookieSigningKey := generateRandom32BytesBase64()
 	cookieEncryptionKey := generateRandom32BytesBase64()

@@ -47,7 +47,7 @@ func (k *KlutchManager) DeployCrossplaneHelmChart() {
 	cmd := exec.Command("helm",
 		"upgrade", "-i",
 		"crossplane",
-		"--kube-context", contextcp,
+		"--kube-context", contextControlPlane,
 		"--namespace", "crossplane-system", "--create-namespace",
 		helmChartUrl,
 		"--set", `args={"--enable-ssa-claims"}`,

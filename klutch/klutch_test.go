@@ -80,27 +80,27 @@ spec:
 `
 
 	in := bytes.NewBufferString(claim)
-	cmd := exec.Command("kubectl", "apply", "--context", contextcp, "-f", "-")
+	cmd := exec.Command("kubectl", "apply", "--context", contextControlPlane, "-f", "-")
 	cmd.Stdin = in
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("expected no error while applying claim, but got %v : %s", err, string(output))
 	}
 
-	cmdWait := exec.Command("kubectl", "wait", "--context", contextcp, "--for=condition=ready", "postgresqlinstances", "klutch-test-pg", "--timeout=120s")
+	cmdWait := exec.Command("kubectl", "wait", "--context", contextControlPlane, "--for=condition=ready", "postgresqlinstances", "klutch-test-pg", "--timeout=120s")
 	output, err = cmdWait.CombinedOutput()
 	if err != nil {
 		t.Fatalf("expected no error while waiting for claim, but got %v : %s", err, string(output))
 	}
 
-	cmdWaitPg := exec.Command("kubectl", "wait", "--context", contextcp, "--for=condition=ready", "pod", "--selector", "a8s.a9s/dsi-name=klutch-test-pg", "--timeout=120s")
+	cmdWaitPg := exec.Command("kubectl", "wait", "--context", contextControlPlane, "--for=condition=ready", "pod", "--selector", "a8s.a9s/dsi-name=klutch-test-pg", "--timeout=120s")
 	output, err = cmdWaitPg.CombinedOutput()
 	if err != nil {
 		t.Fatalf("expected no error while waiting for pg instance, but got %v : %s", err, string(output))
 	}
 
 	in = bytes.NewBufferString(claim)
-	cmdDelete := exec.Command("kubectl", "delete", "--timeout=120s", "--wait=false", "--context", contextcp, "-f", "-")
+	cmdDelete := exec.Command("kubectl", "delete", "--timeout=120s", "--wait=false", "--context", contextControlPlane, "-f", "-")
 	cmdDelete.Stdin = in
 	output, err = cmdDelete.CombinedOutput()
 	if err != nil {

@@ -20,7 +20,7 @@ const (
 	controlPlaneClusterInfoFileName = "control-plane-cluster-info.yaml"
 	controlPlaneClusterName         = "klutch-control-plane"
 	appClusterName                  = "klutch-app"
-	contextcp                       = "kind-" + controlPlaneClusterName
+	contextControlPlane             = "kind-" + controlPlaneClusterName
 	contextApp                      = "kind-" + appClusterName
 )
 
@@ -35,13 +35,16 @@ type ControlPlaneClusterInfo struct {
 }
 
 type KlutchManager struct {
-	cpK8s  *k8s.KubeClient
+	// cpK8s is the Kubernetes client for the Klutch Control Plane Cluster.
+	cpK8s *k8s.KubeClient
+
+	// appK8s is the Kubernetes client for the Klutch App Cluster.
 	appK8s *k8s.KubeClient
 }
 
 func NewKlutchManager() *KlutchManager {
 	return &KlutchManager{
-		cpK8s:  k8s.NewKubeClient(contextcp),
+		cpK8s:  k8s.NewKubeClient(contextControlPlane),
 		appK8s: k8s.NewKubeClient(contextApp),
 	}
 }
@@ -93,7 +96,7 @@ func (k *KlutchManager) deployControlPlaneCluster() {
 
 	makeup.H1("Klutch components are deployed. Deploying the a8s stack...")
 	makeup.WaitForUser(demo.UnattendedMode)
-	a8s := demo.NewA8sDemoManager(contextcp)
+	a8s := demo.NewA8sDemoManager(contextControlPlane)
 	a8s.DeployA8sStack()
 }
 
