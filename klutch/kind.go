@@ -68,7 +68,7 @@ func DeployControlPlaneKindCluster(clusterName string, hostIP string, ingressPor
 		makeup.ExitDueToFatalError(err, "Error occured while executing the command.")
 	}
 
-	cmd2 := exec.Command("kind", "load", "docker-image", "anynines-backend-onecookie:0.1", "-n", "klutch-management")
+	cmd2 := exec.Command("kind", "load", "docker-image", "anynines-backend-onecookie:0.1", "-n", "klutch-control-plane")
 	err2 := cmd2.Run()
 	if err2 != nil {
 		makeup.ExitDueToFatalError(err2, "could not load kind image")
