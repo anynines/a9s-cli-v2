@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	ingressManifestsUrl = "https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml"
+	ingressManifestsUrl = "https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.11.1/deploy/static/provider/kind/deploy.yaml"
 )
 
 //go:embed manifests/nginx-ingress-config.yaml
