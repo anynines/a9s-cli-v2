@@ -13,7 +13,7 @@ import (
 const (
 	configPackageName        = "anynines-dataservices"
 	configPackageManifestUrl = "https://raw.githubusercontent.com/anynines/klutchio/main/crossplane-api/deploy/config-pkg-anynines.yaml"
-	helmChartUrl             = "https://charts.crossplane.io/stable/crossplane-1.16.0.tgz"
+	helmChartUrl             = "https://charts.crossplane.io/stable/crossplane-1.17.1.tgz"
 )
 
 //go:embed manifests/provider-kubernetes.yaml
