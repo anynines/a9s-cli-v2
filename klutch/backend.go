@@ -40,8 +40,9 @@ func (k *KlutchManager) DeployBindBackend(hostIP string) {
 
 	clusterPort := getClusterExternalPort(contextControlPlane)
 
-	cookieSigningKey := generateRandom32BytesBase64()
-	cookieEncryptionKey := generateRandom32BytesBase64()
+	rbg := RandomByteGenerator{}
+	cookieSigningKey := rbg.GenerateRandom32BytesBase64()
+	cookieEncryptionKey := rbg.GenerateRandom32BytesBase64()
 
 	templateVars := &backendTemplateVars{
 		Host:                hostIP,
