@@ -15,10 +15,10 @@
             <pubDate>Thu, 29 Feb 2024 00:00:00 GMT</pubDate>
             <description><![CDATA[Added]]></description>
             <content:encoded><![CDATA[<h2></h2>
-<h3 class="anchor anchorWithStickyNavbar_LWe7" id="added">Added<a class="hash-link" aria-label="Direct link to Added" title="Direct link to Added" href="https://docs.a9s-cli.anynines.com/changelog/changelog-0.11.1/#added">​</a></h3>
-<h3 class="anchor anchorWithStickyNavbar_LWe7" id="changed">Changed<a class="hash-link" aria-label="Direct link to Changed" title="Direct link to Changed" href="https://docs.a9s-cli.anynines.com/changelog/changelog-0.11.1/#changed">​</a></h3>
-<h3 class="anchor anchorWithStickyNavbar_LWe7" id="removed">Removed<a class="hash-link" aria-label="Direct link to Removed" title="Direct link to Removed" href="https://docs.a9s-cli.anynines.com/changelog/changelog-0.11.1/#removed">​</a></h3>
-<h3 class="anchor anchorWithStickyNavbar_LWe7" id="fixed">Fixed<a class="hash-link" aria-label="Direct link to Fixed" title="Direct link to Fixed" href="https://docs.a9s-cli.anynines.com/changelog/changelog-0.11.1/#fixed">​</a></h3>]]></content:encoded>
+<h3 class="anchor anchorWithStickyNavbar_LWe7" id="added">Added<a href="https://docs.a9s-cli.anynines.com/changelog/changelog-0.11.1/#added" class="hash-link" aria-label="Direct link to Added" title="Direct link to Added">​</a></h3>
+<h3 class="anchor anchorWithStickyNavbar_LWe7" id="changed">Changed<a href="https://docs.a9s-cli.anynines.com/changelog/changelog-0.11.1/#changed" class="hash-link" aria-label="Direct link to Changed" title="Direct link to Changed">​</a></h3>
+<h3 class="anchor anchorWithStickyNavbar_LWe7" id="removed">Removed<a href="https://docs.a9s-cli.anynines.com/changelog/changelog-0.11.1/#removed" class="hash-link" aria-label="Direct link to Removed" title="Direct link to Removed">​</a></h3>
+<h3 class="anchor anchorWithStickyNavbar_LWe7" id="fixed">Fixed<a href="https://docs.a9s-cli.anynines.com/changelog/changelog-0.11.1/#fixed" class="hash-link" aria-label="Direct link to Fixed" title="Direct link to Fixed">​</a></h3>]]></content:encoded>
             <category>a9s</category>
             <category>changelog</category>
             <category>release</category>
