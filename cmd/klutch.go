@@ -55,6 +55,22 @@ var deleteKlutchCmd = &cobra.Command{
 
 func init() {
 	deployKlutchCmd.Flags().IntVar(&klutch.PortFlag, "port", 8080, "Port the Control Plane Cluster backend should listen on")
+	deployKlutchCmd.Flags().StringVar(&klutch.KeycloakCaPathFlag, "keycloak-ca-path", "./keycloak-ca.crt", "Path to the keycloak CA file")
+
+	deployKlutchCmd.Flags().StringVar(&klutch.BackendClientIdFlag, "backend-client-id", "backend", "OIDC client ID for the backend")
+	deployKlutchCmd.Flags().StringVar(&klutch.BackendClientSecretFlag, "backend-client-secret", "", "OIDC client secret for the backend")
+	deployKlutchCmd.Flags().StringVar(&klutch.BackendIssuerUrlFlag, "backend-issuer-url", "", "OIDC issuer URL for the backend")
+
+	deployKlutchCmd.Flags().BoolVar(&klutch.IdTokenModeFlag, "enable-id-token-mode", false, "Whether to deploy the control plane cluster in Id Token or not.")
+
+	deployKlutchCmd.Flags().StringVar(&klutch.LoadKonnectorImageFlag, "load-konnector-image", "", "konnector image to load into the App Cluster")
+	deployKlutchCmd.Flags().StringVar(&klutch.LoadBackendImageFlag, "load-backend-image", "", "Backend image to load into the Control Plane Cluster")
+
+	deployKlutchCmd.Flags().StringVar(&klutch.OIDCClusterClientIDFlag, "cluster-client-id", "", "OIDC Client ID for the control plane cluster")
+	deployKlutchCmd.Flags().StringVar(&klutch.OIDCClusterIssuerURLFlag, "cluster-issuer", "", "OIDC issuer URL for the control plane cluster")
+
+	// deployKlutchCmd.Flags().BoolVar(&klutch.KindClusterOnlyFlag, "deploy-kind-only", false, "Only deploy the control plane kind cluster with nothing on it")
+
 	klutchCmd.AddCommand(deployKlutchCmd)
 
 	klutchCmd.AddCommand(bindKlutchCmd)

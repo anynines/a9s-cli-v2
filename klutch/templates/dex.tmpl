@@ -39,9 +39,9 @@ metadata:
   name: oidc-config
 type: Opaque
 stringData:
-  oidc-issuer-client-id: "kube-bind"
-  oidc-issuer-client-secret: "{{ .DexClientSecret }}"
-  oidc-issuer-url: "http://{{ .Host }}:{{ .IngressPort }}/dex"
+  oidc-issuer-client-id: "{{ .ClientId }}"
+  oidc-issuer-client-secret: "{{ .ClientSecret }}"
+  oidc-issuer-url: "{{ .IssuerUrl }}"
   oidc-callback-url: "http://{{ .Host }}:{{ .IngressPort }}/callback"
 ---
 apiVersion: v1

@@ -3,6 +3,8 @@ package klutch
 import (
 	_ "embed"
 	"encoding/base64"
+	"os"
+	"os/exec"
 
 	"github.com/anynines/a9s-cli-v2/demo"
 	"github.com/anynines/a9s-cli-v2/makeup"
@@ -21,10 +23,25 @@ type backendTemplateVars struct {
 	CookieSigningKey    string
 	K8sApiPort          string
 	K8sApiCaCertB64     string
+	AuthMode            string
+	BackendImg          string
 }
 
 // Deploys dex and the klutch-bind backend.
 func (k *KlutchManager) DeployBindBackend(hostIP string) {
+
+	backendImg := "public.ecr.aws/w5n9a2g2/anynines/kubebind-backend:v1.3.0"
+	if LoadBackendImageFlag != "" {
+		cmd := exec.Command("kind", "load", "docker-image", LoadBackendImageFlag, "-n", "klutch-control-plane")
+		err := cmd.Run()
+		if err != nil {
+			makeup.PrintFailSummary("Failed to load docker image")
+			os.Exit(1)
+		}
+
+		backendImg = LoadBackendImageFlag
+	}
+
 	makeup.PrintH1("Deploying the klutch-bind backend...")
 
 	makeup.PrintH2("Applying the klutch-bind backend CRDs...")
@@ -44,12 +61,21 @@ func (k *KlutchManager) DeployBindBackend(hostIP string) {
 	cookieSigningKey := rbg.GenerateRandom32BytesBase64()
 	cookieEncryptionKey := rbg.GenerateRandom32BytesBase64()
 
+	var authMode string
+	if IdTokenModeFlag {
+		authMode = "id-token"
+	} else {
+		authMode = "service-account"
+	}
+
 	templateVars := &backendTemplateVars{
 		Host:                hostIP,
 		CookieEncryptionKey: cookieEncryptionKey,
 		CookieSigningKey:    cookieSigningKey,
 		K8sApiPort:          clusterPort,
 		K8sApiCaCertB64:     encodedCert,
+		AuthMode:            authMode,
+		BackendImg:          backendImg,
 	}
 
 	manifests, err := renderTemplate(bindBackendManifestsTemplate, templateVars)

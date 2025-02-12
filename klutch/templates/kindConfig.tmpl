@@ -11,12 +11,22 @@ kubeadmConfigPatchesJSON6902:
         value: host.docker.internal 
 nodes:
 - role: control-plane
+  extraMounts:
+    - hostPath: {{ .KeycloakCaPath }}
+      containerPath: /etc/kubernetes/pki/kcca.crt
   kubeadmConfigPatches:
   - |
     kind: InitConfiguration
     nodeRegistration:
       kubeletExtraArgs:
         node-labels: "ingress-ready=true"
+  - |
+    kind: ClusterConfiguration
+    apiServer:
+      extraArgs:
+        oidc-issuer-url: "{{ .OidcIssuerUrl }}"
+        oidc-client-id: "{{ .OidcClientId }}"
+        oidc-ca-file: "/etc/kubernetes/pki/kcca.crt"
   extraPortMappings:
   - containerPort: 80
     hostPort: {{ .BackendHostPort }}

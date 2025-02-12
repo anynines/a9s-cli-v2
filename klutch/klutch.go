@@ -4,6 +4,7 @@ import (
 	_ "embed"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 
@@ -25,7 +26,17 @@ const (
 )
 
 var (
-	PortFlag int = 8080
+	PortFlag                 int    = 8080
+	KeycloakCaPathFlag       string = ""
+	IdTokenModeFlag          bool   = false
+	BackendIssuerUrlFlag     string = ""
+	BackendClientIdFlag      string = ""
+	BackendClientSecretFlag  string = ""
+	LoadKonnectorImageFlag   string = ""
+	LoadBackendImageFlag     string = ""
+	OIDCClusterClientIDFlag  string = ""
+	OIDCClusterIssuerURLFlag string = ""
+	KindClusterOnlyFlag      bool   = false
 )
 
 // ControlPlaneClusterInfo contains information about the created Control Plane Cluster.
@@ -83,10 +94,15 @@ func (k *KlutchManager) deployControlPlaneCluster() {
 	WaitForKindCluster(k.cpK8s)
 	writeControlPlaneClusterInfoToFile(demo.DemoConfig.WorkingDir, hostIP, port)
 
+	if KindClusterOnlyFlag {
+		makeup.PrintSuccess("Done")
+		os.Exit(0)
+	}
+
 	k.DeployIngressNginx()
 	k.WaitForIngressNginx()
 
-	k.DeployDex(hostIP, port)
+	k.DeployDex(hostIP, port, BackendClientIdFlag, BackendClientSecretFlag, BackendIssuerUrlFlag)
 	k.WaitForDex()
 
 	k.DeployBindBackend(hostIP)
@@ -104,6 +120,15 @@ func (k *KlutchManager) deployAppCluster() {
 
 	DeployAppCluster(appClusterName)
 	WaitForKindCluster(k.appK8s)
+
+	if LoadKonnectorImageFlag != "" {
+		cmd := exec.Command("kind", "load", "docker-image", LoadKonnectorImageFlag, "-n", "klutch-app")
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			makeup.ExitDueToFatalError(nil, fmt.Sprintf("Failed to load docker image: %v", string(out)))
+			os.Exit(1)
+		}
+	}
 
 	switchContext(contextApp) // in case the app cluster already existed, switch to it.
 }

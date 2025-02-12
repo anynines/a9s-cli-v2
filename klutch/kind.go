@@ -18,6 +18,9 @@ type clusterConfigTemplateVars struct {
 	Name            string
 	BackendHostPort string
 	HostLanIP       string
+	KeycloakCaPath  string
+	OidcClientId    string
+	OidcIssuerUrl   string
 }
 
 // DeployControlPlaneKindCluster creates a new kind cluster configured to act as a local Control Plane Cluster.
@@ -38,6 +41,9 @@ func DeployControlPlaneKindCluster(clusterName string, hostIP string, ingressPor
 		Name:            clusterName,
 		BackendHostPort: ingressPort,
 		HostLanIP:       hostIP,
+		KeycloakCaPath:  KeycloakCaPathFlag,
+		OidcClientId:    OIDCClusterClientIDFlag,
+		OidcIssuerUrl:   OIDCClusterIssuerURLFlag,
 	}
 
 	renderedTemplate, err := renderTemplate(cmcKindConfigTemplate, templateVars)
