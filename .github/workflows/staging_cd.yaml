@@ -21,7 +21,7 @@ jobs:
           yarn
           yarn run docusaurus build
           PASSWORD=${{secrets.HTPASSWD}} make config_staging
-      - uses: citizen-of-planet-earth/cf-cli-action@master
+      - uses: anynines/cf-cli-action@master
         with:
           cf_api: https://api.de.a9s.eu
           cf_username: ${{ secrets.PAAS_EMAIL }}
