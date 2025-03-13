@@ -1,0 +1,30 @@
+name: Create CLI release
+on:
+  push: # only triggers workflow when filter is satisfied
+    tags:
+      - 'v**'
+
+permissions:
+  contents: write # needed to write the binary archives to GitHub
+
+jobs:
+  create_release:
+      runs-on: ubuntu-22.04
+      steps:
+        - name: Checkout
+          uses: actions/checkout@v4
+          with:
+            fetch-depth: 0 # necessary according to the goreleaser documentation
+        - name: Set up Go
+          uses: actions/setup-go@v5
+          with:
+            go-version: stable
+        - name: Run GoReleaser
+          uses: goreleaser/goreleaser-action@v6
+          with:
+            # either 'goreleaser' (default) or 'goreleaser-pro'
+            distribution: goreleaser
+            version: "~> v2"
+            args: release
+          env:
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

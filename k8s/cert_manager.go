@@ -2,54 +2,32 @@ package k8s
 
 import (
 	"fmt"
-	"os/exec"
-	"strings"
-	"time"
 
 	"github.com/anynines/a9s-cli-v2/makeup"
 )
 
-func ApplyCertManagerManifests(waitForUser bool) {
+func (k *KubeClient) ApplyCertManagerManifests(waitForUser bool) {
 	makeup.PrintH1("Installing the cert-manager")
-	count := CountPodsInNamespace(CertManagerNamespace)
+	count := k.CountPodsInNamespace(CertManagerNamespace)
 
 	if count > 0 {
 		makeup.Print(fmt.Sprintf("Found %d pods in the %s namespace", count, CertManagerNamespace))
 	}
 
-	KubectlApplyF(CertManagerManifestUrl, waitForUser)
+	k.KubectlApplyF(CertManagerManifestUrl, waitForUser)
 
-	WaitForCertManagerToBecomeReady()
+	k.WaitForCertManagerToBecomeReady()
 }
 
-func WaitForCertManagerToBecomeReady() {
-	makeup.PrintH1("Waiting for the cert-manager API to become ready.")
-	crashLoopBackoffCount := 10
+func (k *KubeClient) WaitForCertManagerToBecomeReady() {
+	makeup.PrintH1("Waiting for the cert-manager components to become ready...")
 
-	for i := 1; i <= crashLoopBackoffCount; i++ {
-		cmd := exec.Command("cmctl", "check", "api")
-		output, err := cmd.CombinedOutput()
+	deployments := []string{"cert-manager", "cert-manager-webhook", "cert-manager-cainjector"}
+	namespace := "cert-manager"
 
-		makeup.Print(cmd.String())
-
-		//TODO Crash loop detection / timeout
-		if err != nil {
-			makeup.PrintWait("Continuing to wait for the cert-manager API...")
-		}
-
-		strOutput := string(output)
-
-		fmt.Println(strOutput)
-
-		if strings.TrimSpace(strOutput) == "The cert-manager API is ready" {
-			makeup.PrintCheckmark("The cert-manager is ready")
-			return
-		} else {
-			makeup.PrintWait("Continuing to wait for the cert-manager API...")
-		}
-
-		time.Sleep(30 * time.Second)
+	for _, deployment := range deployments {
+		k.KubectlWaitForRollout("deployment", deployment, namespace)
 	}
 
-	makeup.PrintFailSummary("The cert-manager did not become ready within reasonable time.")
+	makeup.PrintCheckmark("The cert-manager API is ready.")
 }

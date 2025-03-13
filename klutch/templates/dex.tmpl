@@ -1,0 +1,137 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: dex-ingress
+spec:
+  ingressClassName: nginx
+  rules:
+  - http:
+      paths:
+      - pathType: Prefix
+        path: "/dex"
+        backend:
+          service:
+            name: dex
+            port:
+              number: 5556
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dex
+spec:
+  type: ClusterIP
+  ports:
+  - protocol: TCP
+    name: dex
+    port: 5556
+    targetPort: 5556
+  - protocol: TCP
+    name: telemetry # Use this port for /healthz, /healthz/ready, /healthz/live
+    port: 5558
+    targetPort: 5558
+  selector:
+    app: dex
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: oidc-config
+type: Opaque
+stringData:
+  oidc-issuer-client-id: "kube-bind"
+  oidc-issuer-client-secret: "{{ .DexClientSecret }}"
+  oidc-issuer-url: "http://{{ .Host }}:{{ .IngressPort }}/dex"
+  oidc-callback-url: "http://{{ .Host }}:{{ .IngressPort }}/callback"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dex-config
+data:
+  config: |
+    issuer: http://{{ .Host }}:{{ .IngressPort }}/dex
+
+    storage:
+      type: memory
+
+    web:
+      http: 0.0.0.0:5556
+
+    telemetry:
+      http: 0.0.0.0:5558
+
+    grpc:
+      addr: 0.0.0.0:5557
+
+    staticClients:
+      - idEnv: DEX_ISSUER_CLIENT_ID
+        redirectURIs:
+        - 'http://{{ .Host }}:{{ .IngressPort }}/callback'
+        name: 'Kube Bind'
+        secretEnv: DEX_ISSUER_CLIENT_SECRET
+
+    enablePasswordDB: true
+
+    staticPasswords:
+      - email: "admin@example.com"
+        hash: "$2a$10$2b2cU8CPhOTaGrs1HRQuAueS7JTT5ZHsHSzYiFPm1leZck7Mc8T4W" # "password"
+        username: "admin"
+        userID: "08a8684b-db88-4b73-90a9-3cd1661f5466"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dex
+spec:
+  selector:
+    matchLabels:
+      app: dex
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: dex
+    spec:
+      containers:
+      - name: dex
+        image: dexidp/dex:v2.41.1-distroless
+        args:
+        - dex
+        - serve
+        - /conf/dex/config
+        resources:
+          requests:
+            cpu: 100m
+            memory: 64Mi
+          limits:
+            cpu: 400m
+            memory: 256Mi
+        env:
+        - name: DEX_ISSUER_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: oidc-config
+              key: oidc-issuer-client-secret
+        - name: DEX_ISSUER_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: oidc-config
+              key: oidc-issuer-client-id
+        ports:
+        - containerPort: 5556
+          name: dex
+        volumeMounts:
+        - name: data
+          mountPath: /data
+          readOnly: false
+        - name: config
+          mountPath: /conf/dex
+          readOnly: true
+      volumes:
+      - name: config
+        configMap:
+          name: dex-config
+      - name: data
+        emptyDir: {}
+---

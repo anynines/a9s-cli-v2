@@ -155,6 +155,17 @@ func promptPath() string {
 		// Retrieve the entered path
 		path := scanner.Text()
 
+		// As a safety measure, do not write a relative path to the config file.
+		// Otherwise, the CLI execution depends on being in the correct working dir.
+		if !filepath.IsAbs(path) {
+			currentPath, err := os.Getwd()
+			if err != nil {
+				makeup.ExitDueToFatalError(err, "Could not get the execution directory.")
+			}
+
+			path = filepath.Join(currentPath, path)
+		}
+
 		fmt.Print("Awesome. We got " + path + " as a working directory. Is this ok? (y/n): ")
 		choice, _ := reader.ReadString('\n')
 
@@ -180,9 +191,14 @@ func establishEncryptionPasswordFile() {
 
 	filePath := BackupConfigEncryptionPasswordFilePath()
 
-	if _, err := os.Stat(filePath); !os.IsNotExist(err) {
+	_, err := os.Stat(filePath)
+	if err == nil {
 		makeup.Print("There's already an encryption password file. Skipping password generation...")
 		return
+	}
+
+	if !os.IsNotExist(err) {
+		makeup.ExitDueToFatalError(err, "Could not check the encryption password file.")
 	}
 
 	// Generate a password that is 64 characters long with 10 digits, 10 symbols,

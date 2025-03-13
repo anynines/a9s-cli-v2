@@ -52,7 +52,8 @@ Then execute:
 
 **Note**: The version of the a9s CLI is maintained in the file `VERSION` and used in the `Makefile` and passed via `ldflags` into the binary. Therefore, when issuing new releases the `VERSION` file needs to be updated before building the binaries.
 
-## Making Release
+## Making Release 
+>**Note:** this part is deprecated, please use the steps shown further below using the Goreleaser GitHub action
 
 Example: Release `v0.10.0`.
 
@@ -70,6 +71,61 @@ Example: Release `v0.10.0`.
 1. Run `run-ci.bash` on the CI VM executing `e2e-tests` on linux.
 1. Update and upload the `releases.json` file to the S3 bucket.
 1. Deploy the documentation 
+
+## GitHub Release with GoReleaser and GitHub Actions
+
+This section contains targets for creating GitHub releases using GoReleaser and GitHub actions.
+GoReleaser automates the build, packaging and release process for Go projects,
+integrating with GitHub's release functionality.
+
+### Creating GitHub Releases with GoReleaser and GitHub Actions
+
+This guide outlines the process for creating GitHub releases using GoReleaser and GitHub actions.
+Following these steps will automate the build, packaging, and release process
+for your Go project, streamlining the creation of consistent and professional
+releases on GitHub.
+
+#### Steps to Create a Release
+
+Example: Release `v0.10.0`.
+
+1. Ensure that all tests are run including `e2e-tests`.
+1. Ensure that the documentation is updated incl. 
+    1. adding a copy of the docs to the corresponding version directory under `docs/versioned_docs`
+    2. updating `docs/versions.json` by adding the new version to the array
+1. Ensure the Readme is updated.
+1. Ensure the Changelog is updated.
+1. Ensure the remote `main` branch is up to date and clean with all necessary changes comitted.
+1. Ensure that your local main branch has the same state as the remote branch (i.e. it is up to date).
+1. Add the git tag to your local main branch:
+
+    ```bash
+    git tag -a v0.10.0 -m "Release v0.10.0"
+    ```
+1. Push the tag to the remote main branch (this will trigger the GitHub action and start Goreleaser):
+
+    ```bash
+    git push origin v0.10.0
+    ```
+1. Deploy the documentation 
+
+#### Testing the Release Process
+
+To test the release process without creating an actual release, use goreleaser locally like this:
+
+1. Install [GoReleaser](https://goreleaser.com/). 
+2. Set up a GitHub Personal Access Token with appropriate permissions.
+3. Run the following two commands:
+```bash
+export GITHUB_TOKEN="your_personal_access_token_here"
+```
+
+```bash
+goreleaser release --snapshot --clean
+```
+
+This command will simulate the release process without publishing or creating
+any permanent artifacts.
 
 # Design Principles / Ideals
 * The CLI acts like a personal assistent who knows how to install and use certain Kubernetes extensions including a list of anynines products facilitating their use.

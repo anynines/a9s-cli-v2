@@ -4,9 +4,6 @@
 #
 # Recommended: Go.AllowList.gitignore
 
-# Ignore everything
-*
-
 # But not these files...
 !/.gitignore
 
@@ -28,7 +25,14 @@
 !docs/*/**
 bin/a9s
 
+!klutch/manifests/*
+!klutch/manifests/examples/*
+!klutch/templates/*
+
+
 # !Makefile
 
 # ...even if they are in subdirectories
 !*/
+
+dist/

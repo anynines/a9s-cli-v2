@@ -19,17 +19,6 @@ func CheckoutDeploymentGitRepository() {
 	CheckoutGitRepository(demoGitRepo, demoA8sDeploymentLocalFilepath, DeploymentVersion)
 }
 
-func CheckoutDemoAppGitRepository() {
-	makeup.PrintH1("Checking out git repository with demo application manifests...")
-	makeup.Print("Remote Repository is at: " + demoAppGitRepo)
-	makeup.Print("Local working dir: " + DemoConfig.WorkingDir)
-
-	demoAppLocalFilepath := filepath.Join(DemoConfig.WorkingDir, DemoAppLocalDir)
-
-	//TODO Introduce releases for the demo app
-	CheckoutGitRepository(demoAppGitRepo, demoAppLocalFilepath, "latest")
-}
-
 func CheckoutGitRepository(repositoryURL, localDirectory string, tag string) error {
 	// Check if the local directory already exists
 	/*

@@ -12,6 +12,7 @@ import (
 
 	"github.com/anynines/a9s-cli-v2/k8s"
 	"github.com/anynines/a9s-cli-v2/makeup"
+	"github.com/anynines/a9s-cli-v2/minio"
 	"github.com/anynines/a9s-cli-v2/pg"
 )
 
@@ -22,8 +23,6 @@ import (
 // structures.
 const configFileName = ".a9s"
 const demoGitRepo = "https://github.com/anynines/a8s-deployment.git" // "git@github.com:anynines/a8s-deployment.git"
-const demoAppGitRepo = "https://github.com/anynines/a8s-demo.git"
-const DemoAppLocalDir = "a8s-demo"
 const demoA8sDeploymentLocalDir = "a8s-deployment"
 const defaultWorkDir = "a9s" // $home/WorkDir as the default proposal for a work dir.
 
@@ -87,17 +86,93 @@ var UnattendedMode bool // Ask yes-no questions or assume "yes"
 var ClusterNrOfNodes string
 var ClusterMemory string
 
+type A8sDemoManager struct {
+	KubeContext string
+	K8s         *k8s.KubeClient
+	Pg          *pg.PgManager
+	Minio       *minio.MinioManager
+}
+
+// NewA8sDemoManager returns a A8sDemoManager for the given kube context. If the context is empty,
+// it is ignored.
+func NewA8sDemoManager(kubeContext string) *A8sDemoManager {
+	return &A8sDemoManager{
+		KubeContext: kubeContext,
+		K8s:         k8s.NewKubeClient(kubeContext),
+		Pg:          pg.NewPgManager(kubeContext),
+		Minio:       minio.NewMinioManager(kubeContext, UnattendedMode),
+	}
+}
+
+func (m *A8sDemoManager) CreateA8sStack(createClusterIfNotExists bool) {
+	title := ""
+
+	//TODO Tidy up
+	if createClusterIfNotExists {
+		title = "anynines Cluster Management"
+	} else {
+		title = "anynines Stack Management"
+	}
+
+	makeup.PrintWelcomeScreen(
+		UnattendedMode,
+		title,
+		"Let's set up a Kubernetes stack together...")
+
+	EstablishConfig()
+
+	CheckPrerequisites()
+
+	makeup.WaitForUser(UnattendedMode)
+
+	//TODO It's odd that a check method also creates a k8s cluster
+	CheckK8sCluster(createClusterIfNotExists)
+
+	if m.CountPodsInDemoNamespace() == 0 {
+		makeup.PrintCheckmark("Kubernetes cluster has no pods in " + GetConfig().DemoSpace + " namespace.")
+	}
+
+	m.DeployA8sStack()
+
+	PrintDemoSummary()
+}
+
+// DeployA8sStack assumes that prerequisites are met. It was moved out of above function to allow re-use by other components.
+func (m *A8sDemoManager) DeployA8sStack() {
+	CheckoutDeploymentGitRepository()
+
+	minio.SetupMinioRepository(DemoConfig.WorkingDir)
+
+	// TODO Refactor - See backlog "Refactor `EstablishBackupStoreCredentials`"
+	EstablishBackupStoreCredentials()
+
+	//TODO find a more elegant way to deal with minio
+	if strings.ToLower(BackupInfrastructureProvider) == "minio" {
+		m.Minio.ApplyMinioManifests(DemoConfig.WorkingDir)
+		m.Minio.WaitForMinioToBecomeReady()
+	}
+
+	m.K8s.ApplyCertManagerManifests(UnattendedMode)
+
+	m.ApplyA8sManifests()
+
+	m.WaitForA8sSystemToBecomeReady()
+}
+
 /*
 Applies the manifests of the a8s-deployment repository and thus installs a8s PG.
 */
-func ApplyA8sManifests() {
+func (m *A8sDemoManager) ApplyA8sManifests() {
 	makeup.PrintH1("Applying the a8s Data Service manifests...")
+
 	kustomizePath := filepath.Join(DemoConfig.WorkingDir, demoA8sDeploymentLocalDir, "deploy", "a8s", "manifests")
-	k8s.KubectlApplyKustomize(kustomizePath, UnattendedMode)
+
+	m.K8s.KubectlApplyKustomize(kustomizePath, UnattendedMode)
+
 	makeup.PrintCheckmark("Done applying a8s manifests.")
 }
 
-func WaitForA8sSystemToBecomeReady() {
+func (m *A8sDemoManager) WaitForA8sSystemToBecomeReady() {
 	makeup.PrintH1("Waiting for the a8s System to become ready...")
 	expectedPodsByLabels := []string{
 		"app.kubernetes.io/name=backup-manager",                     // a8s-backup-controller-manager
@@ -105,13 +180,13 @@ func WaitForA8sSystemToBecomeReady() {
 		"app.kubernetes.io/name=service-binding-controller-manager", // service-binding-controller-manager
 	}
 
-	k8s.KubectlWaitForSystemToBecomeReady(A8sSystemNamespace, expectedPodsByLabels)
+	m.K8s.KubectlWaitForSystemToBecomeReady(A8sSystemNamespace, expectedPodsByLabels)
 
 	makeup.PrintCheckmark("The a8s System appears to be ready.")
 	makeup.WaitForUser(UnattendedMode)
 }
 
-func WaitForServiceInstanceToBecomeReady(namespace, serviceInstanceName string, nrOfInstances int) {
+func (m *A8sDemoManager) WaitForServiceInstanceToBecomeReady(namespace, serviceInstanceName string, nrOfInstances int) {
 	expectedPods := make([]k8s.PodExpectationState, nrOfInstances)
 
 	for i := 0; i < nrOfInstances; i++ {
@@ -121,11 +196,12 @@ func WaitForServiceInstanceToBecomeReady(namespace, serviceInstanceName string, 
 		}
 	}
 
-	k8s.WaitForSystemToBecomeReady(namespace, serviceInstanceName, expectedPods)
+	m.K8s.WaitForSystemToBecomeReady(namespace, serviceInstanceName, expectedPods)
+
 	makeup.WaitForUser(UnattendedMode)
 }
 
-func CreatePGServiceInstance() {
+func (m *A8sDemoManager) CreatePGServiceInstance() {
 	makeup.PrintH1("Creating a a8s Postgres Service Instance...")
 
 	EnsureConfigIsLoaded()
@@ -139,7 +215,7 @@ func CreatePGServiceInstance() {
 	WriteYAMLToFile(instanceYAML, instanceManifestPath)
 
 	if !DoNotApply {
-		k8s.KubectlApplyF(instanceManifestPath, UnattendedMode)
+		m.K8s.KubectlApplyF(instanceManifestPath, UnattendedMode)
 	}
 }
 
@@ -150,18 +226,18 @@ func getServiceInstanceManifestPath(serviceInstanceName string) string {
 	return GetUserManifestPath("a8s-pg-instance-" + serviceInstanceName + ".yaml")
 }
 
-func DeletePGServiceInstance(namespace, serviceInstanceName string) {
+func (m *A8sDemoManager) DeletePGServiceInstance(namespace, serviceInstanceName string) {
 	makeup.PrintH1("Deleting a a8s Postgres Service Instance...")
 
 	EnsureConfigIsLoaded()
 
-	if !pg.DoesServiceInstanceExist(namespace, serviceInstanceName) {
+	if !m.Pg.DoesServiceInstanceExist(namespace, serviceInstanceName) {
 		makeup.PrintWarning(fmt.Sprintf("Can't delete service instance. Service instance %s doesn't exist in namespace %s!", serviceInstanceName, namespace))
 		os.Exit(0)
 	}
 
 	// TODO Make "postgresqls" a constant
-	_, _, err := k8s.Kubectl(UnattendedMode, "delete", "postgresqls", serviceInstanceName, "-n", namespace)
+	_, _, err := m.K8s.Kubectl(UnattendedMode, "delete", "postgresqls", serviceInstanceName, "-n", namespace)
 
 	if err != nil {
 		makeup.ExitDueToFatalError(err, "Couldn't delete service instance.")
@@ -170,8 +246,8 @@ func DeletePGServiceInstance(namespace, serviceInstanceName string) {
 	}
 }
 
-func CountPodsInDemoNamespace() int {
-	return k8s.CountPodsInNamespace(DemoConfig.DemoSpace)
+func (m *A8sDemoManager) CountPodsInDemoNamespace() int {
+	return m.K8s.CountPodsInNamespace(DemoConfig.DemoSpace)
 }
 
 func getBackupManifestPath(backupName string) string {
@@ -186,10 +262,10 @@ func getRestoreManifestPath(backupName string) string {
 	return GetUserManifestPath("a8s-pg-restore-" + backupName + ".yaml")
 }
 
-func CreatePGServiceInstanceBackup() {
+func (m *A8sDemoManager) CreatePGServiceInstanceBackup() {
 	EnsureConfigIsLoaded()
 
-	if !pg.DoesServiceInstanceExist(A8sPGBackup.Namespace, A8sPGBackup.ServiceInstanceName) {
+	if !m.Pg.DoesServiceInstanceExist(A8sPGBackup.Namespace, A8sPGBackup.ServiceInstanceName) {
 		makeup.ExitDueToFatalError(nil, fmt.Sprintf("Can't create backup for non-existing service instance %s in namespace %s", A8sPGBackup.ServiceInstanceName, A8sPGBackup.Namespace))
 	}
 
@@ -200,21 +276,21 @@ func CreatePGServiceInstanceBackup() {
 	WriteYAMLToFile(yaml, getBackupManifestPath(A8sPGBackup.Name))
 
 	if !DoNotApply {
-		k8s.KubectlApplyF(getBackupManifestPath(A8sPGBackup.Name), UnattendedMode)
+		m.K8s.KubectlApplyF(getBackupManifestPath(A8sPGBackup.Name), UnattendedMode)
 	}
 
-	pg.WaitForPGBackupToBecomeReady(A8sPGBackup.Namespace, A8sPGBackup.Name)
+	m.Pg.WaitForPGBackupToBecomeReady(A8sPGBackup.Namespace, A8sPGBackup.Name)
 }
 
 // TODO Reduce code duplicity with CreatePGServiceInstanceBackup
-func CreatePGServiceInstanceRestore() {
+func (m *A8sDemoManager) CreatePGServiceInstanceRestore() {
 	EnsureConfigIsLoaded()
 
-	if !pg.DoesServiceInstanceExist(A8sPGRestore.Namespace, A8sPGRestore.ServiceInstanceName) {
+	if !m.Pg.DoesServiceInstanceExist(A8sPGRestore.Namespace, A8sPGRestore.ServiceInstanceName) {
 		makeup.ExitDueToFatalError(nil, fmt.Sprintf("Can't create restore for non-existing service instance %s in namespace %s", A8sPGRestore.ServiceInstanceName, A8sPGRestore.Namespace))
 	}
 
-	if !pg.DoesBackupExist(A8sPGRestore.Namespace, A8sPGRestore.BackupName) {
+	if !m.Pg.DoesBackupExist(A8sPGRestore.Namespace, A8sPGRestore.BackupName) {
 		makeup.ExitDueToFatalError(nil, fmt.Sprintf("Can't create restore for non-existing backup %s in namespace %s", A8sPGRestore.BackupName, A8sPGRestore.Namespace))
 	}
 
@@ -225,10 +301,10 @@ func CreatePGServiceInstanceRestore() {
 	WriteYAMLToFile(yaml, getRestoreManifestPath(A8sPGRestore.Name))
 
 	if !DoNotApply {
-		k8s.KubectlApplyF(getRestoreManifestPath(A8sPGRestore.Name), UnattendedMode)
+		m.K8s.KubectlApplyF(getRestoreManifestPath(A8sPGRestore.Name), UnattendedMode)
 	}
 
-	pg.WaitForPGRestoreToBecomeReady(A8sPGRestore.Namespace, A8sPGRestore.Name)
+	m.Pg.WaitForPGRestoreToBecomeReady(A8sPGRestore.Namespace, A8sPGRestore.Name)
 }
 
 func getServiceBindingManifestPath(binding pg.ServiceBinding) string {
@@ -239,11 +315,11 @@ func getServiceBindingManifestPath(binding pg.ServiceBinding) string {
 	return GetUserManifestPath("a8s-pg-service-binding-" + binding.Name + ".yaml")
 }
 
-func CreatePGServiceBinding() {
+func (m *A8sDemoManager) CreatePGServiceBinding() {
 	makeup.PrintH1("Creating a a8s Postgres Service Binding...")
 	EnsureConfigIsLoaded()
 
-	if !pg.DoesServiceInstanceExist(A8sPGServiceBinding.Namespace, A8sPGServiceBinding.ServiceInstanceName) {
+	if !m.Pg.DoesServiceInstanceExist(A8sPGServiceBinding.Namespace, A8sPGServiceBinding.ServiceInstanceName) {
 		makeup.ExitDueToFatalError(nil, fmt.Sprintf("Can't create service binding for non-existing service instance %s in namespace %s", A8sPGServiceBinding.ServiceInstanceName, A8sPGServiceBinding.Namespace))
 	}
 
@@ -252,10 +328,10 @@ func CreatePGServiceBinding() {
 	WriteYAMLToFile(yaml, getServiceBindingManifestPath(A8sPGServiceBinding))
 
 	if !DoNotApply {
-		k8s.KubectlApplyF(getServiceBindingManifestPath(A8sPGServiceBinding), UnattendedMode)
+		m.K8s.KubectlApplyF(getServiceBindingManifestPath(A8sPGServiceBinding), UnattendedMode)
 	}
 
-	err := pg.WaitForPGServiceBindingToBecomeReady(A8sPGServiceBinding)
+	err := m.Pg.WaitForPGServiceBindingToBecomeReady(A8sPGServiceBinding)
 
 	if err != nil {
 		makeup.ExitDueToFatalError(err, "A problem occurred creating the service binding.")
@@ -264,11 +340,11 @@ func CreatePGServiceBinding() {
 	}
 }
 
-func DeletePGServiceBinding() {
+func (m *A8sDemoManager) DeletePGServiceBinding() {
 	makeup.PrintH1("Deleting a a8s Postgres Service Binding...")
 	EnsureConfigIsLoaded()
 
-	_, _, err := k8s.Kubectl(UnattendedMode, "delete", "servicebinding", A8sPGServiceBinding.Name, "-n", A8sPGServiceBinding.Namespace)
+	_, _, err := m.K8s.Kubectl(UnattendedMode, "delete", "servicebinding", A8sPGServiceBinding.Name, "-n", A8sPGServiceBinding.Namespace)
 
 	if err != nil {
 		makeup.ExitDueToFatalError(err, "A problem occurred deleting the service binding.")

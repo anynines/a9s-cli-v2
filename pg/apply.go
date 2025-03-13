@@ -8,7 +8,6 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/anynines/a9s-cli-v2/k8s"
 	"github.com/anynines/a9s-cli-v2/makeup"
 )
 
@@ -27,13 +26,13 @@ Identifies the current primary of the given PG service instance.
 
 Executes: kubectl get pods -n default -l 'a8s.a9s/replication-role=master,a8s.a9s/dsi-group=postgresql.anynines.com,a8s.a9s/dsi-kind=Postgresql,a8s.a9s/dsi-name=clustered' -o=jsonpath='{.items[*].metadata.name}'
 */
-func FindPrimaryPodOfServiceInstance(namespace, serviceInstanceName string) string {
+func (pgm *PgManager) FindPrimaryPodOfServiceInstance(namespace, serviceInstanceName string) string {
 
 	instanceLabel := fmt.Sprintf("%s=%s", A8sPGServiceInstanceNameLabelKey, serviceInstanceName)
 
 	label := fmt.Sprintf("%s,%s,%s", A8sPGLabelPrimary, A8sPGServiceInstanceAPIGroupLabel, instanceLabel)
 
-	podName, err := k8s.FindFirstPodByLabel(namespace, label)
+	podName, err := pgm.K8s.FindFirstPodByLabel(namespace, label)
 
 	if err != nil {
 		makeup.ExitDueToFatalError(err, fmt.Sprintf("Can't find primary pod of service instance: %s/%s", namespace, serviceInstanceName))
@@ -49,7 +48,7 @@ Both the sql file and the psql command must be present in the target pod.
 Example:
 kubectl exec -n default clustered-0 -c postgres -- psql -U postgres -d a9s_apps_default_db -f demo_data.sql
 */
-func ExecuteSQLFileWithinPod(unattendedMode bool, namespace, serviceInstanceName, remoteSQLFilePath string) error {
+func (pgm *PgManager) ExecuteSQLFileWithinPod(unattendedMode bool, namespace, serviceInstanceName, remoteSQLFilePath string) error {
 
 	commandElements := make([]string, 0)
 	commandElements = append(commandElements, "exec")
@@ -67,13 +66,13 @@ func ExecuteSQLFileWithinPod(unattendedMode bool, namespace, serviceInstanceName
 	commandElements = append(commandElements, "-f")
 	commandElements = append(commandElements, remoteSQLFilePath)
 
-	k8s.Kubectl(unattendedMode, commandElements...)
+	pgm.K8s.Kubectl(unattendedMode, commandElements...)
 
 	return nil
 }
 
 // TODO Remove code duplication with ExecuteSQLFileWithinPod
-func ExecuteSQLStatementWithinPod(unattendedMode bool, namespace, serviceInstanceName, sqlStatement string) (*exec.Cmd, []byte, error) {
+func (pgm *PgManager) ExecuteSQLStatementWithinPod(unattendedMode bool, namespace, serviceInstanceName, sqlStatement string) (*exec.Cmd, []byte, error) {
 
 	commandElements := make([]string, 0)
 	commandElements = append(commandElements, "exec")
@@ -91,7 +90,7 @@ func ExecuteSQLStatementWithinPod(unattendedMode bool, namespace, serviceInstanc
 	commandElements = append(commandElements, "-c")
 	commandElements = append(commandElements, sqlStatement)
 
-	return k8s.Kubectl(unattendedMode, commandElements...)
+	return pgm.K8s.Kubectl(unattendedMode, commandElements...)
 }
 
 /*
@@ -103,9 +102,10 @@ in the pod and not be deleted, in case its execution failed.
 
 Example kubectl command: kubectl exec -n default clustered-0 -c postgres -- psql -U postgres -d a9s_apps_default_db -f demo_data.sql
 */
-func ApplySQLFileToPGServiceInstance(unattendedMode bool, namespace, serviceInstanceName, sqlFileToUpload string, noDelete bool) {
+func (pgm *PgManager) ApplySQLFileToPGServiceInstance(unattendedMode bool, namespace, serviceInstanceName, sqlFileToUpload string, noDelete bool) {
+	k8s := pgm.K8s
 	// Determine primary pod name
-	podName := FindPrimaryPodOfServiceInstance(namespace, serviceInstanceName)
+	podName := pgm.FindPrimaryPodOfServiceInstance(namespace, serviceInstanceName)
 
 	if podName != "" {
 		makeup.PrintVerbose(fmt.Sprintf("Found primary pod %s of service instance %s", podName, serviceInstanceName))
@@ -125,7 +125,7 @@ func ApplySQLFileToPGServiceInstance(unattendedMode bool, namespace, serviceInst
 	remoteSQLFilePath := filepath.Join(RemoteUploadDir, sqlFilename)
 
 	// Apply SQL file using psql
-	err = ExecuteSQLFileWithinPod(unattendedMode, namespace, podName, remoteSQLFilePath)
+	err = pgm.ExecuteSQLFileWithinPod(unattendedMode, namespace, podName, remoteSQLFilePath)
 
 	if err != nil {
 		makeup.ExitDueToFatalError(err, "Couldn't execute provided SQL file to pod "+podName)
@@ -145,10 +145,10 @@ func ApplySQLFileToPGServiceInstance(unattendedMode bool, namespace, serviceInst
 }
 
 // TODO Reduce code duplication with ApplySQLFileToPGServiceInstance
-func ApplySQLStatementToPGServiceInstance(unattendedMode bool, namespace, serviceInstanceName, sqlStatement string) {
+func (pgm *PgManager) ApplySQLStatementToPGServiceInstance(unattendedMode bool, namespace, serviceInstanceName, sqlStatement string) {
 
 	// Determine primary pod name
-	podName := FindPrimaryPodOfServiceInstance(namespace, serviceInstanceName)
+	podName := pgm.FindPrimaryPodOfServiceInstance(namespace, serviceInstanceName)
 
 	if podName != "" {
 		makeup.PrintVerbose(fmt.Sprintf("Found primary pod %s of service instance %s", podName, serviceInstanceName))
@@ -157,7 +157,7 @@ func ApplySQLStatementToPGServiceInstance(unattendedMode bool, namespace, servic
 	}
 
 	// Apply SQL file using psql
-	_, output, err := ExecuteSQLStatementWithinPod(unattendedMode, namespace, podName, sqlStatement)
+	_, output, err := pgm.ExecuteSQLStatementWithinPod(unattendedMode, namespace, podName, sqlStatement)
 
 	if err != nil {
 		makeup.ExitDueToFatalError(err, "Couldn't execute provided SQL file to pod "+podName)

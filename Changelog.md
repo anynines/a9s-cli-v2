@@ -1,5 +1,15 @@
 # Develop
 
+# v0.14.1
+* Change: Removed dependency on a8s-demo repository.
+* Change: If the user chooses a relative working directory, it is converted to an absolute path before being stored.
+* Change: Bind command now checks if the backend can be reached first.
+* Change: Updated naming conventions. `Consumer Cluster` is now `App Cluster` and `Management Cluster` is now `Control Plane Cluster`.
+* Bugfix: Klutch: don't randomly generate OIDC client secret if it already exists.
+* Bugfix: Pin Crossplane package version.
+
+# v0.14.0
+* Feature: `klutch` subcommands to automate the local deployment and usage of Klutch with an `a8s` stack.
 * Bugfix: Won't require `minikube` if `kind` is selected and vice versa.
 * Bugfix: Fixes wording issues in the `a9s cluster` command.
 * Change: Adds `git` to the list of required commands.
