@@ -1,5 +1,7 @@
 # Develop
 
+* Chore: Update to latest versions of the following components: nginx-ingress, Dex, Crossplane, anynines-backend and its CRDs, kubectl-bind and konnector.
+
 # v0.14.1
 * Change: Removed dependency on a8s-demo repository.
 * Change: If the user chooses a relative working directory, it is converted to an absolute path before being stored.

@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	backendCRDManifestsURL = "https://anynines-artifacts.s3.eu-central-1.amazonaws.com/central-management/v1.3.0/crds.yaml"
+	backendCRDManifestsURL = "https://anynines-artifacts.s3.eu-central-1.amazonaws.com/central-management/v1.4.1/crds.yaml"
 )
 
 //go:embed templates/backend.tmpl
