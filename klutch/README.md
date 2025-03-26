@@ -11,7 +11,7 @@ The following assumptions for using `klutch` commands are made:
 - `kind`, `kubectl`, `helm`, `git` are present in the PATH.
 - The following external resources are reachable:
     - Files on https://raw.githubusercontent.com/
-    - https://anynines-artifacts.s3.eu-central-1.amazonaws.com/central-management/v1.3.0/crds.yaml
+    - https://anynines-artifacts.s3.eu-central-1.amazonaws.com/central-management/v1.4.1/crds.yaml
     - `public.ecr.aws/w5n9a2g2/anynines/` image repositories
     - `dexidp/dex` image
     - `curlimages/curl` image
@@ -35,7 +35,7 @@ This allows subsequent commands such as `bind` to correctly connect to the Contr
 `a9s klutch bind`
 
 It makes following assumptions:
-- `kubectl` and the `kubectl-bind` plugin (`v1.3.0`) are present in the PATH.
+- `kubectl` and the `kubectl-bind` plugin (`v1.4.1`) are present in the PATH.
 
 This command automates the interactive binding process where possible. The `kubectl bind` command is called, opening a browser tab/window where the authorization can be performed. Once this is completed, the automation resumes and finishes the binding process.
 

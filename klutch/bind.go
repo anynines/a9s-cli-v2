@@ -35,7 +35,7 @@ var backupExample string
 var restoreExample string
 
 const (
-	konnectorImage = "public.ecr.aws/w5n9a2g2/anynines/konnector:v1.3.0"
+	konnectorImage = "public.ecr.aws/w5n9a2g2/anynines/konnector:v1.4.1"
 )
 
 type NamespacedName = types.NamespacedName
