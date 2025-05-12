@@ -18,7 +18,12 @@ The idea is that Ruby is more user friendly when it comes to writing scripts tha
 
 1. Install the `a9s` cli and ensure it's in your `$PATH`.
 2. Run the `a9s demo a8s` for both `kind` and `minikube`. This ensures that all dependencies are there and creates a local working directory.
-3. In the `e2e-tests` folger run the test suite by executing: `bundle exec rspec`
+3. Create an AWS S3 bucket (one of the e2e-tests uses Minikube and AWS S3 as its backup storage)
+4. Set the following ENV vars with your AWS account's credentials:
+  `export AWS_ACCESSKEYID=<...>`
+  `export AWS_SECRETKEY=<...>`  
+  `export ASW_S3_BUCKET_NAME=<...>`
+5. In the `e2e-tests` directory run the test suite by executing: `bundle exec rspec`
   * Before the first execution: 
     * [Recommended but optional] Install the Docker Pull Through Registry as this will speed up the test execution reducing the runtime to about 20%.    
     * Ensure that you have installed both Ruby and Bundler.
