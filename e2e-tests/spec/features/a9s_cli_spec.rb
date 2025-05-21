@@ -337,6 +337,9 @@ RSpec.describe "a9s-cli" do
               cmd = 'a9s create cluster a8s -p minikube --verbose --yes' \
                   ' --backup-provider="AWS"' \
                   ' --backup-region="eu-central-1"'
+              cmd += ' --backup-bucket="'
+              cmd += ENV.fetch('ASW_S3_BUCKET_NAME')
+              cmd += "\""
               cmd += ' --backup-store-accesskey="'
               cmd += ENV.fetch('AWS_ACCESSKEYID')
               cmd += "\""

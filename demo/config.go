@@ -350,49 +350,50 @@ func establishBackupStoreConfigYaml() {
 	filePath := backupStoreConfigFilePath()
 
 	if CheckIfFileExists(filePath) {
-		makeup.PrintCheckmark(fmt.Sprintf("There's already a backup-store-config.yaml file at %s. Trusting that the file is ok.", filePath))
+		makeup.PrintCheckmark(fmt.Sprintf("There's already a backup-store-config.yaml file at %s. Old configuration data will be overwritten if there were changes to them.", filePath))
 	} else {
-		makeup.Print("Writing a backup-store-config.yaml with defaults to " + filePath)
-
-		var actualProvider string
-
-		// For minio the backup_agent will be configured using an S3 compatible storage client
-		if strings.ToLower(BackupInfrastructureProvider) == "minio" {
-			actualProvider = "AWS"
-
-			// The endpoint is not set as a default cmd param as with AWS as a provider, this endpoint would cause problems
-			BackupInfrastructureEndpoint = "http://minio.minio-dev.svc.cluster.local:9000"
-			BackupInfrastructurePathStyle = true
-		} else {
-			actualProvider = BackupInfrastructureProvider
-		}
-
-		// TODO Make backup store configurable
-		blobStoreConfig := BlobStore{
-			Config: BlobStoreConfig{
-				CloudConfig: BlobStoreCloudConfiguration{
-					Provider:  actualProvider,
-					Container: BackupInfrastructureBucket,
-					Region:    BackupInfrastructureRegion,
-					Endpoint:  BackupInfrastructureEndpoint,
-					PathStyle: BackupInfrastructurePathStyle,
-				},
-			},
-		}
-
-		//TODO Refactor using WriteYAMLToFile
-		yamlData, err := yaml.Marshal(&blobStoreConfig)
-
-		if err != nil {
-			makeup.ExitDueToFatalError(err, "Couldn't generate backup-store-config.yaml file. Aborting...")
-		}
-
-		err = os.WriteFile(filePath, yamlData, 0644)
-
-		if err != nil {
-			makeup.ExitDueToFatalError(err, "Couldn't save backup-store-config.yaml file. Aborting...")
-		}
+		makeup.Print("Writing a backup-store-config.yaml with configurations to " + filePath)
 	}
+
+	var actualProvider string
+
+	// For minio the backup_agent will be configured using an S3 compatible storage client
+	if strings.ToLower(BackupInfrastructureProvider) == "minio" {
+		actualProvider = "AWS"
+
+		// The endpoint is not set as a default cmd param as with AWS as a provider, this endpoint would cause problems
+		BackupInfrastructureEndpoint = "http://minio.minio-dev.svc.cluster.local:9000"
+		BackupInfrastructurePathStyle = true
+	} else {
+		actualProvider = BackupInfrastructureProvider
+	}
+
+	// TODO Make backup store configurable
+	blobStoreConfig := BlobStore{
+		Config: BlobStoreConfig{
+			CloudConfig: BlobStoreCloudConfiguration{
+				Provider:  actualProvider,
+				Container: BackupInfrastructureBucket,
+				Region:    BackupInfrastructureRegion,
+				Endpoint:  BackupInfrastructureEndpoint,
+				PathStyle: BackupInfrastructurePathStyle,
+			},
+		},
+	}
+
+	//TODO Refactor using WriteYAMLToFile
+	yamlData, err := yaml.Marshal(&blobStoreConfig)
+
+	if err != nil {
+		makeup.ExitDueToFatalError(err, "Couldn't generate backup-store-config.yaml file. Aborting...")
+	}
+
+	err = os.WriteFile(filePath, yamlData, 0644)
+
+	if err != nil {
+		makeup.ExitDueToFatalError(err, "Couldn't save backup-store-config.yaml file. Aborting...")
+	}
+
 }
 
 func GetConfig() Config {
