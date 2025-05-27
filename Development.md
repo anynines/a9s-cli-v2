@@ -31,7 +31,7 @@ The state of unit tests is currently very poor.
 
 Execute the unit tests:
 
-    make tests
+    make test
 
 Or:
 
