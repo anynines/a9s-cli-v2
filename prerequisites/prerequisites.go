@@ -97,8 +97,8 @@ func GetCommonRequiredTools() map[string]RequiredTool {
 		ToolBind: {
 			CommandName: ToolBind,
 			HelpURLs: map[string]string{
-				GOOSDarwin: "https://docs.k8s.anynines.com/docs/develop/platform-operator/central-management-cluster-setup/#binding-an-app-cluster-interactive",
-				GOOSLinux:  "https://docs.k8s.anynines.com/docs/develop/platform-operator/central-management-cluster-setup/#binding-an-app-cluster-interactive",
+				GOOSDarwin: "https://klutch.io/docs/platform-operator-guide/setting-up-klutch-clusters/app-cluster/#installing-the-klutch-bind-cli",
+				GOOSLinux:  "https://klutch.io/docs/platform-operator-guide/setting-up-klutch-clusters/app-cluster/#installing-the-klutch-bind-cli",
 			},
 		},
 	}
