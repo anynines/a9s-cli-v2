@@ -348,10 +348,12 @@ As you can see, the secret `sb-sample-service-binding` contains all relevant inf
 
 With the PostgreSQL database at hand, an exemplary application can be deployed. 
 
-The demo app has already been checked out for you. Hence, installing it just a single command away:
+Simply run the following commands to install the demo app:
 
 ```bash
-kubectl apply -k $(a9s cluster pwd)/a8s-demo/demo-postgresql-app -n tutorial
+export A8S_DEMO_APP_REPO=https://raw.githubusercontent.com/anynines/a8s-demo/refs/heads/main/demo-postgresql-app/
+kubectl apply -f $A8S_DEMO_APP_REPO/demo-postgresql-app-service.yaml -n tutorial
+kubectl apply -f $A8S_DEMO_APP_REPO/demo-postgresql-app-deployment.yaml -n tutorial
 ```
 
 Output:
