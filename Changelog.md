@@ -2,6 +2,14 @@
 
 * Chore: Update to latest versions of the following components: nginx-ingress, Dex, Crossplane, anynines-backend and its CRDs, kubectl-bind and konnector.
 
+# v0.14.2
+* Change: Updated release process using Goreleaser
+* Bugfix: Improved e2e-tests 
+* Bugfix: Fixed Dependabot Issues
+* Change: Updated Readmes and fixed typos
+* Change: Updated Klutch dependencies (Updates to the backend image, CRDs, konnector and crossplane)
+* Bugfix: Fixed hands-on tutorial
+
 # v0.14.1
 * Change: Removed dependency on a8s-demo repository.
 * Change: If the user chooses a relative working directory, it is converted to an absolute path before being stored.
