@@ -37,3 +37,4 @@ bin/a9s
 
 dist/
 .vscode/settings.json
+.DS_Store
