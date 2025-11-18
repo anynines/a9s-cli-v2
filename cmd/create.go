@@ -1,7 +1,11 @@
 package cmd
 
 import (
+	"context"
+	"strings"
+
 	"github.com/anynines/a9s-cli-v2/demo"
+	klutchaws "github.com/anynines/a9s-cli-v2/klutch/aws"
 	"github.com/anynines/a9s-cli-v2/makeup"
 	"github.com/anynines/a9s-cli-v2/pg"
 	"github.com/spf13/cobra"
@@ -98,6 +102,24 @@ var cmdCreateClusterA8s = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		a8s := demo.NewA8sDemoManager("")
 		a8s.CreateA8sStack(true)
+	},
+}
+
+var cmdCreateClusterKlutch = &cobra.Command{
+	Use:   "klutch",
+	Short: "Create the Klutch control plane cluster.",
+	Long:  `Creates the Klutch control plane cluster on the selected provider. Currently only AWS is supported.`,
+	Run: func(cmd *cobra.Command, args []string) {
+		provider := strings.ToLower(strings.TrimSpace(demo.KubernetesTool))
+		if provider == "" {
+			makeup.ExitDueToFatalError(nil, "Please select a provider via -p. Supported provider for Klutch cluster creation is \"aws\".")
+		}
+
+		if provider != "aws" {
+			makeup.ExitDueToFatalError(nil, "The Klutch cluster creation currently only supports the \"aws\" provider.")
+		}
+
+		klutchaws.CreateControlPlaneCluster(context.Background())
 	},
 }
 
@@ -203,10 +225,11 @@ func init() {
 	cmdCreateStackA8s.PersistentFlags().BoolVar(&demo.NoPreCheck, "no-precheck", false, "skip the verification of prerequisites.")
 
 	// create demo
-	cmdCreateCluster.PersistentFlags().StringVarP(&demo.KubernetesTool, "provider", "p", "", "provider for creating the Kubernetes cluster. Valid options are \"minikube\" an \"kind\"")
+	cmdCreateCluster.PersistentFlags().StringVarP(&demo.KubernetesTool, "provider", "p", "", "provider for creating the Kubernetes cluster. Valid options are \"minikube\" and \"kind\" for local demos, as well as \"aws\" for Klutch.")
 	cmdCreateCluster.PersistentFlags().StringVarP(&demo.DemoClusterName, "cluster-name", "c", "a8s-demo", "name of the demo Kubernetes cluster.")
 
 	cmdCreateCluster.AddCommand(cmdCreateClusterA8s)
+	cmdCreateCluster.AddCommand(cmdCreateClusterKlutch)
 	cmdCreateStack.AddCommand(cmdCreateStackA8s)
 	cmdCreateStack.PersistentFlags().StringVarP(&demo.DemoClusterName, "cluster-name", "c", "a8s-demo", "name of the demo Kubernetes cluster.")
 
