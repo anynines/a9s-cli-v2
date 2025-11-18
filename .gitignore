@@ -40,3 +40,4 @@ dist/
 .DS_Store
 aws-load-balancer-controller-policy.json
 a9s-cli-v2.code-workspace
+a9s-cli-v2
