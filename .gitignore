@@ -38,3 +38,5 @@ bin/a9s
 dist/
 .vscode/settings.json
 .DS_Store
+aws-load-balancer-controller-policy.json
+a9s-cli-v2.code-workspace
