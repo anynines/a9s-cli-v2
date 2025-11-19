@@ -276,6 +276,7 @@ func ensureClusterRole(ctx context.Context, roleName string) {
 	mustRun(ctx, "aws", "iam", "create-role",
 		"--role-name", roleName,
 		"--assume-role-policy-document", "file://"+tmp,
+		"--description", "Allows the Klutch control plane EKS cluster to manage AWS resources on its behalf",
 		"--tags",
 		fmt.Sprintf("Key=%s,Value=%s", klutchTagKey, klutchTagValue),
 		fmt.Sprintf("Key=Name,Value=%s", roleName))
@@ -310,6 +311,7 @@ func ensureNodeRole(ctx context.Context, roleName string) {
 	mustRun(ctx, "aws", "iam", "create-role",
 		"--role-name", roleName,
 		"--assume-role-policy-document", "file://"+tmp,
+		"--description", "Provides Klutch control plane worker nodes the permissions required to integrate with AWS",
 		"--tags",
 		fmt.Sprintf("Key=%s,Value=%s", klutchTagKey, klutchTagValue),
 		fmt.Sprintf("Key=Name,Value=%s", roleName))
@@ -330,7 +332,7 @@ func ensureKMSKey(ctx context.Context, region, accountID, clusterRole string) st
 	if keyID == "" {
 		awsLogger.Infof("Creating new KMS key for EKS secret encryption...")
 		keyID = mustRun(ctx, "aws", "kms", "create-key",
-			"--description", "Klutch Control Plane – EKS Encryption",
+			"--description", "Encrypts secret data stored by the Klutch control plane EKS cluster",
 			"--query", "KeyMetadata.KeyId",
 			"--output", "text",
 			"--tags",
@@ -596,7 +598,7 @@ func ensureSecurityGroup(ctx context.Context, vpcID, sgName string) string {
 	if sgID == "" || sgID == "None" || sgID == "null" {
 		sgID = mustRun(ctx, "aws", "ec2", "create-security-group",
 			"--group-name", sgName,
-			"--description", "Klutch Control Plane and node communication",
+			"--description", "Restricts traffic for Klutch control plane components and worker nodes",
 			"--vpc-id", vpcID,
 			"--query", "GroupId",
 			"--output", "text")
@@ -809,6 +811,7 @@ func ensureALBController(ctx context.Context, cfg Config, vpcID, accountID strin
 		mustRun(ctx, "aws", "iam", "create-policy",
 			"--policy-name", cfg.ALBControllerPolicyName,
 			"--policy-document", "file://aws-load-balancer-controller-policy.json",
+			"--description", "Allows the Klutch control plane to run the AWS Load Balancer Controller safely",
 			"--tags",
 			fmt.Sprintf("Key=%s,Value=%s", klutchTagKey, klutchTagValue),
 			fmt.Sprintf("Key=Name,Value=%s", cfg.ALBControllerPolicyName))
