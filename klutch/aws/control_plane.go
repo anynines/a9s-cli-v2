@@ -4,12 +4,13 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/anynines/a9s-cli-v2/makeup"
 )
 
 type Config struct {
@@ -28,6 +29,42 @@ type Config struct {
 	ALBControllerPolicyName         string
 	ControlPlaneSGName              string
 }
+
+type styledLogger struct{}
+
+func newStyledLogger() *styledLogger {
+	return &styledLogger{}
+}
+
+func (l *styledLogger) Infof(format string, args ...interface{}) {
+	makeup.PrintInfo(fmt.Sprintf(format, args...))
+}
+
+func (l *styledLogger) Successf(format string, args ...interface{}) {
+	makeup.PrintSuccess(fmt.Sprintf(format, args...))
+}
+
+func (l *styledLogger) Warningf(format string, args ...interface{}) {
+	makeup.PrintWarning(fmt.Sprintf(format, args...))
+}
+
+func (l *styledLogger) Printf(format string, args ...interface{}) {
+	makeup.Print(fmt.Sprintf(format, args...))
+}
+
+func (l *styledLogger) Section(title string) {
+	makeup.PrintH1(title)
+}
+
+func (l *styledLogger) Summaryf(format string, args ...interface{}) {
+	makeup.PrintSuccessSummary(fmt.Sprintf(format, args...))
+}
+
+func (l *styledLogger) Fatalf(err error, format string, args ...interface{}) {
+	makeup.ExitDueToFatalError(err, fmt.Sprintf(format, args...))
+}
+
+var awsLogger = newStyledLogger()
 
 func getenv(key, def string) string {
 	if v := os.Getenv(key); v != "" {
@@ -71,49 +108,46 @@ func runCmd(ctx context.Context, name string, args ...string) (string, string, e
 func mustRun(ctx context.Context, name string, args ...string) string {
 	out, errOut, err := runCmd(ctx, name, args...)
 	if err != nil {
-		log.Fatalf("❌ %s %v failed: %v\nstderr: %s", name, args, err, errOut)
+		awsLogger.Fatalf(err, "❌ %s %v failed: %v\nstderr: %s", name, args, err, errOut)
 	}
 	return out
 }
 
 func CreateControlPlaneCluster(ctx context.Context) {
-	log.SetFlags(0)
-
 	cfg := defaultConfig()
 
-	log.Println("✅ Starting 10-install-eks-control-plane-cluster (Go version)")
+	awsLogger.Successf("✅ Starting 10-install-eks-control-plane-cluster (Go version)")
 
 	for _, cmd := range []string{"aws", "kubectl", "eksctl", "helm"} {
 		if _, err := exec.LookPath(cmd); err != nil {
-			log.Fatalf("❌ ERROR: Required command %q is not installed or not in PATH", cmd)
+			awsLogger.Fatalf(err, "❌ ERROR: Required command %q is not installed or not in PATH", cmd)
 		}
 	}
-	log.Println("✅ All required commands (aws, kubectl, eksctl, helm) are available.")
+	awsLogger.Successf("✅ All required commands (aws, kubectl, eksctl, helm) are available.")
 
-	log.Println("===== CONFIG =====")
-	log.Printf("Region:                           %s", cfg.Region)
-	log.Printf("Cluster Name:                     %s", cfg.ClusterName)
-	log.Printf("Nodegroup Name:                   %s", cfg.NodegroupName)
-	log.Printf("Node Instance Types:              %s", cfg.NodeInstanceTypes)
-	log.Printf("Nodegroup Scaling:                %s", cfg.NodeScalingConfig)
-	log.Printf("Cluster Role Name:                %s", cfg.ClusterRoleName)
-	log.Printf("Node Role Name:                   %s", cfg.NodeRoleName)
-	log.Printf("VPC CIDR:                         %s", cfg.BaseCIDR)
-	log.Printf("Public Subnets:                   %s, %s, %s", cfg.PubACIDR, cfg.PubBCIDR, cfg.PubCCIDR)
-	log.Printf("Private Subnets:                  %s, %s, %s", cfg.PrivACIDR, cfg.PrivBCIDR, cfg.PrivCCIDR)
-	log.Printf("ALB Controller Version:           %s", cfg.ALBControllerVersion)
-	log.Printf("ALB Controller Policy Name:       %s", cfg.ALBControllerPolicyName)
-	log.Printf("Control Plane Security Group:     %s", cfg.ControlPlaneSGName)
-	log.Println("===================")
+	awsLogger.Section("Configuration")
+	awsLogger.Printf("Region:                           %s", cfg.Region)
+	awsLogger.Printf("Cluster Name:                     %s", cfg.ClusterName)
+	awsLogger.Printf("Nodegroup Name:                   %s", cfg.NodegroupName)
+	awsLogger.Printf("Node Instance Types:              %s", cfg.NodeInstanceTypes)
+	awsLogger.Printf("Nodegroup Scaling:                %s", cfg.NodeScalingConfig)
+	awsLogger.Printf("Cluster Role Name:                %s", cfg.ClusterRoleName)
+	awsLogger.Printf("Node Role Name:                   %s", cfg.NodeRoleName)
+	awsLogger.Printf("VPC CIDR:                         %s", cfg.BaseCIDR)
+	awsLogger.Printf("Public Subnets:                   %s, %s, %s", cfg.PubACIDR, cfg.PubBCIDR, cfg.PubCCIDR)
+	awsLogger.Printf("Private Subnets:                  %s, %s, %s", cfg.PrivACIDR, cfg.PrivBCIDR, cfg.PrivCCIDR)
+	awsLogger.Printf("ALB Controller Version:           %s", cfg.ALBControllerVersion)
+	awsLogger.Printf("ALB Controller Policy Name:       %s", cfg.ALBControllerPolicyName)
+	awsLogger.Printf("Control Plane Security Group:     %s", cfg.ControlPlaneSGName)
 
-	log.Println("Detecting AWS Account ID...")
+	awsLogger.Infof("Detecting AWS Account ID...")
 	accountID, errOut, err := runCmd(ctx, "aws", "sts", "get-caller-identity", "--query", "Account", "--output", "text")
 	if err != nil || accountID == "" || accountID == "None" || accountID == "null" {
-		log.Fatalf("❌ ERROR: Unable to determine AWS Account ID. Run 'aws configure'. stderr: %s", errOut)
+		awsLogger.Fatalf(err, "❌ ERROR: Unable to determine AWS Account ID. Run 'aws configure'. stderr: %s", errOut)
 	}
-	log.Printf("ACCOUNT_ID: %s", accountID)
+	awsLogger.Infof("ACCOUNT_ID: %s", accountID)
 
-	log.Printf("Checking if cluster '%s' already exists...", cfg.ClusterName)
+	awsLogger.Infof("Checking if cluster '%s' already exists...", cfg.ClusterName)
 	clusterStatus := "NONE"
 	if out, errOut, err := runCmd(ctx, "aws", "eks", "describe-cluster",
 		"--name", cfg.ClusterName,
@@ -122,46 +156,46 @@ func CreateControlPlaneCluster(ctx context.Context) {
 		"--output", "text"); err == nil {
 		clusterStatus = out
 	} else if !strings.Contains(errOut, "ResourceNotFoundException") {
-		log.Fatalf("❌ ERROR: aws eks describe-cluster failed: %v\nstderr: %s", err, errOut)
+		awsLogger.Fatalf(err, "❌ ERROR: aws eks describe-cluster failed\nstderr: %s", errOut)
 	}
 	clusterExists := false
 	switch clusterStatus {
 	case "NONE":
-		log.Println("Cluster does not exist. It will be created.")
+		awsLogger.Infof("Cluster does not exist. It will be created.")
 	case "ACTIVE":
-		log.Println("Cluster already exists and is ACTIVE. Reusing it.")
+		awsLogger.Successf("Cluster already exists and is ACTIVE. Reusing it.")
 		clusterExists = true
 	case "CREATING":
-		log.Println("Cluster exists and is in CREATING state. Waiting until ACTIVE...")
+		awsLogger.Warningf("Cluster exists and is in CREATING state. Waiting until ACTIVE...")
 		mustRun(ctx, "aws", "eks", "wait", "cluster-active",
 			"--name", cfg.ClusterName, "--region", cfg.Region)
-		log.Println("Cluster is now ACTIVE.")
+		awsLogger.Successf("Cluster is now ACTIVE.")
 		clusterExists = true
 	default:
-		log.Fatalf("❌ ERROR: Cluster exists but is in bad state: %s. Delete or fix manually.", clusterStatus)
+		awsLogger.Fatalf(nil, "❌ ERROR: Cluster exists but is in bad state: %s. Delete or fix manually.", clusterStatus)
 	}
 
-	log.Println("Checking for existing Klutch VPC...")
+	awsLogger.Infof("Checking for existing Klutch VPC...")
 	vpcID := ""
 	if out, _, err := runCmd(ctx, "aws", "ec2", "describe-vpcs",
 		"--filters", "Name=tag:Klutch,Values=ControlPlane",
 		"--query", "Vpcs[0].VpcId",
 		"--output", "text"); err == nil && out != "None" && out != "null" {
 		vpcID = out
-		log.Printf("Reusing existing Klutch VPC: %s", vpcID)
+		awsLogger.Successf("Reusing existing Klutch VPC: %s", vpcID)
 	} else {
-		log.Println("No existing Klutch VPC found. A new VPC will be created.")
+		awsLogger.Infof("No existing Klutch VPC found. A new VPC will be created.")
 	}
 
 	if vpcID == "" {
-		log.Println("Creating VPC...")
+		awsLogger.Infof("Creating VPC...")
 		vpcID = mustRun(ctx, "aws", "ec2", "create-vpc",
 			"--cidr-block", cfg.BaseCIDR,
 			"--query", "Vpc.VpcId", "--output", "text")
 		mustRun(ctx, "aws", "ec2", "create-tags",
 			"--resources", vpcID,
 			"--tags", "Key=Klutch,Value=ControlPlane")
-		log.Println("Created VPC:", vpcID)
+		awsLogger.Successf("Created VPC: %s", vpcID)
 	}
 
 	ensureClusterRole(ctx, cfg.ClusterRoleName)
@@ -174,7 +208,7 @@ func CreateControlPlaneCluster(ctx context.Context) {
 	if !clusterExists {
 		createCluster(ctx, cfg, vpcID, keyArn, accountID)
 	} else {
-		log.Println("EKS cluster already exists. Skipping creation.")
+		awsLogger.Infof("EKS cluster already exists. Skipping creation.")
 	}
 	mustRun(ctx, "aws", "eks", "describe-cluster",
 		"--name", cfg.ClusterName,
@@ -194,17 +228,17 @@ func CreateControlPlaneCluster(ctx context.Context) {
 
 	ensureALBController(ctx, cfg, vpcID, accountID)
 
-	log.Println("🎉 EKS control plane cluster for Klutch is ready.")
-	log.Printf("   Cluster:   %s", cfg.ClusterName)
-	log.Printf("   Region:    %s", cfg.Region)
-	log.Printf("   VPC:       %s", vpcID)
-	log.Printf("   KMS Key:   %s", keyArn)
+	awsLogger.Summaryf("🎉 EKS control plane cluster for Klutch is ready.")
+	awsLogger.Printf("   Cluster:   %s", cfg.ClusterName)
+	awsLogger.Printf("   Region:    %s", cfg.Region)
+	awsLogger.Printf("   VPC:       %s", vpcID)
+	awsLogger.Printf("   KMS Key:   %s", keyArn)
 }
 
 func ensureClusterRole(ctx context.Context, roleName string) {
-	log.Printf("Ensuring IAM role '%s' exists...", roleName)
+	awsLogger.Infof("Ensuring IAM role '%s' exists...", roleName)
 	if _, _, err := runCmd(ctx, "aws", "iam", "get-role", "--role-name", roleName); err == nil {
-		log.Printf("EKS cluster role '%s' already exists.", roleName)
+		awsLogger.Successf("EKS cluster role '%s' already exists.", roleName)
 		return
 	}
 	trust := `{
@@ -221,7 +255,7 @@ func ensureClusterRole(ctx context.Context, roleName string) {
 }`
 	tmp := "/tmp/eks-cluster-trust.json"
 	if err := os.WriteFile(tmp, []byte(trust), 0600); err != nil {
-		log.Fatalf("writing trust policy failed: %v", err)
+		awsLogger.Fatalf(err, "writing trust policy failed")
 	}
 	mustRun(ctx, "aws", "iam", "create-role",
 		"--role-name", roleName,
@@ -229,13 +263,13 @@ func ensureClusterRole(ctx context.Context, roleName string) {
 	mustRun(ctx, "aws", "iam", "attach-role-policy",
 		"--role-name", roleName,
 		"--policy-arn", "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy")
-	log.Printf("Created EKS cluster role '%s'.", roleName)
+	awsLogger.Successf("Created EKS cluster role '%s'.", roleName)
 }
 
 func ensureNodeRole(ctx context.Context, roleName string) {
-	log.Printf("Ensuring IAM role '%s' exists...", roleName)
+	awsLogger.Infof("Ensuring IAM role '%s' exists...", roleName)
 	if _, _, err := runCmd(ctx, "aws", "iam", "get-role", "--role-name", roleName); err == nil {
-		log.Printf("EKS node role '%s' already exists.", roleName)
+		awsLogger.Successf("EKS node role '%s' already exists.", roleName)
 		return
 	}
 	trust := `{
@@ -252,7 +286,7 @@ func ensureNodeRole(ctx context.Context, roleName string) {
 }`
 	tmp := "/tmp/eks-node-trust.json"
 	if err := os.WriteFile(tmp, []byte(trust), 0600); err != nil {
-		log.Fatalf("writing node trust policy failed: %v", err)
+		awsLogger.Fatalf(err, "writing node trust policy failed")
 	}
 	mustRun(ctx, "aws", "iam", "create-role",
 		"--role-name", roleName,
@@ -266,23 +300,23 @@ func ensureNodeRole(ctx context.Context, roleName string) {
 	mustRun(ctx, "aws", "iam", "attach-role-policy",
 		"--role-name", roleName,
 		"--policy-arn", "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly")
-	log.Printf("Created EKS node role '%s'.", roleName)
+	awsLogger.Successf("Created EKS node role '%s'.", roleName)
 }
 
 func ensureKMSKey(ctx context.Context, region, accountID, clusterRole string) string {
 	keyID := os.Getenv("KEY_ID")
 	if keyID == "" {
-		log.Println("Creating new KMS key for EKS secret encryption...")
+		awsLogger.Infof("Creating new KMS key for EKS secret encryption...")
 		keyID = mustRun(ctx, "aws", "kms", "create-key",
 			"--description", "Klutch Control Plane – EKS Encryption",
 			"--query", "KeyMetadata.KeyId",
 			"--output", "text")
 	} else {
-		log.Println("Using existing KMS KEY_ID:", keyID)
+		awsLogger.Infof("Using existing KMS KEY_ID: %s", keyID)
 	}
 	keyArn := fmt.Sprintf("arn:aws:kms:%s:%s:key/%s", region, accountID, keyID)
-	log.Println("KMS KEY_ID: ", keyID)
-	log.Println("KMS KEY_ARN:", keyArn)
+	awsLogger.Infof("KMS KEY_ID: %s", keyID)
+	awsLogger.Infof("KMS KEY_ARN: %s", keyArn)
 
 	policy := fmt.Sprintf(`{
   "Version": "2012-10-17",
@@ -302,7 +336,7 @@ func ensureKMSKey(ctx context.Context, region, accountID, clusterRole string) st
 }`, keyArn)
 	tmp := "/tmp/eks-kms-policy.json"
 	if err := os.WriteFile(tmp, []byte(policy), 0600); err != nil {
-		log.Fatalf("writing kms role policy failed: %v", err)
+		awsLogger.Fatalf(err, "writing kms role policy failed")
 	}
 	mustRun(ctx, "aws", "iam", "put-role-policy",
 		"--role-name", clusterRole,
@@ -312,7 +346,8 @@ func ensureKMSKey(ctx context.Context, region, accountID, clusterRole string) st
 }
 
 func ensureNetworking(ctx context.Context, cfg Config, vpcID string) {
-	log.Println("Ensuring networking (VPC attributes, IGW, subnets, routes, NAT, SG)...")
+	awsLogger.Section("Networking")
+	awsLogger.Infof("Ensuring networking components (VPC attributes, IGW, subnets, routes, NAT, SG)...")
 
 	mustRun(ctx, "aws", "ec2", "modify-vpc-attribute",
 		"--vpc-id", vpcID,
@@ -330,8 +365,8 @@ func ensureNetworking(ctx context.Context, cfg Config, vpcID string) {
 	privB := ensureSubnet(ctx, vpcID, cfg.PrivBCIDR, cfg.Region+"b")
 	privC := ensureSubnet(ctx, vpcID, cfg.PrivCCIDR, cfg.Region+"c")
 
-	log.Printf("PUBLIC SUBNETS:  %s, %s, %s", pubA, pubB, pubC)
-	log.Printf("PRIVATE SUBNETS: %s, %s, %s", privA, privB, privC)
+	awsLogger.Printf("PUBLIC SUBNETS:  %s, %s, %s", pubA, pubB, pubC)
+	awsLogger.Printf("PRIVATE SUBNETS: %s, %s, %s", privA, privB, privC)
 
 	publicRT := ensurePublicRouteTable(ctx, vpcID, igwID, []string{pubA, pubB, pubC})
 
@@ -342,19 +377,19 @@ func ensureNetworking(ctx context.Context, cfg Config, vpcID string) {
 	privRTB := ensurePrivateRT(ctx, vpcID, privB, natB)
 	privRTC := ensurePrivateRT(ctx, vpcID, privC, natC)
 	_ = publicRT
-	log.Printf("PRIVATE ROUTE TABLES: %s, %s, %s", privRTA, privRTB, privRTC)
+	awsLogger.Printf("PRIVATE ROUTE TABLES: %s, %s, %s", privRTA, privRTB, privRTC)
 
 	ensureSecurityGroup(ctx, vpcID, cfg.ControlPlaneSGName)
 }
 
 func ensureIGW(ctx context.Context, vpcID string) string {
-	log.Printf("Checking for existing Internet Gateway attached to VPC %s...", vpcID)
+	awsLogger.Infof("Checking for existing Internet Gateway attached to VPC %s...", vpcID)
 	igwID, _, _ := runCmd(ctx, "aws", "ec2", "describe-internet-gateways",
 		"--filters", "Name=attachment.vpc-id,Values="+vpcID,
 		"--query", "InternetGateways[0].InternetGatewayId",
 		"--output", "text")
 	if igwID == "" || igwID == "None" || igwID == "null" {
-		log.Println("No Internet Gateway found. Creating and attaching a new one...")
+		awsLogger.Infof("No Internet Gateway found. Creating and attaching a new one...")
 		igwID = mustRun(ctx, "aws", "ec2", "create-internet-gateway",
 			"--query", "InternetGateway.InternetGatewayId",
 			"--output", "text")
@@ -362,9 +397,9 @@ func ensureIGW(ctx context.Context, vpcID string) string {
 			"--internet-gateway-id", igwID,
 			"--vpc-id", vpcID)
 	} else {
-		log.Println("Reusing existing Internet Gateway:", igwID)
+		awsLogger.Successf("Reusing existing Internet Gateway: %s", igwID)
 	}
-	log.Println("IGW_ID =", igwID)
+	awsLogger.Infof("IGW_ID = %s", igwID)
 	return igwID
 }
 
@@ -374,7 +409,7 @@ func ensureSubnet(ctx context.Context, vpcID, cidr, az string) string {
 		"--query", "Subnets[0].SubnetId",
 		"--output", "text")
 	if out == "" || out == "None" || out == "null" {
-		log.Printf("Creating subnet %s in AZ %s...", cidr, az)
+		awsLogger.Infof("Creating subnet %s in AZ %s...", cidr, az)
 		out = mustRun(ctx, "aws", "ec2", "create-subnet",
 			"--vpc-id", vpcID,
 			"--cidr-block", cidr,
@@ -382,19 +417,19 @@ func ensureSubnet(ctx context.Context, vpcID, cidr, az string) string {
 			"--query", "Subnet.SubnetId",
 			"--output", "text")
 	} else {
-		log.Printf("Reusing subnet %s: %s", cidr, out)
+		awsLogger.Successf("Reusing subnet %s: %s", cidr, out)
 	}
 	return out
 }
 
 func ensurePublicRouteTable(ctx context.Context, vpcID, igwID string, pubSubnets []string) string {
-	log.Println("Checking for existing public route table...")
+	awsLogger.Infof("Checking for existing public route table...")
 	rtID, _, _ := runCmd(ctx, "aws", "ec2", "describe-route-tables",
 		"--filters", "Name=vpc-id,Values="+vpcID,
 		"--query", "RouteTables[?Routes[?GatewayId=='"+igwID+"' && DestinationCidrBlock=='0.0.0.0/0']].RouteTableId | [0]",
 		"--output", "text")
 	if rtID == "" || rtID == "None" || rtID == "null" {
-		log.Println("Creating public route table...")
+		awsLogger.Infof("Creating public route table...")
 		rtID = mustRun(ctx, "aws", "ec2", "create-route-table",
 			"--vpc-id", vpcID,
 			"--query", "RouteTable.RouteTableId",
@@ -404,7 +439,7 @@ func ensurePublicRouteTable(ctx context.Context, vpcID, igwID string, pubSubnets
 			"--destination-cidr-block", "0.0.0.0/0",
 			"--gateway-id", igwID)
 	} else {
-		log.Println("Reusing public route table:", rtID)
+		awsLogger.Successf("Reusing public route table: %s", rtID)
 	}
 	for _, sn := range pubSubnets {
 		_, _, _ = runCmd(ctx, "aws", "ec2", "associate-route-table",
@@ -415,7 +450,7 @@ func ensurePublicRouteTable(ctx context.Context, vpcID, igwID string, pubSubnets
 }
 
 func ensureElasticIPQuota(ctx context.Context) {
-	log.Println("Checking Elastic IP quota...")
+	awsLogger.Infof("Checking Elastic IP quota...")
 	out, errOut, err := runCmd(ctx, "aws", "ec2", "describe-addresses",
 		"--query", "Addresses[].AllocationId",
 		"--output", "text")
@@ -424,7 +459,7 @@ func ensureElasticIPQuota(ctx context.Context) {
 		parts := strings.Fields(out)
 		currentCount = len(parts)
 	} else if err != nil && !strings.Contains(errOut, "AuthFailure") {
-		log.Printf("WARN: describe-addresses failed: %v, stderr: %s", err, errOut)
+		awsLogger.Warningf("describe-addresses failed: %v, stderr: %s", err, errOut)
 	}
 	required := 3
 	quotaRaw, errOutQ, errQ := runCmd(ctx, "aws", "service-quotas", "get-service-quota",
@@ -433,26 +468,26 @@ func ensureElasticIPQuota(ctx context.Context) {
 		"--query", "Quota.Value",
 		"--output", "text")
 	if errQ != nil {
-		log.Printf("WARN: service-quotas not available or failed: %v, stderr: %s", errQ, errOutQ)
-		log.Println("Skipping Elastic IP quota enforcement.")
+		awsLogger.Warningf("service-quotas not available or failed: %v, stderr: %s", errQ, errOutQ)
+		awsLogger.Warningf("Skipping Elastic IP quota enforcement.")
 		return
 	}
-	log.Printf("Current EIPs allocated: %d", currentCount)
-	log.Printf("Required EIPs for install: %d", required)
-	log.Printf("Elastic IP quota: %s", quotaRaw)
+	awsLogger.Printf("Current EIPs allocated: %d", currentCount)
+	awsLogger.Printf("Required EIPs for install: %d", required)
+	awsLogger.Printf("Elastic IP quota: %s", quotaRaw)
 	if quotaRaw != "Unknown" && quotaRaw != "" {
 		qFloat, _ := strconv.ParseFloat(quotaRaw, 64)
 		qInt := int(qFloat)
 		if currentCount+required > qInt {
-			log.Fatalf("❌ ERROR: Not enough Elastic IP quota. Have %d, quota %d, need %d.",
+			awsLogger.Fatalf(nil, "❌ ERROR: Not enough Elastic IP quota. Have %d, quota %d, need %d.",
 				currentCount, qInt, currentCount+required)
 		}
 	}
-	log.Println("✅ Elastic IP quota is sufficient.")
+	awsLogger.Successf("✅ Elastic IP quota is sufficient.")
 }
 
 func ensureNATs(ctx context.Context, vpcID, pubA, pubB, pubC string) (string, string, string) {
-	log.Println("Ensuring NAT Gateways exist...")
+	awsLogger.Infof("Ensuring NAT Gateways exist...")
 	var newNATs []string
 	ensure := func(subnet string) string {
 		natID, _, _ := runCmd(ctx, "aws", "ec2", "describe-nat-gateways",
@@ -463,7 +498,7 @@ func ensureNATs(ctx context.Context, vpcID, pubA, pubB, pubC string) (string, st
 			"--query", "NatGateways[0].NatGatewayId",
 			"--output", "text")
 		if natID == "" || natID == "None" || natID == "null" {
-			log.Printf("Creating NAT Gateway in subnet %s...", subnet)
+			awsLogger.Infof("Creating NAT Gateway in subnet %s...", subnet)
 			alloc := mustRun(ctx, "aws", "ec2", "allocate-address",
 				"--domain", "vpc",
 				"--query", "AllocationId",
@@ -475,7 +510,7 @@ func ensureNATs(ctx context.Context, vpcID, pubA, pubB, pubC string) (string, st
 				"--output", "text")
 			newNATs = append(newNATs, natID)
 		} else {
-			log.Println("Reusing NAT Gateway:", natID)
+			awsLogger.Successf("Reusing NAT Gateway: %s", natID)
 		}
 		return natID
 	}
@@ -487,9 +522,9 @@ func ensureNATs(ctx context.Context, vpcID, pubA, pubB, pubC string) (string, st
 		args := []string{"ec2", "wait", "nat-gateway-available", "--nat-gateway-ids"}
 		args = append(args, newNATs...)
 		mustRun(ctx, "aws", args...)
-		log.Println("New NAT Gateways are available.")
+		awsLogger.Successf("New NAT Gateways are available.")
 	}
-	log.Printf("NAT Gateways: %s, %s, %s", natA, natB, natC)
+	awsLogger.Printf("NAT Gateways: %s, %s, %s", natA, natB, natC)
 	return natA, natB, natC
 }
 
@@ -501,7 +536,7 @@ func ensurePrivateRT(ctx context.Context, vpcID, privSubnet, natID string) strin
 		"--query", "RouteTables[?Routes[?NatGatewayId=='"+natID+"' && DestinationCidrBlock=='0.0.0.0/0']].RouteTableId | [0]",
 		"--output", "text")
 	if rtID == "" || rtID == "None" || rtID == "null" {
-		log.Printf("Creating private route table for subnet %s...", privSubnet)
+		awsLogger.Infof("Creating private route table for subnet %s...", privSubnet)
 		rtID = mustRun(ctx, "aws", "ec2", "create-route-table",
 			"--vpc-id", vpcID,
 			"--query", "RouteTable.RouteTableId",
@@ -514,13 +549,13 @@ func ensurePrivateRT(ctx context.Context, vpcID, privSubnet, natID string) strin
 			"--route-table-id", rtID,
 			"--subnet-id", privSubnet)
 	} else {
-		log.Printf("Reusing private route table: %s", rtID)
+		awsLogger.Successf("Reusing private route table: %s", rtID)
 	}
 	return rtID
 }
 
 func ensureSecurityGroup(ctx context.Context, vpcID, sgName string) string {
-	log.Println("Ensuring security group exists...")
+	awsLogger.Infof("Ensuring security group exists...")
 	sgID, _, _ := runCmd(ctx, "aws", "ec2", "describe-security-groups",
 		"--filters",
 		"Name=vpc-id,Values="+vpcID,
@@ -534,9 +569,9 @@ func ensureSecurityGroup(ctx context.Context, vpcID, sgName string) string {
 			"--vpc-id", vpcID,
 			"--query", "GroupId",
 			"--output", "text")
-		log.Println("Created security group:", sgID)
+		awsLogger.Successf("Created security group: %s", sgID)
 	} else {
-		log.Println("Reusing security group:", sgID)
+		awsLogger.Successf("Reusing security group: %s", sgID)
 	}
 	_, _, _ = runCmd(ctx, "aws", "ec2", "authorize-security-group-ingress",
 		"--group-id", sgID,
@@ -547,7 +582,7 @@ func ensureSecurityGroup(ctx context.Context, vpcID, sgName string) string {
 		"--protocol", "-1",
 		"--cidr", "0.0.0.0/0")
 
-	log.Println("CONTROL_PLANE_SG_ID =", sgID)
+	awsLogger.Printf("CONTROL_PLANE_SG_ID = %s", sgID)
 	return sgID
 }
 
@@ -569,7 +604,7 @@ func createCluster(ctx context.Context, cfg Config, vpcID, keyArn, accountID str
 		"--output", "text")
 
 	subnets := strings.Join([]string{privA, privB, privC}, ",")
-	log.Printf("Creating EKS cluster '%s'...", cfg.ClusterName)
+	awsLogger.Infof("Creating EKS cluster '%s'...", cfg.ClusterName)
 	mustRun(ctx, "aws", "eks", "create-cluster",
 		"--name", cfg.ClusterName,
 		"--region", cfg.Region,
@@ -577,32 +612,32 @@ func createCluster(ctx context.Context, cfg Config, vpcID, keyArn, accountID str
 		"--resources-vpc-config", fmt.Sprintf("subnetIds=%s,securityGroupIds=%s", subnets, sgID),
 		"--encryption-config", fmt.Sprintf("[{\"resources\":[\"secrets\"],\"provider\":{\"keyArn\":\"%s\"}}]", keyArn),
 	)
-	log.Printf("Waiting for EKS cluster '%s' to become ACTIVE...", cfg.ClusterName)
+	awsLogger.Infof("Waiting for EKS cluster '%s' to become ACTIVE...", cfg.ClusterName)
 	mustRun(ctx, "aws", "eks", "wait", "cluster-active",
 		"--name", cfg.ClusterName,
 		"--region", cfg.Region)
-	log.Println("✅ Cluster is ACTIVE.")
+	awsLogger.Successf("✅ Cluster is ACTIVE.")
 }
 
 func ensureDefaultEBSEncryption(ctx context.Context) {
-	log.Println("Ensuring AWS account default EBS encryption is enabled...")
+	awsLogger.Infof("Ensuring AWS account default EBS encryption is enabled...")
 	out, _, err := runCmd(ctx, "aws", "ec2", "get-ebs-encryption-by-default",
 		"--query", "EbsEncryptionByDefault", "--output", "text")
 	if err != nil {
-		log.Printf("WARN: get-ebs-encryption-by-default failed, skipping. Out=%s", out)
+		awsLogger.Warningf("get-ebs-encryption-by-default failed, skipping. Out=%s", out)
 		return
 	}
 	if out != "true" {
-		log.Println("Default EBS encryption is currently disabled. Enabling now...")
+		awsLogger.Warningf("Default EBS encryption is currently disabled. Enabling now...")
 		mustRun(ctx, "aws", "ec2", "enable-ebs-encryption-by-default")
-		log.Println("Default EBS encryption has been enabled.")
+		awsLogger.Successf("Default EBS encryption has been enabled.")
 	} else {
-		log.Println("Default EBS encryption is already enabled.")
+		awsLogger.Successf("Default EBS encryption is already enabled.")
 	}
 }
 
 func ensureNodegroup(ctx context.Context, cfg Config, vpcID, accountID string) {
-	log.Printf("Checking nodegroup '%s'...", cfg.NodegroupName)
+	awsLogger.Infof("Checking nodegroup '%s'...", cfg.NodegroupName)
 	status, errOut, err := runCmd(ctx, "aws", "eks", "describe-nodegroup",
 		"--cluster-name", cfg.ClusterName,
 		"--nodegroup-name", cfg.NodegroupName,
@@ -610,7 +645,7 @@ func ensureNodegroup(ctx context.Context, cfg Config, vpcID, accountID string) {
 		"--query", "nodegroup.status",
 		"--output", "text")
 	if err != nil && !strings.Contains(errOut, "ResourceNotFoundException") {
-		log.Fatalf("❌ ERROR: describe-nodegroup failed: %v\nstderr: %s", err, errOut)
+		awsLogger.Fatalf(err, "❌ ERROR: describe-nodegroup failed\nstderr: %s", errOut)
 	}
 	if status == "" {
 		status = "NONE"
@@ -627,7 +662,7 @@ func ensureNodegroup(ctx context.Context, cfg Config, vpcID, accountID string) {
 		"--query", "Subnets[0].SubnetId", "--output", "text")
 
 	create := func() {
-		log.Printf("Creating nodegroup '%s'...", cfg.NodegroupName)
+		awsLogger.Infof("Creating nodegroup '%s'...", cfg.NodegroupName)
 		mustRun(ctx, "aws", "eks", "create-nodegroup",
 			"--cluster-name", cfg.ClusterName,
 			"--nodegroup-name", cfg.NodegroupName,
@@ -637,36 +672,36 @@ func ensureNodegroup(ctx context.Context, cfg Config, vpcID, accountID string) {
 			"--ami-type", cfg.NodeAMIType,
 			"--node-role", fmt.Sprintf("arn:aws:iam::%s:role/%s", accountID, cfg.NodeRoleName),
 			"--region", cfg.Region)
-		log.Printf("Waiting for nodegroup '%s' to become ACTIVE...", cfg.NodegroupName)
+		awsLogger.Infof("Waiting for nodegroup '%s' to become ACTIVE...", cfg.NodegroupName)
 		mustRun(ctx, "aws", "eks", "wait", "nodegroup-active",
 			"--cluster-name", cfg.ClusterName,
 			"--nodegroup-name", cfg.NodegroupName,
 			"--region", cfg.Region)
-		log.Println("✅ Nodegroup is ACTIVE.")
+		awsLogger.Successf("✅ Nodegroup is ACTIVE.")
 	}
 
 	switch status {
 	case "NONE":
-		log.Println("Nodegroup does not exist. Creating...")
+		awsLogger.Infof("Nodegroup does not exist. Creating...")
 		create()
 	case "ACTIVE":
-		log.Println("Nodegroup already exists and is ACTIVE. Reusing it.")
+		awsLogger.Successf("Nodegroup already exists and is ACTIVE. Reusing it.")
 	case "CREATING":
-		log.Println("Nodegroup is in CREATING. Waiting until ACTIVE...")
+		awsLogger.Warningf("Nodegroup is in CREATING. Waiting until ACTIVE...")
 		mustRun(ctx, "aws", "eks", "wait", "nodegroup-active",
 			"--cluster-name", cfg.ClusterName,
 			"--nodegroup-name", cfg.NodegroupName,
 			"--region", cfg.Region)
-		log.Println("✅ Nodegroup is ACTIVE.")
+		awsLogger.Successf("✅ Nodegroup is ACTIVE.")
 	case "DELETING":
-		log.Fatal("❌ ERROR: Nodegroup is currently DELETING. Wait for it to finish and re-run the installer.")
+		awsLogger.Fatalf(nil, "❌ ERROR: Nodegroup is currently DELETING. Wait for it to finish and re-run the installer.")
 	default:
-		log.Printf("Nodegroup is in bad state: %s. Deleting and recreating...", status)
+		awsLogger.Warningf("Nodegroup is in bad state: %s. Deleting and recreating...", status)
 		mustRun(ctx, "aws", "eks", "delete-nodegroup",
 			"--cluster-name", cfg.ClusterName,
 			"--nodegroup-name", cfg.NodegroupName,
 			"--region", cfg.Region)
-		log.Printf("Waiting for nodegroup '%s' to be deleted...", cfg.NodegroupName)
+		awsLogger.Infof("Waiting for nodegroup '%s' to be deleted...", cfg.NodegroupName)
 		mustRun(ctx, "aws", "eks", "wait", "nodegroup-deleted",
 			"--cluster-name", cfg.ClusterName,
 			"--nodegroup-name", cfg.NodegroupName,
@@ -676,21 +711,22 @@ func ensureNodegroup(ctx context.Context, cfg Config, vpcID, accountID string) {
 }
 
 func waitForNodesReady(ctx context.Context) {
-	log.Println("Waiting for at least one Ready node...")
+	awsLogger.Section("Cluster Nodes")
+	awsLogger.Infof("Waiting for at least one Ready node...")
 	for {
 		out, _, err := runCmd(ctx, "kubectl", "get", "nodes")
 		if err == nil && strings.Contains(out, " Ready") {
-			log.Println("✅ Nodes are Ready:")
-			fmt.Println(out)
+			awsLogger.Successf("✅ Nodes are Ready:")
+			makeup.Print(out)
 			return
 		}
-		log.Println("No Ready nodes yet, sleeping 10s...")
+		awsLogger.Warningf("No Ready nodes yet, sleeping 10s...")
 		time.Sleep(10 * time.Second)
 	}
 }
 
 func ensureGp3StorageClass(ctx context.Context) {
-	log.Println("Creating gp3 StorageClass and setting it as default...")
+	awsLogger.Infof("Creating gp3 StorageClass and setting it as default...")
 	yaml := `apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
@@ -710,13 +746,14 @@ parameters:
 	cmd.Stdout = &outBuf
 	cmd.Stderr = &errBuf
 	if err := cmd.Run(); err != nil {
-		log.Fatalf("❌ kubectl apply gp3 SC failed: %v\nstderr: %s", err, errBuf.String())
+		awsLogger.Fatalf(err, "❌ kubectl apply gp3 SC failed\nstderr: %s", errBuf.String())
 	}
-	log.Println("✅ gp3 StorageClass installed and set as default.")
+	awsLogger.Successf("✅ gp3 StorageClass installed and set as default.")
 }
 
 func ensureALBController(ctx context.Context, cfg Config, vpcID, accountID string) {
-	log.Println("Installing AWS Load Balancer Controller...")
+	awsLogger.Section("AWS Load Balancer Controller")
+	awsLogger.Infof("Installing AWS Load Balancer Controller...")
 
 	mustRun(ctx, "eksctl", "utils", "associate-iam-oidc-provider",
 		"--region", cfg.Region,
@@ -724,25 +761,25 @@ func ensureALBController(ctx context.Context, cfg Config, vpcID, accountID strin
 		"--approve")
 
 	policyURL := fmt.Sprintf("https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/%s/docs/install/iam_policy.json", cfg.ALBControllerVersion)
-	log.Println("Using AWS Load Balancer Controller version:", cfg.ALBControllerVersion)
-	log.Println("IAM policy URL:", policyURL)
+	awsLogger.Printf("Using AWS Load Balancer Controller version: %s", cfg.ALBControllerVersion)
+	awsLogger.Printf("IAM policy URL: %s", policyURL)
 
 	_, errOut, err := runCmd(ctx, "curl", "-sSfL", "-o", "aws-load-balancer-controller-policy.json", policyURL)
 	if err != nil {
-		log.Fatalf("curl failed: %v\nstderr: %s", err, errOut)
+		awsLogger.Fatalf(err, "curl failed\nstderr: %s", errOut)
 	}
 
 	policyArn := fmt.Sprintf("arn:aws:iam::%s:policy/%s", accountID, cfg.ALBControllerPolicyName)
 	if _, _, err := runCmd(ctx, "aws", "iam", "get-policy", "--policy-arn", policyArn); err != nil {
-		log.Printf("Creating IAM policy %s", cfg.ALBControllerPolicyName)
+		awsLogger.Infof("Creating IAM policy %s", cfg.ALBControllerPolicyName)
 		mustRun(ctx, "aws", "iam", "create-policy",
 			"--policy-name", cfg.ALBControllerPolicyName,
 			"--policy-document", "file://aws-load-balancer-controller-policy.json")
 	} else {
-		log.Printf("IAM policy %s already exists.", cfg.ALBControllerPolicyName)
+		awsLogger.Successf("IAM policy %s already exists.", cfg.ALBControllerPolicyName)
 	}
 
-	log.Println("Creating IAM service account for AWS Load Balancer Controller...")
+	awsLogger.Infof("Creating IAM service account for AWS Load Balancer Controller...")
 	mustRun(ctx, "eksctl", "create", "iamserviceaccount",
 		"--cluster", cfg.ClusterName,
 		"--namespace", "kube-system",
@@ -752,7 +789,7 @@ func ensureALBController(ctx context.Context, cfg Config, vpcID, accountID strin
 		"--approve",
 		"--override-existing-serviceaccounts")
 
-	log.Println("Installing AWS Load Balancer Controller via Helm...")
+	awsLogger.Infof("Installing AWS Load Balancer Controller via Helm...")
 	_, _, _ = runCmd(ctx, "helm", "repo", "add", "eks", "https://aws.github.io/eks-charts")
 	mustRun(ctx, "helm", "repo", "update")
 
@@ -767,10 +804,10 @@ func ensureALBController(ctx context.Context, cfg Config, vpcID, accountID strin
 	}
 	mustRun(ctx, "helm", args...)
 
-	log.Println("Waiting for aws-load-balancer-controller deployment rollout...")
+	awsLogger.Infof("Waiting for aws-load-balancer-controller deployment rollout...")
 	if _, errOut, err := runCmd(ctx, "kubectl", "rollout", "status",
 		"deployment/aws-load-balancer-controller", "-n", "kube-system"); err != nil {
-		log.Fatalf("❌ ALB controller rollout failed: %v\nstderr: %s", err, errOut)
+		awsLogger.Fatalf(err, "❌ ALB controller rollout failed\nstderr: %s", errOut)
 	}
-	log.Println("✅ aws-load-balancer-controller deployment is ready.")
+	awsLogger.Successf("✅ aws-load-balancer-controller deployment is ready.")
 }
