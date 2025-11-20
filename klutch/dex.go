@@ -18,9 +18,10 @@ type dexTemplateVars struct {
 	Host            string
 	IngressPort     string
 	DexClientSecret string
+	IngressClass    string
 }
 
-func (k *KlutchManager) DeployDex(hostIP string, ingressPort string) {
+func (k *KlutchManager) DeployDex(hostIP string, ingressPort string, ingressClass string) {
 	makeup.PrintH1("Deploying Dex Idp...")
 
 	client := k.cpK8s.GetKubernetesClientSet()
@@ -31,6 +32,7 @@ func (k *KlutchManager) DeployDex(hostIP string, ingressPort string) {
 		Host:            hostIP,
 		IngressPort:     ingressPort,
 		DexClientSecret: dexClientSecret,
+		IngressClass:    ingressClass,
 	}
 
 	manifests, err := renderTemplate(dexManifestsTemplate, templateVars)

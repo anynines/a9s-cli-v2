@@ -140,7 +140,7 @@ kind: Ingress
 metadata:
   name: anynines-backend
 spec:
-  ingressClassName: nginx
+  ingressClassName: {{ .IngressClass }}
   rules:
   - http:
       paths:

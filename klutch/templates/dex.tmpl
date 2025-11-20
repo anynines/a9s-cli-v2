@@ -3,7 +3,7 @@ kind: Ingress
 metadata:
   name: dex-ingress
 spec:
-  ingressClassName: nginx
+  ingressClassName: {{ .IngressClass }}
   rules:
   - http:
       paths:
