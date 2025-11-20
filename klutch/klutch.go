@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/anynines/a9s-cli-v2/demo"
 	"github.com/anynines/a9s-cli-v2/k8s"
@@ -125,13 +126,15 @@ func (k *KlutchManager) deployControlPlaneCluster() {
 	WaitForKindCluster(k.cpK8s)
 	writeControlPlaneClusterInfoToFile(demo.DemoConfig.WorkingDir, hostIP, port)
 
+	ingressClass := "nginx"
+
 	k.DeployIngressNginx()
 	k.WaitForIngressNginx()
 
-	k.DeployDex(hostIP, port)
+	k.DeployDex(hostIP, port, ingressClass)
 	k.WaitForDex()
 
-	k.DeployBindBackend(hostIP)
+	k.DeployBindBackend(hostIP, ingressClass)
 	k.WaitForBindBackend()
 
 	k.DeployCrossplaneComponents()
@@ -166,13 +169,19 @@ func printSummary() {
 func (k *KlutchManager) applyControlPlaneToContext(host string, ingressPort string) {
 	writeControlPlaneClusterInfoToFile(demo.DemoConfig.WorkingDir, host, ingressPort)
 
-	k.DeployIngressNginx()
-	k.WaitForIngressNginx()
+	ingressClass := detectIngressClass(k.cpK8s)
 
-	k.DeployDex(host, ingressPort)
+	if ingressClass == "nginx" {
+		k.DeployIngressNginx()
+		k.WaitForIngressNginx()
+	} else {
+		makeup.PrintInfo(fmt.Sprintf("Ingress class `%s` detected. Skipping ingress-nginx installation.", ingressClass))
+	}
+
+	k.DeployDex(host, ingressPort, ingressClass)
 	k.WaitForDex()
 
-	k.DeployBindBackend(host)
+	k.DeployBindBackend(host, ingressClass)
 	k.WaitForBindBackend()
 
 	k.DeployCrossplaneComponents()
@@ -181,6 +190,40 @@ func (k *KlutchManager) applyControlPlaneToContext(host string, ingressPort stri
 	makeup.WaitForUser(demo.UnattendedMode)
 	a8s := demo.NewA8sDemoManager(k.cpContext)
 	a8s.DeployA8sStack()
+}
+
+func detectIngressClass(k8sClient *k8s.KubeClient) string {
+	cmd := k8sClient.KubectlWithContextCommand("get", "ingressclass", "-o", "jsonpath={.items[*].metadata.name}")
+	output, err := cmd.Output()
+	if err != nil {
+		makeup.PrintWarning(fmt.Sprintf("Could not detect ingress classes (defaulting to nginx): %v", err))
+		return "nginx"
+	}
+
+	classes := strings.Fields(string(output))
+	hasAlb := false
+	hasNginx := false
+	for _, c := range classes {
+		if c == "alb" {
+			hasAlb = true
+		}
+		if c == "nginx" {
+			hasNginx = true
+		}
+	}
+
+	if hasAlb {
+		makeup.PrintInfo("Detected ingress class `alb`. Will use it and skip deploying ingress-nginx.")
+		return "alb"
+	}
+
+	if hasNginx {
+		makeup.PrintInfo("Detected ingress class `nginx`. Will use it.")
+		return "nginx"
+	}
+
+	makeup.PrintWarning("No ingress class detected. Defaulting to `nginx` and deploying ingress-nginx.")
+	return "nginx"
 }
 
 func printControlPlaneSummary(workDir string) {
