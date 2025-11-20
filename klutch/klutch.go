@@ -16,6 +16,7 @@ import (
 
 const (
 	demoTitle                       = "Klutch Demo"
+	applyControlPlaneTitle          = "Applying Klutch Control Plane to the current Kubernetes cluster"
 	controlPlaneClusterInfoFilePath = "klutch"
 	controlPlaneClusterInfoFileName = "control-plane-cluster-info.yaml"
 	controlPlaneClusterName         = "klutch-control-plane"
@@ -89,7 +90,7 @@ func DeployKlutchClusters() {
 func ApplyKlutchControlPlane(host string, ingressPort int) {
 	makeup.PrintWelcomeScreen(
 		demo.UnattendedMode,
-		demoTitle,
+		applyControlPlaneTitle,
 		"Let's install the Klutch control plane into your current Kubernetes cluster...")
 
 	demo.EstablishConfig()
