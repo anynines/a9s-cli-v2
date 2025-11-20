@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/anynines/a9s-cli-v2/demo"
 	"github.com/anynines/a9s-cli-v2/k8s"
@@ -182,6 +183,17 @@ func (k *KlutchManager) applyControlPlaneToContext(host string, ingressPort stri
 	k.WaitForDex()
 
 	k.DeployBindBackend(host, ingressClass)
+
+	// If we didn't get an explicit host and we're using ALB, wait for the ALB hostname
+	// and re-apply Dex + backend manifests with the resolved host so OIDC URLs are correct.
+	if host == "" && ingressClass == "alb" {
+		resolvedHost := waitForIngressHost(k.cpK8s, "dex-ingress", "default")
+		makeup.PrintInfo(fmt.Sprintf("Detected ALB hostname `%s`. Re-applying Dex and backend manifests with this host.", resolvedHost))
+		k.DeployDex(resolvedHost, ingressPort, ingressClass)
+		k.DeployBindBackend(resolvedHost, ingressClass)
+		host = resolvedHost
+	}
+
 	k.WaitForBindBackend()
 
 	k.DeployCrossplaneComponents()
@@ -224,6 +236,40 @@ func detectIngressClass(k8sClient *k8s.KubeClient) string {
 
 	makeup.PrintWarning("No ingress class detected. Defaulting to `nginx` and deploying ingress-nginx.")
 	return "nginx"
+}
+
+// waitForIngressHost waits for an ingress to report a load balancer hostname/IP and returns it.
+func waitForIngressHost(k8sClient *k8s.KubeClient, name, namespace string) string {
+	timeout := time.After(5 * time.Minute)
+	tick := time.Tick(10 * time.Second)
+	for {
+		select {
+		case <-timeout:
+			makeup.ExitDueToFatalError(nil, fmt.Sprintf("Timed out waiting for ingress %s/%s to have a hostname/IP", namespace, name))
+		case <-tick:
+			cmd := k8sClient.KubectlWithContextCommand("get", "ingress", name, "-n", namespace, "-o", "jsonpath={.status.loadBalancer.ingress[0].hostname}")
+			output, err := cmd.Output()
+			if err != nil {
+				makeup.PrintWarning(fmt.Sprintf("Error while checking ingress %s/%s hostname: %v", namespace, name, err))
+				continue
+			}
+			host := strings.TrimSpace(string(output))
+			if host != "" {
+				return host
+			}
+
+			// try IP as fallback
+			cmdIP := k8sClient.KubectlWithContextCommand("get", "ingress", name, "-n", namespace, "-o", "jsonpath={.status.loadBalancer.ingress[0].ip}")
+			ipOutput, err := cmdIP.Output()
+			if err == nil {
+				ip := strings.TrimSpace(string(ipOutput))
+				if ip != "" {
+					return ip
+				}
+			}
+			makeup.PrintInfo(fmt.Sprintf("Ingress %s/%s has no hostname/IP yet. Waiting...", namespace, name))
+		}
+	}
 }
 
 func printControlPlaneSummary(workDir string) {
