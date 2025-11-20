@@ -45,14 +45,22 @@ func (k *KlutchManager) DeployCrossplaneComponents() {
 func (k *KlutchManager) DeployCrossplaneHelmChart() {
 	makeup.PrintH1("Deploying the Crossplane Helm chart...")
 
-	cmd := exec.Command("helm",
+	args := []string{
 		"upgrade", "-i",
 		"crossplane",
-		"--kube-context", contextControlPlane,
+	}
+
+	if k.cpContext != "" {
+		args = append(args, "--kube-context", k.cpContext)
+	}
+
+	args = append(args,
 		"--namespace", "crossplane-system", "--create-namespace",
 		helmChartUrl,
 		"--set", `args={"--enable-ssa-claims"}`,
 	)
+
+	cmd := exec.Command("helm", args...)
 
 	makeup.PrintCommandBox(cmd.String())
 	makeup.WaitForUser(demo.UnattendedMode)

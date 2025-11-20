@@ -70,9 +70,14 @@ func getClusterExternalPort(kubeContext string) string {
 		makeup.ExitDueToFatalError(err, fmt.Sprintf("Error loading kubeconfig file %s", kubeconfig))
 	}
 
-	ctx, exists := config.Contexts[kubeContext]
+	contextToUse := kubeContext
+	if contextToUse == "" {
+		contextToUse = config.CurrentContext
+	}
+
+	ctx, exists := config.Contexts[contextToUse]
 	if !exists {
-		makeup.ExitDueToFatalError(err, fmt.Sprintf("context %s not found in kubeconfig", kubeContext))
+		makeup.ExitDueToFatalError(err, fmt.Sprintf("context %s not found in kubeconfig", contextToUse))
 	}
 
 	cluster, exists := config.Clusters[ctx.Cluster]
@@ -97,6 +102,46 @@ func getClusterExternalPort(kubeContext string) string {
 	}
 
 	return port
+}
+
+// getClusterExternalHost extracts the given context's kubernetes API hostname from the kubeconfig file.
+func getClusterExternalHost(kubeContext string) string {
+	var kubeconfig string
+	if home := homedir.HomeDir(); home != "" {
+		kubeconfig = filepath.Join(home, ".kube", "config")
+	}
+
+	config, err := clientcmd.LoadFromFile(kubeconfig)
+	if err != nil {
+		makeup.ExitDueToFatalError(err, fmt.Sprintf("Error loading kubeconfig file %s", kubeconfig))
+	}
+
+	contextToUse := kubeContext
+	if contextToUse == "" {
+		contextToUse = config.CurrentContext
+	}
+
+	ctx, exists := config.Contexts[contextToUse]
+	if !exists {
+		makeup.ExitDueToFatalError(err, fmt.Sprintf("context %s not found in kubeconfig", contextToUse))
+	}
+
+	cluster, exists := config.Clusters[ctx.Cluster]
+	if !exists {
+		makeup.ExitDueToFatalError(err, fmt.Sprintf("cluster %s not found in kubeconfig", ctx.Cluster))
+	}
+
+	clusterURL, err := url.Parse(cluster.Server)
+	if err != nil {
+		makeup.ExitDueToFatalError(err, fmt.Sprintf("cluster url %s cannot be parsed", cluster.Server))
+	}
+
+	host := clusterURL.Hostname()
+	if host == "" {
+		makeup.ExitDueToFatalError(nil, fmt.Sprintf("could not determine host from cluster url %s", cluster.Server))
+	}
+
+	return host
 }
 
 // renderTemplate renders the given go-template and returns a buffer containing the result.

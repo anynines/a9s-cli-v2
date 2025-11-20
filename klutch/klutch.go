@@ -35,17 +35,32 @@ type ControlPlaneClusterInfo struct {
 }
 
 type KlutchManager struct {
+	// cpContext is the kube context for the Klutch Control Plane Cluster.
+	cpContext string
 	// cpK8s is the Kubernetes client for the Klutch Control Plane Cluster.
 	cpK8s *k8s.KubeClient
 
+	// appContext is the kube context for the Klutch App Cluster.
+	appContext string
 	// appK8s is the Kubernetes client for the Klutch App Cluster.
 	appK8s *k8s.KubeClient
 }
 
 func NewKlutchManager() *KlutchManager {
 	return &KlutchManager{
-		cpK8s:  k8s.NewKubeClient(contextControlPlane),
-		appK8s: k8s.NewKubeClient(contextApp),
+		cpContext:  contextControlPlane,
+		cpK8s:      k8s.NewKubeClient(contextControlPlane),
+		appContext: contextApp,
+		appK8s:     k8s.NewKubeClient(contextApp),
+	}
+}
+
+func NewKlutchManagerWithContexts(controlPlaneContext, appContext string) *KlutchManager {
+	return &KlutchManager{
+		cpContext:  controlPlaneContext,
+		cpK8s:      k8s.NewKubeClient(controlPlaneContext),
+		appContext: appContext,
+		appK8s:     k8s.NewKubeClient(appContext),
 	}
 }
 
@@ -68,6 +83,32 @@ func DeployKlutchClusters() {
 	klutch.deployControlPlaneCluster()
 	klutch.deployAppCluster()
 	printSummary()
+}
+
+// ApplyKlutchControlPlane installs the Klutch control plane components into the current kube context.
+func ApplyKlutchControlPlane(host string, ingressPort int) {
+	makeup.PrintWelcomeScreen(
+		demo.UnattendedMode,
+		demoTitle,
+		"Let's install the Klutch control plane into your current Kubernetes cluster...")
+
+	demo.EstablishConfig()
+
+	checkControlPlaneInstallPrerequisites()
+
+	if host == "" {
+		derivedHost := getClusterExternalHost("")
+		makeup.PrintInfo(fmt.Sprintf("No host provided via --host. Using cluster server host `%s`.", derivedHost))
+		host = derivedHost
+	}
+
+	if ingressPort < 1 || ingressPort > 65535 {
+		makeup.ExitDueToFatalError(nil, "Invalid ingress port. Must be between 1 and 65535.")
+	}
+
+	manager := NewKlutchManagerWithContexts("", "")
+	manager.applyControlPlaneToContext(host, strconv.Itoa(ingressPort))
+	printControlPlaneSummary(demo.DemoConfig.WorkingDir)
 }
 
 func (k *KlutchManager) deployControlPlaneCluster() {
@@ -96,7 +137,7 @@ func (k *KlutchManager) deployControlPlaneCluster() {
 
 	makeup.H1("Klutch components are deployed. Deploying the a8s stack...")
 	makeup.WaitForUser(demo.UnattendedMode)
-	a8s := demo.NewA8sDemoManager(contextControlPlane)
+	a8s := demo.NewA8sDemoManager(k.cpContext)
 	a8s.DeployA8sStack()
 }
 
@@ -105,7 +146,7 @@ func (k *KlutchManager) deployAppCluster() {
 	DeployAppCluster(appClusterName)
 	WaitForKindCluster(k.appK8s)
 
-	switchContext(contextApp) // in case the app cluster already existed, switch to it.
+	switchContext(k.appContext) // in case the app cluster already existed, switch to it.
 }
 
 func printSummary() {
@@ -119,6 +160,41 @@ func printSummary() {
 	makeup.PrintCheckmark("Deployed the a8s Stack.")
 	makeup.PrintCheckmark("Deployed an App Cluster.")
 	makeup.PrintSuccessSummary("You are now ready to bind APIs from the App Cluster using the `a9s klutch bind` command.")
+}
+
+func (k *KlutchManager) applyControlPlaneToContext(host string, ingressPort string) {
+	writeControlPlaneClusterInfoToFile(demo.DemoConfig.WorkingDir, host, ingressPort)
+
+	k.DeployIngressNginx()
+	k.WaitForIngressNginx()
+
+	k.DeployDex(host, ingressPort)
+	k.WaitForDex()
+
+	k.DeployBindBackend(host)
+	k.WaitForBindBackend()
+
+	k.DeployCrossplaneComponents()
+
+	makeup.H1("Klutch components are deployed. Deploying the a8s stack...")
+	makeup.WaitForUser(demo.UnattendedMode)
+	a8s := demo.NewA8sDemoManager(k.cpContext)
+	a8s.DeployA8sStack()
+}
+
+func printControlPlaneSummary(workDir string) {
+	filePath := filepath.Join(workDir, controlPlaneClusterInfoFilePath, controlPlaneClusterInfoFileName)
+
+	makeup.PrintH1("Summary")
+	makeup.Print("You've successfully accomplished the followings steps:")
+	makeup.PrintCheckmark("Installed the Klutch control plane components into the current Kubernetes cluster.")
+	makeup.PrintCheckmark("Deployed Dex Idp and the anynines klutch-bind backend.")
+	makeup.PrintCheckmark("Deployed Crossplane and the Kubernetes provider.")
+	makeup.PrintCheckmark("Deployed the Klutch Crossplane configuration package.")
+	makeup.PrintCheckmark("Deployed Klutch API Service Export Templates to make the Klutch Crossplane APIs available to App Clusters.")
+	makeup.PrintCheckmark("Deployed the a8s Stack.")
+	makeup.PrintCheckmark(fmt.Sprintf("Wrote Control Plane Cluster information to %s", filePath))
+	makeup.PrintSuccessSummary("You are now ready to bind APIs from an App Cluster using the `a9s klutch bind` command.")
 }
 
 // Writes information about the Control Plane Cluster to a file, to give other commands such as `bind` the information they need.
@@ -165,4 +241,19 @@ func checkDeployPrerequisites() {
 	prereq.CheckRequiredTools(requiredTools)
 
 	prereq.CheckDockerRunning()
+}
+
+// Checks if prerequisites of the control plane install command are met.
+func checkControlPlaneInstallPrerequisites() {
+	makeup.PrintH1("Checking Prerequisites...")
+
+	commonTools := prereq.GetCommonRequiredTools()
+
+	requiredTools := []prereq.RequiredTool{
+		commonTools[prereq.ToolGit],
+		commonTools[prereq.ToolKubectl],
+		commonTools[prereq.ToolHelm],
+	}
+
+	prereq.CheckRequiredTools(requiredTools)
 }
