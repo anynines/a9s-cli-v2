@@ -167,8 +167,12 @@ func (k *KubeClient) KubectlWaitForRollout(kind string, name string, namespace s
 	for {
 		select {
 		case <-ctx.Done():
-			statuses, _ := summarizeDeploymentPods(ctx, clientset, name, namespace)
-			makeup.ExitDueToFatalError(nil, fmt.Sprintf("Deployment %s/%s did not become ready within %s. Pod states: %s", namespace, name, timeout, strings.Join(statuses, "; ")))
+			statuses, fatal, _ := summarizeDeploymentPods(ctx, clientset, name, namespace)
+			msg := fmt.Sprintf("Deployment %s/%s did not become ready within %s. Pod states: %s", namespace, name, timeout, strings.Join(statuses, "; "))
+			if fatal != "" {
+				msg = fmt.Sprintf("%s. Example failure: %s", msg, fatal)
+			}
+			makeup.ExitDueToFatalError(nil, msg)
 		default:
 			dep, err := clientset.AppsV1().Deployments(namespace).Get(ctx, name, metav1.GetOptions{})
 			if err != nil {
@@ -191,13 +195,21 @@ func (k *KubeClient) KubectlWaitForRollout(kind string, name string, namespace s
 
 			for _, cond := range dep.Status.Conditions {
 				if cond.Type == appsv1.DeploymentProgressing && cond.Status == v1.ConditionFalse && cond.Reason == "ProgressDeadlineExceeded" {
-					statuses, _ := summarizeDeploymentPods(ctx, clientset, name, namespace)
-					makeup.ExitDueToFatalError(nil, fmt.Sprintf("Deployment %s/%s exceeded its progress deadline. Pod states: %s", namespace, name, strings.Join(statuses, "; ")))
+					statuses, fatal, _ := summarizeDeploymentPods(ctx, clientset, name, namespace)
+					msg := fmt.Sprintf("Deployment %s/%s exceeded its progress deadline. Pod states: %s", namespace, name, strings.Join(statuses, "; "))
+					if fatal != "" {
+						msg = fmt.Sprintf("%s. Example failure: %s", msg, fatal)
+					}
+					makeup.ExitDueToFatalError(nil, msg)
 				}
 			}
 
+			statuses, fatal, _ := summarizeDeploymentPods(ctx, clientset, name, namespace)
+			if fatal != "" {
+				makeup.ExitDueToFatalError(nil, fmt.Sprintf("Deployment %s/%s hit fatal pod state: %s", namespace, name, fatal))
+			}
+
 			if time.Since(lastLog) > 30*time.Second {
-				statuses, _ := summarizeDeploymentPods(ctx, clientset, name, namespace)
 				if len(statuses) > 0 {
 					makeup.PrintInfo(fmt.Sprintf("Deployment %s/%s still rolling out. Pod states: %s", namespace, name, strings.Join(statuses, "; ")))
 				}
@@ -210,23 +222,31 @@ func (k *KubeClient) KubectlWaitForRollout(kind string, name string, namespace s
 }
 
 // summarizeDeploymentPods returns human-readable pod states for a deployment to help debug rollouts.
-func summarizeDeploymentPods(ctx context.Context, clientset *kubernetes.Clientset, name, namespace string) ([]string, error) {
+func summarizeDeploymentPods(ctx context.Context, clientset *kubernetes.Clientset, name, namespace string) ([]string, string, error) {
 	dep, err := clientset.AppsV1().Deployments(namespace).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	selector, err := metav1.LabelSelectorAsSelector(dep.Spec.Selector)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	pods, err := clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{LabelSelector: selector.String()})
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	statuses := []string{}
+	fatal := ""
+	fatalReasons := map[string]bool{
+		"CrashLoopBackOff":           true,
+		"ImagePullBackOff":           true,
+		"ErrImagePull":               true,
+		"CreateContainerConfigError": true,
+		"CreateContainerError":       true,
+	}
 
 	for _, pod := range pods.Items {
 		ready := 0
@@ -237,8 +257,14 @@ func summarizeDeploymentPods(ctx context.Context, clientset *kubernetes.Clientse
 			}
 			if cs.State.Waiting != nil {
 				statuses = append(statuses, fmt.Sprintf("%s waiting %s (%s) ready %d/%d", pod.Name, cs.State.Waiting.Reason, cs.State.Waiting.Message, ready, total))
+				if fatal == "" && fatalReasons[cs.State.Waiting.Reason] {
+					fatal = fmt.Sprintf("pod %s waiting: %s (%s)", pod.Name, cs.State.Waiting.Reason, cs.State.Waiting.Message)
+				}
 			} else if cs.State.Terminated != nil {
 				statuses = append(statuses, fmt.Sprintf("%s terminated %s (%s) ready %d/%d", pod.Name, cs.State.Terminated.Reason, cs.State.Terminated.Message, ready, total))
+				if fatal == "" && cs.State.Terminated.ExitCode != 0 {
+					fatal = fmt.Sprintf("pod %s terminated: %s (%s) exitCode=%d", pod.Name, cs.State.Terminated.Reason, cs.State.Terminated.Message, cs.State.Terminated.ExitCode)
+				}
 			}
 		}
 
@@ -247,7 +273,7 @@ func summarizeDeploymentPods(ctx context.Context, clientset *kubernetes.Clientse
 		}
 	}
 
-	return statuses, nil
+	return statuses, fatal, nil
 }
 
 // KubectlWaitForRollout waits for a resources with rollout capabilities (e.g. deployment, statefulset)
