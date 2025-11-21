@@ -169,37 +169,40 @@ func (k *KlutchManager) applyControlPlaneToContext(host string, ingressPort stri
 	ingressClass := detectIngressClass(k.cpK8s)
 	scheme := determineIngressScheme(ingressClass)
 
+	// Bootstrap host: if none was provided, use kubeconfig server host to allow ingress creation,
+	// but we will replace it with the ingress LB hostname/IP before finishing.
+	initialHost := host
+	if initialHost == "" {
+		initialHost = getClusterExternalHost("")
+		makeup.PrintInfo(fmt.Sprintf("No host provided. Using provisional host `%s` to bootstrap deployment; it will be replaced once ingress has an address.", initialHost))
+	}
+
 	if ingressClass == "nginx" {
 		k.DeployIngressNginx()
 		k.WaitForIngressNginx()
 	} else {
 		makeup.PrintInfo(fmt.Sprintf("Ingress class `%s` detected. Skipping ingress-nginx installation.", ingressClass))
-		// Require an ingress/LB address for non-nginx setups.
-		if !hostProvided {
-			host = waitForIngressHost(k.cpK8s, "dex-ingress", "default")
-			makeup.PrintInfo(fmt.Sprintf("Detected ingress hostname/IP `%s`.", host))
-		}
 	}
 
-	// If host is still empty here, fail early instead of falling back to kubeconfig server.
-	if host == "" {
-		makeup.ExitDueToFatalError(nil, "Could not determine a host for ingress. Aborting instead of using the Kubernetes API server host.")
-	}
-
-	k.DeployDex(host, ingressPort, ingressClass, scheme)
+	k.DeployDex(initialHost, ingressPort, ingressClass, scheme)
 	k.WaitForDex()
 
-	k.DeployBindBackend(host, ingressClass, scheme)
+	k.DeployBindBackend(initialHost, ingressClass, scheme)
 
 	// If we're using ALB, wait for the ALB hostname and re-apply Dex + backend manifests
 	// with the resolved host so OIDC URLs are correct.
 	if ingressClass == "alb" {
 		resolvedHost := waitForIngressHost(k.cpK8s, "dex-ingress", "default")
-		if resolvedHost != host {
+		if resolvedHost == "" {
+			makeup.ExitDueToFatalError(nil, "Could not determine ingress hostname/IP. Aborting instead of using the Kubernetes API server host.")
+		}
+		if resolvedHost != initialHost {
 			makeup.PrintInfo(fmt.Sprintf("Detected ALB hostname `%s`. Re-applying Dex and backend manifests with this host.", resolvedHost))
 			host = resolvedHost
 			k.DeployDex(host, ingressPort, ingressClass, scheme)
 			k.DeployBindBackend(host, ingressClass, scheme)
+		} else {
+			host = initialHost
 		}
 	}
 

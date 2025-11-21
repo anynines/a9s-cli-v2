@@ -844,6 +844,19 @@ func ensureALBController(ctx context.Context, cfg Config, vpcID, accountID strin
 	}
 	mustRun(ctx, "helm", args...)
 
+	// Attach the policy inline to the role to ensure all required permissions are present
+	// even if an older managed policy with the same name exists.
+	roleName := fmt.Sprintf("eksctl-%s-addon-iamserviceaccount-kube-system-aws-load-balancer-controller-Role1", cfg.ClusterName)
+	awsLogger.Infof("Attaching inline IAM policy to role %s to ensure ALB controller permissions are present...", roleName)
+	if _, errOut, err := runCmd(ctx, "aws", "iam", "put-role-policy",
+		"--role-name", roleName,
+		"--policy-name", cfg.ALBControllerPolicyName+"-inline",
+		"--policy-document", "file://aws-load-balancer-controller-policy.json"); err != nil {
+		awsLogger.Warningf("Failed to attach inline policy to role %s (continued): %v\nstderr: %s", roleName, err, errOut)
+	} else {
+		awsLogger.Successf("✅ Attached inline policy to role %s.", roleName)
+	}
+
 	awsLogger.Infof("Waiting for aws-load-balancer-controller deployment rollout...")
 	if _, errOut, err := runCmd(ctx, "kubectl", "rollout", "status",
 		"deployment/aws-load-balancer-controller", "-n", "kube-system"); err != nil {
