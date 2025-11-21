@@ -41,8 +41,8 @@ type: Opaque
 stringData:
   oidc-issuer-client-id: "kube-bind"
   oidc-issuer-client-secret: "{{ .DexClientSecret }}"
-  oidc-issuer-url: "http://{{ .Host }}:{{ .IngressPort }}/dex"
-  oidc-callback-url: "http://{{ .Host }}:{{ .IngressPort }}/callback"
+  oidc-issuer-url: "{{ .Scheme }}://{{ .Host }}:{{ .IngressPort }}/dex"
+  oidc-callback-url: "{{ .Scheme }}://{{ .Host }}:{{ .IngressPort }}/callback"
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -67,7 +67,7 @@ data:
     staticClients:
       - idEnv: DEX_ISSUER_CLIENT_ID
         redirectURIs:
-        - 'http://{{ .Host }}:{{ .IngressPort }}/callback'
+        - '{{ .Scheme }}://{{ .Host }}:{{ .IngressPort }}/callback'
         name: 'Kube Bind'
         secretEnv: DEX_ISSUER_CLIENT_SECRET
 

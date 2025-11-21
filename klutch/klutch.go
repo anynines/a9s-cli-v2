@@ -132,7 +132,9 @@ func (k *KlutchManager) deployControlPlaneCluster() {
 	k.DeployIngressNginx()
 	k.WaitForIngressNginx()
 
-	k.DeployDex(hostIP, port, ingressClass)
+	scheme := determineIngressScheme(ingressClass)
+
+	k.DeployDex(hostIP, port, ingressClass, scheme)
 	k.WaitForDex()
 
 	k.DeployBindBackend(hostIP, ingressClass)
@@ -171,6 +173,7 @@ func (k *KlutchManager) applyControlPlaneToContext(host string, ingressPort stri
 	writeControlPlaneClusterInfoToFile(demo.DemoConfig.WorkingDir, host, ingressPort)
 
 	ingressClass := detectIngressClass(k.cpK8s)
+	scheme := determineIngressScheme(ingressClass)
 
 	if ingressClass == "nginx" {
 		k.DeployIngressNginx()
@@ -179,7 +182,7 @@ func (k *KlutchManager) applyControlPlaneToContext(host string, ingressPort stri
 		makeup.PrintInfo(fmt.Sprintf("Ingress class `%s` detected. Skipping ingress-nginx installation.", ingressClass))
 	}
 
-	k.DeployDex(host, ingressPort, ingressClass)
+	k.DeployDex(host, ingressPort, ingressClass, scheme)
 	k.WaitForDex()
 
 	k.DeployBindBackend(host, ingressClass)
@@ -189,7 +192,7 @@ func (k *KlutchManager) applyControlPlaneToContext(host string, ingressPort stri
 	if host == "" && ingressClass == "alb" {
 		resolvedHost := waitForIngressHost(k.cpK8s, "dex-ingress", "default")
 		makeup.PrintInfo(fmt.Sprintf("Detected ALB hostname `%s`. Re-applying Dex and backend manifests with this host.", resolvedHost))
-		k.DeployDex(resolvedHost, ingressPort, ingressClass)
+		k.DeployDex(resolvedHost, ingressPort, ingressClass, scheme)
 		k.DeployBindBackend(resolvedHost, ingressClass)
 		host = resolvedHost
 	}
@@ -236,6 +239,15 @@ func detectIngressClass(k8sClient *k8s.KubeClient) string {
 
 	makeup.PrintWarning("No ingress class detected. Defaulting to `nginx` and deploying ingress-nginx.")
 	return "nginx"
+}
+
+// determineIngressScheme returns the URL scheme to use for ingress endpoints.
+// We assume ALB terminates TLS, so we use https there. Otherwise default to http.
+func determineIngressScheme(ingressClass string) string {
+	if ingressClass == "alb" {
+		return "https"
+	}
+	return "http"
 }
 
 // waitForIngressHost waits for an ingress to report a load balancer hostname/IP and returns it.
