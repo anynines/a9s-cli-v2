@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"github.com/anynines/a9s-cli-v2/demo"
+	"github.com/anynines/a9s-cli-v2/klutch"
 	"github.com/anynines/a9s-cli-v2/makeup"
 	"github.com/spf13/cobra"
 )
@@ -78,6 +79,15 @@ var cmdDeletePGBinding = &cobra.Command{
 	},
 }
 
+var cmdDeleteKlutchControlPlane = &cobra.Command{
+	Use:   "klutch-control-plane",
+	Short: "Delete Klutch control plane resources from the current Kubernetes cluster.",
+	Long:  `Deletes Klutch control plane resources (Dex, backend, ingress, Crossplane release) from the current kube context.`,
+	Run: func(cmd *cobra.Command, args []string) {
+		klutch.DeleteControlPlaneInstall()
+	},
+}
+
 func init() {
 
 	cmdDeletePGInstance.PersistentFlags().StringVar(&ServiceInstanceName, "name", "a8s-pg-instance", "name of the pg service instance to be deleted.")
@@ -97,5 +107,6 @@ func init() {
 	cmdDeleteDemo.PersistentFlags().BoolVarP(&demo.UnattendedMode, "yes", "y", false, "skip yes-no questions by answering with \"yes\".")
 
 	cmdDeleteDemo.AddCommand(cmdDeleteDemoA8s)
+	cmdDelete.AddCommand(cmdDeleteKlutchControlPlane)
 	rootCmd.AddCommand(cmdDelete)
 }
