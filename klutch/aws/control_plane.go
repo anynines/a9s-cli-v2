@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/anynines/a9s-cli-v2/makeup"
+	"k8s.io/apimachinery/pkg/util/json"
 )
 
 type Config struct {
@@ -844,17 +845,23 @@ func ensureALBController(ctx context.Context, cfg Config, vpcID, accountID strin
 	}
 	mustRun(ctx, "helm", args...)
 
-	// Attach the policy inline to the role to ensure all required permissions are present
-	// even if an older managed policy with the same name exists.
-	roleName := fmt.Sprintf("eksctl-%s-addon-iamserviceaccount-kube-system-aws-load-balancer-controller-Role1", cfg.ClusterName)
-	awsLogger.Infof("Attaching inline IAM policy to role %s to ensure ALB controller permissions are present...", roleName)
-	if _, errOut, err := runCmd(ctx, "aws", "iam", "put-role-policy",
-		"--role-name", roleName,
-		"--policy-name", cfg.ALBControllerPolicyName+"-inline",
-		"--policy-document", "file://aws-load-balancer-controller-policy.json"); err != nil {
-		awsLogger.Warningf("Failed to attach inline policy to role %s (continued): %v\nstderr: %s", roleName, err, errOut)
-	} else {
-		awsLogger.Successf("✅ Attached inline policy to role %s.", roleName)
+	// Attach the policy inline to the role derived from the service account annotation
+	// to ensure all required permissions are present even if a managed policy with the same name exists.
+	roleName := getALBControllerRoleName(ctx)
+	if roleName != "" {
+		awsLogger.Infof("Attaching inline IAM policy to role %s to ensure ALB controller permissions are present...", roleName)
+		if len(roleName) > 64 {
+			awsLogger.Warningf("Role name %s exceeds 64 characters; skipping inline policy attachment.", roleName)
+		} else {
+			if _, errOut, err := runCmd(ctx, "aws", "iam", "put-role-policy",
+				"--role-name", roleName,
+				"--policy-name", cfg.ALBControllerPolicyName+"-inline",
+				"--policy-document", "file://aws-load-balancer-controller-policy.json"); err != nil {
+				awsLogger.Warningf("Failed to attach inline policy to role %s (continued): %v\nstderr: %s", roleName, err, errOut)
+			} else {
+				awsLogger.Successf("✅ Attached inline policy to role %s.", roleName)
+			}
+		}
 	}
 
 	awsLogger.Infof("Waiting for aws-load-balancer-controller deployment rollout...")
@@ -863,4 +870,34 @@ func ensureALBController(ctx context.Context, cfg Config, vpcID, accountID strin
 		awsLogger.Fatalf(err, "❌ ALB controller rollout failed\nstderr: %s", errOut)
 	}
 	awsLogger.Successf("✅ aws-load-balancer-controller deployment is ready.")
+}
+
+func getALBControllerRoleName(ctx context.Context) string {
+	type sa struct {
+		Metadata struct {
+			Annotations map[string]string `json:"annotations"`
+		} `json:"metadata"`
+	}
+
+	out, errOut, err := runCmd(ctx, "kubectl", "get", "sa", "aws-load-balancer-controller", "-n", "kube-system", "-o", "json")
+	if err != nil {
+		awsLogger.Warningf("Could not fetch service account to derive role name: %v\nstderr: %s", err, errOut)
+		return ""
+	}
+
+	var s sa
+	if err := json.Unmarshal([]byte(out), &s); err != nil {
+		awsLogger.Warningf("Could not parse service account json to derive role name: %v", err)
+		return ""
+	}
+
+	roleArn := s.Metadata.Annotations["eks.amazonaws.com/role-arn"]
+	if roleArn == "" {
+		awsLogger.Warningf("Service account is missing eks.amazonaws.com/role-arn annotation; cannot attach inline policy automatically.")
+		return ""
+	}
+
+	parts := strings.Split(roleArn, "/")
+	roleName := parts[len(parts)-1]
+	return roleName
 }
