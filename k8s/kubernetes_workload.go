@@ -10,6 +10,7 @@ import (
 
 	"github.com/anynines/a9s-cli-v2/makeup"
 	"github.com/kr/pretty"
+	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -17,6 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/kubernetes"
 )
 
 const CertManagerNamespace = "cert-manager"
@@ -134,21 +136,118 @@ func (k *KubeClient) KubectlWaitForResourceConditionWithSelector(condition strin
 	}
 }
 
-// KubectlWaitForRollout waits for a resources with rollout capabilities (e.g. deployment, statefulset)
-// identified by kind and name to become ready, or a timeout to be reached.
+// KubectlWaitForRollout waits for a rollout (e.g. deployment) to become ready using a polling loop
+// and surfaces pod failure states instead of only timing out.
 func (k *KubeClient) KubectlWaitForRollout(kind string, name string, namespace string) {
-	cmd := k.KubectlWithContextCommand(
-		"rollout",
-		"status",
-		kind,
-		name,
-		"--namespace",
-		namespace,
-		kubectlWaitTimeoutOption)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		makeup.ExitDueToFatalError(err, fmt.Sprintf("Rollout for %s/%s in namespace %s did not succeed: %s", kind, name, namespace, string(output)))
+	// Fallback to kubectl for non-deployments.
+	if strings.ToLower(kind) != "deployment" {
+		cmd := k.KubectlWithContextCommand(
+			"rollout",
+			"status",
+			kind,
+			name,
+			"--namespace",
+			namespace,
+			kubectlWaitTimeoutOption)
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			makeup.ExitDueToFatalError(err, fmt.Sprintf("Rollout for %s/%s in namespace %s did not succeed: %s", kind, name, namespace, string(output)))
+		}
+		return
 	}
+
+	clientset := k.GetKubernetesClientSet()
+	timeout := 10 * time.Minute
+	pollInterval := 5 * time.Second
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	lastLog := time.Time{}
+
+	for {
+		select {
+		case <-ctx.Done():
+			statuses, _ := summarizeDeploymentPods(ctx, clientset, name, namespace)
+			makeup.ExitDueToFatalError(nil, fmt.Sprintf("Deployment %s/%s did not become ready within %s. Pod states: %s", namespace, name, timeout, strings.Join(statuses, "; ")))
+		default:
+			dep, err := clientset.AppsV1().Deployments(namespace).Get(ctx, name, metav1.GetOptions{})
+			if err != nil {
+				makeup.ExitDueToFatalError(err, fmt.Sprintf("Could not get deployment %s/%s while waiting for rollout", namespace, name))
+			}
+
+			desired := int32(1)
+			if dep.Spec.Replicas != nil {
+				desired = *dep.Spec.Replicas
+			}
+
+			ready := dep.Status.UpdatedReplicas == desired &&
+				dep.Status.Replicas == desired &&
+				dep.Status.AvailableReplicas == desired &&
+				dep.Status.ObservedGeneration >= dep.Generation
+
+			if ready {
+				return
+			}
+
+			for _, cond := range dep.Status.Conditions {
+				if cond.Type == appsv1.DeploymentProgressing && cond.Status == v1.ConditionFalse && cond.Reason == "ProgressDeadlineExceeded" {
+					statuses, _ := summarizeDeploymentPods(ctx, clientset, name, namespace)
+					makeup.ExitDueToFatalError(nil, fmt.Sprintf("Deployment %s/%s exceeded its progress deadline. Pod states: %s", namespace, name, strings.Join(statuses, "; ")))
+				}
+			}
+
+			if time.Since(lastLog) > 30*time.Second {
+				statuses, _ := summarizeDeploymentPods(ctx, clientset, name, namespace)
+				if len(statuses) > 0 {
+					makeup.PrintInfo(fmt.Sprintf("Deployment %s/%s still rolling out. Pod states: %s", namespace, name, strings.Join(statuses, "; ")))
+				}
+				lastLog = time.Now()
+			}
+
+			time.Sleep(pollInterval)
+		}
+	}
+}
+
+// summarizeDeploymentPods returns human-readable pod states for a deployment to help debug rollouts.
+func summarizeDeploymentPods(ctx context.Context, clientset *kubernetes.Clientset, name, namespace string) ([]string, error) {
+	dep, err := clientset.AppsV1().Deployments(namespace).Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	selector, err := metav1.LabelSelectorAsSelector(dep.Spec.Selector)
+	if err != nil {
+		return nil, err
+	}
+
+	pods, err := clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{LabelSelector: selector.String()})
+	if err != nil {
+		return nil, err
+	}
+
+	statuses := []string{}
+
+	for _, pod := range pods.Items {
+		ready := 0
+		total := len(pod.Status.ContainerStatuses)
+		for _, cs := range pod.Status.ContainerStatuses {
+			if cs.Ready {
+				ready++
+			}
+			if cs.State.Waiting != nil {
+				statuses = append(statuses, fmt.Sprintf("%s waiting %s (%s) ready %d/%d", pod.Name, cs.State.Waiting.Reason, cs.State.Waiting.Message, ready, total))
+			} else if cs.State.Terminated != nil {
+				statuses = append(statuses, fmt.Sprintf("%s terminated %s (%s) ready %d/%d", pod.Name, cs.State.Terminated.Reason, cs.State.Terminated.Message, ready, total))
+			}
+		}
+
+		if len(pod.Status.ContainerStatuses) == 0 {
+			statuses = append(statuses, fmt.Sprintf("%s phase %s", pod.Name, pod.Status.Phase))
+		}
+	}
+
+	return statuses, nil
 }
 
 // KubectlWaitForRollout waits for a resources with rollout capabilities (e.g. deployment, statefulset)
