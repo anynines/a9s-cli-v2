@@ -187,14 +187,16 @@ func (k *KlutchManager) applyControlPlaneToContext(host string, ingressPort stri
 
 	k.DeployBindBackend(host, ingressClass, scheme)
 
-	// If the host wasn't explicitly provided and we're using ALB, wait for the ALB hostname
-	// and re-apply Dex + backend manifests with the resolved host so OIDC URLs are correct.
-	if !hostProvided && ingressClass == "alb" {
+	// If we're using ALB, wait for the ALB hostname and re-apply Dex + backend manifests
+	// with the resolved host so OIDC URLs are correct.
+	if ingressClass == "alb" {
 		resolvedHost := waitForIngressHost(k.cpK8s, "dex-ingress", "default")
-		makeup.PrintInfo(fmt.Sprintf("Detected ALB hostname `%s`. Re-applying Dex and backend manifests with this host.", resolvedHost))
-		host = resolvedHost
-		k.DeployDex(host, ingressPort, ingressClass, scheme)
-		k.DeployBindBackend(host, ingressClass, scheme)
+		if resolvedHost != host {
+			makeup.PrintInfo(fmt.Sprintf("Detected ALB hostname `%s`. Re-applying Dex and backend manifests with this host.", resolvedHost))
+			host = resolvedHost
+			k.DeployDex(host, ingressPort, ingressClass, scheme)
+			k.DeployBindBackend(host, ingressClass, scheme)
+		}
 	}
 
 	k.WaitForBindBackend()
@@ -254,11 +256,15 @@ func determineIngressScheme(ingressClass string) string {
 
 // waitForIngressHost waits for an ingress to report a load balancer hostname/IP and returns it.
 func waitForIngressHost(k8sClient *k8s.KubeClient, name, namespace string) string {
-	timeout := time.After(5 * time.Minute)
-	tick := time.Tick(10 * time.Second)
+	timeout := time.After(15 * time.Minute)
+	tick := time.Tick(15 * time.Second)
 	for {
 		select {
 		case <-timeout:
+			descCmd := k8sClient.KubectlWithContextCommand("describe", "ingress", name, "-n", namespace)
+			if out, err := descCmd.CombinedOutput(); err == nil {
+				makeup.PrintWarning(fmt.Sprintf("Ingress %s/%s description:\n%s", namespace, name, string(out)))
+			}
 			makeup.ExitDueToFatalError(nil, fmt.Sprintf("Timed out waiting for ingress %s/%s to have a hostname/IP", namespace, name))
 		case <-tick:
 			cmd := k8sClient.KubectlWithContextCommand("get", "ingress", name, "-n", namespace, "-o", "jsonpath={.status.loadBalancer.ingress[0].hostname}")
