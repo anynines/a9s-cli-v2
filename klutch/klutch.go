@@ -101,12 +101,6 @@ func ApplyKlutchControlPlane(host string, ingressPort int) {
 
 	hostProvided := host != ""
 
-	if host == "" {
-		derivedHost := getClusterExternalHost("")
-		makeup.PrintInfo(fmt.Sprintf("No host provided via --host. Using cluster server host `%s`.", derivedHost))
-		host = derivedHost
-	}
-
 	if ingressPort < 1 || ingressPort > 65535 {
 		makeup.ExitDueToFatalError(nil, "Invalid ingress port. Must be between 1 and 65535.")
 	}
@@ -180,6 +174,16 @@ func (k *KlutchManager) applyControlPlaneToContext(host string, ingressPort stri
 		k.WaitForIngressNginx()
 	} else {
 		makeup.PrintInfo(fmt.Sprintf("Ingress class `%s` detected. Skipping ingress-nginx installation.", ingressClass))
+		// Require an ingress/LB address for non-nginx setups.
+		if !hostProvided {
+			host = waitForIngressHost(k.cpK8s, "dex-ingress", "default")
+			makeup.PrintInfo(fmt.Sprintf("Detected ingress hostname/IP `%s`.", host))
+		}
+	}
+
+	// If host is still empty here, fail early instead of falling back to kubeconfig server.
+	if host == "" {
+		makeup.ExitDueToFatalError(nil, "Could not determine a host for ingress. Aborting instead of using the Kubernetes API server host.")
 	}
 
 	k.DeployDex(host, ingressPort, ingressClass, scheme)
