@@ -818,6 +818,16 @@ func ensureALBController(ctx context.Context, cfg Config, vpcID, accountID strin
 			fmt.Sprintf("Key=Name,Value=%s", cfg.ALBControllerPolicyName))
 	} else {
 		awsLogger.Successf("IAM policy %s already exists.", cfg.ALBControllerPolicyName)
+		awsLogger.Infof("Updating IAM policy %s to latest version...", cfg.ALBControllerPolicyName)
+		// Ensure the existing policy contains the latest permissions (including DescribeRouteTables).
+		if _, errOut, err := runCmd(ctx, "aws", "iam", "create-policy-version",
+			"--policy-arn", policyArn,
+			"--policy-document", "file://aws-load-balancer-controller-policy.json",
+			"--set-as-default"); err != nil {
+			awsLogger.Warningf("Failed to update policy %s to latest version (continued): %v\nstderr: %s", cfg.ALBControllerPolicyName, err, errOut)
+		} else {
+			awsLogger.Successf("✅ Updated IAM policy %s to latest version.", cfg.ALBControllerPolicyName)
+		}
 	}
 
 	awsLogger.Infof("Creating IAM service account for AWS Load Balancer Controller...")
@@ -845,22 +855,17 @@ func ensureALBController(ctx context.Context, cfg Config, vpcID, accountID strin
 	}
 	mustRun(ctx, "helm", args...)
 
-	// Attach the policy inline to the role derived from the service account annotation
-	// to ensure all required permissions are present even if a managed policy with the same name exists.
+	// Re-attach the managed policy to the role derived from the service account annotation
+	// to ensure the controller has the updated permissions.
 	roleName := getALBControllerRoleName(ctx)
 	if roleName != "" {
-		awsLogger.Infof("Attaching inline IAM policy to role %s to ensure ALB controller permissions are present...", roleName)
-		if len(roleName) > 64 {
-			awsLogger.Warningf("Role name %s exceeds 64 characters; skipping inline policy attachment.", roleName)
+		awsLogger.Infof("Attaching managed policy %s to role %s to ensure ALB controller permissions are present...", cfg.ALBControllerPolicyName, roleName)
+		if _, errOut, err := runCmd(ctx, "aws", "iam", "attach-role-policy",
+			"--role-name", roleName,
+			"--policy-arn", policyArn); err != nil {
+			awsLogger.Warningf("Failed to attach policy to role %s (continued): %v\nstderr: %s", roleName, err, errOut)
 		} else {
-			if _, errOut, err := runCmd(ctx, "aws", "iam", "put-role-policy",
-				"--role-name", roleName,
-				"--policy-name", cfg.ALBControllerPolicyName+"-inline",
-				"--policy-document", "file://aws-load-balancer-controller-policy.json"); err != nil {
-				awsLogger.Warningf("Failed to attach inline policy to role %s (continued): %v\nstderr: %s", roleName, err, errOut)
-			} else {
-				awsLogger.Successf("✅ Attached inline policy to role %s.", roleName)
-			}
+			awsLogger.Successf("✅ Attached managed policy to role %s.", roleName)
 		}
 	}
 
