@@ -99,6 +99,8 @@ func ApplyKlutchControlPlane(host string, ingressPort int) {
 
 	checkControlPlaneInstallPrerequisites()
 
+	hostProvided := host != ""
+
 	if host == "" {
 		derivedHost := getClusterExternalHost("")
 		makeup.PrintInfo(fmt.Sprintf("No host provided via --host. Using cluster server host `%s`.", derivedHost))
@@ -110,7 +112,7 @@ func ApplyKlutchControlPlane(host string, ingressPort int) {
 	}
 
 	manager := NewKlutchManagerWithContexts("", "")
-	manager.applyControlPlaneToContext(host, strconv.Itoa(ingressPort))
+	manager.applyControlPlaneToContext(host, strconv.Itoa(ingressPort), hostProvided)
 	printControlPlaneSummary(demo.DemoConfig.WorkingDir)
 }
 
@@ -137,7 +139,7 @@ func (k *KlutchManager) deployControlPlaneCluster() {
 	k.DeployDex(hostIP, port, ingressClass, scheme)
 	k.WaitForDex()
 
-	k.DeployBindBackend(hostIP, ingressClass)
+	k.DeployBindBackend(hostIP, ingressClass, scheme)
 	k.WaitForBindBackend()
 
 	k.DeployCrossplaneComponents()
@@ -169,9 +171,7 @@ func printSummary() {
 	makeup.PrintSuccessSummary("You are now ready to bind APIs from the App Cluster using the `a9s klutch bind` command.")
 }
 
-func (k *KlutchManager) applyControlPlaneToContext(host string, ingressPort string) {
-	writeControlPlaneClusterInfoToFile(demo.DemoConfig.WorkingDir, host, ingressPort)
-
+func (k *KlutchManager) applyControlPlaneToContext(host string, ingressPort string, hostProvided bool) {
 	ingressClass := detectIngressClass(k.cpK8s)
 	scheme := determineIngressScheme(ingressClass)
 
@@ -185,19 +185,21 @@ func (k *KlutchManager) applyControlPlaneToContext(host string, ingressPort stri
 	k.DeployDex(host, ingressPort, ingressClass, scheme)
 	k.WaitForDex()
 
-	k.DeployBindBackend(host, ingressClass)
+	k.DeployBindBackend(host, ingressClass, scheme)
 
-	// If we didn't get an explicit host and we're using ALB, wait for the ALB hostname
+	// If the host wasn't explicitly provided and we're using ALB, wait for the ALB hostname
 	// and re-apply Dex + backend manifests with the resolved host so OIDC URLs are correct.
-	if host == "" && ingressClass == "alb" {
+	if !hostProvided && ingressClass == "alb" {
 		resolvedHost := waitForIngressHost(k.cpK8s, "dex-ingress", "default")
 		makeup.PrintInfo(fmt.Sprintf("Detected ALB hostname `%s`. Re-applying Dex and backend manifests with this host.", resolvedHost))
-		k.DeployDex(resolvedHost, ingressPort, ingressClass, scheme)
-		k.DeployBindBackend(resolvedHost, ingressClass)
 		host = resolvedHost
+		k.DeployDex(host, ingressPort, ingressClass, scheme)
+		k.DeployBindBackend(host, ingressClass, scheme)
 	}
 
 	k.WaitForBindBackend()
+
+	writeControlPlaneClusterInfoToFile(demo.DemoConfig.WorkingDir, host, ingressPort)
 
 	k.DeployCrossplaneComponents()
 

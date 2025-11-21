@@ -22,10 +22,11 @@ type backendTemplateVars struct {
 	K8sApiPort          string
 	K8sApiCaCertB64     string
 	IngressClass        string
+	Scheme              string
 }
 
 // Deploys dex and the klutch-bind backend.
-func (k *KlutchManager) DeployBindBackend(hostIP string, ingressClass string) {
+func (k *KlutchManager) DeployBindBackend(hostIP string, ingressClass string, scheme string) {
 	makeup.PrintH1("Deploying the klutch-bind backend...")
 
 	makeup.PrintH2("Applying the klutch-bind backend CRDs...")
@@ -52,6 +53,7 @@ func (k *KlutchManager) DeployBindBackend(hostIP string, ingressClass string) {
 		K8sApiPort:          clusterPort,
 		K8sApiCaCertB64:     encodedCert,
 		IngressClass:        ingressClass,
+		Scheme:              scheme,
 	}
 
 	manifests, err := renderTemplate(bindBackendManifestsTemplate, templateVars)
