@@ -473,9 +473,7 @@ func ensurePublicRouteTable(ctx context.Context, vpcID, igwID string, pubSubnets
 		awsLogger.Successf("Reusing public route table: %s", rtID)
 	}
 	for _, sn := range pubSubnets {
-		_, _, _ = runCmd(ctx, "aws", "ec2", "associate-route-table",
-			"--route-table-id", rtID,
-			"--subnet-id", sn)
+		ensureRouteTableAssociation(ctx, rtID, sn)
 	}
 	return rtID
 }
@@ -579,12 +577,10 @@ func ensurePrivateRT(ctx context.Context, vpcID, privSubnet, natID, name string)
 			"--route-table-id", rtID,
 			"--destination-cidr-block", "0.0.0.0/0",
 			"--nat-gateway-id", natID)
-		mustRun(ctx, "aws", "ec2", "associate-route-table",
-			"--route-table-id", rtID,
-			"--subnet-id", privSubnet)
 	} else {
 		awsLogger.Successf("Reusing private route table: %s", rtID)
 	}
+	ensureRouteTableAssociation(ctx, rtID, privSubnet)
 	return rtID
 }
 
@@ -922,6 +918,66 @@ func getALBControllerRoleName(ctx context.Context) string {
 	parts := strings.Split(roleArn, "/")
 	roleName := parts[len(parts)-1]
 	return roleName
+}
+
+// ensureRouteTableAssociation makes sure the given subnet is associated with the desired route table.
+// If already associated, it is left untouched. If associated elsewhere, it is replaced.
+func ensureRouteTableAssociation(ctx context.Context, rtID, subnetID string) {
+	type assoc struct {
+		RouteTableId  string `json:"RouteTableId"`
+		AssociationId string `json:"AssociationId"`
+		Main          bool   `json:"Main"`
+	}
+	type rt struct {
+		Associations []assoc `json:"Associations"`
+	}
+	type describe struct {
+		RouteTables []rt `json:"RouteTables"`
+	}
+
+	out, _, err := runCmd(ctx, "aws", "ec2", "describe-route-tables",
+		"--filters", "Name=association.subnet-id,Values="+subnetID,
+		"--query", "RouteTables[*].Associations[]",
+		"--output", "json")
+	if err == nil {
+		var desc []assoc
+		if err := json.Unmarshal([]byte(out), &desc); err == nil && len(desc) > 0 {
+			for _, a := range desc {
+				if a.RouteTableId == rtID {
+					awsLogger.Successf("Subnet %s already associated with route table %s. Skipping.", subnetID, rtID)
+					return
+				}
+				// Replace existing association
+				if a.Main {
+					awsLogger.Infof("Replacing main route table association %s for subnet %s with %s...", a.AssociationId, subnetID, rtID)
+					_, errOut, err := runCmd(ctx, "aws", "ec2", "replace-route-table-association",
+						"--association-id", a.AssociationId,
+						"--route-table-id", rtID)
+					if err != nil {
+						awsLogger.Warningf("Failed to replace route table association for subnet %s: %v\nstderr: %s", subnetID, err, errOut)
+					}
+					return
+				}
+				awsLogger.Infof("Disassociating subnet %s from route table %s and associating with %s...", subnetID, a.RouteTableId, rtID)
+				_, errOut, err := runCmd(ctx, "aws", "ec2", "disassociate-route-table",
+					"--association-id", a.AssociationId)
+				if err != nil {
+					awsLogger.Warningf("Failed to disassociate subnet %s: %v\nstderr: %s", subnetID, err, errOut)
+				}
+				break
+			}
+		}
+	}
+
+	awsLogger.Infof("Associating subnet %s with route table %s...", subnetID, rtID)
+	_, errOut, err := runCmd(ctx, "aws", "ec2", "associate-route-table",
+		"--route-table-id", rtID,
+		"--subnet-id", subnetID)
+	if err != nil {
+		awsLogger.Warningf("Failed to associate subnet %s with route table %s: %v\nstderr: %s", subnetID, rtID, err, errOut)
+	} else {
+		awsLogger.Successf("✅ Associated subnet %s with route table %s.", subnetID, rtID)
+	}
 }
 
 // ensurePolicyVersion sets a new default policy version from the given document,
