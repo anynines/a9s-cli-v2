@@ -20,6 +20,8 @@ type dexTemplateVars struct {
 	DexClientSecret string
 	IngressClass    string
 	Scheme          string
+	ServiceType     string
+	NodePort        int
 }
 
 func (k *KlutchManager) DeployDex(hostIP string, ingressPort string, ingressClass string, scheme string) {
@@ -35,6 +37,14 @@ func (k *KlutchManager) DeployDex(hostIP string, ingressPort string, ingressClas
 		DexClientSecret: dexClientSecret,
 		IngressClass:    ingressClass,
 		Scheme:          scheme,
+	}
+
+	// ALB requires NodePort when using instance targets; keep ClusterIP for local/demo (nginx).
+	if ingressClass == "alb" {
+		templateVars.ServiceType = "NodePort"
+		templateVars.NodePort = 32556
+	} else {
+		templateVars.ServiceType = "ClusterIP"
 	}
 
 	manifests, err := renderTemplate(dexManifestsTemplate, templateVars)

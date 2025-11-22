@@ -20,13 +20,15 @@ kind: Service
 metadata:
   name: dex
 spec:
-  type: NodePort
+  type: {{ .ServiceType }}
   ports:
   - protocol: TCP
     name: dex
     port: 5556
     targetPort: 5556
-    nodePort: 32556
+{{- if .NodePort }}
+    nodePort: {{ .NodePort }}
+{{- end }}
   - protocol: TCP
     name: telemetry # Use this port for /healthz, /healthz/ready, /healthz/live
     port: 5558
