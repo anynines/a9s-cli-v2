@@ -788,9 +788,33 @@ parameters:
 	awsLogger.Successf("✅ gp3 StorageClass installed and set as default.")
 }
 
+func ensureVpcDnsEnabled(ctx context.Context, vpcID string) {
+	awsLogger.Infof("Ensuring VPC %s has DNS support and hostnames enabled...", vpcID)
+
+	// Enable DNS support
+	if _, errOut, err := runCmd(ctx, "aws", "ec2", "modify-vpc-attribute",
+		"--vpc-id", vpcID,
+		"--enable-dns-support", "{\"Value\":true}"); err != nil {
+		awsLogger.Warningf("Failed to enable DNS support on VPC %s (continued): %v\nstderr: %s", vpcID, err, errOut)
+	} else {
+		awsLogger.Successf("✅ Enabled DNS support on VPC %s.", vpcID)
+	}
+
+	// Enable DNS hostnames
+	if _, errOut, err := runCmd(ctx, "aws", "ec2", "modify-vpc-attribute",
+		"--vpc-id", vpcID,
+		"--enable-dns-hostnames", "{\"Value\":true}"); err != nil {
+		awsLogger.Warningf("Failed to enable DNS hostnames on VPC %s (continued): %v\nstderr: %s", vpcID, err, errOut)
+	} else {
+		awsLogger.Successf("✅ Enabled DNS hostnames on VPC %s.", vpcID)
+	}
+}
+
 func ensureALBController(ctx context.Context, cfg Config, vpcID, accountID string) {
 	awsLogger.Section("AWS Load Balancer Controller")
 	awsLogger.Infof("Installing AWS Load Balancer Controller...")
+
+	ensureVpcDnsEnabled(ctx, vpcID)
 
 	mustRun(ctx, "eksctl", "utils", "associate-iam-oidc-provider",
 		"--region", cfg.Region,
