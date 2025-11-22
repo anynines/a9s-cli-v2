@@ -797,7 +797,8 @@ func ensureALBController(ctx context.Context, cfg Config, vpcID, accountID strin
 		"--cluster", cfg.ClusterName,
 		"--approve")
 
-	policyURL := fmt.Sprintf("https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/%s/docs/install/iam_policy.json", cfg.ALBControllerVersion)
+	// Always use the latest policy from main to ensure required permissions (e.g., DescribeRouteTables) are present.
+	policyURL := "https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/main/docs/install/iam_policy.json"
 	awsLogger.Printf("Using AWS Load Balancer Controller version: %s", cfg.ALBControllerVersion)
 	awsLogger.Printf("IAM policy URL: %s", policyURL)
 
@@ -819,15 +820,7 @@ func ensureALBController(ctx context.Context, cfg Config, vpcID, accountID strin
 	} else {
 		awsLogger.Successf("IAM policy %s already exists.", cfg.ALBControllerPolicyName)
 		awsLogger.Infof("Updating IAM policy %s to latest version...", cfg.ALBControllerPolicyName)
-		// Ensure the existing policy contains the latest permissions (including DescribeRouteTables).
-		if _, errOut, err := runCmd(ctx, "aws", "iam", "create-policy-version",
-			"--policy-arn", policyArn,
-			"--policy-document", "file://aws-load-balancer-controller-policy.json",
-			"--set-as-default"); err != nil {
-			awsLogger.Warningf("Failed to update policy %s to latest version (continued): %v\nstderr: %s", cfg.ALBControllerPolicyName, err, errOut)
-		} else {
-			awsLogger.Successf("✅ Updated IAM policy %s to latest version.", cfg.ALBControllerPolicyName)
-		}
+		ensurePolicyVersion(ctx, policyArn, "file://aws-load-balancer-controller-policy.json")
 	}
 
 	awsLogger.Infof("Creating IAM service account for AWS Load Balancer Controller...")
@@ -905,4 +898,43 @@ func getALBControllerRoleName(ctx context.Context) string {
 	parts := strings.Split(roleArn, "/")
 	roleName := parts[len(parts)-1]
 	return roleName
+}
+
+// ensurePolicyVersion sets a new default policy version from the given document,
+// pruning an old non-default version if necessary to stay within the 5-version limit.
+func ensurePolicyVersion(ctx context.Context, policyArn, policyDocument string) {
+	versionsOut, _, err := runCmd(ctx, "aws", "iam", "list-policy-versions", "--policy-arn", policyArn)
+	if err == nil {
+		type version struct {
+			VersionId        string `json:"VersionId"`
+			IsDefaultVersion bool   `json:"IsDefaultVersion"`
+		}
+		type list struct {
+			Versions []version `json:"Versions"`
+		}
+		var lv list
+		if err := json.Unmarshal([]byte(versionsOut), &lv); err == nil {
+			if len(lv.Versions) >= 5 {
+				for _, v := range lv.Versions {
+					if !v.IsDefaultVersion {
+						awsLogger.Infof("Deleting old policy version %s to make room for an updated ALB controller policy...", v.VersionId)
+						_, errOut, err := runCmd(ctx, "aws", "iam", "delete-policy-version", "--policy-arn", policyArn, "--version-id", v.VersionId)
+						if err != nil {
+							awsLogger.Warningf("Failed to delete policy version %s (continued): %v\nstderr: %s", v.VersionId, err, errOut)
+						}
+						break
+					}
+				}
+			}
+		}
+	}
+
+	if _, errOut, err := runCmd(ctx, "aws", "iam", "create-policy-version",
+		"--policy-arn", policyArn,
+		"--policy-document", policyDocument,
+		"--set-as-default"); err != nil {
+		awsLogger.Warningf("Failed to update policy %s to latest version (continued): %v\nstderr: %s", policyArn, err, errOut)
+	} else {
+		awsLogger.Successf("✅ Updated IAM policy %s to latest version.", policyArn)
+	}
 }
