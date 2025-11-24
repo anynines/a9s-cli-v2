@@ -2,6 +2,13 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: dex-ingress
+{{- if and .EnableTLS .ACMCertificateARN }}
+  annotations:
+    alb.ingress.kubernetes.io/certificate-arn: "{{ .ACMCertificateARN }}"
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443},{"HTTP":80}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    alb.ingress.kubernetes.io/backend-protocol: HTTP
+{{- end }}
 spec:
   ingressClassName: {{ .IngressClass }}
   rules:
@@ -53,7 +60,7 @@ metadata:
   name: dex-config
 data:
   config: |
-    issuer: http://{{ .Host }}:{{ .IngressPort }}/dex
+    issuer: {{ .Scheme }}://{{ .Host }}:{{ .IngressPort }}/dex
 
     storage:
       type: memory

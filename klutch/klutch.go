@@ -89,7 +89,7 @@ func DeployKlutchClusters() {
 }
 
 // ApplyKlutchControlPlane installs the Klutch control plane components into the current kube context.
-func ApplyKlutchControlPlane(host string, ingressPort int) {
+func ApplyKlutchControlPlane(host string, ingressPort int, acmCertificateARN string) {
 	makeup.PrintWelcomeScreen(
 		demo.UnattendedMode,
 		applyControlPlaneTitle,
@@ -99,14 +99,12 @@ func ApplyKlutchControlPlane(host string, ingressPort int) {
 
 	checkControlPlaneInstallPrerequisites()
 
-	hostProvided := host != ""
-
 	if ingressPort < 1 || ingressPort > 65535 {
 		makeup.ExitDueToFatalError(nil, "Invalid ingress port. Must be between 1 and 65535.")
 	}
 
 	manager := NewKlutchManagerWithContexts("", "")
-	manager.applyControlPlaneToContext(host, strconv.Itoa(ingressPort), hostProvided)
+	manager.applyControlPlaneToContext(host, strconv.Itoa(ingressPort), acmCertificateARN)
 	printControlPlaneSummary(demo.DemoConfig.WorkingDir)
 }
 
@@ -128,12 +126,12 @@ func (k *KlutchManager) deployControlPlaneCluster() {
 	k.DeployIngressNginx()
 	k.WaitForIngressNginx()
 
-	scheme := determineIngressScheme(ingressClass)
+	scheme := determineIngressScheme(ingressClass, false)
 
-	k.DeployDex(hostIP, port, ingressClass, scheme)
+	k.DeployDex(hostIP, port, ingressClass, scheme, "")
 	k.WaitForDex()
 
-	k.DeployBindBackend(hostIP, ingressClass, scheme)
+	k.DeployBindBackend(hostIP, port, ingressClass, scheme)
 	k.WaitForBindBackend()
 
 	k.DeployCrossplaneComponents()
@@ -165,9 +163,21 @@ func printSummary() {
 	makeup.PrintSuccessSummary("You are now ready to bind APIs from the App Cluster using the `a9s klutch bind` command.")
 }
 
-func (k *KlutchManager) applyControlPlaneToContext(host string, ingressPort string, hostProvided bool) {
+func (k *KlutchManager) applyControlPlaneToContext(host string, ingressPort string, acmCertificateARN string) {
 	ingressClass := detectIngressClass(k.cpK8s)
-	scheme := determineIngressScheme(ingressClass)
+	tlsEnabled := acmCertificateARN != "" && ingressClass == "alb"
+
+	// ALB ingress is created without TLS in our manifests; default to port 80 when no cert is provided
+	// to avoid calling a closed HTTPS listener. When a cert is provided, force port 443.
+	if tlsEnabled && ingressPort != "443" {
+		makeup.PrintInfo("ACM certificate provided; enabling TLS on ALB and using port 443.")
+		ingressPort = "443"
+	} else if ingressClass == "alb" && ingressPort == "443" {
+		makeup.PrintInfo("Detected ALB ingress and no TLS configuration. Switching ingress port to 80.")
+		ingressPort = "80"
+	}
+
+	scheme := determineIngressScheme(ingressClass, tlsEnabled)
 
 	// Bootstrap host: if none was provided, use kubeconfig server host to allow ingress creation,
 	// but we will replace it with the ingress LB hostname/IP before finishing.
@@ -176,6 +186,7 @@ func (k *KlutchManager) applyControlPlaneToContext(host string, ingressPort stri
 		initialHost = getClusterExternalHost("")
 		makeup.PrintInfo(fmt.Sprintf("No host provided. Using provisional host `%s` to bootstrap deployment; it will be replaced once ingress has an address.", initialHost))
 	}
+	host = initialHost
 
 	if ingressClass == "nginx" {
 		k.DeployIngressNginx()
@@ -184,10 +195,10 @@ func (k *KlutchManager) applyControlPlaneToContext(host string, ingressPort stri
 		makeup.PrintInfo(fmt.Sprintf("Ingress class `%s` detected. Skipping ingress-nginx installation.", ingressClass))
 	}
 
-	k.DeployDex(initialHost, ingressPort, ingressClass, scheme)
+	k.DeployDex(initialHost, ingressPort, ingressClass, scheme, acmCertificateARN)
 	k.WaitForDex()
 
-	k.DeployBindBackend(initialHost, ingressClass, scheme)
+	k.DeployBindBackend(initialHost, ingressPort, ingressClass, scheme)
 
 	// If we're using ALB, wait for the ALB hostname and re-apply Dex + backend manifests
 	// with the resolved host so OIDC URLs are correct.
@@ -199,8 +210,8 @@ func (k *KlutchManager) applyControlPlaneToContext(host string, ingressPort stri
 		if resolvedHost != initialHost {
 			makeup.PrintInfo(fmt.Sprintf("Detected ALB hostname `%s`. Re-applying Dex and backend manifests with this host.", resolvedHost))
 			host = resolvedHost
-			k.DeployDex(host, ingressPort, ingressClass, scheme)
-			k.DeployBindBackend(host, ingressClass, scheme)
+			k.DeployDex(host, ingressPort, ingressClass, scheme, acmCertificateARN)
+			k.DeployBindBackend(host, ingressPort, ingressClass, scheme)
 		} else {
 			host = initialHost
 		}
@@ -253,9 +264,8 @@ func detectIngressClass(k8sClient *k8s.KubeClient) string {
 }
 
 // determineIngressScheme returns the URL scheme to use for ingress endpoints.
-// We assume ALB terminates TLS, so we use https there. Otherwise default to http.
-func determineIngressScheme(ingressClass string) string {
-	if ingressClass == "alb" {
+func determineIngressScheme(_ string, tlsEnabled bool) string {
+	if tlsEnabled {
 		return "https"
 	}
 	return "http"

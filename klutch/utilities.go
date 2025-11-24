@@ -56,56 +56,9 @@ func getClusterCert(k8s *k8s.KubeClient) []byte {
 	return output
 }
 
-// getClusterExternalPort extracts the given context's kubernetes API port from the kubeconfig file.
-// If the port is absent or can't be used, returns 80 or 443 depending on the found URL scheme.
-// TODO: unit test. abstract the config loading so it can be mocked.
-func getClusterExternalPort(kubeContext string) string {
-	var kubeconfig string
-	if home := homedir.HomeDir(); home != "" {
-		kubeconfig = filepath.Join(home, ".kube", "config")
-	}
-
-	config, err := clientcmd.LoadFromFile(kubeconfig)
-	if err != nil {
-		makeup.ExitDueToFatalError(err, fmt.Sprintf("Error loading kubeconfig file %s", kubeconfig))
-	}
-
-	contextToUse := kubeContext
-	if contextToUse == "" {
-		contextToUse = config.CurrentContext
-	}
-
-	ctx, exists := config.Contexts[contextToUse]
-	if !exists {
-		makeup.ExitDueToFatalError(err, fmt.Sprintf("context %s not found in kubeconfig", contextToUse))
-	}
-
-	cluster, exists := config.Clusters[ctx.Cluster]
-	if !exists {
-		makeup.ExitDueToFatalError(err, fmt.Sprintf("cluster %s not found in kubeconfig", ctx.Cluster))
-	}
-
-	url, err := url.Parse(cluster.Server)
-	if err != nil {
-		makeup.ExitDueToFatalError(err, fmt.Sprintf("cluster url %s cannot be parsed", cluster.Server))
-	}
-
-	port := url.Port()
-	if port == "" {
-		if url.Scheme == "https" {
-			return "443"
-		} else if url.Scheme == "http" {
-			return "80"
-		} else {
-			makeup.ExitDueToFatalError(err, fmt.Sprintf("cannot determine port: unknown url scheme %s", url.Scheme))
-		}
-	}
-
-	return port
-}
-
-// getClusterExternalHost extracts the given context's kubernetes API hostname from the kubeconfig file.
-func getClusterExternalHost(kubeContext string) string {
+// getClusterURLFromKubeconfig returns the parsed server URL for the given context.
+// When kubeContext is empty, it uses the current context.
+func getClusterURLFromKubeconfig(kubeContext string) *url.URL {
 	var kubeconfig string
 	if home := homedir.HomeDir(); home != "" {
 		kubeconfig = filepath.Join(home, ".kube", "config")
@@ -136,12 +89,53 @@ func getClusterExternalHost(kubeContext string) string {
 		makeup.ExitDueToFatalError(err, fmt.Sprintf("cluster url %s cannot be parsed", cluster.Server))
 	}
 
+	return clusterURL
+}
+
+// getClusterExternalPort extracts the given context's kubernetes API port from the kubeconfig file.
+// If the port is absent or can't be used, returns 80 or 443 depending on the found URL scheme.
+// TODO: unit test. abstract the config loading so it can be mocked.
+func getClusterExternalPort(kubeContext string) string {
+	clusterURL := getClusterURLFromKubeconfig(kubeContext)
+
+	port := clusterURL.Port()
+	if port == "" {
+		if clusterURL.Scheme == "https" {
+			return "443"
+		} else if clusterURL.Scheme == "http" {
+			return "80"
+		} else {
+			makeup.ExitDueToFatalError(nil, fmt.Sprintf("cannot determine port: unknown url scheme %s", clusterURL.Scheme))
+		}
+	}
+
+	return port
+}
+
+// getClusterExternalHost extracts the given context's kubernetes API hostname from the kubeconfig file.
+func getClusterExternalHost(kubeContext string) string {
+	clusterURL := getClusterURLFromKubeconfig(kubeContext)
+
 	host := clusterURL.Hostname()
 	if host == "" {
-		makeup.ExitDueToFatalError(nil, fmt.Sprintf("could not determine host from cluster url %s", cluster.Server))
+		makeup.ExitDueToFatalError(nil, fmt.Sprintf("could not determine host from cluster url %s", clusterURL.String()))
 	}
 
 	return host
+}
+
+// getClusterExternalAddress returns the full kubernetes API server address (scheme + host)
+// for the given context.
+func getClusterExternalAddress(kubeContext string) string {
+	clusterURL := getClusterURLFromKubeconfig(kubeContext)
+	if clusterURL.Scheme == "" {
+		makeup.ExitDueToFatalError(nil, fmt.Sprintf("could not determine scheme from cluster url %s", clusterURL.String()))
+	}
+	if clusterURL.Host == "" {
+		makeup.ExitDueToFatalError(nil, fmt.Sprintf("could not determine host from cluster url %s", clusterURL.String()))
+	}
+
+	return fmt.Sprintf("%s://%s", clusterURL.Scheme, clusterURL.Host)
 }
 
 // renderTemplate renders the given go-template and returns a buffer containing the result.

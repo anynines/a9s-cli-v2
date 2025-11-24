@@ -15,16 +15,18 @@ import (
 var dexManifestsTemplate string
 
 type dexTemplateVars struct {
-	Host            string
-	IngressPort     string
-	DexClientSecret string
-	IngressClass    string
-	Scheme          string
-	ServiceType     string
-	NodePort        int
+	Host              string
+	IngressPort       string
+	DexClientSecret   string
+	IngressClass      string
+	Scheme            string
+	ServiceType       string
+	NodePort          int
+	ACMCertificateARN string
+	EnableTLS         bool
 }
 
-func (k *KlutchManager) DeployDex(hostIP string, ingressPort string, ingressClass string, scheme string) {
+func (k *KlutchManager) DeployDex(hostIP string, ingressPort string, ingressClass string, scheme string, acmCertificateARN string) {
 	makeup.PrintH1("Deploying Dex Idp...")
 
 	client := k.cpK8s.GetKubernetesClientSet()
@@ -32,11 +34,13 @@ func (k *KlutchManager) DeployDex(hostIP string, ingressPort string, ingressClas
 	dexClientSecret := k.getOIDCIssuerClientSecret(client, bg)
 
 	templateVars := &dexTemplateVars{
-		Host:            hostIP,
-		IngressPort:     ingressPort,
-		DexClientSecret: dexClientSecret,
-		IngressClass:    ingressClass,
-		Scheme:          scheme,
+		Host:              hostIP,
+		IngressPort:       ingressPort,
+		DexClientSecret:   dexClientSecret,
+		IngressClass:      ingressClass,
+		Scheme:            scheme,
+		ACMCertificateARN: acmCertificateARN,
+		EnableTLS:         acmCertificateARN != "" && ingressClass == "alb",
 	}
 
 	// ALB requires NodePort when using instance targets; keep ClusterIP for local/demo (nginx).

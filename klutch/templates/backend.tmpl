@@ -43,7 +43,7 @@ spec:
         - --listen-address=0.0.0.0:9443
         - --cookie-signing-key=$(COOKIE-SIGNING-KEY)
         - --cookie-encryption-key=$(COOKIE-ENCRYPTION-KEY)
-        - --external-address={{ .Scheme }}://{{ .Host }}:{{ .K8sApiPort }}
+        - --external-address={{ .ExternalAddress }}
         - --external-ca-file=/certa/ca
         env:
         - name: OIDC-ISSUER-CLIENT-ID

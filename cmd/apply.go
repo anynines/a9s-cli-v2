@@ -7,8 +7,9 @@ import (
 )
 
 var (
-	applyKlutchControlPlaneHost string
-	applyKlutchControlPlanePort int
+	applyKlutchControlPlaneHost       string
+	applyKlutchControlPlanePort       int
+	applyKlutchControlPlaneACMCertARN string
 )
 
 var applyCmd = &cobra.Command{
@@ -30,13 +31,14 @@ var applyKlutchControlPlaneCmd = &cobra.Command{
 			makeup.ExitDueToFatalError(nil, "Invalid ingress port. Must be between 1 and 65535.")
 		}
 
-		klutch.ApplyKlutchControlPlane(applyKlutchControlPlaneHost, applyKlutchControlPlanePort)
+		klutch.ApplyKlutchControlPlane(applyKlutchControlPlaneHost, applyKlutchControlPlanePort, applyKlutchControlPlaneACMCertARN)
 	},
 }
 
 func init() {
 	applyKlutchControlPlaneCmd.Flags().StringVar(&applyKlutchControlPlaneHost, "host", "", "Host (IP or DNS name) to reach the ingress. Defaults to the Kubernetes API server host of the current kube context.")
 	applyKlutchControlPlaneCmd.Flags().IntVar(&applyKlutchControlPlanePort, "ingress-port", 443, "Port the ingress should listen on.")
+	applyKlutchControlPlaneCmd.Flags().StringVar(&applyKlutchControlPlaneACMCertARN, "acm-certificate-arn", "", "ACM certificate ARN to enable HTTPS on the ALB ingress for Dex.")
 
 	applyCmd.AddCommand(applyKlutchControlPlaneCmd)
 	rootCmd.AddCommand(applyCmd)

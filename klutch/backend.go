@@ -16,17 +16,17 @@ const (
 var bindBackendManifestsTemplate string
 
 type backendTemplateVars struct {
-	Host                string
 	CookieEncryptionKey string
 	CookieSigningKey    string
-	K8sApiPort          string
+	ExternalAddress     string
+	IngressPort         string
 	K8sApiCaCertB64     string
 	IngressClass        string
 	Scheme              string
 }
 
 // Deploys dex and the klutch-bind backend.
-func (k *KlutchManager) DeployBindBackend(hostIP string, ingressClass string, scheme string) {
+func (k *KlutchManager) DeployBindBackend(ingressPort string, ingressClass string, scheme string) {
 	makeup.PrintH1("Deploying the klutch-bind backend...")
 
 	makeup.PrintH2("Applying the klutch-bind backend CRDs...")
@@ -40,17 +40,16 @@ func (k *KlutchManager) DeployBindBackend(hostIP string, ingressClass string, sc
 	clusterCert := getClusterCert(k.cpK8s)
 	encodedCert := base64.StdEncoding.EncodeToString(clusterCert)
 
-	clusterPort := getClusterExternalPort(k.cpContext)
-
 	rbg := RandomByteGenerator{}
 	cookieSigningKey := rbg.GenerateRandom32BytesBase64()
 	cookieEncryptionKey := rbg.GenerateRandom32BytesBase64()
+	externalAddress := getClusterExternalAddress(k.cpContext)
 
 	templateVars := &backendTemplateVars{
-		Host:                hostIP,
 		CookieEncryptionKey: cookieEncryptionKey,
 		CookieSigningKey:    cookieSigningKey,
-		K8sApiPort:          clusterPort,
+		ExternalAddress:     externalAddress,
+		IngressPort:         ingressPort,
 		K8sApiCaCertB64:     encodedCert,
 		IngressClass:        ingressClass,
 		Scheme:              scheme,
