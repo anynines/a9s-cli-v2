@@ -109,7 +109,7 @@ func ApplyKlutchControlPlane(host string, ingressPort int, acmCertificateARN str
 
 	// Auto-provision an ACM certificate if none was provided and a hosted zone is available.
 	if acmCertificateARN == "" && hostedZoneName != "" {
-		provisioner := NewCertificateProvisioner()
+		provisioner := NewCertificateProvisioner("")
 		makeup.PrintInfo(fmt.Sprintf("No ACM certificate ARN provided. Requesting a certificate for %s in hosted zone %s.", host, hostedZoneName))
 		arn, err := provisioner.EnsureCertificate(host, hostedZoneName)
 		if err != nil {
@@ -147,7 +147,7 @@ func (k *KlutchManager) deployControlPlaneCluster() {
 	k.DeployDex(hostIP, port, ingressClass, scheme, "")
 	k.WaitForDex()
 
-	k.DeployBindBackend(hostIP, port, ingressClass, scheme)
+	k.DeployBindBackend(port, ingressClass, scheme)
 	k.WaitForBindBackend()
 
 	k.DeployCrossplaneComponents()
@@ -214,7 +214,7 @@ func (k *KlutchManager) applyControlPlaneToContext(host string, ingressPort stri
 	k.DeployDex(initialHost, ingressPort, ingressClass, scheme, acmCertificateARN)
 	k.WaitForDex()
 
-	k.DeployBindBackend(initialHost, ingressPort, ingressClass, scheme)
+	k.DeployBindBackend(ingressPort, ingressClass, scheme)
 
 	// If we're using ALB, wait for the ALB hostname and re-apply Dex + backend manifests
 	// with the resolved host so OIDC URLs are correct.
@@ -227,7 +227,7 @@ func (k *KlutchManager) applyControlPlaneToContext(host string, ingressPort stri
 			makeup.PrintInfo(fmt.Sprintf("Detected ALB hostname `%s`. Re-applying Dex and backend manifests with this host.", resolvedHost))
 			host = resolvedHost
 			k.DeployDex(host, ingressPort, ingressClass, scheme, acmCertificateARN)
-			k.DeployBindBackend(host, ingressPort, ingressClass, scheme)
+			k.DeployBindBackend(ingressPort, ingressClass, scheme)
 		} else {
 			host = initialHost
 		}

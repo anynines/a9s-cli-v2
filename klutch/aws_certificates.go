@@ -3,7 +3,6 @@ package klutch
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -33,14 +32,8 @@ type AWSProvisioner struct {
 }
 
 // NewCertificateProvisioner initializes ACM and Route53 clients using the default AWS configuration.
-func NewCertificateProvisioner() CertificateProvisioner {
-	region := os.Getenv("AWS_REGION")
-	if region == "" {
-		region = os.Getenv("AWS_DEFAULT_REGION")
-	}
-	if region == "" {
-		makeup.ExitDueToFatalError(fmt.Errorf("AWS_REGION or AWS_DEFAULT_REGION must be set"), "Could not determine AWS region for ACM certificate request.")
-	}
+func NewCertificateProvisioner(kubeContext string) CertificateProvisioner {
+	region := detectAWSRegion(kubeContext)
 
 	cfg, err := config.LoadDefaultConfig(context.Background(), config.WithRegion(region))
 	if err != nil {
@@ -51,6 +44,24 @@ func NewCertificateProvisioner() CertificateProvisioner {
 		acmClient: acm.NewFromConfig(cfg),
 		r53Client: route53.NewFromConfig(cfg),
 	}
+}
+
+// detectAWSRegion extracts the AWS region from the EKS API endpoint in kubeconfig.
+func detectAWSRegion(kubeContext string) string {
+	clusterURL := getClusterURLFromKubeconfig(kubeContext)
+	host := clusterURL.Hostname()
+	parts := strings.Split(host, ".")
+
+	// EKS endpoints look like: XYZ.eu-central-1.eks.amazonaws.com
+	if len(parts) >= 4 && parts[len(parts)-3] == "eks" && parts[len(parts)-2] == "amazonaws" {
+		region := parts[len(parts)-4]
+		if region != "" {
+			return region
+		}
+	}
+
+	makeup.ExitDueToFatalError(nil, fmt.Sprintf("Could not determine AWS region from cluster endpoint %s (expected EKS-style hostname).", host))
+	return ""
 }
 
 // EnsureCertificate requests a public ACM certificate for domainName, creates the DNS validation record in the given hosted zone,
