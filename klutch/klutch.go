@@ -89,7 +89,7 @@ func DeployKlutchClusters() {
 }
 
 // ApplyKlutchControlPlane installs the Klutch control plane components into the current kube context.
-func ApplyKlutchControlPlane(host string, ingressPort int, acmCertificateARN string) {
+func ApplyKlutchControlPlane(host string, ingressPort int, acmCertificateARN string, hostedZoneName string) {
 	makeup.PrintWelcomeScreen(
 		demo.UnattendedMode,
 		applyControlPlaneTitle,
@@ -101,6 +101,22 @@ func ApplyKlutchControlPlane(host string, ingressPort int, acmCertificateARN str
 
 	if ingressPort < 1 || ingressPort > 65535 {
 		makeup.ExitDueToFatalError(nil, "Invalid ingress port. Must be between 1 and 65535.")
+	}
+
+	if host == "" && hostedZoneName != "" {
+		host = hostedZoneName
+	}
+
+	// Auto-provision an ACM certificate if none was provided and a hosted zone is available.
+	if acmCertificateARN == "" && hostedZoneName != "" {
+		provisioner := NewCertificateProvisioner()
+		makeup.PrintInfo(fmt.Sprintf("No ACM certificate ARN provided. Requesting a certificate for %s in hosted zone %s.", host, hostedZoneName))
+		arn, err := provisioner.EnsureCertificate(host, hostedZoneName)
+		if err != nil {
+			makeup.ExitDueToFatalError(err, "Failed to request ACM certificate.")
+		}
+		acmCertificateARN = arn
+		makeup.PrintInfo(fmt.Sprintf("Using ACM certificate ARN: %s", acmCertificateARN))
 	}
 
 	manager := NewKlutchManagerWithContexts("", "")
