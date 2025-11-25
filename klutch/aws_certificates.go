@@ -23,6 +23,11 @@ const (
 	route53MaxRetries = 60
 )
 
+const (
+	klutchTagKey   = "Klutch"
+	klutchTagValue = "ControlPlane"
+)
+
 type CertificateProvisioner interface {
 	EnsureCertificate(domainName, hostedZoneName string) (string, error)
 }
