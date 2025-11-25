@@ -3,6 +3,7 @@ package klutch
 import (
 	_ "embed"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -112,6 +113,7 @@ func ApplyKlutchControlPlane(host string, ingressPort int, acmCertificateARN str
 	if hostedZoneName != "" {
 		verifyHostedZoneResolvable(hostedZoneName)
 		provisioner = NewCertificateProvisioner("")
+		verifyHostedZoneRequirements(provisioner, hostedZoneName, baseDomain, dexHost)
 	}
 
 	dexHost := ""
@@ -255,13 +257,23 @@ func (k *KlutchManager) applyControlPlaneToContext(baseDomain string, dexHost st
 		}
 
 		if provisioner != nil && hostedZoneName != "" && publicHost != "" {
-			makeup.PrintInfo(fmt.Sprintf("Planned action: create/update CNAME %s -> %s in hosted zone %s for ingress.", publicHost, resolvedHost, hostedZoneName))
-			makeup.WaitForUser(demo.UnattendedMode)
-
-			if err := provisioner.EnsureCNAMERecords(hostedZoneName, map[string]string{publicHost: resolvedHost}); err != nil {
-				makeup.ExitDueToFatalError(err, fmt.Sprintf("Could not create CNAME %s -> %s in hosted zone %s.", publicHost, resolvedHost, hostedZoneName))
+			records := map[string]string{
+				publicHost: resolvedHost,
 			}
-			makeup.PrintInfo(fmt.Sprintf("Ensured DNS CNAME %s -> %s in hosted zone %s.", publicHost, resolvedHost, hostedZoneName))
+			// Also wire the base domain if it differs, so hub.a9s.io resolves too.
+			if baseDomain != "" && baseDomain != publicHost {
+				records[baseDomain] = resolvedHost
+			}
+
+			if len(records) > 0 {
+				makeup.PrintInfo(fmt.Sprintf("Planned action: create/update CNAMEs %v -> %s in hosted zone %s for ingress.", keys(records), resolvedHost, hostedZoneName))
+				makeup.WaitForUser(demo.UnattendedMode)
+
+				if err := provisioner.EnsureCNAMERecords(hostedZoneName, records); err != nil {
+					makeup.ExitDueToFatalError(err, fmt.Sprintf("Could not create CNAME records in hosted zone %s.", hostedZoneName))
+				}
+				makeup.PrintInfo(fmt.Sprintf("Ensured DNS CNAMEs %v -> %s in hosted zone %s.", keys(records), resolvedHost, hostedZoneName))
+			}
 		}
 	}
 
@@ -317,6 +329,74 @@ func determineIngressScheme(_ string, tlsEnabled bool) string {
 		return "https"
 	}
 	return "http"
+}
+
+// keys returns the keys of a string map for logging.
+func keys(m map[string]string) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	return out
+}
+
+// verifyHostedZoneRequirements ensures that the provided hosts are within the hosted zone
+// and that the zone is properly delegated. It prints actionable instructions and exits if requirements are not met.
+func verifyHostedZoneRequirements(provisioner CertificateProvisioner, hostedZoneName, baseDomain, dexHost string) {
+	if hostedZoneName == "" || provisioner == nil {
+		return
+	}
+
+	zone := strings.TrimSuffix(hostedZoneName, ".")
+	requireHostInZone := func(host string, label string) {
+		if host == "" {
+			return
+		}
+		if host != zone && !strings.HasSuffix(host, "."+zone) {
+			makeup.ExitDueToFatalError(nil, fmt.Sprintf("%s `%s` is not within hosted zone `%s`. Please use a hostname inside the zone.", label, host, zone))
+		}
+	}
+
+	requireHostInZone(baseDomain, "Base domain")
+	requireHostInZone(dexHost, "Dex host")
+
+	expectedNS, err := provisioner.GetHostedZoneNS(zone)
+	if err != nil {
+		makeup.ExitDueToFatalError(err, fmt.Sprintf("Could not fetch NS records for hosted zone %s from Route53.", zone))
+	}
+
+	liveNS, _ := net.LookupNS(zone)
+	if len(liveNS) == 0 {
+		parent := parentDomain(zone)
+		makeup.ExitDueToFatalError(nil, fmt.Sprintf("Hosted zone %s is not publicly delegated. Create an NS record in parent zone %s with these values: %s", zone, parent, strings.Join(expectedNS, ", ")))
+	}
+
+	// If there is delegation but it doesn't match Route53 NS, warn with instructions.
+	delegated := make(map[string]struct{}, len(liveNS))
+	for _, ns := range liveNS {
+		delegated[strings.TrimSuffix(strings.ToLower(ns.Host), ".")] = struct{}{}
+	}
+	mismatch := false
+	for _, ns := range expectedNS {
+		n := strings.TrimSuffix(strings.ToLower(ns), ".")
+		if _, ok := delegated[n]; !ok {
+			mismatch = true
+			break
+		}
+	}
+	if mismatch {
+		parent := parentDomain(zone)
+		makeup.ExitDueToFatalError(nil, fmt.Sprintf("Hosted zone %s is not delegated to the expected Route53 nameservers. Update the NS record in parent zone %s to: %s", zone, parent, strings.Join(expectedNS, ", ")))
+	}
+}
+
+// parentDomain returns the parent domain of a FQDN (e.g., hub.a9s.io -> a9s.io).
+func parentDomain(domain string) string {
+	parts := strings.Split(strings.TrimSuffix(domain, "."), ".")
+	if len(parts) <= 1 {
+		return ""
+	}
+	return strings.Join(parts[1:], ".")
 }
 
 // waitForIngressHost waits for an ingress to report a load balancer hostname/IP and returns it.

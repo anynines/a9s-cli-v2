@@ -31,6 +31,7 @@ const (
 type CertificateProvisioner interface {
 	EnsureCertificate(domainName string, altNames []string, hostedZoneName string) (string, error)
 	EnsureCNAMERecords(hostedZoneName string, records map[string]string) error
+	GetHostedZoneNS(hostedZoneName string) ([]string, error)
 }
 
 type AWSProvisioner struct {
@@ -460,4 +461,22 @@ func (p *AWSProvisioner) EnsureCNAMERecords(hostedZoneName string, records map[s
 	}
 
 	return fmt.Errorf("route53 change %s did not become INSYNC in time", changeID)
+}
+
+// GetHostedZoneNS returns the nameservers configured for the hosted zone.
+func (p *AWSProvisioner) GetHostedZoneNS(hostedZoneName string) ([]string, error) {
+	ctx := context.Background()
+	zoneID, err := p.getHostedZoneID(ctx, hostedZoneName)
+	if err != nil {
+		return nil, err
+	}
+
+	out, err := p.r53Client.GetHostedZone(ctx, &route53.GetHostedZoneInput{
+		Id: aws.String(zoneID),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("getting hosted zone %s: %w", hostedZoneName, err)
+	}
+
+	return aws.ToStringSlice(out.DelegationSet.NameServers), nil
 }
