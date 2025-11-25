@@ -213,10 +213,11 @@ func (k *KlutchManager) applyControlPlaneToContext(baseDomain string, dexHost st
 	ingressClass := detectIngressClass(k.cpK8s)
 	tlsEnabled := acmCertificateARN != "" && ingressClass == "alb"
 
-	// ALB ingress is created without TLS in our manifests; default to port 80 when no cert is provided
-	// to avoid calling a closed HTTPS listener. When a cert is provided, force port 443.
-	if tlsEnabled && ingressPort != "443" {
-		makeup.PrintInfo("ACM certificate provided; enabling TLS on ALB and using port 443.")
+	// Force port 443 when TLS is enabled; fall back to 80 for ALB without TLS.
+	if tlsEnabled {
+		if ingressPort != "443" {
+			makeup.PrintInfo("ACM certificate provided; enabling TLS on ALB and using port 443.")
+		}
 		ingressPort = "443"
 	} else if ingressClass == "alb" && ingressPort == "443" {
 		makeup.PrintInfo("Detected ALB ingress and no TLS configuration. Switching ingress port to 80.")
@@ -325,6 +326,17 @@ func determineIngressScheme(_ string, tlsEnabled bool) string {
 		return "https"
 	}
 	return "http"
+}
+
+// formatHostWithPort returns host or host:port depending on scheme defaults.
+func formatHostWithPort(scheme, host, port string) string {
+	if port == "" {
+		return host
+	}
+	if (scheme == "https" && port == "443") || (scheme == "http" && port == "80") {
+		return host
+	}
+	return host + ":" + port
 }
 
 // keys returns the keys of a string map for logging.

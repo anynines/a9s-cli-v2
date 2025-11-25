@@ -16,6 +16,7 @@ var dexManifestsTemplate string
 
 type dexTemplateVars struct {
 	Host              string
+	HostPort          string
 	IngressPort       string
 	DexClientSecret   string
 	IngressClass      string
@@ -35,6 +36,7 @@ func (k *KlutchManager) DeployDex(hostIP string, ingressPort string, ingressClas
 
 	templateVars := &dexTemplateVars{
 		Host:              hostIP,
+		HostPort:          formatHostWithPort(scheme, hostIP, ingressPort),
 		IngressPort:       ingressPort,
 		DexClientSecret:   dexClientSecret,
 		IngressClass:      ingressClass,
