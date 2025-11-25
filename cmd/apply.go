@@ -32,6 +32,10 @@ var applyKlutchControlPlaneCmd = &cobra.Command{
 			makeup.ExitDueToFatalError(nil, "Invalid ingress port. Must be between 1 and 65535.")
 		}
 
+		if applyKlutchControlPlaneHostedZone == "" {
+			makeup.ExitDueToFatalError(nil, "The --hosted-zone-name flag is required until self-signed certificates are supported.")
+		}
+
 		klutch.ApplyKlutchControlPlane(applyKlutchControlPlaneHost, applyKlutchControlPlanePort, applyKlutchControlPlaneACMCertARN, applyKlutchControlPlaneHostedZone)
 	},
 }
@@ -40,7 +44,7 @@ func init() {
 	applyKlutchControlPlaneCmd.Flags().StringVar(&applyKlutchControlPlaneHost, "host", "", "Host (IP or DNS name) to reach the ingress. Defaults to the Kubernetes API server host of the current kube context.")
 	applyKlutchControlPlaneCmd.Flags().IntVar(&applyKlutchControlPlanePort, "ingress-port", 443, "Port the ingress should listen on.")
 	applyKlutchControlPlaneCmd.Flags().StringVar(&applyKlutchControlPlaneACMCertARN, "acm-certificate-arn", "", "ACM certificate ARN to enable HTTPS on the ALB ingress for Dex.")
-	applyKlutchControlPlaneCmd.Flags().StringVar(&applyKlutchControlPlaneHostedZone, "hosted-zone-name", "", "Route53 hosted zone name (FQDN). If provided and no ACM ARN is supplied, the CLI will request an ACM cert and create DNS validation records automatically.")
+	applyKlutchControlPlaneCmd.Flags().StringVar(&applyKlutchControlPlaneHostedZone, "hosted-zone-name", "", "Route53 hosted zone name (FQDN). Required until self-signed certificates are supported. If provided and no ACM ARN is supplied, the CLI will request an ACM cert and create DNS validation records automatically.")
 
 	applyCmd.AddCommand(applyKlutchControlPlaneCmd)
 	rootCmd.AddCommand(applyCmd)
