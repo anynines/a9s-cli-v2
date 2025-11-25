@@ -230,6 +230,8 @@ func (k *KlutchManager) applyControlPlaneToContext(baseDomain string, dexHost st
 	if publicHost == "" {
 		publicHost = getClusterExternalHost("")
 		makeup.PrintInfo(fmt.Sprintf("No host provided. Using provisional host `%s` to bootstrap deployment.", publicHost))
+	} else {
+		makeup.PrintInfo(fmt.Sprintf("Using host `%s` for Dex and OIDC configuration.", publicHost))
 	}
 
 	if ingressClass == "nginx" {
@@ -260,11 +262,6 @@ func (k *KlutchManager) applyControlPlaneToContext(baseDomain string, dexHost st
 				makeup.ExitDueToFatalError(err, fmt.Sprintf("Could not create CNAME %s -> %s in hosted zone %s.", publicHost, resolvedHost, hostedZoneName))
 			}
 			makeup.PrintInfo(fmt.Sprintf("Ensured DNS CNAME %s -> %s in hosted zone %s.", publicHost, resolvedHost, hostedZoneName))
-		} else if resolvedHost != publicHost {
-			makeup.PrintInfo(fmt.Sprintf("Detected ALB hostname `%s`. Re-applying Dex and backend manifests with this host.", resolvedHost))
-			publicHost = resolvedHost
-			k.DeployDex(publicHost, ingressPort, ingressClass, scheme, acmCertificateARN)
-			k.DeployBindBackend(ingressPort, ingressClass, scheme)
 		}
 	}
 
