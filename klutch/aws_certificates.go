@@ -29,7 +29,8 @@ const (
 )
 
 type CertificateProvisioner interface {
-	EnsureCertificate(domainName, hostedZoneName string) (string, error)
+	EnsureCertificate(domainName string, altNames []string, hostedZoneName string) (string, error)
+	EnsureCNAMERecords(hostedZoneName string, records map[string]string) error
 }
 
 type AWSProvisioner struct {
@@ -94,6 +95,16 @@ func normalizeDomain(name string) string {
 	return strings.TrimSuffix(strings.ToLower(name), ".")
 }
 
+func ensureTrailingDot(name string) string {
+	if name == "" {
+		return name
+	}
+	if strings.HasSuffix(name, ".") {
+		return name
+	}
+	return name + "."
+}
+
 func certificateTags(domainName string) []acmTypes.Tag {
 	return []acmTypes.Tag{
 		{Key: aws.String(klutchTagKey), Value: aws.String(klutchTagValue)},
@@ -101,9 +112,19 @@ func certificateTags(domainName string) []acmTypes.Tag {
 	}
 }
 
-// findExistingIssuedCertificate returns an issued certificate ARN for the given domain, if any.
-func (p *AWSProvisioner) findExistingIssuedCertificate(ctx context.Context, domainName string) (string, error) {
-	target := normalizeDomain(domainName)
+// findExistingIssuedCertificate returns an issued certificate ARN covering all required names, if any.
+func (p *AWSProvisioner) findExistingIssuedCertificate(ctx context.Context, requiredNames []string) (string, error) {
+	if len(requiredNames) == 0 {
+		return "", nil
+	}
+
+	required := make(map[string]struct{}, len(requiredNames))
+	for _, n := range requiredNames {
+		if n == "" {
+			continue
+		}
+		required[normalizeDomain(n)] = struct{}{}
+	}
 
 	paginator := acm.NewListCertificatesPaginator(p.acmClient, &acm.ListCertificatesInput{
 		CertificateStatuses: []acmTypes.CertificateStatus{acmTypes.CertificateStatusIssued},
@@ -116,12 +137,35 @@ func (p *AWSProvisioner) findExistingIssuedCertificate(ctx context.Context, doma
 		}
 
 		for _, summary := range page.CertificateSummaryList {
-			if normalizeDomain(aws.ToString(summary.DomainName)) == target {
-				arn := aws.ToString(summary.CertificateArn)
-				if arn != "" {
-					makeup.PrintInfo(fmt.Sprintf("Found existing issued ACM certificate for %s: %s", domainName, arn))
-					return arn, nil
+			arn := aws.ToString(summary.CertificateArn)
+			if arn == "" {
+				continue
+			}
+
+			desc, err := p.acmClient.DescribeCertificate(ctx, &acm.DescribeCertificateInput{
+				CertificateArn: aws.String(arn),
+			})
+			if err != nil {
+				return "", fmt.Errorf("describing certificate %s: %w", arn, err)
+			}
+
+			present := make(map[string]struct{})
+			present[normalizeDomain(aws.ToString(desc.Certificate.DomainName))] = struct{}{}
+			for _, san := range desc.Certificate.SubjectAlternativeNames {
+				present[normalizeDomain(san)] = struct{}{}
+			}
+
+			allCovered := true
+			for rn := range required {
+				if _, ok := present[rn]; !ok {
+					allCovered = false
+					break
 				}
+			}
+
+			if allCovered {
+				makeup.PrintInfo(fmt.Sprintf("Found existing issued ACM certificate covering %v: %s", requiredNames, arn))
+				return arn, nil
 			}
 		}
 	}
@@ -167,12 +211,15 @@ func (p *AWSProvisioner) ensureCertificateTags(ctx context.Context, certArn, dom
 	return nil
 }
 
-// EnsureCertificate requests a public ACM certificate for domainName, creates the DNS validation record in the given hosted zone,
+// EnsureCertificate requests a public ACM certificate for domainName (+ altNames), creates the DNS validation record in the given hosted zone,
 // waits for DNS to propagate, and waits for the certificate to be issued. Returns the certificate ARN.
-func (p *AWSProvisioner) EnsureCertificate(domainName, hostedZoneName string) (string, error) {
+func (p *AWSProvisioner) EnsureCertificate(domainName string, altNames []string, hostedZoneName string) (string, error) {
 	ctx := context.Background()
 
-	if existingArn, err := p.findExistingIssuedCertificate(ctx, domainName); err == nil && existingArn != "" {
+	requiredNames := []string{domainName}
+	requiredNames = append(requiredNames, altNames...)
+
+	if existingArn, err := p.findExistingIssuedCertificate(ctx, requiredNames); err == nil && existingArn != "" {
 		if err := p.ensureCertificateTags(ctx, existingArn, domainName); err != nil {
 			return "", err
 		}
@@ -182,9 +229,10 @@ func (p *AWSProvisioner) EnsureCertificate(domainName, hostedZoneName string) (s
 	}
 
 	reqOut, err := p.acmClient.RequestCertificate(ctx, &acm.RequestCertificateInput{
-		DomainName:       aws.String(domainName),
-		ValidationMethod: acmTypes.ValidationMethodDns,
-		Tags:             certificateTags(domainName),
+		DomainName:              aws.String(domainName),
+		SubjectAlternativeNames: altNames,
+		ValidationMethod:        acmTypes.ValidationMethodDns,
+		Tags:                    certificateTags(domainName),
 	})
 	if err != nil {
 		return "", fmt.Errorf("requesting ACM certificate: %w", err)
@@ -349,4 +397,63 @@ func (p *AWSProvisioner) waitForCertificateIssued(ctx context.Context, certArn s
 			}
 		}
 	}
+}
+
+// EnsureCNAMERecords creates or updates CNAME records (name -> target) in the given hosted zone.
+func (p *AWSProvisioner) EnsureCNAMERecords(hostedZoneName string, records map[string]string) error {
+	if len(records) == 0 {
+		return nil
+	}
+
+	ctx := context.Background()
+	zoneID, err := p.getHostedZoneID(ctx, hostedZoneName)
+	if err != nil {
+		return err
+	}
+
+	var changes []types.Change
+	for name, target := range records {
+		if name == "" || target == "" {
+			continue
+		}
+		changes = append(changes, types.Change{
+			Action: types.ChangeActionUpsert,
+			ResourceRecordSet: &types.ResourceRecordSet{
+				Name: aws.String(ensureTrailingDot(name)),
+				Type: types.RRTypeCname,
+				TTL:  aws.Int64(60),
+				ResourceRecords: []types.ResourceRecord{
+					{Value: aws.String(ensureTrailingDot(target))},
+				},
+			},
+		})
+	}
+
+	if len(changes) == 0 {
+		return nil
+	}
+
+	changeResp, err := p.r53Client.ChangeResourceRecordSets(ctx, &route53.ChangeResourceRecordSetsInput{
+		HostedZoneId: aws.String(zoneID),
+		ChangeBatch: &types.ChangeBatch{
+			Changes: changes,
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("creating CNAME records: %w", err)
+	}
+
+	changeID := aws.ToString(changeResp.ChangeInfo.Id)
+	for i := 0; i < route53MaxRetries; i++ {
+		time.Sleep(route53PollDelay)
+		statusOut, err := p.r53Client.GetChange(ctx, &route53.GetChangeInput{Id: aws.String(changeID)})
+		if err != nil {
+			return fmt.Errorf("checking route53 change status: %w", err)
+		}
+		if statusOut.ChangeInfo.Status == types.ChangeStatusInsync {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("route53 change %s did not become INSYNC in time", changeID)
 }

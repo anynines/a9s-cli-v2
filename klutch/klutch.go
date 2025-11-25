@@ -103,17 +103,43 @@ func ApplyKlutchControlPlane(host string, ingressPort int, acmCertificateARN str
 		makeup.ExitDueToFatalError(nil, "Invalid ingress port. Must be between 1 and 65535.")
 	}
 
-	if host == "" && hostedZoneName != "" {
-		host = hostedZoneName
+	baseDomain := strings.TrimSuffix(host, ".")
+	if baseDomain == "" && hostedZoneName != "" {
+		baseDomain = strings.TrimSuffix(hostedZoneName, ".")
+	}
+
+	var provisioner CertificateProvisioner
+	if hostedZoneName != "" {
+		verifyHostedZoneResolvable(hostedZoneName)
+		provisioner = NewCertificateProvisioner("")
+	}
+
+	dexHost := ""
+	if baseDomain != "" {
+		if strings.HasPrefix(baseDomain, "dex.") {
+			dexHost = baseDomain
+		} else {
+			dexHost = fmt.Sprintf("dex.%s", baseDomain)
+		}
 	}
 
 	// Auto-provision an ACM certificate if none was provided and a hosted zone is available.
 	if acmCertificateARN == "" && hostedZoneName != "" {
-		verifyHostedZoneResolvable(hostedZoneName)
+		if baseDomain == "" {
+			makeup.ExitDueToFatalError(nil, "A host or hosted zone is required to request an ACM certificate.")
+		}
 
-		provisioner := NewCertificateProvisioner("")
-		makeup.PrintInfo(fmt.Sprintf("No ACM certificate ARN provided. Requesting a certificate for %s in hosted zone %s.", host, hostedZoneName))
-		arn, err := provisioner.EnsureCertificate(host, hostedZoneName)
+		primary := fmt.Sprintf("*.%s", baseDomain)
+		altNames := []string{baseDomain}
+		if dexHost != "" && dexHost != baseDomain {
+			altNames = append(altNames, dexHost)
+		}
+
+		makeup.PrintInfo(fmt.Sprintf("Planned action: request or reuse ACM certificate for %s (SANs: %v) in hosted zone %s with DNS validation and tagging.", primary, altNames, hostedZoneName))
+		makeup.WaitForUser(demo.UnattendedMode)
+
+		makeup.PrintInfo(fmt.Sprintf("Requesting ACM certificate for %s (SANs: %v) in hosted zone %s.", primary, altNames, hostedZoneName))
+		arn, err := provisioner.EnsureCertificate(primary, altNames, hostedZoneName)
 		if err != nil {
 			makeup.ExitDueToFatalError(err, "Failed to request ACM certificate.")
 		}
@@ -122,7 +148,7 @@ func ApplyKlutchControlPlane(host string, ingressPort int, acmCertificateARN str
 	}
 
 	manager := NewKlutchManagerWithContexts("", "")
-	manager.applyControlPlaneToContext(host, strconv.Itoa(ingressPort), acmCertificateARN)
+	manager.applyControlPlaneToContext(baseDomain, dexHost, hostedZoneName, provisioner, strconv.Itoa(ingressPort), acmCertificateARN)
 	printControlPlaneSummary(demo.DemoConfig.WorkingDir)
 }
 
@@ -181,7 +207,7 @@ func printSummary() {
 	makeup.PrintSuccessSummary("You are now ready to bind APIs from the App Cluster using the `a9s klutch bind` command.")
 }
 
-func (k *KlutchManager) applyControlPlaneToContext(host string, ingressPort string, acmCertificateARN string) {
+func (k *KlutchManager) applyControlPlaneToContext(baseDomain string, dexHost string, hostedZoneName string, provisioner CertificateProvisioner, ingressPort string, acmCertificateARN string) {
 	ingressClass := detectIngressClass(k.cpK8s)
 	tlsEnabled := acmCertificateARN != "" && ingressClass == "alb"
 
@@ -197,14 +223,14 @@ func (k *KlutchManager) applyControlPlaneToContext(host string, ingressPort stri
 
 	scheme := determineIngressScheme(ingressClass, tlsEnabled)
 
-	// Bootstrap host: if none was provided, use kubeconfig server host to allow ingress creation,
-	// but we will replace it with the ingress LB hostname/IP before finishing.
-	initialHost := host
-	if initialHost == "" {
-		initialHost = getClusterExternalHost("")
-		makeup.PrintInfo(fmt.Sprintf("No host provided. Using provisional host `%s` to bootstrap deployment; it will be replaced once ingress has an address.", initialHost))
+	publicHost := dexHost
+	if publicHost == "" {
+		publicHost = baseDomain
 	}
-	host = initialHost
+	if publicHost == "" {
+		publicHost = getClusterExternalHost("")
+		makeup.PrintInfo(fmt.Sprintf("No host provided. Using provisional host `%s` to bootstrap deployment.", publicHost))
+	}
 
 	if ingressClass == "nginx" {
 		k.DeployIngressNginx()
@@ -213,31 +239,38 @@ func (k *KlutchManager) applyControlPlaneToContext(host string, ingressPort stri
 		makeup.PrintInfo(fmt.Sprintf("Ingress class `%s` detected. Skipping ingress-nginx installation.", ingressClass))
 	}
 
-	k.DeployDex(initialHost, ingressPort, ingressClass, scheme, acmCertificateARN)
+	k.DeployDex(publicHost, ingressPort, ingressClass, scheme, acmCertificateARN)
 	k.WaitForDex()
 
 	k.DeployBindBackend(ingressPort, ingressClass, scheme)
 
-	// If we're using ALB, wait for the ALB hostname and re-apply Dex + backend manifests
-	// with the resolved host so OIDC URLs are correct.
+	// If we're using ALB, wait for the ALB hostname. When a hosted zone is available, create a CNAME
+	// to the ALB and keep using the public host; otherwise fall back to using the ALB hostname directly.
 	if ingressClass == "alb" {
 		resolvedHost := waitForIngressHost(k.cpK8s, "dex-ingress", "default")
 		if resolvedHost == "" {
 			makeup.ExitDueToFatalError(nil, "Could not determine ingress hostname/IP. Aborting instead of using the Kubernetes API server host.")
 		}
-		if resolvedHost != initialHost {
+
+		if provisioner != nil && hostedZoneName != "" && publicHost != "" {
+			makeup.PrintInfo(fmt.Sprintf("Planned action: create/update CNAME %s -> %s in hosted zone %s for ingress.", publicHost, resolvedHost, hostedZoneName))
+			makeup.WaitForUser(demo.UnattendedMode)
+
+			if err := provisioner.EnsureCNAMERecords(hostedZoneName, map[string]string{publicHost: resolvedHost}); err != nil {
+				makeup.ExitDueToFatalError(err, fmt.Sprintf("Could not create CNAME %s -> %s in hosted zone %s.", publicHost, resolvedHost, hostedZoneName))
+			}
+			makeup.PrintInfo(fmt.Sprintf("Ensured DNS CNAME %s -> %s in hosted zone %s.", publicHost, resolvedHost, hostedZoneName))
+		} else if resolvedHost != publicHost {
 			makeup.PrintInfo(fmt.Sprintf("Detected ALB hostname `%s`. Re-applying Dex and backend manifests with this host.", resolvedHost))
-			host = resolvedHost
-			k.DeployDex(host, ingressPort, ingressClass, scheme, acmCertificateARN)
+			publicHost = resolvedHost
+			k.DeployDex(publicHost, ingressPort, ingressClass, scheme, acmCertificateARN)
 			k.DeployBindBackend(ingressPort, ingressClass, scheme)
-		} else {
-			host = initialHost
 		}
 	}
 
 	k.WaitForBindBackend()
 
-	writeControlPlaneClusterInfoToFile(demo.DemoConfig.WorkingDir, host, ingressPort)
+	writeControlPlaneClusterInfoToFile(demo.DemoConfig.WorkingDir, publicHost, ingressPort)
 
 	k.DeployCrossplaneComponents()
 
