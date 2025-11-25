@@ -60,7 +60,7 @@ metadata:
   name: dex-config
 data:
   config: |
-    issuer: {{ .Scheme }}://{{ .Host }}:{{ .IngressPort }}/dex
+    issuer: {{ .Scheme }}://{{ .HostPort }}/dex
 
     storage:
       type: memory
