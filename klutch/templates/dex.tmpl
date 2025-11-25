@@ -102,12 +102,13 @@ spec:
     metadata:
       labels:
         app: dex
+      annotations:
+        checksum/dex-config: {{ .ConfigChecksum }}
     spec:
       containers:
       - name: dex
         image: dexidp/dex:v2.42.0-distroless
-        # Annotation checksum to force rollout when host/scheme/port/cert change
-      args:
+        args:
         - dex
         - serve
         - /conf/dex/config
@@ -145,7 +146,4 @@ spec:
           name: dex-config
       - name: data
         emptyDir: {}
-    metadata:
-      annotations:
-        checksum/dex-config: {{ .ConfigChecksum }}
 ---
