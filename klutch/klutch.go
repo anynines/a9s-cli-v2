@@ -260,10 +260,6 @@ func (k *KlutchManager) applyControlPlaneToContext(baseDomain string, dexHost st
 			records := map[string]string{
 				publicHost: resolvedHost,
 			}
-			// Also wire the base domain if it differs, so hub.a9s.io resolves too.
-			if baseDomain != "" && baseDomain != publicHost {
-				records[baseDomain] = resolvedHost
-			}
 
 			if len(records) > 0 {
 				makeup.PrintInfo(fmt.Sprintf("Planned action: create/update CNAMEs %v -> %s in hosted zone %s for ingress.", keys(records), resolvedHost, hostedZoneName))
