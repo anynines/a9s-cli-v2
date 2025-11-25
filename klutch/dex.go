@@ -2,7 +2,10 @@ package klutch
 
 import (
 	"context"
+	"crypto/sha256"
 	_ "embed"
+	"encoding/hex"
+	"fmt"
 
 	"github.com/anynines/a9s-cli-v2/demo"
 	"github.com/anynines/a9s-cli-v2/makeup"
@@ -25,6 +28,7 @@ type dexTemplateVars struct {
 	NodePort          int
 	ACMCertificateARN string
 	EnableTLS         bool
+	ConfigChecksum    string
 }
 
 func (k *KlutchManager) DeployDex(hostIP string, ingressPort string, ingressClass string, scheme string, acmCertificateARN string) {
@@ -43,6 +47,7 @@ func (k *KlutchManager) DeployDex(hostIP string, ingressPort string, ingressClas
 		Scheme:            scheme,
 		ACMCertificateARN: acmCertificateARN,
 		EnableTLS:         acmCertificateARN != "" && ingressClass == "alb",
+		ConfigChecksum:    dexConfigChecksum(hostIP, scheme, ingressPort, acmCertificateARN),
 	}
 
 	// ALB requires NodePort when using instance targets; keep ClusterIP for local/demo (nginx).
@@ -65,6 +70,13 @@ func (k *KlutchManager) DeployDex(hostIP string, ingressPort string, ingressClas
 	k.cpK8s.KubectlApplyStdin(manifests)
 
 	makeup.Print("Done applying the dex manifests.")
+}
+
+// dexConfigChecksum produces a hash so changes trigger a rollout via pod annotations.
+func dexConfigChecksum(host, scheme, port, certARN string) string {
+	src := fmt.Sprintf("%s|%s|%s|%s", host, scheme, port, certARN)
+	sum := sha256.Sum256([]byte(src))
+	return hex.EncodeToString(sum[:])
 }
 
 // Waits for the dex deployment to be ready.
