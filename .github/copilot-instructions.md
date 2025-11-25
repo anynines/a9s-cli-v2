@@ -57,6 +57,9 @@ Commands follow nested hierarchy in `cmd/`:
 
 ### Critical Patterns
 
+#### AWS Resource Management
+All AWS resources created by the `a9s` CLI must be tagged appropriately to ensure easy identification and management. Use consistent naming conventions and include metadata such as project name, environment (e.g., dev, staging, prod), and owner information. This practice facilitates cost tracking, resource auditing, and cleanup of unused resources. Additionally, implement proper IAM roles and policies to restrict access to AWS resources created by the CLI, following the principle of least privilege.
+
 #### Context-Aware Operations
 All managers accept `kubeContext` parameter for targeting specific clusters:
 ```go

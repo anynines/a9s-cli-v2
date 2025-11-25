@@ -85,14 +85,101 @@ func verifyHostedZoneResolvable(hostedZoneName string) {
 	makeup.PrintInfo(fmt.Sprintf("Hosted zone %s is publicly delegated to: %s", hostedZoneName, strings.Join(nsList, ", ")))
 }
 
+func normalizeDomain(name string) string {
+	return strings.TrimSuffix(strings.ToLower(name), ".")
+}
+
+func certificateTags(domainName string) []acmTypes.Tag {
+	return []acmTypes.Tag{
+		{Key: aws.String(klutchTagKey), Value: aws.String(klutchTagValue)},
+		{Key: aws.String("Name"), Value: aws.String(fmt.Sprintf("klutch-certificate-%s", domainName))},
+	}
+}
+
+// findExistingIssuedCertificate returns an issued certificate ARN for the given domain, if any.
+func (p *AWSProvisioner) findExistingIssuedCertificate(ctx context.Context, domainName string) (string, error) {
+	target := normalizeDomain(domainName)
+
+	paginator := acm.NewListCertificatesPaginator(p.acmClient, &acm.ListCertificatesInput{
+		CertificateStatuses: []acmTypes.CertificateStatus{acmTypes.CertificateStatusIssued},
+	})
+
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
+		if err != nil {
+			return "", fmt.Errorf("listing ACM certificates: %w", err)
+		}
+
+		for _, summary := range page.CertificateSummaryList {
+			if normalizeDomain(aws.ToString(summary.DomainName)) == target {
+				arn := aws.ToString(summary.CertificateArn)
+				if arn != "" {
+					makeup.PrintInfo(fmt.Sprintf("Found existing issued ACM certificate for %s: %s", domainName, arn))
+					return arn, nil
+				}
+			}
+		}
+	}
+
+	return "", nil
+}
+
+// ensureCertificateTags makes sure our standard tags are present on the given certificate.
+func (p *AWSProvisioner) ensureCertificateTags(ctx context.Context, certArn, domainName string) error {
+	existingTagsOut, err := p.acmClient.ListTagsForCertificate(ctx, &acm.ListTagsForCertificateInput{
+		CertificateArn: aws.String(certArn),
+	})
+	if err != nil {
+		return fmt.Errorf("listing tags for certificate %s: %w", certArn, err)
+	}
+
+	existing := make(map[string]string, len(existingTagsOut.Tags))
+	for _, t := range existingTagsOut.Tags {
+		existing[aws.ToString(t.Key)] = aws.ToString(t.Value)
+	}
+
+	desired := certificateTags(domainName)
+	var toAdd []acmTypes.Tag
+	for _, t := range desired {
+		if val, ok := existing[aws.ToString(t.Key)]; !ok || val != aws.ToString(t.Value) {
+			toAdd = append(toAdd, t)
+		}
+	}
+
+	if len(toAdd) == 0 {
+		return nil
+	}
+
+	_, err = p.acmClient.AddTagsToCertificate(ctx, &acm.AddTagsToCertificateInput{
+		CertificateArn: aws.String(certArn),
+		Tags:           toAdd,
+	})
+	if err != nil {
+		return fmt.Errorf("adding tags to certificate %s: %w", certArn, err)
+	}
+
+	makeup.PrintInfo(fmt.Sprintf("Ensured standard tags on certificate %s", certArn))
+	return nil
+}
+
 // EnsureCertificate requests a public ACM certificate for domainName, creates the DNS validation record in the given hosted zone,
 // waits for DNS to propagate, and waits for the certificate to be issued. Returns the certificate ARN.
 func (p *AWSProvisioner) EnsureCertificate(domainName, hostedZoneName string) (string, error) {
 	ctx := context.Background()
 
+	if existingArn, err := p.findExistingIssuedCertificate(ctx, domainName); err == nil && existingArn != "" {
+		if err := p.ensureCertificateTags(ctx, existingArn, domainName); err != nil {
+			return "", err
+		}
+		return existingArn, nil
+	} else if err != nil {
+		return "", err
+	}
+
 	reqOut, err := p.acmClient.RequestCertificate(ctx, &acm.RequestCertificateInput{
 		DomainName:       aws.String(domainName),
 		ValidationMethod: acmTypes.ValidationMethodDns,
+		Tags:             certificateTags(domainName),
 	})
 	if err != nil {
 		return "", fmt.Errorf("requesting ACM certificate: %w", err)
