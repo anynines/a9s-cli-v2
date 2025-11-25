@@ -109,13 +109,6 @@ func ApplyKlutchControlPlane(host string, ingressPort int, acmCertificateARN str
 		baseDomain = strings.TrimSuffix(hostedZoneName, ".")
 	}
 
-	var provisioner CertificateProvisioner
-	if hostedZoneName != "" {
-		verifyHostedZoneResolvable(hostedZoneName)
-		provisioner = NewCertificateProvisioner("")
-		verifyHostedZoneRequirements(provisioner, hostedZoneName, baseDomain, dexHost)
-	}
-
 	dexHost := ""
 	if baseDomain != "" {
 		if strings.HasPrefix(baseDomain, "dex.") {
@@ -123,6 +116,13 @@ func ApplyKlutchControlPlane(host string, ingressPort int, acmCertificateARN str
 		} else {
 			dexHost = fmt.Sprintf("dex.%s", baseDomain)
 		}
+	}
+
+	var provisioner CertificateProvisioner
+	if hostedZoneName != "" {
+		verifyHostedZoneResolvable(hostedZoneName)
+		provisioner = NewCertificateProvisioner("")
+		verifyHostedZoneRequirements(provisioner, hostedZoneName, baseDomain, dexHost)
 	}
 
 	// Auto-provision an ACM certificate if none was provided and a hosted zone is available.

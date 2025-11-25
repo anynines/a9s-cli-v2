@@ -478,5 +478,5 @@ func (p *AWSProvisioner) GetHostedZoneNS(hostedZoneName string) ([]string, error
 		return nil, fmt.Errorf("getting hosted zone %s: %w", hostedZoneName, err)
 	}
 
-	return aws.ToStringSlice(out.DelegationSet.NameServers), nil
+	return out.DelegationSet.NameServers, nil
 }
