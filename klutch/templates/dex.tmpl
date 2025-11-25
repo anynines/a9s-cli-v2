@@ -2,8 +2,9 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: dex-ingress
-{{- if and .EnableTLS .ACMCertificateARN }}
   annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+{{- if and .EnableTLS .ACMCertificateARN }}
     alb.ingress.kubernetes.io/certificate-arn: "{{ .ACMCertificateARN }}"
     alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443},{"HTTP":80}]'
     alb.ingress.kubernetes.io/ssl-redirect: "443"
@@ -51,8 +52,8 @@ type: Opaque
 stringData:
   oidc-issuer-client-id: "kube-bind"
   oidc-issuer-client-secret: "{{ .DexClientSecret }}"
-  oidc-issuer-url: "{{ .Scheme }}://{{ .HostPort }}/dex"
-  oidc-callback-url: "{{ .Scheme }}://{{ .HostPort }}/callback"
+  oidc-issuer-url: "{{ .Scheme }}://{{ .Host }}/dex"
+  oidc-callback-url: "{{ .Scheme }}://{{ .Host }}/callback"
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -60,7 +61,7 @@ metadata:
   name: dex-config
 data:
   config: |
-    issuer: {{ .Scheme }}://{{ .HostPort }}/dex
+    issuer: {{ .Scheme }}://{{ .Host }}/dex
 
     storage:
       type: memory
@@ -77,7 +78,7 @@ data:
     staticClients:
       - idEnv: DEX_ISSUER_CLIENT_ID
         redirectURIs:
-        - '{{ .Scheme }}://{{ .HostPort }}/callback'
+        - '{{ .Scheme }}://{{ .Host }}/callback'
         name: 'Kube Bind'
         secretEnv: DEX_ISSUER_CLIENT_SECRET
 
