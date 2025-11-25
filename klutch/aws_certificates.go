@@ -3,6 +3,7 @@ package klutch
 import (
 	"context"
 	"fmt"
+	"net"
 	"strings"
 	"time"
 
@@ -62,6 +63,26 @@ func detectAWSRegion(kubeContext string) string {
 
 	makeup.ExitDueToFatalError(nil, fmt.Sprintf("Could not determine AWS region from cluster endpoint %s (expected EKS-style hostname).", host))
 	return ""
+}
+
+// verifyHostedZoneResolvable ensures the hosted zone name is publicly resolvable (delegated).
+// If it is not resolvable, ACM DNS validation will never succeed.
+func verifyHostedZoneResolvable(hostedZoneName string) {
+	lookupName := hostedZoneName
+	if !strings.HasSuffix(lookupName, ".") {
+		lookupName = lookupName + "."
+	}
+
+	nsRecords, err := net.LookupNS(lookupName)
+	if err != nil || len(nsRecords) == 0 {
+		makeup.ExitDueToFatalError(err, fmt.Sprintf("Hosted zone %s is not publicly resolvable. Ensure it is delegated before requesting an ACM certificate.", hostedZoneName))
+	}
+
+	nsList := make([]string, 0, len(nsRecords))
+	for _, ns := range nsRecords {
+		nsList = append(nsList, ns.Host)
+	}
+	makeup.PrintInfo(fmt.Sprintf("Hosted zone %s is publicly delegated to: %s", hostedZoneName, strings.Join(nsList, ", ")))
 }
 
 // EnsureCertificate requests a public ACM certificate for domainName, creates the DNS validation record in the given hosted zone,
@@ -135,6 +156,11 @@ func (p *AWSProvisioner) getHostedZoneID(ctx context.Context, hostedZoneName str
 		normalized = normalized + "."
 	}
 
+	var (
+		publicZoneID  string
+		privateZoneID string
+	)
+
 	out, err := p.r53Client.ListHostedZonesByName(ctx, &route53.ListHostedZonesByNameInput{
 		DNSName: aws.String(normalized),
 	})
@@ -144,8 +170,24 @@ func (p *AWSProvisioner) getHostedZoneID(ctx context.Context, hostedZoneName str
 
 	for _, zone := range out.HostedZones {
 		if aws.ToString(zone.Name) == normalized {
-			return strings.TrimPrefix(aws.ToString(zone.Id), "/hostedzone/"), nil
+			if zone.Config != nil && zone.Config.PrivateZone {
+				privateZoneID = strings.TrimPrefix(aws.ToString(zone.Id), "/hostedzone/")
+				continue
+			}
+
+			publicZoneID = strings.TrimPrefix(aws.ToString(zone.Id), "/hostedzone/")
+			break
 		}
+	}
+
+	if publicZoneID != "" {
+		makeup.PrintInfo(fmt.Sprintf("Using public hosted zone %s (%s) for certificate validation.", hostedZoneName, publicZoneID))
+		return publicZoneID, nil
+	}
+
+	if privateZoneID != "" {
+		makeup.PrintWarning(fmt.Sprintf("Public hosted zone %s not found; falling back to private hosted zone (%s). ACM validation may fail if the zone isn't publicly resolvable.", hostedZoneName, privateZoneID))
+		return privateZoneID, nil
 	}
 
 	return "", fmt.Errorf("hosted zone %s not found", hostedZoneName)

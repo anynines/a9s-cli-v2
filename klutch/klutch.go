@@ -109,6 +109,8 @@ func ApplyKlutchControlPlane(host string, ingressPort int, acmCertificateARN str
 
 	// Auto-provision an ACM certificate if none was provided and a hosted zone is available.
 	if acmCertificateARN == "" && hostedZoneName != "" {
+		verifyHostedZoneResolvable(hostedZoneName)
+
 		provisioner := NewCertificateProvisioner("")
 		makeup.PrintInfo(fmt.Sprintf("No ACM certificate ARN provided. Requesting a certificate for %s in hosted zone %s.", host, hostedZoneName))
 		arn, err := provisioner.EnsureCertificate(host, hostedZoneName)
