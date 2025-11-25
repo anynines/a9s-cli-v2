@@ -106,9 +106,13 @@ func ensureTrailingDot(name string) string {
 }
 
 func certificateTags(domainName string) []acmTypes.Tag {
+	sanitized := strings.ReplaceAll(strings.TrimPrefix(normalizeDomain(domainName), "*."), "*", "")
+	if sanitized == "" {
+		sanitized = "klutch-certificate"
+	}
 	return []acmTypes.Tag{
 		{Key: aws.String(klutchTagKey), Value: aws.String(klutchTagValue)},
-		{Key: aws.String("Name"), Value: aws.String(fmt.Sprintf("klutch-certificate-%s", domainName))},
+		{Key: aws.String("Name"), Value: aws.String(fmt.Sprintf("klutch-certificate-%s", sanitized))},
 	}
 }
 
