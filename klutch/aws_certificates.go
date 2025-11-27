@@ -12,6 +12,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/acm"
 	acmTypes "github.com/aws/aws-sdk-go-v2/service/acm/types"
+	elbv2 "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
 	"github.com/aws/aws-sdk-go-v2/service/route53"
 	"github.com/aws/aws-sdk-go-v2/service/route53/types"
 )
@@ -32,11 +33,14 @@ type CertificateProvisioner interface {
 	EnsureCertificate(domainName string, altNames []string, hostedZoneName string) (string, error)
 	EnsureCNAMERecords(hostedZoneName string, records map[string]string) error
 	GetHostedZoneNS(hostedZoneName string) ([]string, error)
+	EnsureALBAliasRecord(hostedZoneName, recordName, albDNSName string) error
 }
 
 type AWSProvisioner struct {
 	acmClient *acm.Client
 	r53Client *route53.Client
+	elbv2     *elbv2.Client
+	awsRegion string
 }
 
 // NewCertificateProvisioner initializes ACM and Route53 clients using the default AWS configuration.
@@ -51,6 +55,8 @@ func NewCertificateProvisioner(kubeContext string) CertificateProvisioner {
 	return &AWSProvisioner{
 		acmClient: acm.NewFromConfig(cfg),
 		r53Client: route53.NewFromConfig(cfg),
+		elbv2:     elbv2.NewFromConfig(cfg),
+		awsRegion: region,
 	}
 }
 
@@ -104,6 +110,16 @@ func ensureTrailingDot(name string) string {
 		return name
 	}
 	return name + "."
+}
+
+func ensureDualstackALBDNS(albDNS string) string {
+	if albDNS == "" {
+		return albDNS
+	}
+	if strings.HasPrefix(albDNS, "dualstack.") {
+		return albDNS
+	}
+	return "dualstack." + albDNS
 }
 
 func certificateTags(domainName string) []acmTypes.Tag {
@@ -446,6 +462,87 @@ func (p *AWSProvisioner) EnsureCNAMERecords(hostedZoneName string, records map[s
 	})
 	if err != nil {
 		return fmt.Errorf("creating CNAME records: %w", err)
+	}
+
+	changeID := aws.ToString(changeResp.ChangeInfo.Id)
+	for i := 0; i < route53MaxRetries; i++ {
+		time.Sleep(route53PollDelay)
+		statusOut, err := p.r53Client.GetChange(ctx, &route53.GetChangeInput{Id: aws.String(changeID)})
+		if err != nil {
+			return fmt.Errorf("checking route53 change status: %w", err)
+		}
+		if statusOut.ChangeInfo.Status == types.ChangeStatusInsync {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("route53 change %s did not become INSYNC in time", changeID)
+}
+
+// EnsureALBAliasRecord creates or updates ALIAS A/AAAA records pointing to the given ALB DNS name.
+func (p *AWSProvisioner) EnsureALBAliasRecord(hostedZoneName, recordName, albDNSName string) error {
+	if hostedZoneName == "" || recordName == "" || albDNSName == "" {
+		return fmt.Errorf("hostedZoneName, recordName, and albDNSName are required for alias creation")
+	}
+
+	ctx := context.Background()
+	zoneID, err := p.getHostedZoneID(ctx, hostedZoneName)
+	if err != nil {
+		return err
+	}
+
+	parts := strings.Split(albDNSName, ".")
+	if len(parts) == 0 {
+		return fmt.Errorf("could not parse ALB DNS name %s", albDNSName)
+	}
+	lbName := parts[0]
+
+	desc, err := p.elbv2.DescribeLoadBalancers(ctx, &elbv2.DescribeLoadBalancersInput{
+		Names: []string{lbName},
+	})
+	if err != nil {
+		return fmt.Errorf("describing ALB %s: %w", lbName, err)
+	}
+	if len(desc.LoadBalancers) == 0 {
+		return fmt.Errorf("ALB %s not found", lbName)
+	}
+
+	canonicalHZ := aws.ToString(desc.LoadBalancers[0].CanonicalHostedZoneId)
+	targetDNS := ensureDualstackALBDNS(albDNSName)
+
+	aliasTarget := &types.AliasTarget{
+		DNSName:              aws.String(ensureTrailingDot(targetDNS)),
+		HostedZoneId:         aws.String(canonicalHZ),
+		EvaluateTargetHealth: false,
+	}
+
+	changes := []types.Change{
+		{
+			Action: types.ChangeActionUpsert,
+			ResourceRecordSet: &types.ResourceRecordSet{
+				Name:        aws.String(ensureTrailingDot(recordName)),
+				Type:        types.RRTypeA,
+				AliasTarget: aliasTarget,
+			},
+		},
+		{
+			Action: types.ChangeActionUpsert,
+			ResourceRecordSet: &types.ResourceRecordSet{
+				Name:        aws.String(ensureTrailingDot(recordName)),
+				Type:        types.RRTypeAaaa,
+				AliasTarget: aliasTarget,
+			},
+		},
+	}
+
+	changeResp, err := p.r53Client.ChangeResourceRecordSets(ctx, &route53.ChangeResourceRecordSetsInput{
+		HostedZoneId: aws.String(zoneID),
+		ChangeBatch: &types.ChangeBatch{
+			Changes: changes,
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("creating ALIAS records for %s -> %s: %w", recordName, albDNSName, err)
 	}
 
 	changeID := aws.ToString(changeResp.ChangeInfo.Id)

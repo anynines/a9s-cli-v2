@@ -9,6 +9,7 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.40.0
 	github.com/aws/aws-sdk-go-v2/config v1.32.1
 	github.com/aws/aws-sdk-go-v2/service/acm v1.37.14
+	github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2 v1.54.2
 	github.com/aws/aws-sdk-go-v2/service/route53 v1.60.1
 	github.com/charmbracelet/lipgloss v0.7.1
 	github.com/fatih/color v1.15.0

@@ -226,6 +226,8 @@ func (k *KlutchManager) applyControlPlaneToContext(baseDomain string, dexHost st
 
 	scheme := determineIngressScheme(ingressClass, tlsEnabled)
 
+	zone := strings.TrimSuffix(hostedZoneName, ".")
+
 	publicHost := dexHost
 	if publicHost == "" {
 		publicHost = baseDomain
@@ -250,7 +252,7 @@ func (k *KlutchManager) applyControlPlaneToContext(baseDomain string, dexHost st
 	k.DeployBindBackend(ingressPort, ingressClass, scheme)
 
 	// If we're using ALB, wait for the ALB hostname. When a hosted zone is available, create a CNAME
-	// to the ALB and keep using the public host; otherwise fall back to using the ALB hostname directly.
+	// or ALIAS to the ALB and keep using the public host; otherwise fall back to using the ALB hostname directly.
 	if ingressClass == "alb" {
 		resolvedHost := waitForIngressHost(k.cpK8s, "dex-ingress", "default")
 		if resolvedHost == "" {
@@ -258,11 +260,17 @@ func (k *KlutchManager) applyControlPlaneToContext(baseDomain string, dexHost st
 		}
 
 		if provisioner != nil && hostedZoneName != "" && publicHost != "" {
-			records := map[string]string{
-				publicHost: resolvedHost,
-			}
-
-			if len(records) > 0 {
+			if publicHost == zone {
+				makeup.PrintInfo(fmt.Sprintf("Planned action: create/update ALIAS %s -> %s in hosted zone %s for ingress.", publicHost, resolvedHost, hostedZoneName))
+				makeup.WaitForUser(demo.UnattendedMode)
+				if err := provisioner.EnsureALBAliasRecord(hostedZoneName, publicHost, resolvedHost); err != nil {
+					makeup.ExitDueToFatalError(err, fmt.Sprintf("Could not create ALIAS record in hosted zone %s.", hostedZoneName))
+				}
+				makeup.PrintInfo(fmt.Sprintf("Ensured DNS ALIAS %s -> %s in hosted zone %s.", publicHost, resolvedHost, hostedZoneName))
+			} else {
+				records := map[string]string{
+					publicHost: resolvedHost,
+				}
 				makeup.PrintInfo(fmt.Sprintf("Planned action: create/update CNAMEs %v -> %s in hosted zone %s for ingress.", keys(records), resolvedHost, hostedZoneName))
 				makeup.WaitForUser(demo.UnattendedMode)
 
