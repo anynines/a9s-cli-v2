@@ -135,14 +135,14 @@ func mustRun(ctx context.Context, name string, args ...string) string {
 func CreateControlPlaneCluster(ctx context.Context) {
 	cfg := defaultConfig()
 
-	awsLogger.Successf("✅ Starting 10-install-eks-control-plane-cluster (Go version)")
+	awsLogger.Successf("Starting 10-install-eks-control-plane-cluster (Go version)")
 
 	for _, cmd := range []string{"aws", "kubectl", "eksctl", "helm"} {
 		if _, err := exec.LookPath(cmd); err != nil {
 			awsLogger.Fatalf(err, "❌ ERROR: Required command %q is not installed or not in PATH", cmd)
 		}
 	}
-	awsLogger.Successf("✅ All required commands (aws, kubectl, eksctl, helm) are available.")
+	awsLogger.Successf("All required commands (aws, kubectl, eksctl, helm) are available.")
 
 	awsLogger.Section("Configuration")
 	awsLogger.Printf("Region:                           %s", cfg.Region)
@@ -512,7 +512,7 @@ func ensureElasticIPQuota(ctx context.Context) {
 				currentCount, qInt, currentCount+required)
 		}
 	}
-	awsLogger.Successf("✅ Elastic IP quota is sufficient.")
+	awsLogger.Successf("Elastic IP quota is sufficient.")
 }
 
 func ensureNATs(ctx context.Context, vpcID, pubA, pubB, pubC string) (string, string, string) {
@@ -648,7 +648,7 @@ func createCluster(ctx context.Context, cfg Config, vpcID, keyArn, accountID str
 	mustRun(ctx, "aws", "eks", "wait", "cluster-active",
 		"--name", cfg.ClusterName,
 		"--region", cfg.Region)
-	awsLogger.Successf("✅ Cluster is ACTIVE.")
+	awsLogger.Successf("Cluster is ACTIVE.")
 }
 
 func ensureDefaultEBSEncryption(ctx context.Context) {
@@ -710,7 +710,7 @@ func ensureNodegroup(ctx context.Context, cfg Config, vpcID, accountID string) {
 			"--cluster-name", cfg.ClusterName,
 			"--nodegroup-name", cfg.NodegroupName,
 			"--region", cfg.Region)
-		awsLogger.Successf("✅ Nodegroup is ACTIVE.")
+		awsLogger.Successf("Nodegroup is ACTIVE.")
 	}
 
 	switch status {
@@ -725,7 +725,7 @@ func ensureNodegroup(ctx context.Context, cfg Config, vpcID, accountID string) {
 			"--cluster-name", cfg.ClusterName,
 			"--nodegroup-name", cfg.NodegroupName,
 			"--region", cfg.Region)
-		awsLogger.Successf("✅ Nodegroup is ACTIVE.")
+		awsLogger.Successf("Nodegroup is ACTIVE.")
 	case "DELETING":
 		awsLogger.Fatalf(nil, "❌ ERROR: Nodegroup is currently DELETING. Wait for it to finish and re-run the installer.")
 	default:
@@ -749,7 +749,7 @@ func waitForNodesReady(ctx context.Context) {
 	for {
 		out, _, err := runCmd(ctx, "kubectl", "get", "nodes")
 		if err == nil && strings.Contains(out, " Ready") {
-			awsLogger.Successf("✅ Nodes are Ready:")
+			awsLogger.Successf("Nodes are Ready:")
 			makeup.Print(out)
 			return
 		}
@@ -781,7 +781,7 @@ parameters:
 	if err := cmd.Run(); err != nil {
 		awsLogger.Fatalf(err, "❌ kubectl apply gp3 SC failed\nstderr: %s", errBuf.String())
 	}
-	awsLogger.Successf("✅ gp3 StorageClass installed and set as default.")
+	awsLogger.Successf("gp3 StorageClass installed and set as default.")
 }
 
 func ensureVpcDnsEnabled(ctx context.Context, vpcID string) {
@@ -793,7 +793,7 @@ func ensureVpcDnsEnabled(ctx context.Context, vpcID string) {
 		"--enable-dns-support", "{\"Value\":true}"); err != nil {
 		awsLogger.Warningf("Failed to enable DNS support on VPC %s (continued): %v\nstderr: %s", vpcID, err, errOut)
 	} else {
-		awsLogger.Successf("✅ Enabled DNS support on VPC %s.", vpcID)
+		awsLogger.Successf("Enabled DNS support on VPC %s.", vpcID)
 	}
 
 	// Enable DNS hostnames
@@ -802,7 +802,7 @@ func ensureVpcDnsEnabled(ctx context.Context, vpcID string) {
 		"--enable-dns-hostnames", "{\"Value\":true}"); err != nil {
 		awsLogger.Warningf("Failed to enable DNS hostnames on VPC %s (continued): %v\nstderr: %s", vpcID, err, errOut)
 	} else {
-		awsLogger.Successf("✅ Enabled DNS hostnames on VPC %s.", vpcID)
+		awsLogger.Successf("Enabled DNS hostnames on VPC %s.", vpcID)
 	}
 }
 
@@ -878,7 +878,7 @@ func ensureALBController(ctx context.Context, cfg Config, vpcID, accountID strin
 			"--policy-arn", policyArn); err != nil {
 			awsLogger.Warningf("Failed to attach policy to role %s (continued): %v\nstderr: %s", roleName, err, errOut)
 		} else {
-			awsLogger.Successf("✅ Attached managed policy to role %s.", roleName)
+			awsLogger.Successf("Attached managed policy to role %s.", roleName)
 		}
 	}
 
@@ -887,7 +887,7 @@ func ensureALBController(ctx context.Context, cfg Config, vpcID, accountID strin
 		"deployment/aws-load-balancer-controller", "-n", "kube-system"); err != nil {
 		awsLogger.Fatalf(err, "❌ ALB controller rollout failed\nstderr: %s", errOut)
 	}
-	awsLogger.Successf("✅ aws-load-balancer-controller deployment is ready.")
+	awsLogger.Successf("aws-load-balancer-controller deployment is ready.")
 }
 
 func getALBControllerRoleName(ctx context.Context) string {
@@ -976,7 +976,7 @@ func ensureRouteTableAssociation(ctx context.Context, rtID, subnetID string) {
 	if err != nil {
 		awsLogger.Warningf("Failed to associate subnet %s with route table %s: %v\nstderr: %s", subnetID, rtID, err, errOut)
 	} else {
-		awsLogger.Successf("✅ Associated subnet %s with route table %s.", subnetID, rtID)
+		awsLogger.Successf("Associated subnet %s with route table %s.", subnetID, rtID)
 	}
 }
 
@@ -1015,6 +1015,6 @@ func ensurePolicyVersion(ctx context.Context, policyArn, policyDocument string) 
 		"--set-as-default"); err != nil {
 		awsLogger.Warningf("Failed to update policy %s to latest version (continued): %v\nstderr: %s", policyArn, err, errOut)
 	} else {
-		awsLogger.Successf("✅ Updated IAM policy %s to latest version.", policyArn)
+		awsLogger.Successf("Updated IAM policy %s to latest version.", policyArn)
 	}
 }
