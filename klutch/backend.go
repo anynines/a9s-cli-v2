@@ -3,6 +3,9 @@ package klutch
 import (
 	_ "embed"
 	"encoding/base64"
+	"fmt"
+	"net"
+	"time"
 
 	"github.com/anynines/a9s-cli-v2/demo"
 	"github.com/anynines/a9s-cli-v2/makeup"
@@ -73,11 +76,46 @@ func (k *KlutchManager) DeployBindBackend(ingressPort string, ingressClass strin
 // Note: the manifests contain an init-container which waits for dex to be ready,
 // because the backend requires dex to be up and running in order to start.
 // This avoids delays/complications due to crash loop backoffs.
-func (k *KlutchManager) WaitForBindBackend() {
+func (k *KlutchManager) WaitForBindBackend(host string, port string) {
 	makeup.PrintH1("Waiting for the klutch-bind backend to become ready...")
+
+	waitForHostReachable(host, port, 10*time.Minute)
 
 	k.cpK8s.KubectlWaitForRollout("deployment", "anynines-backend", "default")
 
 	makeup.PrintCheckmark("The klutch-bind backend appears to be ready.")
 	makeup.WaitForUser(demo.UnattendedMode)
+}
+
+// waitForHostReachable waits until the host resolves and a TCP connection to host:port succeeds.
+func waitForHostReachable(host string, port string, timeout time.Duration) {
+	if host == "" || port == "" {
+		return
+	}
+
+	deadline := time.Now().Add(timeout)
+	for {
+		_, err := net.LookupHost(host)
+		if err != nil {
+			if time.Now().After(deadline) {
+				makeup.ExitDueToFatalError(err, fmt.Sprintf("DNS for %s did not resolve within %s", host, timeout))
+			}
+			makeup.PrintInfo(fmt.Sprintf("Host %s not resolvable yet (%v). Waiting...", host, err))
+			time.Sleep(5 * time.Second)
+			continue
+		}
+
+		conn, err := net.DialTimeout("tcp", net.JoinHostPort(host, port), 5*time.Second)
+		if err == nil {
+			_ = conn.Close()
+			return
+		}
+
+		if time.Now().After(deadline) {
+			makeup.ExitDueToFatalError(err, fmt.Sprintf("Could not reach %s:%s within %s", host, port, timeout))
+		}
+
+		makeup.PrintInfo(fmt.Sprintf("Host %s:%s not reachable yet (%v). Waiting...", host, port, err))
+		time.Sleep(5 * time.Second)
+	}
 }

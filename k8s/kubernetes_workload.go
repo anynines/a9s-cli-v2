@@ -241,7 +241,6 @@ func summarizeDeploymentPods(ctx context.Context, clientset *kubernetes.Clientse
 	statuses := []string{}
 	fatal := ""
 	fatalReasons := map[string]bool{
-		"CrashLoopBackOff":           true,
 		"ImagePullBackOff":           true,
 		"ErrImagePull":               true,
 		"CreateContainerConfigError": true,

@@ -178,7 +178,7 @@ func (k *KlutchManager) deployControlPlaneCluster() {
 	k.WaitForDex()
 
 	k.DeployBindBackend(port, ingressClass, scheme)
-	k.WaitForBindBackend()
+	k.WaitForBindBackend(hostIP, port)
 
 	k.DeployCrossplaneComponents()
 
@@ -282,7 +282,7 @@ func (k *KlutchManager) applyControlPlaneToContext(baseDomain string, dexHost st
 		}
 	}
 
-	k.WaitForBindBackend()
+	k.WaitForBindBackend(publicHost, ingressPort)
 
 	writeControlPlaneClusterInfoToFile(demo.DemoConfig.WorkingDir, publicHost, ingressPort)
 
