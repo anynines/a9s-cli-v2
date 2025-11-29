@@ -181,7 +181,7 @@ func (k *KlutchManager) deployControlPlaneCluster() {
 	k.DeployDex(hostIP, port, ingressClass, scheme, "")
 	k.WaitForDex()
 
-	k.DeployBindBackend(port, ingressClass, scheme)
+	k.DeployBindBackend(hostIP, port, ingressClass, scheme, "", false)
 	k.WaitForBindBackend(hostIP, port, scheme)
 
 	k.DeployCrossplaneComponents()
@@ -250,10 +250,15 @@ func (k *KlutchManager) applyControlPlaneToContext(baseDomain string, dexHost st
 		makeup.PrintInfo(fmt.Sprintf("Ingress class `%s` detected. Skipping ingress-nginx installation.", ingressClass))
 	}
 
+	waitHost := backendHost
+	if waitHost == "" {
+		waitHost = publicHost
+	}
+
 	k.DeployDex(publicHost, ingressPort, ingressClass, scheme, acmCertificateARN)
 	k.WaitForDex()
 
-	k.DeployBindBackend(ingressPort, ingressClass, scheme)
+	k.DeployBindBackend(waitHost, ingressPort, ingressClass, scheme, acmCertificateARN, tlsEnabled)
 
 	// If we're using ALB, wait for the ingress hostnames. When a hosted zone is available, create a CNAME
 	// or ALIAS to the ALB and keep using the public hosts; otherwise fall back to using the ALB hostname directly.
@@ -321,11 +326,6 @@ func (k *KlutchManager) applyControlPlaneToContext(baseDomain string, dexHost st
 				}
 			}
 		}
-	}
-
-	waitHost := backendHost
-	if waitHost == "" {
-		waitHost = publicHost
 	}
 
 	k.WaitForBindBackend(waitHost, ingressPort, scheme)
