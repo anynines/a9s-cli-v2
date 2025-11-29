@@ -12,6 +12,7 @@ import (
 )
 
 var Namespace, ServiceInstanceName string
+var deleteKlutchDryRun bool
 
 var cmdDelete = &cobra.Command{
 	Use:   "delete",
@@ -106,7 +107,9 @@ var cmdDeleteClusterKlutch = &cobra.Command{
 			makeup.ExitDueToFatalError(nil, "The Klutch cluster deletion currently only supports the \"aws\" provider.")
 		}
 
-		klutchaws.DeleteControlPlaneCluster(context.Background(), klutchaws.DeleteOptions{})
+		klutchaws.DeleteControlPlaneCluster(context.Background(), klutchaws.DeleteOptions{
+			DryRun: deleteKlutchDryRun,
+		})
 	},
 }
 
@@ -125,6 +128,7 @@ func init() {
 	cmdDeletePG.AddCommand(cmdDeletePGBinding)
 
 	cmdDeleteDemo.PersistentFlags().StringVarP(&demo.KubernetesTool, "provider", "p", "", "provider for the Kubernetes cluster. Valid options are \"minikube\", \"kind\", and \"aws\" (for Klutch).")
+	cmdDeleteDemo.PersistentFlags().BoolVar(&deleteKlutchDryRun, "dry-run", false, "Show planned AWS deletions for Klutch without making changes.")
 	cmdDeleteDemo.PersistentFlags().StringVarP(&demo.DemoClusterName, "cluster-name", "c", "a8s-demo", "name of the demo Kubernetes cluster.")
 	cmdDeleteDemo.PersistentFlags().BoolVarP(&demo.UnattendedMode, "yes", "y", false, "skip yes-no questions by answering with \"yes\".")
 
