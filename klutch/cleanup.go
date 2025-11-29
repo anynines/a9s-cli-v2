@@ -3,8 +3,11 @@ package klutch
 import (
 	"fmt"
 	"os/exec"
+	"path/filepath"
 
 	"github.com/anynines/a9s-cli-v2/makeup"
+	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/util/homedir"
 )
 
 // DeleteControlPlaneInstall removes Klutch control plane artifacts from the current kube context.
@@ -12,6 +15,11 @@ import (
 func DeleteControlPlaneInstall() {
 	makeup.PrintH1("Deleting Klutch control plane resources from the current Kubernetes cluster...")
 	makeup.PrintWarning("This will delete the klutch backend, Dex related ingresses, services, secrets, and the crossplane release/namespace from the CURRENT Kubernetes context. This action cannot be undone.")
+
+	ctxName, server := currentContextAndServer()
+	if ctxName != "" || server != "" {
+		makeup.PrintInfo(fmt.Sprintf("Current kube context: %s (server: %s)", ctxName, server))
+	}
 
 	if !makeup.ConfirmYes("Type 'yes' to proceed: ") {
 		makeup.PrintInfo("Deletion aborted.")
@@ -54,4 +62,29 @@ func deleteKubectlResource(manager *KlutchManager, args ...string) {
 		return
 	}
 	makeup.PrintCheckmark(fmt.Sprintf("Deleted resource via kubectl %v", args))
+}
+
+func currentContextAndServer() (string, string) {
+	var kubeconfig string
+	if home := homedir.HomeDir(); home != "" {
+		kubeconfig = filepath.Join(home, ".kube", "config")
+	}
+
+	config, err := clientcmd.LoadFromFile(kubeconfig)
+	if err != nil {
+		return "", ""
+	}
+
+	ctxName := config.CurrentContext
+	ctx, ok := config.Contexts[ctxName]
+	if !ok {
+		return ctxName, ""
+	}
+
+	cluster, ok := config.Clusters[ctx.Cluster]
+	if !ok {
+		return ctxName, ""
+	}
+
+	return ctxName, cluster.Server
 }
