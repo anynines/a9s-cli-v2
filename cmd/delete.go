@@ -1,8 +1,12 @@
 package cmd
 
 import (
+	"context"
+	"strings"
+
 	"github.com/anynines/a9s-cli-v2/demo"
 	"github.com/anynines/a9s-cli-v2/klutch"
+	klutchaws "github.com/anynines/a9s-cli-v2/klutch/aws"
 	"github.com/anynines/a9s-cli-v2/makeup"
 	"github.com/spf13/cobra"
 )
@@ -88,6 +92,24 @@ var cmdDeleteKlutchControlPlane = &cobra.Command{
 	},
 }
 
+var cmdDeleteClusterKlutch = &cobra.Command{
+	Use:   "klutch",
+	Short: "Delete the Klutch control plane cluster (AWS).",
+	Long:  `Deletes the Klutch control plane EKS cluster and tagged AWS infrastructure (VPC, subnets, NAT, ALB, IAM). DNS/ACM deletion is not yet automated in Go.`,
+	Run: func(cmd *cobra.Command, args []string) {
+		provider := strings.ToLower(strings.TrimSpace(demo.KubernetesTool))
+		if provider == "" {
+			makeup.ExitDueToFatalError(nil, "Please select a provider via -p. Supported provider for Klutch cluster deletion is \"aws\".")
+		}
+
+		if provider != "aws" {
+			makeup.ExitDueToFatalError(nil, "The Klutch cluster deletion currently only supports the \"aws\" provider.")
+		}
+
+		klutchaws.DeleteControlPlaneCluster(context.Background(), klutchaws.DeleteOptions{})
+	},
+}
+
 func init() {
 
 	cmdDeletePGInstance.PersistentFlags().StringVar(&ServiceInstanceName, "name", "a8s-pg-instance", "name of the pg service instance to be deleted.")
@@ -102,11 +124,12 @@ func init() {
 
 	cmdDeletePG.AddCommand(cmdDeletePGBinding)
 
-	cmdDeleteDemo.PersistentFlags().StringVarP(&demo.KubernetesTool, "provider", "p", "", "provider for creating the Kubernetes cluster. Valid options are \"minikube\" an \"kind\"")
+	cmdDeleteDemo.PersistentFlags().StringVarP(&demo.KubernetesTool, "provider", "p", "", "provider for the Kubernetes cluster. Valid options are \"minikube\", \"kind\", and \"aws\" (for Klutch).")
 	cmdDeleteDemo.PersistentFlags().StringVarP(&demo.DemoClusterName, "cluster-name", "c", "a8s-demo", "name of the demo Kubernetes cluster.")
 	cmdDeleteDemo.PersistentFlags().BoolVarP(&demo.UnattendedMode, "yes", "y", false, "skip yes-no questions by answering with \"yes\".")
 
 	cmdDeleteDemo.AddCommand(cmdDeleteDemoA8s)
+	cmdDeleteDemo.AddCommand(cmdDeleteClusterKlutch)
 	cmdDelete.AddCommand(cmdDeleteKlutchControlPlane)
 	rootCmd.AddCommand(cmdDelete)
 }

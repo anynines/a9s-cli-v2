@@ -1,0 +1,538 @@
+package aws
+
+import (
+	"context"
+	"fmt"
+	"os/exec"
+	"strings"
+	"time"
+
+	"github.com/anynines/a9s-cli-v2/makeup"
+)
+
+// DeleteOptions configures the teardown of the Klutch control plane on AWS.
+type DeleteOptions struct {
+	Region                  string
+	ClusterName             string
+	NodegroupName           string
+	ALBControllerPolicyName string
+	ControlPlaneSGName      string
+	HostedZoneName          string
+	IncludeDNSRecords       bool
+	IncludeHostedZone       bool
+	IncludeSSLCertificate   bool
+	ACMCertificateARN       string
+	DryRun                  bool
+	ForceDNS                bool
+}
+
+// DeleteControlPlaneCluster tears down the EKS control plane and AWS resources that were created by CreateControlPlaneCluster.
+// It mirrors the flow of 70-delete-eks-control-plane-cluster.sh with safe defaults (DNS/ACM are opt-in).
+func DeleteControlPlaneCluster(ctx context.Context, opts DeleteOptions) {
+	cfg := defaultConfig()
+	if opts.Region != "" {
+		cfg.Region = opts.Region
+	}
+	if opts.ClusterName != "" {
+		cfg.ClusterName = opts.ClusterName
+	}
+	if opts.NodegroupName != "" {
+		cfg.NodegroupName = opts.NodegroupName
+	}
+	if opts.ALBControllerPolicyName != "" {
+		cfg.ALBControllerPolicyName = opts.ALBControllerPolicyName
+	}
+	if opts.ControlPlaneSGName != "" {
+		cfg.ControlPlaneSGName = opts.ControlPlaneSGName
+	}
+
+	awsLogger.Section("Klutch Control Plane Deletion (AWS)")
+	awsLogger.Printf("Region:                           %s", cfg.Region)
+	awsLogger.Printf("EKS Cluster Name:                 %s", cfg.ClusterName)
+	awsLogger.Printf("EKS Nodegroup Name:               %s", cfg.NodegroupName)
+	awsLogger.Printf("ALB Controller IAM Policy Name:   %s", cfg.ALBControllerPolicyName)
+	awsLogger.Printf("Control Plane Security Group Name:%s", cfg.ControlPlaneSGName)
+	awsLogger.Printf("Hosted Zone Name:                 %s", defaultString(opts.HostedZoneName, "<not set>"))
+	awsLogger.Printf("Include DNS Records:              %t", opts.IncludeDNSRecords)
+	awsLogger.Printf("Include Hosted Zone:              %t", opts.IncludeHostedZone)
+	awsLogger.Printf("Include SSL Certificate:          %t", opts.IncludeSSLCertificate)
+	awsLogger.Printf("ACM Certificate ARN:              %s", defaultString(opts.ACMCertificateARN, "<auto-discover>"))
+	awsLogger.Printf("Dry Run:                          %t", opts.DryRun)
+	awsLogger.Printf("Force DNS:                        %t", opts.ForceDNS)
+
+	if !makeup.ConfirmYes("This will delete the Klutch Control Plane on AWS. Type 'yes' to continue: ") {
+		makeup.PrintInfo("Deletion aborted.")
+		return
+	}
+
+	for _, cmd := range []string{"aws", "kubectl", "eksctl", "helm", "jq"} {
+		if _, err := execLookPath(cmd); err != nil {
+			awsLogger.Fatalf(err, "❌ ERROR: Required command %q is not installed or not in PATH", cmd)
+		}
+	}
+
+	accountID, errOut, err := runCmd(ctx, "aws", "sts", "get-caller-identity", "--query", "Account", "--output", "text")
+	if err != nil || accountID == "" || accountID == "None" || accountID == "null" {
+		awsLogger.Fatalf(err, "❌ ERROR: Unable to determine AWS Account ID. Run 'aws configure'. stderr: %s", errOut)
+	}
+	awsLogger.Infof("AWS Account ID: %s", accountID)
+
+	clusterExists, clusterReachable := discoverCluster(ctx, cfg)
+
+	if clusterReachable {
+		kubernetesCleanup(ctx)
+		iamCleanup(ctx, cfg)
+	} else {
+		awsLogger.Warningf("Skipping Kubernetes/IAM cleanup (cluster unreachable or missing).")
+	}
+
+	if clusterExists {
+		deleteNodegroupsAndCluster(ctx, cfg)
+	} else {
+		awsLogger.Infof("Cluster does not exist. Skipping nodegroup/cluster deletion.")
+	}
+
+	vpcID := findKlutchVPC(ctx)
+	if vpcID == "" {
+		awsLogger.Infof("No Klutch VPC found. Nothing more to delete.")
+		return
+	}
+
+	deleteVPCDependencies(ctx, vpcID, opts)
+	deleteVPC(ctx, vpcID)
+}
+
+func discoverCluster(ctx context.Context, cfg Config) (bool, bool) {
+	awsLogger.Section("Discover EKS Cluster")
+	clusterExists := false
+	clusterReachable := false
+	status := "UNKNOWN"
+
+	out, errOut, err := runCmd(ctx, "aws", "eks", "describe-cluster",
+		"--name", cfg.ClusterName,
+		"--region", cfg.Region,
+		"--query", "cluster.status",
+		"--output", "text")
+	if err == nil && strings.TrimSpace(out) != "" {
+		clusterExists = true
+		status = strings.TrimSpace(out)
+		awsLogger.Infof("Cluster status: %s", status)
+		if status == "ACTIVE" {
+			if _, errOut, err := runCmd(ctx, "aws", "eks", "update-kubeconfig",
+				"--name", cfg.ClusterName,
+				"--region", cfg.Region); err != nil {
+				awsLogger.Warningf("Could not update kubeconfig: %v\nstderr: %s", err, errOut)
+			} else if _, _, err := runCmd(ctx, "kubectl", "version", "--request-timeout=5s"); err == nil {
+				clusterReachable = true
+			}
+		}
+	} else if err != nil && !strings.Contains(errOut, "ResourceNotFoundException") {
+		awsLogger.Warningf("describe-cluster failed: %v\nstderr: %s", err, errOut)
+	}
+
+	return clusterExists, clusterReachable
+}
+
+func kubernetesCleanup(ctx context.Context) {
+	awsLogger.Section("Kubernetes Cleanup")
+	if _, errOut, err := runCmd(ctx, "kubectl", "delete", "storageclass", "gp3", "--ignore-not-found"); err != nil {
+		awsLogger.Warningf("Failed to delete storageclass gp3: %v\nstderr: %s", err, errOut)
+	} else {
+		awsLogger.Successf("Deleted storageclass gp3 (if present).")
+	}
+
+	if _, errOut, err := runCmd(ctx, "helm", "uninstall", "aws-load-balancer-controller", "-n", "kube-system"); err != nil {
+		awsLogger.Warningf("Failed to uninstall AWS LB Controller: %v\nstderr: %s", err, errOut)
+	} else {
+		awsLogger.Successf("Uninstalled AWS LB Controller (if present).")
+	}
+}
+
+func iamCleanup(ctx context.Context, cfg Config) {
+	awsLogger.Section("IAM Cleanup")
+	if _, errOut, err := runCmd(ctx, "eksctl", "delete", "iamserviceaccount",
+		"--cluster", cfg.ClusterName,
+		"--region", cfg.Region,
+		"--namespace", "kube-system",
+		"--name", "aws-load-balancer-controller",
+		"--wait"); err != nil {
+		awsLogger.Warningf("Failed to delete IAM service account: %v\nstderr: %s", err, errOut)
+	} else {
+		awsLogger.Successf("Deleted IAM service account (if present).")
+	}
+
+	if _, errOut, err := runCmd(ctx, "eksctl", "utils", "disassociate-iam-oidc-provider",
+		"--cluster", cfg.ClusterName,
+		"--region", cfg.Region,
+		"--approve"); err != nil {
+		awsLogger.Warningf("Failed to disassociate OIDC provider: %v\nstderr: %s", err, errOut)
+	} else {
+		awsLogger.Successf("Disassociated OIDC provider (if present).")
+	}
+
+	policyArn, _, err := runCmd(ctx, "aws", "iam", "list-policies", "--scope", "Local",
+		"--query", fmt.Sprintf("Policies[?PolicyName=='%s'].Arn | [0]", cfg.ALBControllerPolicyName),
+		"--output", "text")
+	if err != nil || policyArn == "" || policyArn == "None" {
+		awsLogger.Infof("No ALB IAM policy found.")
+		return
+	}
+
+	versions, _, _ := runCmd(ctx, "aws", "iam", "list-policy-versions",
+		"--policy-arn", policyArn,
+		"--query", "Versions[?IsDefaultVersion==`false`].VersionId",
+		"--output", "text")
+	for _, v := range strings.Fields(versions) {
+		if _, errOut, err := runCmd(ctx, "aws", "iam", "delete-policy-version",
+			"--policy-arn", policyArn, "--version-id", v); err != nil {
+			awsLogger.Warningf("Failed to delete policy version %s: %v\nstderr: %s", v, err, errOut)
+		}
+	}
+	if _, errOut, err := runCmd(ctx, "aws", "iam", "delete-policy", "--policy-arn", policyArn); err != nil {
+		awsLogger.Warningf("Failed to delete ALB IAM policy: %v\nstderr: %s", err, errOut)
+	} else {
+		awsLogger.Successf("Deleted ALB IAM policy.")
+	}
+}
+
+func deleteNodegroupsAndCluster(ctx context.Context, cfg Config) {
+	awsLogger.Section("Delete Nodegroups and Cluster")
+
+	ngs, _, _ := runCmd(ctx, "aws", "eks", "list-nodegroups",
+		"--cluster-name", cfg.ClusterName,
+		"--region", cfg.Region,
+		"--query", "nodegroups[]",
+		"--output", "text")
+
+	for _, ng := range strings.Fields(ngs) {
+		awsLogger.Infof("Deleting nodegroup: %s", ng)
+		if _, errOut, err := runCmd(ctx, "aws", "eks", "delete-nodegroup",
+			"--cluster-name", cfg.ClusterName,
+			"--nodegroup-name", ng,
+			"--region", cfg.Region); err != nil {
+			awsLogger.Warningf("Failed to request deletion for nodegroup %s: %v\nstderr: %s", ng, err, errOut)
+		}
+		if _, errOut, err := runCmd(ctx, "aws", "eks", "wait", "nodegroup-deleted",
+			"--cluster-name", cfg.ClusterName,
+			"--nodegroup-name", ng,
+			"--region", cfg.Region); err != nil {
+			awsLogger.Warningf("Wait for nodegroup %s deletion failed: %v\nstderr: %s", ng, err, errOut)
+		}
+	}
+
+	awsLogger.Infof("Deleting cluster...")
+	if _, errOut, err := runCmd(ctx, "aws", "eks", "delete-cluster",
+		"--name", cfg.ClusterName,
+		"--region", cfg.Region); err != nil {
+		awsLogger.Warningf("Failed to request cluster deletion: %v\nstderr: %s", err, errOut)
+	}
+	if _, errOut, err := runCmd(ctx, "aws", "eks", "wait", "cluster-deleted",
+		"--name", cfg.ClusterName,
+		"--region", cfg.Region); err != nil {
+		awsLogger.Warningf("Wait for cluster deletion failed: %v\nstderr: %s", err, errOut)
+	} else {
+		awsLogger.Successf("Cluster deleted.")
+	}
+}
+
+func findKlutchVPC(ctx context.Context) string {
+	awsLogger.Section("Discover Klutch VPC")
+	vpcID, errOut, err := runCmd(ctx, "aws", "ec2", "describe-vpcs",
+		"--filters", "Name=tag:Klutch,Values=ControlPlane",
+		"--query", "Vpcs[0].VpcId", "--output", "text")
+	if err != nil || vpcID == "" || vpcID == "None" {
+		awsLogger.Infof("No Klutch VPC found (stderr: %s)", errOut)
+		return ""
+	}
+	awsLogger.Infof("Klutch VPC: %s", vpcID)
+	return vpcID
+}
+
+func deleteVPCDependencies(ctx context.Context, vpcID string, opts DeleteOptions) {
+	awsLogger.Section("Delete VPC Dependencies")
+
+	deleteVPCEndpoints(ctx, vpcID)
+	lbTargets := deleteLoadBalancers(ctx, vpcID)
+	waitForELBENIs(ctx, vpcID)
+	natEIPs := deleteNATGateways(ctx, vpcID)
+	deleteInternetGateway(ctx, vpcID)
+	deleteRouteTables(ctx, vpcID)
+	deleteENIs(ctx, vpcID)
+	deleteSubnets(ctx, vpcID)
+	deleteSecurityGroups(ctx, vpcID)
+	resetDHCPOptions(ctx, vpcID)
+
+	dnsAndACMCleanup(lbTargets, opts)
+	releaseEIPs(ctx, natEIPs)
+}
+
+func deleteVPCEndpoints(ctx context.Context, vpcID string) {
+	awsLogger.Infof("Deleting VPC Endpoints...")
+	eps, _, _ := runCmd(ctx, "aws", "ec2", "describe-vpc-endpoints",
+		"--filters", "Name=vpc-id,Values="+vpcID,
+		"--query", "VpcEndpoints[].VpcEndpointId",
+		"--output", "text")
+	for _, ep := range strings.Fields(eps) {
+		_, errOut, err := runCmd(ctx, "aws", "ec2", "delete-vpc-endpoints", "--vpc-endpoint-ids", ep)
+		if err != nil {
+			awsLogger.Warningf("Failed to delete VPC endpoint %s: %v\nstderr: %s", ep, err, errOut)
+		}
+	}
+}
+
+func deleteLoadBalancers(ctx context.Context, vpcID string) []string {
+	awsLogger.Infof("Deleting Load Balancers in VPC...")
+	var lbTargets []string
+	lbs, _, _ := runCmd(ctx, "aws", "elbv2", "describe-load-balancers",
+		"--query", "LoadBalancers[?VpcId==`"+vpcID+"`].LoadBalancerArn",
+		"--output", "text")
+	for _, lb := range strings.Fields(lbs) {
+		awsLogger.Infof("  LoadBalancer: %s", lb)
+
+		lbDNS, _, _ := runCmd(ctx, "aws", "elbv2", "describe-load-balancers",
+			"--load-balancer-arns", lb,
+			"--query", "LoadBalancers[0].DNSName",
+			"--output", "text")
+		if lbDNS != "" && lbDNS != "None" {
+			lbTargets = append(lbTargets, lbDNS)
+		}
+
+		tgs, _, _ := runCmd(ctx, "aws", "elbv2", "describe-target-groups",
+			"--load-balancer-arn", lb,
+			"--query", "TargetGroups[].TargetGroupArn",
+			"--output", "text")
+
+		if _, errOut, err := runCmd(ctx, "aws", "elbv2", "delete-load-balancer", "--load-balancer-arn", lb); err != nil {
+			awsLogger.Warningf("Failed to delete load balancer %s: %v\nstderr: %s", lb, err, errOut)
+		}
+
+		time.Sleep(20 * time.Second) // allow ENIs to detach
+
+		for _, tg := range strings.Fields(tgs) {
+			if _, errOut, err := runCmd(ctx, "aws", "elbv2", "delete-target-group", "--target-group-arn", tg); err != nil {
+				awsLogger.Warningf("Failed to delete target group %s: %v\nstderr: %s", tg, err, errOut)
+			}
+		}
+	}
+	return lbTargets
+}
+
+func waitForELBENIs(ctx context.Context, vpcID string) {
+	awsLogger.Infof("Waiting for ELB network interfaces to be released...")
+	for i := 0; i < 10; i++ {
+		enis, _, _ := runCmd(ctx, "aws", "ec2", "describe-network-interfaces",
+			"--filters", "Name=vpc-id,Values="+vpcID,
+			"--query", "NetworkInterfaces[?starts_with(Description, 'ELB ')].NetworkInterfaceId",
+			"--output", "text")
+		if strings.TrimSpace(enis) == "" {
+			awsLogger.Infof("No ELB ENIs remaining.")
+			return
+		}
+		awsLogger.Infof("Still present ELB ENIs: %s – waiting 15s...", enis)
+		time.Sleep(15 * time.Second)
+	}
+}
+
+func deleteNATGateways(ctx context.Context, vpcID string) []string {
+	awsLogger.Infof("Deleting NAT Gateways...")
+	natEIPs, _, _ := runCmd(ctx, "aws", "ec2", "describe-nat-gateways",
+		"--filter", "Name=vpc-id,Values="+vpcID,
+		"--query", "NatGateways[].NatGatewayAddresses[].AllocationId",
+		"--output", "text")
+
+	ngws, _, _ := runCmd(ctx, "aws", "ec2", "describe-nat-gateways",
+		"--filter", "Name=vpc-id,Values="+vpcID,
+		"--query", "NatGateways[].NatGatewayId",
+		"--output", "text")
+
+	for _, ng := range strings.Fields(ngws) {
+		awsLogger.Infof("Requesting deletion of NAT Gateway %s...", ng)
+		if _, errOut, err := runCmd(ctx, "aws", "ec2", "delete-nat-gateway", "--nat-gateway-id", ng); err != nil {
+			awsLogger.Warningf("Failed to delete NAT Gateway %s: %v\nstderr: %s", ng, err, errOut)
+		}
+	}
+
+	for _, ng := range strings.Fields(ngws) {
+		if ng == "" {
+			continue
+		}
+		for {
+			state, _, _ := runCmd(ctx, "aws", "ec2", "describe-nat-gateways",
+				"--nat-gateway-ids", ng,
+				"--query", "NatGateways[0].State",
+				"--output", "text")
+			if state == "deleted" || state == "nat-gateway-not-found" || state == "None" || state == "null" {
+				awsLogger.Infof("NAT Gateway %s is deleted.", ng)
+				break
+			}
+			awsLogger.Infof("NAT Gateway %s still in state '%s', waiting 15s...", ng, state)
+			time.Sleep(15 * time.Second)
+		}
+	}
+	return strings.Fields(natEIPs)
+}
+
+func deleteInternetGateway(ctx context.Context, vpcID string) {
+	awsLogger.Infof("Detaching and deleting Internet Gateway...")
+	igwID, _, _ := runCmd(ctx, "aws", "ec2", "describe-internet-gateways",
+		"--filters", "Name=attachment.vpc-id,Values="+vpcID,
+		"--query", "InternetGateways[0].InternetGatewayId",
+		"--output", "text")
+	if igwID == "" || igwID == "None" {
+		return
+	}
+	if _, errOut, err := runCmd(ctx, "aws", "ec2", "detach-internet-gateway",
+		"--internet-gateway-id", igwID,
+		"--vpc-id", vpcID); err != nil {
+		awsLogger.Warningf("Failed to detach IGW %s: %v\nstderr: %s", igwID, err, errOut)
+	}
+	if _, errOut, err := runCmd(ctx, "aws", "ec2", "delete-internet-gateway",
+		"--internet-gateway-id", igwID); err != nil {
+		awsLogger.Warningf("Failed to delete IGW %s: %v\nstderr: %s", igwID, err, errOut)
+	}
+}
+
+func deleteRouteTables(ctx context.Context, vpcID string) {
+	awsLogger.Infof("Deleting Route Tables...")
+	nonMainRTs, _, _ := runCmd(ctx, "aws", "ec2", "describe-route-tables",
+		"--filters", "Name=vpc-id,Values="+vpcID,
+		"--query", "RouteTables[?!(Associations[?Main==`true`])].RouteTableId",
+		"--output", "text")
+
+	for _, rt := range strings.Fields(nonMainRTs) {
+		awsLogger.Infof("Processing non-main route table %s...", rt)
+		assocs, _, _ := runCmd(ctx, "aws", "ec2", "describe-route-tables",
+			"--route-table-ids", rt,
+			"--query", "RouteTables[0].Associations[].RouteTableAssociationId",
+			"--output", "text")
+		for _, assoc := range strings.Fields(assocs) {
+			if _, errOut, err := runCmd(ctx, "aws", "ec2", "disassociate-route-table", "--association-id", assoc); err != nil {
+				awsLogger.Warningf("Failed to disassociate route table %s: %v\nstderr: %s", assoc, err, errOut)
+			}
+		}
+		if _, errOut, err := runCmd(ctx, "aws", "ec2", "delete-route-table", "--route-table-id", rt); err != nil {
+			awsLogger.Warningf("Failed to delete route table %s: %v\nstderr: %s", rt, err, errOut)
+		}
+	}
+}
+
+func deleteENIs(ctx context.Context, vpcID string) {
+	awsLogger.Infof("Deleting ENIs...")
+	enis, _, _ := runCmd(ctx, "aws", "ec2", "describe-network-interfaces",
+		"--filters", "Name=vpc-id,Values="+vpcID,
+		"--query", "NetworkInterfaces[].NetworkInterfaceId",
+		"--output", "text")
+	for _, eni := range strings.Fields(enis) {
+		if _, errOut, err := runCmd(ctx, "aws", "ec2", "delete-network-interface", "--network-interface-id", eni); err != nil {
+			awsLogger.Warningf("Failed to delete ENI %s: %v\nstderr: %s", eni, err, errOut)
+		}
+	}
+}
+
+func deleteSubnets(ctx context.Context, vpcID string) {
+	awsLogger.Infof("Deleting Subnets...")
+	subnets, _, _ := runCmd(ctx, "aws", "ec2", "describe-subnets",
+		"--filters", "Name=vpc-id,Values="+vpcID,
+		"--query", "Subnets[].SubnetId",
+		"--output", "text")
+	for _, sn := range strings.Fields(subnets) {
+		if _, errOut, err := runCmd(ctx, "aws", "ec2", "delete-subnet", "--subnet-id", sn); err != nil {
+			awsLogger.Warningf("Failed to delete subnet %s: %v\nstderr: %s", sn, err, errOut)
+		}
+	}
+}
+
+func deleteSecurityGroups(ctx context.Context, vpcID string) {
+	awsLogger.Infof("Deleting non-default Security Groups in VPC...")
+	sgs, _, _ := runCmd(ctx, "aws", "ec2", "describe-security-groups",
+		"--filters", "Name=vpc-id,Values="+vpcID,
+		"--query", "SecurityGroups[?GroupName!=`default`].GroupId",
+		"--output", "text")
+	if strings.TrimSpace(sgs) == "" {
+		awsLogger.Infof("No non-default Security Groups found to delete.")
+		return
+	}
+	for _, sg := range strings.Fields(sgs) {
+		if _, errOut, err := runCmd(ctx, "aws", "ec2", "delete-security-group", "--group-id", sg); err != nil {
+			awsLogger.Warningf("Failed to delete security group %s: %v\nstderr: %s", sg, err, errOut)
+		}
+	}
+}
+
+func resetDHCPOptions(ctx context.Context, vpcID string) {
+	awsLogger.Infof("Resetting DHCP Options to default...")
+	if _, errOut, err := runCmd(ctx, "aws", "ec2", "associate-dhcp-options",
+		"--dhcp-options-id", "default",
+		"--vpc-id", vpcID); err != nil {
+		awsLogger.Warningf("Failed to reset DHCP options: %v\nstderr: %s", err, errOut)
+	}
+}
+
+func releaseEIPs(ctx context.Context, natEIPs []string) {
+	if len(natEIPs) == 0 {
+		awsLogger.Infof("No NAT EIP AllocationIds found to release.")
+		return
+	}
+	for _, alloc := range natEIPs {
+		if alloc == "" || alloc == "None" || alloc == "null" {
+			continue
+		}
+		awsLogger.Infof("Releasing EIP AllocationId %s...", alloc)
+		if _, errOut, err := runCmd(ctx, "aws", "ec2", "release-address", "--allocation-id", alloc); err != nil {
+			awsLogger.Warningf("Failed to release EIP %s: %v\nstderr: %s", alloc, err, errOut)
+		}
+	}
+}
+
+func dnsAndACMCleanup(lbTargets []string, opts DeleteOptions) {
+	_ = lbTargets
+	if opts.IncludeDNSRecords || opts.IncludeHostedZone || opts.IncludeSSLCertificate {
+		awsLogger.Warningf("DNS/ACM cleanup is not implemented in Go yet; please remove DNS records/hosted zone/ACM certificate manually or via the shell script.")
+	}
+}
+
+func deleteVPC(ctx context.Context, vpcID string) {
+	awsLogger.Section("Delete VPC")
+	if _, errOut, err := runCmd(ctx, "aws", "ec2", "delete-vpc", "--vpc-id", vpcID); err != nil {
+		awsLogger.Warningf("Failed to delete VPC %s due to dependencies. Running diagnostics...\nstderr: %s", vpcID, errOut)
+		runDiagnostics(ctx, vpcID)
+	} else {
+		awsLogger.Successf("✅ VPC %s deleted successfully.", vpcID)
+	}
+}
+
+func runDiagnostics(ctx context.Context, vpcID string) {
+	type diag struct {
+		title string
+		args  []string
+	}
+	diagnostics := []diag{
+		{"Remaining Route Tables", []string{"ec2", "describe-route-tables", "--filters", "Name=vpc-id,Values=" + vpcID, "--output", "table"}},
+		{"Remaining Subnets", []string{"ec2", "describe-subnets", "--filters", "Name=vpc-id,Values=" + vpcID, "--output", "table"}},
+		{"Remaining Network Interfaces", []string{"ec2", "describe-network-interfaces", "--filters", "Name=vpc-id,Values=" + vpcID, "--output", "table"}},
+		{"Remaining VPC Endpoints", []string{"ec2", "describe-vpc-endpoints", "--filters", "Name=vpc-id,Values=" + vpcID, "--output", "table"}},
+		{"Remaining Transit Gateway VPC Attachments", []string{"ec2", "describe-transit-gateway-vpc-attachments", "--filters", "Name=vpc-id,Values=" + vpcID, "--output", "table"}},
+		{"Remaining VPC Peering Connections", []string{"ec2", "describe-vpc-peering-connections", "--filters", "Name=requester-vpc-info.vpc-id,Values=" + vpcID, "Name=accepter-vpc-info.vpc-id,Values=" + vpcID, "--output", "table"}},
+		{"Remaining VPN Gateways", []string{"ec2", "describe-vpn-gateways", "--filters", "Name=attachment.vpc-id,Values=" + vpcID, "--output", "table"}},
+		{"Remaining NAT Gateways", []string{"ec2", "describe-nat-gateways", "--filter", "Name=vpc-id,Values=" + vpcID, "--output", "table"}},
+		{"DHCP Options associated with VPC", []string{"ec2", "describe-vpcs", "--vpc-ids", vpcID, "--query", "Vpcs[].DhcpOptionsId", "--output", "text"}},
+	}
+	for _, d := range diagnostics {
+		awsLogger.Infof("--- Diagnostics: %s ---", d.title)
+		if _, errOut, err := runCmd(ctx, "aws", d.args...); err != nil {
+			awsLogger.Warningf("Diagnostic %s failed: %v\nstderr: %s", d.title, err, errOut)
+		}
+	}
+}
+
+func defaultString(value, fallback string) string {
+	if strings.TrimSpace(value) == "" {
+		return fallback
+	}
+	return value
+}
+
+// execLookPath is separated for testability.
+var execLookPath = func(file string) (string, error) {
+	return exec.LookPath(file)
+}
