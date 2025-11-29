@@ -126,7 +126,7 @@ kind: Service
 metadata:
   name: anynines-backend
 spec:
-  type: LoadBalancer
+  type: {{ .ServiceType }}
   ports:
   - protocol: TCP
     name: anynines-backend

@@ -31,6 +31,7 @@ type backendTemplateVars struct {
 	Scheme              string
 	ACMCertificateARN   string
 	EnableTLS           bool
+	ServiceType         string
 }
 
 // Deploys dex and the klutch-bind backend.
@@ -63,6 +64,12 @@ func (k *KlutchManager) DeployBindBackend(host string, ingressPort string, ingre
 		Scheme:              scheme,
 		ACMCertificateARN:   acmCertificateARN,
 		EnableTLS:           enableTLS,
+	}
+
+	if ingressClass == "alb" {
+		templateVars.ServiceType = "NodePort"
+	} else {
+		templateVars.ServiceType = "ClusterIP"
 	}
 
 	manifests, err := renderTemplate(bindBackendManifestsTemplate, templateVars)
