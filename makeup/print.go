@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/NilPointer-Software/emoji"
 	"github.com/charmbracelet/lipgloss"
@@ -124,6 +125,15 @@ func WaitForUser(unattendedMode bool) {
 
 		PrintEmoji("...", emoji.Emoji(emoji.ManRunning.Tone(emoji.Default)))
 	}
+}
+
+// ConfirmYes returns true if the user types yes/y (case-insensitive).
+func ConfirmYes(prompt string) bool {
+	reader := bufio.NewReader(os.Stdin)
+	fmt.Print(prompt)
+	input, _ := reader.ReadString('\n')
+	response := strings.ToLower(strings.TrimSpace(input))
+	return response == "yes" || response == "y"
 }
 
 func ExitDueToFatalError(err error, msg string) {

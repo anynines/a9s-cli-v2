@@ -2,7 +2,6 @@ package klutch
 
 import (
 	"fmt"
-	"os"
 	"os/exec"
 
 	"github.com/anynines/a9s-cli-v2/makeup"
@@ -14,13 +13,11 @@ func DeleteControlPlaneInstall() {
 	makeup.PrintH1("Deleting Klutch control plane resources from the current Kubernetes cluster...")
 	makeup.PrintWarning("This will delete the klutch backend, Dex related ingresses, services, secrets, and the crossplane release/namespace from the CURRENT Kubernetes context. This action cannot be undone.")
 
-	makeup.PrintBright("Type YES to proceed: ")
-	var confirm string
-	_, err := fmt.Fscan(os.Stdin, &confirm)
-	if err != nil || confirm != "YES" {
+	if !makeup.ConfirmYes("Type 'yes' to proceed: ") {
 		makeup.PrintInfo("Deletion aborted.")
 		return
 	}
+	makeup.PrintInfo("Deletion accepted. Starting deletion...")
 
 	manager := NewKlutchManagerWithContexts("", "")
 

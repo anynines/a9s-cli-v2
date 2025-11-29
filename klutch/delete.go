@@ -17,7 +17,15 @@ func DeleteClusters() {
 	checkDeletePrerequisites()
 
 	makeup.PrintH1("Are you sure you want to delete the Klutch clusters?")
-	makeup.WaitForUser(demo.UnattendedMode)
+	if demo.UnattendedMode {
+		makeup.PrintInfo("Unattended mode enabled; proceeding with deletion.")
+	} else {
+		if !makeup.ConfirmYes("Type 'yes' to proceed: ") {
+			makeup.PrintInfo("Deletion aborted.")
+			return
+		}
+		makeup.PrintInfo("Deletion accepted. Starting deletion...")
+	}
 
 	makeup.PrintInfo("Deleting Klutch clusters...")
 	deleteManagementInfoFile(demo.DemoConfig.WorkingDir)
