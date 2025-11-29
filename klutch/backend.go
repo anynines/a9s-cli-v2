@@ -1,10 +1,13 @@
 package klutch
 
 import (
+	"crypto/tls"
 	_ "embed"
 	"encoding/base64"
 	"fmt"
+	"io"
 	"net"
+	"net/http"
 	"time"
 
 	"github.com/anynines/a9s-cli-v2/demo"
@@ -76,15 +79,58 @@ func (k *KlutchManager) DeployBindBackend(ingressPort string, ingressClass strin
 // Note: the manifests contain an init-container which waits for dex to be ready,
 // because the backend requires dex to be up and running in order to start.
 // This avoids delays/complications due to crash loop backoffs.
-func (k *KlutchManager) WaitForBindBackend(host string, port string) {
+func (k *KlutchManager) WaitForBindBackend(host string, port string, scheme string) {
 	makeup.PrintH1("Waiting for the klutch-bind backend to become ready...")
 
 	waitForHostReachable(host, port, 10*time.Minute)
 
 	k.cpK8s.KubectlWaitForRollout("deployment", "anynines-backend", "default")
 
+	verifyBindEndpoint(host, port, scheme, 10*time.Minute)
+
 	makeup.PrintCheckmark("The klutch-bind backend appears to be ready.")
 	makeup.WaitForUser(demo.UnattendedMode)
+}
+
+// verifyBindEndpoint checks that /export returns a non-empty payload.
+func verifyBindEndpoint(host, port, scheme string, timeout time.Duration) {
+	if host == "" || port == "" {
+		return
+	}
+
+	deadline := time.Now().Add(timeout)
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+		Transport: &http.Transport{
+			TLSClientConfig: insecureTLSConfig(),
+		},
+	}
+
+	url := fmt.Sprintf("%s://%s:%s/export", scheme, host, port)
+
+	for {
+		resp, err := client.Get(url)
+		if err == nil {
+			body, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if resp.StatusCode == http.StatusOK && len(body) > 0 {
+				return
+			}
+		}
+
+		if time.Now().After(deadline) {
+			makeup.ExitDueToFatalError(err, fmt.Sprintf("klutch-bind endpoint %s did not return a valid response within %s", url, timeout))
+		}
+
+		makeup.PrintInfo(fmt.Sprintf("klutch-bind endpoint %s not ready yet. Waiting...", url))
+		time.Sleep(5 * time.Second)
+	}
+}
+
+func insecureTLSConfig() *tls.Config {
+	return &tls.Config{
+		InsecureSkipVerify: true,
+	}
 }
 
 // waitForHostReachable waits until the host resolves and a TCP connection to host:port succeeds.
