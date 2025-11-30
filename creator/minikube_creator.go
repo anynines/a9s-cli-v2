@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/anynines/a9s-cli-v2/makeup"
 )
@@ -91,17 +92,16 @@ func (c MinikubeCreator) Running(name string) bool {
 
 	var clusterStatus minikubeClusterStatus
 
-	desired_a8sDemoClusterStatus := minikubeClusterStatusItem{
-		Name:   name,
-		Status: "Running",
+	if err := json.Unmarshal(output, &clusterStatus); err != nil {
+		makeup.ExitDueToFatalError(err, "Couldn't parse output of 'minikube profile list -o json'.")
 	}
-
-	json.Unmarshal(output, &clusterStatus)
 	// fmt.Printf("Status: %+v", clusterStatus.Valid)
 
 	makeup.PrintListFromMultilineString("Minikube Clusters:", clusterStatus.String())
 
-	if slices.Contains(clusterStatus.Valid, desired_a8sDemoClusterStatus) {
+	if slices.ContainsFunc(clusterStatus.Valid, func(item minikubeClusterStatusItem) bool {
+		return item.Name == name && isRunningStatus(item.Status)
+	}) {
 		ret = true
 		makeup.PrintCheckmark("There is a suitable Minikube cluster with the name " + name + " running.")
 	} else {
@@ -160,4 +160,8 @@ func (c MinikubeCreator) Delete(name string, unattended bool) {
 
 func (c MinikubeCreator) GetContext(name string) string {
 	return name
+}
+
+func isRunningStatus(status string) bool {
+	return strings.EqualFold(status, "running") || strings.EqualFold(status, "ok")
 }

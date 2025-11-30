@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/anynines/a9s-cli-v2/demo"
@@ -12,6 +13,7 @@ import (
 )
 
 var createKlutchDryRun bool
+var createKlutchControlPlane = klutchaws.CreateControlPlaneCluster
 
 var cmdCreate = &cobra.Command{
 	Use:   "create",
@@ -112,19 +114,24 @@ var cmdCreateClusterKlutch = &cobra.Command{
 	Short: "Create the Klutch control plane cluster.",
 	Long:  `Creates the Klutch control plane cluster on the selected provider. Currently only AWS is supported.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		provider := strings.ToLower(strings.TrimSpace(demo.KubernetesTool))
-		if provider == "" {
-			makeup.ExitDueToFatalError(nil, "Please select a provider via -p. Supported provider for Klutch cluster creation is \"aws\".")
+		if err := runKlutchClusterCreation(demo.KubernetesTool, createKlutchDryRun); err != nil {
+			makeup.ExitDueToFatalError(nil, err.Error())
 		}
-
-		if provider != "aws" {
-			makeup.ExitDueToFatalError(nil, "The Klutch cluster creation currently only supports the \"aws\" provider.")
-		}
-
-		klutchaws.CreateControlPlaneCluster(context.Background(), klutchaws.CreateOptions{
-			DryRun: createKlutchDryRun,
-		})
 	},
+}
+
+func runKlutchClusterCreation(provider string, dryRun bool) error {
+	provider = strings.ToLower(strings.TrimSpace(provider))
+	if provider == "" {
+		return fmt.Errorf("Please select a provider via -p. Supported provider for Klutch cluster creation is \"aws\".")
+	}
+
+	if provider != "aws" {
+		return fmt.Errorf("The Klutch cluster creation currently only supports the \"aws\" provider.")
+	}
+
+	createKlutchControlPlane(context.Background(), klutchaws.CreateOptions{DryRun: dryRun})
+	return nil
 }
 
 var cmdCreateStackA8s = &cobra.Command{
