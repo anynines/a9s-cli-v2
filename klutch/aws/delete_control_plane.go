@@ -594,7 +594,7 @@ func deleteVPC(ctx context.Context, vpcID string, opts DeleteOptions) {
 		awsLogger.Warningf("Failed to delete VPC %s due to dependencies. Running diagnostics...\nstderr: %s", vpcID, errOut)
 		runDiagnostics(ctx, vpcID)
 	} else {
-		awsLogger.Successf("✅ VPC %s deleted successfully.", vpcID)
+		awsLogger.Successf("VPC %s deleted successfully.", vpcID)
 	}
 }
 

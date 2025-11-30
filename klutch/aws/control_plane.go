@@ -68,21 +68,59 @@ func (l *styledLogger) Fatalf(err error, format string, args ...interface{}) {
 var awsLogger = newStyledLogger()
 
 const (
-	klutchTagKey     = "Klutch"
-	klutchTagValue   = "ControlPlane"
-	klutchNamePrefix = "klutch-control-plane"
+	klutchTagKey      = "Klutch"
+	klutchTagValue    = "ControlPlane"
+	klutchNamePrefix  = "klutch-control-plane"
+	clusterNameTagKey = "eks.cluster/name"
+	clusterIDTagKey   = "eks.cluster/id"
+)
+
+var (
+	currentClusterName string
+	currentClusterArn  string
 )
 
 func resourceName(parts ...string) string {
 	return fmt.Sprintf("%s-%s", klutchNamePrefix, strings.Join(parts, "-"))
 }
 
+func setClusterTagContext(name, arn string) {
+	currentClusterName = name
+	currentClusterArn = arn
+}
+
+func clusterTagPairsKV() []string {
+	if currentClusterName == "" || currentClusterArn == "" {
+		return nil
+	}
+	return []string{
+		fmt.Sprintf("Key=%s,Value=%s", clusterNameTagKey, currentClusterName),
+		fmt.Sprintf("Key=%s,Value=%s", clusterIDTagKey, currentClusterArn),
+	}
+}
+
+func clusterTagPairsKMS() []string {
+	if currentClusterName == "" || currentClusterArn == "" {
+		return nil
+	}
+	return []string{
+		fmt.Sprintf("TagKey=%s,TagValue=%s", clusterNameTagKey, currentClusterName),
+		fmt.Sprintf("TagKey=%s,TagValue=%s", clusterIDTagKey, currentClusterArn),
+	}
+}
+
 func tagEC2Resource(ctx context.Context, resourceID, name string) {
-	mustRun(ctx, "aws", "ec2", "create-tags",
+	tags := append([]string{
+		fmt.Sprintf("Key=%s,Value=%s", klutchTagKey, klutchTagValue),
+		fmt.Sprintf("Key=Name,Value=%s", name),
+	}, clusterTagPairsKV()...)
+	args := []string{
+		"ec2", "create-tags",
 		"--resources", resourceID,
 		"--tags",
-		fmt.Sprintf("Key=%s,Value=%s", klutchTagKey, klutchTagValue),
-		fmt.Sprintf("Key=Name,Value=%s", name))
+	}
+	args = append(args, tags...)
+	mustRun(ctx, "aws", args...)
 }
 
 func getenv(key, def string) string {
@@ -165,6 +203,8 @@ func CreateControlPlaneCluster(ctx context.Context) {
 		awsLogger.Fatalf(err, "❌ ERROR: Unable to determine AWS Account ID. Run 'aws configure'. stderr: %s", errOut)
 	}
 	awsLogger.Infof("ACCOUNT_ID: %s", accountID)
+	clusterArn := fmt.Sprintf("arn:aws:eks:%s:%s:cluster/%s", cfg.Region, accountID, cfg.ClusterName)
+	setClusterTagContext(cfg.ClusterName, clusterArn)
 
 	awsLogger.Infof("Checking if cluster '%s' already exists...", cfg.ClusterName)
 	clusterStatus := "NONE"
@@ -223,7 +263,7 @@ func CreateControlPlaneCluster(ctx context.Context) {
 	ensureNetworking(ctx, cfg, vpcID)
 
 	if !clusterExists {
-		createCluster(ctx, cfg, vpcID, keyArn, accountID)
+		createCluster(ctx, cfg, vpcID, keyArn, accountID, clusterArn)
 	} else {
 		awsLogger.Infof("EKS cluster already exists. Skipping creation.")
 	}
@@ -246,7 +286,7 @@ func CreateControlPlaneCluster(ctx context.Context) {
 
 	ensureALBController(ctx, cfg, vpcID, accountID)
 
-	awsLogger.Summaryf("🎉 EKS control plane cluster for Klutch is ready.")
+	awsLogger.Summaryf("EKS control plane cluster for Klutch is ready.")
 	awsLogger.Printf("   Cluster:   %s", cfg.ClusterName)
 	awsLogger.Printf("   Region:    %s", cfg.Region)
 	awsLogger.Printf("   VPC:       %s", vpcID)
@@ -275,13 +315,18 @@ func ensureClusterRole(ctx context.Context, roleName string) {
 	if err := os.WriteFile(tmp, []byte(trust), 0600); err != nil {
 		awsLogger.Fatalf(err, "writing trust policy failed")
 	}
-	mustRun(ctx, "aws", "iam", "create-role",
+	args := []string{
+		"iam", "create-role",
 		"--role-name", roleName,
-		"--assume-role-policy-document", "file://"+tmp,
+		"--assume-role-policy-document", "file://" + tmp,
 		"--description", "Allows the Klutch control plane EKS cluster to manage AWS resources on its behalf",
 		"--tags",
+	}
+	args = append(args, append([]string{
 		fmt.Sprintf("Key=%s,Value=%s", klutchTagKey, klutchTagValue),
-		fmt.Sprintf("Key=Name,Value=%s", roleName))
+		fmt.Sprintf("Key=Name,Value=%s", roleName),
+	}, clusterTagPairsKV()...)...)
+	mustRun(ctx, "aws", args...)
 	mustRun(ctx, "aws", "iam", "attach-role-policy",
 		"--role-name", roleName,
 		"--policy-arn", "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy")
@@ -310,13 +355,18 @@ func ensureNodeRole(ctx context.Context, roleName string) {
 	if err := os.WriteFile(tmp, []byte(trust), 0600); err != nil {
 		awsLogger.Fatalf(err, "writing node trust policy failed")
 	}
-	mustRun(ctx, "aws", "iam", "create-role",
+	args := []string{
+		"iam", "create-role",
 		"--role-name", roleName,
-		"--assume-role-policy-document", "file://"+tmp,
+		"--assume-role-policy-document", "file://" + tmp,
 		"--description", "Provides Klutch control plane worker nodes the permissions required to integrate with AWS",
 		"--tags",
+	}
+	args = append(args, append([]string{
 		fmt.Sprintf("Key=%s,Value=%s", klutchTagKey, klutchTagValue),
-		fmt.Sprintf("Key=Name,Value=%s", roleName))
+		fmt.Sprintf("Key=Name,Value=%s", roleName),
+	}, clusterTagPairsKV()...)...)
+	mustRun(ctx, "aws", args...)
 	mustRun(ctx, "aws", "iam", "attach-role-policy",
 		"--role-name", roleName,
 		"--policy-arn", "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy")
@@ -333,13 +383,19 @@ func ensureKMSKey(ctx context.Context, region, accountID, clusterRole string) st
 	keyID := os.Getenv("KEY_ID")
 	if keyID == "" {
 		awsLogger.Infof("Creating new KMS key for EKS secret encryption...")
-		keyID = mustRun(ctx, "aws", "kms", "create-key",
+		tags := append([]string{
+			fmt.Sprintf("TagKey=%s,TagValue=%s", klutchTagKey, klutchTagValue),
+			fmt.Sprintf("TagKey=Name,TagValue=%s", resourceName("kms-key")),
+		}, clusterTagPairsKMS()...)
+		args := []string{
+			"kms", "create-key",
 			"--description", "Encrypts secret data stored by the Klutch control plane EKS cluster",
 			"--query", "KeyMetadata.KeyId",
 			"--output", "text",
 			"--tags",
-			fmt.Sprintf("TagKey=%s,TagValue=%s", klutchTagKey, klutchTagValue),
-			fmt.Sprintf("TagKey=Name,TagValue=%s", resourceName("kms-key")))
+		}
+		args = append(args, tags...)
+		keyID = mustRun(ctx, "aws", args...)
 	} else {
 		awsLogger.Infof("Using existing KMS KEY_ID: %s", keyID)
 	}
@@ -631,7 +687,7 @@ func ensureSecurityGroup(ctx context.Context, vpcID, sgName string) string {
 	return sgID
 }
 
-func createCluster(ctx context.Context, cfg Config, vpcID, keyArn, accountID string) {
+func createCluster(ctx context.Context, cfg Config, vpcID, keyArn, accountID, clusterArn string) {
 	privA := mustRun(ctx, "aws", "ec2", "describe-subnets",
 		"--filters", "Name=vpc-id,Values="+vpcID, "Name=cidr-block,Values="+getenv("PRIV_A_CIDR", "10.0.101.0/24"),
 		"--query", "Subnets[0].SubnetId", "--output", "text")
@@ -656,7 +712,7 @@ func createCluster(ctx context.Context, cfg Config, vpcID, keyArn, accountID str
 		"--role-arn", fmt.Sprintf("arn:aws:iam::%s:role/%s", accountID, cfg.ClusterRoleName),
 		"--resources-vpc-config", fmt.Sprintf("subnetIds=%s,securityGroupIds=%s", subnets, sgID),
 		"--encryption-config", fmt.Sprintf("[{\"resources\":[\"secrets\"],\"provider\":{\"keyArn\":\"%s\"}}]", keyArn),
-		"--tags", fmt.Sprintf("%s=%s,Name=%s", klutchTagKey, klutchTagValue, cfg.ClusterName),
+		"--tags", fmt.Sprintf("%s=%s,Name=%s,%s=%s,%s=%s", klutchTagKey, klutchTagValue, cfg.ClusterName, clusterNameTagKey, cfg.ClusterName, clusterIDTagKey, clusterArn),
 	)
 	awsLogger.Infof("Waiting for EKS cluster '%s' to become ACTIVE...", cfg.ClusterName)
 	mustRun(ctx, "aws", "eks", "wait", "cluster-active",
@@ -718,7 +774,7 @@ func ensureNodegroup(ctx context.Context, cfg Config, vpcID, accountID string) {
 			"--ami-type", cfg.NodeAMIType,
 			"--node-role", fmt.Sprintf("arn:aws:iam::%s:role/%s", accountID, cfg.NodeRoleName),
 			"--region", cfg.Region,
-			"--tags", fmt.Sprintf("%s=%s,Name=%s", klutchTagKey, klutchTagValue, cfg.NodegroupName))
+			"--tags", fmt.Sprintf("%s=%s,Name=%s,%s=%s,%s=%s", klutchTagKey, klutchTagValue, cfg.NodegroupName, clusterNameTagKey, cfg.ClusterName, clusterIDTagKey, currentClusterArn))
 		awsLogger.Infof("Waiting for nodegroup '%s' to become ACTIVE...", cfg.NodegroupName)
 		mustRun(ctx, "aws", "eks", "wait", "nodegroup-active",
 			"--cluster-name", cfg.ClusterName,
@@ -844,13 +900,18 @@ func ensureALBController(ctx context.Context, cfg Config, vpcID, accountID strin
 	policyArn := fmt.Sprintf("arn:aws:iam::%s:policy/%s", accountID, cfg.ALBControllerPolicyName)
 	if _, _, err := runCmd(ctx, "aws", "iam", "get-policy", "--policy-arn", policyArn); err != nil {
 		awsLogger.Infof("Creating IAM policy %s", cfg.ALBControllerPolicyName)
-		mustRun(ctx, "aws", "iam", "create-policy",
+		args := []string{
+			"iam", "create-policy",
 			"--policy-name", cfg.ALBControllerPolicyName,
 			"--policy-document", "file://aws-load-balancer-controller-policy.json",
 			"--description", "Allows the Klutch control plane to run the AWS Load Balancer Controller safely",
 			"--tags",
+		}
+		args = append(args, append([]string{
 			fmt.Sprintf("Key=%s,Value=%s", klutchTagKey, klutchTagValue),
-			fmt.Sprintf("Key=Name,Value=%s", cfg.ALBControllerPolicyName))
+			fmt.Sprintf("Key=Name,Value=%s", cfg.ALBControllerPolicyName),
+		}, clusterTagPairsKV()...)...)
+		mustRun(ctx, "aws", args...)
 	} else {
 		awsLogger.Successf("IAM policy %s already exists.", cfg.ALBControllerPolicyName)
 		awsLogger.Infof("Updating IAM policy %s to latest version...", cfg.ALBControllerPolicyName)
