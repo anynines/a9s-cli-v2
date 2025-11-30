@@ -231,6 +231,7 @@ func CreateControlPlaneCluster(ctx context.Context) {
 		"--name", cfg.ClusterName,
 		"--region", cfg.Region,
 		"--query", "cluster.status")
+	tagKMSKeyForCluster(ctx, keyArn, cfg.Region, accountID, cfg.ClusterName)
 
 	ensureDefaultEBSEncryption(ctx)
 
@@ -371,6 +372,19 @@ func ensureKMSKey(ctx context.Context, region, accountID, clusterRole string) st
 		"--policy-name", "EKSClusterKMSAccess",
 		"--policy-document", "file://"+tmp)
 	return keyArn
+}
+
+func tagKMSKeyForCluster(ctx context.Context, keyArn, region, accountID, clusterName string) {
+	clusterArn := fmt.Sprintf("arn:aws:eks:%s:%s:cluster/%s", region, accountID, clusterName)
+	if _, errOut, err := runCmd(ctx, "aws", "kms", "tag-resource",
+		"--key-id", keyArn,
+		"--tags",
+		fmt.Sprintf("TagKey=%s,TagValue=%s", "eks.cluster/name", clusterName),
+		fmt.Sprintf("TagKey=%s,TagValue=%s", "eks.cluster/id", clusterArn)); err != nil {
+		awsLogger.Warningf("Failed to tag KMS key %s with cluster info: %v\nstderr: %s", keyArn, err, errOut)
+	} else {
+		awsLogger.Successf("Tagged KMS key with cluster info (name=%s, id=%s).", clusterName, clusterArn)
+	}
 }
 
 func ensureNetworking(ctx context.Context, cfg Config, vpcID string) {
