@@ -24,6 +24,7 @@
 !docs/*
 !docs/*/**
 bin/a9s
+bin/*
 
 !klutch/manifests/*
 !klutch/manifests/examples/*
