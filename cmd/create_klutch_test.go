@@ -8,6 +8,9 @@ import (
 	klutchaws "github.com/anynines/a9s-cli-v2/klutch/aws"
 )
 
+// These tests verify command wiring and provider validation without talking to AWS.
+// The real create call is stubbed so the default suite stays fast/safe; add integration
+// tests separately (e.g., build-tagged) if you need to exercise AWS/Localstack.
 func TestRunKlutchClusterCreationCallsAWS(t *testing.T) {
 	original := createKlutchControlPlane
 	defer func() { createKlutchControlPlane = original }()
