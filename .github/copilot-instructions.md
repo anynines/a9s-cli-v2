@@ -149,3 +149,39 @@ Ensure network access to:
 - User docs: `docs/` (Docusaurus-based, versioned)
 - Implementation notes: `ImplementationNotes.md` (historical, may be outdated)
 - Development guide: `Development.md`
+
+# Future Test Concept
+
+A sustainable test concept here needs layers and clear opt-in for the heavy bits. Rough plan a lead Go dev could drive:
+
+## Test Pyramid Structure
+
+**Pyramid shape**: lots of fast unit tests; a smaller set of integration tests that touch real tools (kind/minikube/AWS); a tiny end-to-end suite (your Ruby RSpec) for full workflows, run on-demand/nightly.
+
+**Isolate shelling out**: wrap all exec.Command calls behind a small interface (Runner.Run(ctx, cmd string, args ...string) (stdout, stderr string, err error)). Inject it into creators/CLI commands so unit tests can stub responses (e.g., fake minikube profile list JSON, kubectl errors) without touching the system. Same for filesystem and env lookups.
+
+**Fix default test surface**: make go test ./... safe/fast by default. Guard cluster-creating tests with build tags (//go:build integration) or an env var (e.g., RUN_E2E=1). Use t.Cleanup for teardown; avoid sleeps by polling with timeouts.
+
+## Unit Tests to Add
+
+- Input validation and flag wiring for Cobra commands (ensure required flags enforced, defaults set).
+- Parsing helpers: minikube profile JSON → status, kind config generation, cost estimation math with stubbed AWS pricing client.
+- Error paths: command failures, invalid JSON, missing tools; ensure errors are returned, not process-exited.
+
+## Integration Tests (Opt-in)
+
+- Kind/Minikube happy-path create/exists/running/delete using the real binaries; run only when KINDEST_NODE/MINIKUBE present. Poll for readiness instead of fixed sleeps.
+- AWS pieces: use stubbed AWS SDK clients (Smithy mock) for control-plane create/delete flows; for more realism, run against Localstack in CI.
+
+## End-to-End Tests
+
+Keep the Ruby RSpec suite for full CLI workflows; run locally by engineers and nightly in CI with proper isolation (fresh clusters, dedicated S3 bucket). Add tags/filters to skip slow tests by default.
+
+## Tooling/Automation
+
+- **Makefile targets**: test (unit), test-integration (go build-tagged), test-e2e (Ruby).
+- **CI matrix**: run unit on every push; integration on protected branches; e2e nightly or manually triggered.
+- **Observability in tests**: prefer structured logs over sleeps; emit clear diagnostics on failures (command output, cluster status).
+- **Contract tests**: for critical command strings (e.g., generated kind create cluster args), use golden files to prevent regressions.
+
+This gives fast feedback for devs, controlled heavier coverage for infra, and a clearly opt-in path for the destructive workflows.

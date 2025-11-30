@@ -11,6 +11,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var createKlutchDryRun bool
+
 var cmdCreate = &cobra.Command{
 	Use:   "create",
 	Short: "Create data service resources such as data service instances, service bindings, backups and restore jobs.",
@@ -119,7 +121,9 @@ var cmdCreateClusterKlutch = &cobra.Command{
 			makeup.ExitDueToFatalError(nil, "The Klutch cluster creation currently only supports the \"aws\" provider.")
 		}
 
-		klutchaws.CreateControlPlaneCluster(context.Background())
+		klutchaws.CreateControlPlaneCluster(context.Background(), klutchaws.CreateOptions{
+			DryRun: createKlutchDryRun,
+		})
 	},
 }
 
@@ -227,6 +231,7 @@ func init() {
 	// create demo
 	cmdCreateCluster.PersistentFlags().StringVarP(&demo.KubernetesTool, "provider", "p", "", "provider for creating the Kubernetes cluster. Valid options are \"minikube\" and \"kind\" for local demos, as well as \"aws\" for Klutch.")
 	cmdCreateCluster.PersistentFlags().StringVarP(&demo.DemoClusterName, "cluster-name", "c", "a8s-demo", "name of the demo Kubernetes cluster.")
+	cmdCreateClusterKlutch.Flags().BoolVar(&createKlutchDryRun, "dry-run", false, "Show planned AWS resources and commands for Klutch without creating them.")
 
 	cmdCreateCluster.AddCommand(cmdCreateClusterA8s)
 	cmdCreateCluster.AddCommand(cmdCreateClusterKlutch)

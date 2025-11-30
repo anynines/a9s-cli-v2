@@ -31,6 +31,12 @@ type Config struct {
 	ControlPlaneSGName              string
 }
 
+// CreateOptions configures Klutch control plane cluster creation.
+type CreateOptions struct {
+	// DryRun prints the planned resources and commands without creating them.
+	DryRun bool
+}
+
 type styledLogger struct{}
 
 func newStyledLogger() *styledLogger {
@@ -170,17 +176,22 @@ func mustRun(ctx context.Context, name string, args ...string) string {
 	return out
 }
 
-func CreateControlPlaneCluster(ctx context.Context) {
+func CreateControlPlaneCluster(ctx context.Context, opts CreateOptions) {
 	cfg := defaultConfig()
 
 	awsLogger.Successf("Starting 10-install-eks-control-plane-cluster (Go version)")
 
-	for _, cmd := range []string{"aws", "kubectl", "eksctl", "helm"} {
-		if _, err := exec.LookPath(cmd); err != nil {
-			awsLogger.Fatalf(err, "❌ ERROR: Required command %q is not installed or not in PATH", cmd)
+	requiredCmds := []string{"aws", "kubectl", "eksctl", "helm"}
+	if opts.DryRun {
+		awsLogger.Infof("Dry-run enabled: no changes will be made. Required tools for execution: %s.", strings.Join(requiredCmds, ", "))
+	} else {
+		for _, cmd := range requiredCmds {
+			if _, err := exec.LookPath(cmd); err != nil {
+				awsLogger.Fatalf(err, "❌ ERROR: Required command %q is not installed or not in PATH", cmd)
+			}
 		}
+		awsLogger.Successf("All required commands (%s) are available.", strings.Join(requiredCmds, ", "))
 	}
-	awsLogger.Successf("All required commands (aws, kubectl, eksctl, helm) are available.")
 
 	awsLogger.Section("Configuration")
 	awsLogger.Printf("Region:                           %s", cfg.Region)
@@ -196,6 +207,11 @@ func CreateControlPlaneCluster(ctx context.Context) {
 	awsLogger.Printf("ALB Controller Version:           %s", cfg.ALBControllerVersion)
 	awsLogger.Printf("ALB Controller Policy Name:       %s", cfg.ALBControllerPolicyName)
 	awsLogger.Printf("Control Plane Security Group:     %s", cfg.ControlPlaneSGName)
+
+	if opts.DryRun {
+		printCreatePlan(cfg)
+		return
+	}
 
 	awsLogger.Infof("Detecting AWS Account ID...")
 	accountID, errOut, err := runCmd(ctx, "aws", "sts", "get-caller-identity", "--query", "Account", "--output", "text")
@@ -291,6 +307,147 @@ func CreateControlPlaneCluster(ctx context.Context) {
 	awsLogger.Printf("   Region:    %s", cfg.Region)
 	awsLogger.Printf("   VPC:       %s", vpcID)
 	awsLogger.Printf("   KMS Key:   %s", keyArn)
+}
+
+func printCreatePlan(cfg Config) {
+	awsLogger.Section("Dry-Run Plan")
+	awsLogger.Infof("Listing the AWS resources that would be created or verified and the commands that would be executed for the Klutch control plane cluster.")
+
+	accountPlaceholder := "<account-id>"
+	clusterArnPlaceholder := fmt.Sprintf("arn:aws:eks:%s:%s:cluster/%s", cfg.Region, accountPlaceholder, cfg.ClusterName)
+	vpcID := "<vpc-id>"
+	igwID := "<internet-gateway-id>"
+	sgID := "<control-plane-sg>"
+	publicSubnets := []string{"<public-subnet-a>", "<public-subnet-b>", "<public-subnet-c>"}
+	privateSubnets := []string{"<private-subnet-a>", "<private-subnet-b>", "<private-subnet-c>"}
+	natGatewayIDs := []string{"<nat-gateway-a>", "<nat-gateway-b>", "<nat-gateway-c>"}
+	clusterTags := fmt.Sprintf("%s=%s,Name=%s,%s=%s,%s=%s", klutchTagKey, klutchTagValue, cfg.ClusterName, clusterNameTagKey, cfg.ClusterName, clusterIDTagKey, clusterArnPlaceholder)
+	nodeTags := fmt.Sprintf("%s=%s,Name=%s,%s=%s,%s=%s", klutchTagKey, klutchTagValue, cfg.NodegroupName, clusterNameTagKey, cfg.ClusterName, clusterIDTagKey, clusterArnPlaceholder)
+
+	type planItem struct {
+		Title    string
+		Purpose  string
+		Commands []string
+	}
+
+	plan := []planItem{
+		{
+			Title:   "AWS identity and cluster lookup",
+			Purpose: "Identify the AWS account and reuse the control plane cluster when it already exists.",
+			Commands: []string{
+				"aws sts get-caller-identity --query Account --output text",
+				fmt.Sprintf("aws eks describe-cluster --name %s --region %s --query cluster.status --output text", cfg.ClusterName, cfg.Region),
+			},
+		},
+		{
+			Title:   "IAM roles for control plane and nodes",
+			Purpose: "Grant the EKS control plane and worker nodes the permissions required to manage AWS resources and pull container images.",
+			Commands: []string{
+				fmt.Sprintf("aws iam get-role --role-name %s", cfg.ClusterRoleName),
+				fmt.Sprintf("aws iam create-role --role-name %s --assume-role-policy-document file:///tmp/eks-cluster-trust.json --tags Key=%s,Value=%s Key=Name,Value=%s", cfg.ClusterRoleName, klutchTagKey, klutchTagValue, cfg.ClusterRoleName),
+				fmt.Sprintf("aws iam attach-role-policy --role-name %s --policy-arn arn:aws:iam::aws:policy/AmazonEKSClusterPolicy", cfg.ClusterRoleName),
+				fmt.Sprintf("aws iam get-role --role-name %s", cfg.NodeRoleName),
+				fmt.Sprintf("aws iam create-role --role-name %s --assume-role-policy-document file:///tmp/eks-node-trust.json --tags Key=%s,Value=%s Key=Name,Value=%s", cfg.NodeRoleName, klutchTagKey, klutchTagValue, cfg.NodeRoleName),
+				fmt.Sprintf("aws iam attach-role-policy --role-name %s --policy-arn arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy", cfg.NodeRoleName),
+				fmt.Sprintf("aws iam attach-role-policy --role-name %s --policy-arn arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy", cfg.NodeRoleName),
+				fmt.Sprintf("aws iam attach-role-policy --role-name %s --policy-arn arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly", cfg.NodeRoleName),
+			},
+		},
+		{
+			Title:   "KMS key for secret encryption",
+			Purpose: "Create and tag a KMS key so EKS can encrypt Kubernetes secrets at rest.",
+			Commands: []string{
+				"aws kms create-key --description \"Encrypts secret data stored by the Klutch control plane EKS cluster\" --query KeyMetadata.KeyId --output text --tags TagKey=Klutch,TagValue=ControlPlane TagKey=Name,TagValue=klutch-control-plane-kms-key",
+				fmt.Sprintf("aws iam put-role-policy --role-name %s --policy-document file:///tmp/eks-kms-policy.json", cfg.ClusterRoleName),
+				fmt.Sprintf("aws kms tag-resource --key-id <kms-arn> --tags TagKey=%s,TagValue=%s TagKey=%s,TagValue=%s", clusterNameTagKey, cfg.ClusterName, clusterIDTagKey, clusterArnPlaceholder),
+			},
+		},
+		{
+			Title:   "Networking (VPC, subnets, routing, NAT, security group)",
+			Purpose: "Provision a dedicated VPC with DNS support, public/private subnets, internet and NAT gateways, routing tables, and the control plane security group.",
+			Commands: []string{
+				fmt.Sprintf("aws ec2 describe-vpcs --filters Name=tag:%s,Values=%s --query Vpcs[0].VpcId --output text", klutchTagKey, klutchTagValue),
+				fmt.Sprintf("aws ec2 create-vpc --cidr-block %s --query Vpc.VpcId --output text", cfg.BaseCIDR),
+				fmt.Sprintf("aws ec2 modify-vpc-attribute --vpc-id %s --enable-dns-support '{\"Value\":true}'", vpcID),
+				fmt.Sprintf("aws ec2 modify-vpc-attribute --vpc-id %s --enable-dns-hostnames '{\"Value\":true}'", vpcID),
+				fmt.Sprintf("aws ec2 create-internet-gateway --query InternetGateway.InternetGatewayId --output text; aws ec2 attach-internet-gateway --internet-gateway-id %s --vpc-id %s", igwID, vpcID),
+				fmt.Sprintf("aws ec2 create-subnet --vpc-id %s --cidr-block %s --availability-zone %sa (repeat for %s / %s public CIDRs)", vpcID, cfg.PubACIDR, cfg.Region, cfg.PubBCIDR, cfg.PubCCIDR),
+				fmt.Sprintf("aws ec2 create-subnet --vpc-id %s --cidr-block %s --availability-zone %sa (repeat for %s / %s private CIDRs)", vpcID, cfg.PrivACIDR, cfg.Region, cfg.PrivBCIDR, cfg.PrivCCIDR),
+				fmt.Sprintf("aws ec2 create-route-table --vpc-id %s; aws ec2 create-route --route-table-id <public-rt> --destination-cidr-block 0.0.0.0/0 --gateway-id %s; aws ec2 associate-route-table --route-table-id <public-rt> --subnet-id %s (for all public subnets)", vpcID, igwID, strings.Join(publicSubnets, "/")),
+				"aws ec2 describe-addresses --query Addresses[].AllocationId --output text; aws service-quotas get-service-quota --service-code ec2 --quota-code L-0263D0A3 --query Quota.Value --output text",
+				fmt.Sprintf("aws ec2 allocate-address --domain vpc; aws ec2 create-nat-gateway --subnet-id %s --allocation-id <alloc-id> --query NatGateway.NatGatewayId --output text (for each public subnet); aws ec2 wait nat-gateway-available --nat-gateway-ids %s", publicSubnets[0], strings.Join(natGatewayIDs, " ")),
+				fmt.Sprintf("aws ec2 create-route-table --vpc-id %s; aws ec2 create-route --route-table-id <private-rt> --destination-cidr-block 0.0.0.0/0 --nat-gateway-id %s; aws ec2 associate-route-table --route-table-id <private-rt> --subnet-id %s (for each private subnet)", vpcID, natGatewayIDs[0], strings.Join(privateSubnets, "/")),
+				fmt.Sprintf("aws ec2 create-security-group --group-name %s --description \"Restricts traffic for Klutch control plane components and worker nodes\" --vpc-id %s", cfg.ControlPlaneSGName, vpcID),
+				fmt.Sprintf("aws ec2 authorize-security-group-ingress --group-id %s --protocol -1 --source-group %s; aws ec2 authorize-security-group-egress --group-id %s --protocol -1 --cidr 0.0.0.0/0", sgID, sgID, sgID),
+			},
+		},
+		{
+			Title:   "EKS control plane",
+			Purpose: "Create the EKS cluster with secret encryption, private networking, and Klutch tags.",
+			Commands: []string{
+				fmt.Sprintf("aws eks create-cluster --name %s --region %s --role-arn arn:aws:iam::%s:role/%s --resources-vpc-config subnetIds=%s,securityGroupIds=%s --encryption-config [{\"resources\":[\"secrets\"],\"provider\":{\"keyArn\":\"<kms-arn>\"}}] --tags %s", cfg.ClusterName, cfg.Region, accountPlaceholder, cfg.ClusterRoleName, strings.Join(privateSubnets, ","), sgID, clusterTags),
+				fmt.Sprintf("aws eks wait cluster-active --name %s --region %s", cfg.ClusterName, cfg.Region),
+				fmt.Sprintf("aws eks describe-cluster --name %s --region %s --query cluster.status", cfg.ClusterName, cfg.Region),
+			},
+		},
+		{
+			Title:   "Managed nodegroup",
+			Purpose: "Provision worker nodes for the control plane workloads with the requested capacity and instance type.",
+			Commands: []string{
+				fmt.Sprintf("aws eks describe-nodegroup --cluster-name %s --nodegroup-name %s --region %s --query nodegroup.status --output text", cfg.ClusterName, cfg.NodegroupName, cfg.Region),
+				fmt.Sprintf("aws eks create-nodegroup --cluster-name %s --nodegroup-name %s --scaling-config %s --instance-types %s --subnets %s --ami-type %s --node-role arn:aws:iam::%s:role/%s --region %s --tags %s", cfg.ClusterName, cfg.NodegroupName, cfg.NodeScalingConfig, cfg.NodeInstanceTypes, strings.Join(privateSubnets, " "), cfg.NodeAMIType, accountPlaceholder, cfg.NodeRoleName, cfg.Region, nodeTags),
+				fmt.Sprintf("aws eks wait nodegroup-active --cluster-name %s --nodegroup-name %s --region %s", cfg.ClusterName, cfg.NodegroupName, cfg.Region),
+			},
+		},
+		{
+			Title:   "Kubeconfig and node readiness",
+			Purpose: "Point kubectl to the cluster and wait until nodes report Ready.",
+			Commands: []string{
+				fmt.Sprintf("aws eks update-kubeconfig --region %s --name %s", cfg.Region, cfg.ClusterName),
+				"kubectl get nodes (polled until at least one node is Ready)",
+			},
+		},
+		{
+			Title:   "Account default EBS encryption",
+			Purpose: "Ensure new EBS volumes are encrypted by default for this AWS account.",
+			Commands: []string{
+				"aws ec2 get-ebs-encryption-by-default",
+				"aws ec2 enable-ebs-encryption-by-default",
+			},
+		},
+		{
+			Title:   "Default gp3 StorageClass",
+			Purpose: "Install and mark a gp3-backed Kubernetes StorageClass as the cluster default.",
+			Commands: []string{
+				"kubectl apply -f <gp3-storageclass-manifest>",
+			},
+		},
+		{
+			Title:   "AWS Load Balancer Controller",
+			Purpose: "Install the ALB controller used for Klutch ingress and service routing.",
+			Commands: []string{
+				fmt.Sprintf("eksctl utils associate-iam-oidc-provider --region %s --cluster %s --approve", cfg.Region, cfg.ClusterName),
+				"curl -sSfL -o aws-load-balancer-controller-policy.json https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/main/docs/install/iam_policy.json",
+				fmt.Sprintf("aws iam create-policy --policy-name %s --policy-document file://aws-load-balancer-controller-policy.json --description \"Allows the Klutch control plane to run the AWS Load Balancer Controller safely\" --tags Key=%s,Value=%s Key=Name,Value=%s", cfg.ALBControllerPolicyName, klutchTagKey, klutchTagValue, cfg.ALBControllerPolicyName),
+				fmt.Sprintf("aws iam create-policy-version --policy-arn arn:aws:iam::%s:policy/%s --policy-document file://aws-load-balancer-controller-policy.json --set-as-default", accountPlaceholder, cfg.ALBControllerPolicyName),
+				fmt.Sprintf("eksctl create iamserviceaccount --cluster %s --namespace kube-system --name aws-load-balancer-controller --attach-policy-arn arn:aws:iam::%s:policy/%s --region %s --approve --override-existing-serviceaccounts", cfg.ClusterName, accountPlaceholder, cfg.ALBControllerPolicyName, cfg.Region),
+				"helm repo add eks https://aws.github.io/eks-charts",
+				"helm repo update",
+				fmt.Sprintf("helm upgrade --install aws-load-balancer-controller eks/aws-load-balancer-controller -n kube-system --set clusterName=%s --set region=%s --set vpcId=%s --set serviceAccount.create=false --set serviceAccount.name=aws-load-balancer-controller", cfg.ClusterName, cfg.Region, vpcID),
+				fmt.Sprintf("aws iam attach-role-policy --role-name <role-derived-from-sa> --policy-arn arn:aws:iam::%s:policy/%s", accountPlaceholder, cfg.ALBControllerPolicyName),
+				"kubectl rollout status deployment/aws-load-balancer-controller -n kube-system",
+			},
+		},
+	}
+
+	for _, item := range plan {
+		awsLogger.Printf("- %s: %s", item.Title, item.Purpose)
+		for _, cmd := range item.Commands {
+			awsLogger.Printf("    %s", cmd)
+		}
+	}
+
+	awsLogger.Infof("Dry-run complete. Run without --dry-run to execute the commands above.")
 }
 
 func ensureClusterRole(ctx context.Context, roleName string) {
