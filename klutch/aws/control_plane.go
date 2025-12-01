@@ -159,7 +159,10 @@ func defaultConfig() Config {
 	}
 }
 
-func runCmd(ctx context.Context, name string, args ...string) (string, string, error) {
+// runCmd is assignable for tests; default implementation is defaultRunCmd.
+var runCmd = defaultRunCmd
+
+func defaultRunCmd(ctx context.Context, name string, args ...string) (string, string, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
 	var outBuf, errBuf bytes.Buffer
 	cmd.Stdout = &outBuf
@@ -186,8 +189,8 @@ func CreateControlPlaneCluster(ctx context.Context, opts CreateOptions) {
 		awsLogger.Infof("Dry-run enabled: no changes will be made. Required tools for execution: %s.", strings.Join(requiredCmds, ", "))
 	} else {
 		for _, cmd := range requiredCmds {
-			if _, err := exec.LookPath(cmd); err != nil {
-				awsLogger.Fatalf(err, "❌ ERROR: Required command %q is not installed or not in PATH", cmd)
+			if _, err := execLookPath(cmd); err != nil {
+				awsLogger.Fatalf(err, "Required command %q is not installed or not in PATH", cmd)
 			}
 		}
 		awsLogger.Successf("All required commands (%s) are available.", strings.Join(requiredCmds, ", "))
@@ -216,7 +219,7 @@ func CreateControlPlaneCluster(ctx context.Context, opts CreateOptions) {
 	awsLogger.Infof("Detecting AWS Account ID...")
 	accountID, errOut, err := runCmd(ctx, "aws", "sts", "get-caller-identity", "--query", "Account", "--output", "text")
 	if err != nil || accountID == "" || accountID == "None" || accountID == "null" {
-		awsLogger.Fatalf(err, "❌ ERROR: Unable to determine AWS Account ID. Run 'aws configure'. stderr: %s", errOut)
+		awsLogger.Fatalf(err, "Unable to determine AWS Account ID. Run 'aws configure'. stderr: %s", errOut)
 	}
 	awsLogger.Infof("ACCOUNT_ID: %s", accountID)
 	clusterArn := fmt.Sprintf("arn:aws:eks:%s:%s:cluster/%s", cfg.Region, accountID, cfg.ClusterName)
@@ -231,7 +234,7 @@ func CreateControlPlaneCluster(ctx context.Context, opts CreateOptions) {
 		"--output", "text"); err == nil {
 		clusterStatus = out
 	} else if !strings.Contains(errOut, "ResourceNotFoundException") {
-		awsLogger.Fatalf(err, "❌ ERROR: aws eks describe-cluster failed\nstderr: %s", errOut)
+		awsLogger.Fatalf(err, "aws eks describe-cluster failed\nstderr: %s", errOut)
 	}
 	clusterExists := false
 	switch clusterStatus {
@@ -247,7 +250,7 @@ func CreateControlPlaneCluster(ctx context.Context, opts CreateOptions) {
 		awsLogger.Successf("Cluster is now ACTIVE.")
 		clusterExists = true
 	default:
-		awsLogger.Fatalf(nil, "❌ ERROR: Cluster exists but is in bad state: %s. Delete or fix manually.", clusterStatus)
+		awsLogger.Fatalf(nil, "Cluster exists but is in bad state: %s. Delete or fix manually.", clusterStatus)
 	}
 
 	awsLogger.Infof("Checking for existing Klutch VPC...")
@@ -735,7 +738,7 @@ func ensureElasticIPQuota(ctx context.Context) {
 		qFloat, _ := strconv.ParseFloat(quotaRaw, 64)
 		qInt := int(qFloat)
 		if currentCount+required > qInt {
-			awsLogger.Fatalf(nil, "❌ ERROR: Not enough Elastic IP quota. Have %d, quota %d, need %d.",
+			awsLogger.Fatalf(nil, "Not enough Elastic IP quota. Have %d, quota %d, need %d.",
 				currentCount, qInt, currentCount+required)
 		}
 	}
@@ -904,7 +907,7 @@ func ensureNodegroup(ctx context.Context, cfg Config, vpcID, accountID string) {
 		"--query", "nodegroup.status",
 		"--output", "text")
 	if err != nil && !strings.Contains(errOut, "ResourceNotFoundException") {
-		awsLogger.Fatalf(err, "❌ ERROR: describe-nodegroup failed\nstderr: %s", errOut)
+		awsLogger.Fatalf(err, "describe-nodegroup failed\nstderr: %s", errOut)
 	}
 	if status == "" {
 		status = "NONE"
@@ -954,7 +957,7 @@ func ensureNodegroup(ctx context.Context, cfg Config, vpcID, accountID string) {
 			"--region", cfg.Region)
 		awsLogger.Successf("Nodegroup is ACTIVE.")
 	case "DELETING":
-		awsLogger.Fatalf(nil, "❌ ERROR: Nodegroup is currently DELETING. Wait for it to finish and re-run the installer.")
+		awsLogger.Fatalf(nil, "Nodegroup is currently DELETING. Wait for it to finish and re-run the installer.")
 	default:
 		awsLogger.Warningf("Nodegroup is in bad state: %s. Deleting and recreating...", status)
 		mustRun(ctx, "aws", "eks", "delete-nodegroup",

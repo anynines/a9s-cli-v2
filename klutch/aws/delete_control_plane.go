@@ -72,13 +72,13 @@ func DeleteControlPlaneCluster(ctx context.Context, opts DeleteOptions) {
 
 	for _, cmd := range []string{"aws", "kubectl", "eksctl", "helm", "jq"} {
 		if _, err := execLookPath(cmd); err != nil {
-			awsLogger.Fatalf(err, "❌ ERROR: Required command %q is not installed or not in PATH", cmd)
+			awsLogger.Fatalf(err, "Required command %q is not installed or not in PATH", cmd)
 		}
 	}
 
 	accountID, errOut, err := runCmd(ctx, "aws", "sts", "get-caller-identity", "--query", "Account", "--output", "text")
 	if err != nil || accountID == "" || accountID == "None" || accountID == "null" {
-		awsLogger.Fatalf(err, "❌ ERROR: Unable to determine AWS Account ID. Run 'aws configure'. stderr: %s", errOut)
+		awsLogger.Fatalf(err, "Unable to determine AWS Account ID. Run 'aws configure'. stderr: %s", errOut)
 	}
 	awsLogger.Infof("AWS Account ID: %s", accountID)
 
