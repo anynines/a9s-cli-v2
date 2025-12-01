@@ -124,8 +124,8 @@ func ApplyKlutchControlPlane(host string, ingressPort int, acmCertificateARN str
 
 	var provisioner CertificateProvisioner
 	if hostedZoneName != "" {
-		verifyHostedZoneResolvable(hostedZoneName)
 		provisioner = NewCertificateProvisioner("")
+		verifyHostedZoneResolvable(provisioner, hostedZoneName)
 		verifyHostedZoneRequirements(provisioner, hostedZoneName, baseDomain, dexHost, backendHost)
 	}
 

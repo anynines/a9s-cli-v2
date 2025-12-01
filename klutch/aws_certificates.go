@@ -24,6 +24,12 @@ const (
 	route53MaxRetries = 60
 )
 
+var (
+	dnsDelegationPollDelay  = 10 * time.Second
+	dnsDelegationMaxRetries = 30
+	lookupNSFunc            = net.LookupNS
+)
+
 const (
 	klutchTagKey   = "Klutch"
 	klutchTagValue = "ControlPlane"
@@ -34,6 +40,7 @@ type CertificateProvisioner interface {
 	EnsureCNAMERecords(hostedZoneName string, records map[string]string) error
 	GetHostedZoneNS(hostedZoneName string) ([]string, error)
 	EnsureALBAliasRecord(hostedZoneName, recordName, albDNSName string) error
+	EnsurePublicHostedZone(hostedZoneName string) ([]string, error)
 }
 
 type AWSProvisioner struct {
@@ -79,16 +86,39 @@ func detectAWSRegion(kubeContext string) string {
 }
 
 // verifyHostedZoneResolvable ensures the hosted zone name is publicly resolvable (delegated).
-// If it is not resolvable, ACM DNS validation will never succeed.
-func verifyHostedZoneResolvable(hostedZoneName string) {
+// If it is not resolvable, instruct the user to delegate the domain to Route53 and wait
+// until the NS records propagate.
+func verifyHostedZoneResolvable(provisioner CertificateProvisioner, hostedZoneName string) {
+	expectedNS, err := provisioner.EnsurePublicHostedZone(hostedZoneName)
+	if err != nil {
+		makeup.ExitDueToFatalError(err, fmt.Sprintf("Hosted zone %s is not publicly resolvable and its nameservers could not be retrieved.", hostedZoneName))
+	}
+
 	lookupName := hostedZoneName
 	if !strings.HasSuffix(lookupName, ".") {
 		lookupName = lookupName + "."
 	}
 
-	nsRecords, err := net.LookupNS(lookupName)
+	nsRecords, err := lookupNSFunc(lookupName)
 	if err != nil || len(nsRecords) == 0 {
-		makeup.ExitDueToFatalError(err, fmt.Sprintf("Hosted zone %s is not publicly resolvable. Ensure it is delegated before requesting an ACM certificate.", hostedZoneName))
+		makeup.PrintWarning(fmt.Sprintf("Hosted zone %s is not publicly resolvable yet.", hostedZoneName))
+		makeup.PrintInfo("If your domain is managed outside Route53, add the following NS delegation records (zone file format) at your registrar/parent zone:")
+		for _, ns := range expectedNS {
+			makeup.Print(fmt.Sprintf("%s\t300\tIN\tNS\t%s", ensureTrailingDot(hostedZoneName), ensureTrailingDot(ns)))
+		}
+		makeup.PrintInfo("Waiting for DNS delegation to propagate...")
+
+		for i := 0; i < dnsDelegationMaxRetries; i++ {
+			time.Sleep(dnsDelegationPollDelay)
+			nsRecords, err = lookupNSFunc(lookupName)
+			if err == nil && len(nsRecords) > 0 {
+				break
+			}
+		}
+
+		if len(nsRecords) == 0 {
+			makeup.ExitDueToFatalError(err, fmt.Sprintf("Hosted zone %s is still not publicly resolvable. Please ensure NS records are set at your registrar.", hostedZoneName))
+		}
 	}
 
 	nsList := make([]string, 0, len(nsRecords))
@@ -576,4 +606,56 @@ func (p *AWSProvisioner) GetHostedZoneNS(hostedZoneName string) ([]string, error
 	}
 
 	return out.DelegationSet.NameServers, nil
+}
+
+// EnsurePublicHostedZone returns NS records for a public hosted zone, creating one if necessary.
+func (p *AWSProvisioner) EnsurePublicHostedZone(hostedZoneName string) ([]string, error) {
+	ctx := context.Background()
+	normalized := ensureTrailingDot(hostedZoneName)
+	out, err := p.r53Client.ListHostedZonesByName(ctx, &route53.ListHostedZonesByNameInput{
+		DNSName: aws.String(normalized),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("listing hosted zones: %w", err)
+	}
+
+	var publicZoneID string
+	var privateZoneID string
+	for _, zone := range out.HostedZones {
+		if aws.ToString(zone.Name) == normalized {
+			if zone.Config != nil && zone.Config.PrivateZone {
+				privateZoneID = strings.TrimPrefix(aws.ToString(zone.Id), "/hostedzone/")
+				continue
+			}
+			publicZoneID = strings.TrimPrefix(aws.ToString(zone.Id), "/hostedzone/")
+			break
+		}
+	}
+
+	if publicZoneID != "" {
+		ns, err := p.GetHostedZoneNS(hostedZoneName)
+		if err != nil {
+			return nil, err
+		}
+		return ns, nil
+	}
+
+	if privateZoneID != "" {
+		makeup.PrintWarning(fmt.Sprintf("Found private hosted zone %s (%s); creating a public hosted zone for DNS validation.", hostedZoneName, privateZoneID))
+	}
+
+	created, err := p.r53Client.CreateHostedZone(ctx, &route53.CreateHostedZoneInput{
+		Name:            aws.String(hostedZoneName),
+		CallerReference: aws.String(fmt.Sprintf("klutch-%d", time.Now().UnixNano())),
+		HostedZoneConfig: &types.HostedZoneConfig{
+			PrivateZone: false,
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("creating public hosted zone %s: %w", hostedZoneName, err)
+	}
+
+	ns := created.DelegationSet.NameServers
+	makeup.PrintInfo(fmt.Sprintf("Created public hosted zone %s. Nameservers: %s", hostedZoneName, strings.Join(ns, ", ")))
+	return ns, nil
 }
