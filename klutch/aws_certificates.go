@@ -26,7 +26,7 @@ const (
 
 var (
 	dnsDelegationPollDelay  = 10 * time.Second
-	dnsDelegationMaxRetries = 30
+	dnsDelegationMaxRetries = 180 // allow up to ~30 minutes for registrar DNS delegation to propagate
 	lookupNSFunc            = net.LookupNS
 )
 

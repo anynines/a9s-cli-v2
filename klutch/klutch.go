@@ -1,6 +1,7 @@
 package klutch
 
 import (
+	"context"
 	_ "embed"
 	"fmt"
 	"net"
@@ -29,7 +30,8 @@ const (
 )
 
 var (
-	PortFlag int = 8080
+	PortFlag        int = 8080
+	publicResolvers     = []string{"8.8.8.8:53", "1.1.1.1:53"}
 )
 
 // ControlPlaneClusterInfo contains information about the created Control Plane Cluster.
@@ -315,6 +317,7 @@ func (k *KlutchManager) applyControlPlaneToContext(baseDomain string, dexHost st
 				makeup.PrintInfo(fmt.Sprintf("Planned action: create/update CNAMEs %v -> ingress hosts in hosted zone %s.", keys(records), hostedZoneName))
 				makeup.WaitForUser(demo.UnattendedMode)
 
+				makeup.PrintInfo("Waiting for DNS CNAME propagation; this can take several minutes depending on your registrar (up to 30m).")
 				if err := provisioner.EnsureCNAMERecords(hostedZoneName, records); err != nil {
 					makeup.ExitDueToFatalError(err, fmt.Sprintf("Could not create CNAME records in hosted zone %s.", hostedZoneName))
 				}
@@ -322,7 +325,7 @@ func (k *KlutchManager) applyControlPlaneToContext(baseDomain string, dexHost st
 
 				// Verify DNS reflects the expected targets.
 				for h, target := range records {
-					waitForCNAMERecord(h, target, 10*time.Minute)
+					waitForCNAMERecord(h, target, 30*time.Minute)
 				}
 			}
 		}
@@ -425,31 +428,42 @@ func verifyHostedZoneRequirements(provisioner CertificateProvisioner, hostedZone
 
 	expectedNS, err := provisioner.GetHostedZoneNS(zone)
 	if err != nil {
-		makeup.ExitDueToFatalError(err, fmt.Sprintf("Could not fetch NS records for hosted zone %s from Route53.", zone))
+		makeup.PrintWarning(fmt.Sprintf("Hosted zone %s not found in Route53. It may have been deleted.", zone))
+		makeup.PrintInfo(fmt.Sprintf("Creating public hosted zone %s and retrieving its NS records...", zone))
+		makeup.WaitForUser(demo.UnattendedMode)
+		expectedNS, err = provisioner.EnsurePublicHostedZone(zone)
+		if err != nil {
+			makeup.ExitDueToFatalError(err, fmt.Sprintf("Could not create or fetch NS records for hosted zone %s from Route53.", zone))
+		}
 	}
 
-	liveNS, _ := net.LookupNS(zone)
+	liveNS, _ := lookupPublicNS(zone)
 	if len(liveNS) == 0 {
 		parent := parentDomain(zone)
 		makeup.ExitDueToFatalError(nil, fmt.Sprintf("Hosted zone %s is not publicly delegated. Create an NS record in parent zone %s with these values: %s", zone, parent, strings.Join(expectedNS, ", ")))
 	}
 
 	// If there is delegation but it doesn't match Route53 NS, warn with instructions.
-	delegated := make(map[string]struct{}, len(liveNS))
-	for _, ns := range liveNS {
-		delegated[strings.TrimSuffix(strings.ToLower(ns.Host), ".")] = struct{}{}
-	}
-	mismatch := false
-	for _, ns := range expectedNS {
-		n := strings.TrimSuffix(strings.ToLower(ns), ".")
-		if _, ok := delegated[n]; !ok {
-			mismatch = true
-			break
-		}
-	}
-	if mismatch {
+	if !nsSetsMatch(expectedNS, liveNS) {
 		parent := parentDomain(zone)
-		makeup.ExitDueToFatalError(nil, fmt.Sprintf("Hosted zone %s is not delegated to the expected Route53 nameservers. Update the NS record in parent zone %s to: %s", zone, parent, strings.Join(expectedNS, ", ")))
+		makeup.PrintWarning(fmt.Sprintf("Hosted zone %s is not delegated to the expected Route53 nameservers.", zone))
+		makeup.PrintInfo(fmt.Sprintf("Update the NS record in parent zone %s to the following (zone file format):", parent))
+		for _, ns := range expectedNS {
+			makeup.Print(fmt.Sprintf("%s.\t300\tIN\tNS\t%s.", zone, strings.TrimSuffix(ns, ".")))
+		}
+		makeup.PrintInfo("Waiting for delegation to reflect Route53 nameservers (up to 30m)...")
+
+		deadline := time.Now().Add(30 * time.Minute)
+		for time.Now().Before(deadline) {
+			time.Sleep(15 * time.Second)
+			liveNS, _ = lookupPublicNS(zone)
+			if nsSetsMatch(expectedNS, liveNS) {
+				makeup.PrintInfo("Delegation now matches Route53 nameservers.")
+				return
+			}
+		}
+
+		makeup.ExitDueToFatalError(nil, fmt.Sprintf("DNS delegation for %s does not match Route53 after waiting. Please update the NS records and rerun.", zone))
 	}
 }
 
@@ -544,6 +558,7 @@ func waitForCNAMERecord(host, expectedTarget string, timeout time.Duration) {
 	}
 
 	deadline := time.Now().Add(timeout)
+	makeup.PrintInfo(fmt.Sprintf("Waiting for CNAME %s to point to %s (timeout %s)...", host, expectedTarget, timeout))
 	for {
 		cname, err := net.LookupCNAME(host)
 		if err == nil && strings.Contains(cname, expectedTarget) {
@@ -557,6 +572,51 @@ func waitForCNAMERecord(host, expectedTarget string, timeout time.Duration) {
 		makeup.PrintInfo(fmt.Sprintf("CNAME %s not pointing to %s yet (got %s). Waiting...", host, expectedTarget, cname))
 		time.Sleep(5 * time.Second)
 	}
+}
+
+func lookupPublicNS(name string) ([]string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var lastErr error
+	for _, server := range publicResolvers {
+		r := &net.Resolver{
+			PreferGo: true,
+			Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+				d := net.Dialer{Timeout: 3 * time.Second}
+				return d.DialContext(ctx, "udp", server)
+			},
+		}
+		records, err := r.LookupNS(ctx, name)
+		if err == nil && len(records) > 0 {
+			out := make([]string, 0, len(records))
+			for _, ns := range records {
+				out = append(out, strings.TrimSuffix(ns.Host, "."))
+			}
+			return out, nil
+		}
+		lastErr = err
+	}
+	return nil, lastErr
+}
+
+func nsSetsMatch(expected []string, live []string) bool {
+	if len(expected) == 0 || len(live) == 0 {
+		return false
+	}
+
+	liveSet := make(map[string]struct{}, len(live))
+	for _, ns := range live {
+		liveSet[strings.TrimSuffix(strings.ToLower(ns), ".")] = struct{}{}
+	}
+
+	for _, ns := range expected {
+		if _, ok := liveSet[strings.TrimSuffix(strings.ToLower(ns), ".")]; !ok {
+			return false
+		}
+	}
+
+	return true
 }
 
 func printControlPlaneSummary(workDir string) {
