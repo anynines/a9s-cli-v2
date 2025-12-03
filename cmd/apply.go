@@ -23,8 +23,21 @@ var applyCmd = &cobra.Command{
 	},
 }
 
+var applyKlutchCmd = &cobra.Command{
+	Use:   "klutch",
+	Short: "Apply Klutch components to the current Kubernetes cluster.",
+	Long:  `Applies Klutch components such as the control plane to the current Kubernetes cluster.`,
+	Run: func(cmd *cobra.Command, args []string) {
+		makeup.PrintWarning(" " + "Please select a subcommand from the list below.")
+		cmd.Help()
+	},
+}
+
 var applyKlutchControlPlaneCmd = &cobra.Command{
-	Use:   "klutch-control-plane",
+	Use: "control-plane",
+	Aliases: []string{
+		"klutch-control-plane",
+	},
 	Short: "Install the Klutch control plane onto the current Kubernetes cluster.",
 	Long:  "Installs the Klutch control plane and its dependencies into the currently selected kube context.",
 	Run: func(cmd *cobra.Command, args []string) {
@@ -46,6 +59,7 @@ func init() {
 	applyKlutchControlPlaneCmd.Flags().StringVar(&applyKlutchControlPlaneACMCertARN, "acm-certificate-arn", "", "ACM certificate ARN to enable HTTPS on the ALB ingress for Dex.")
 	applyKlutchControlPlaneCmd.Flags().StringVar(&applyKlutchControlPlaneHostedZone, "hosted-zone-name", "", "Route53 hosted zone name (FQDN). Required until self-signed certificates are supported. If provided and no ACM ARN is supplied, the CLI will request an ACM cert and create DNS validation records automatically.")
 
-	applyCmd.AddCommand(applyKlutchControlPlaneCmd)
+	applyKlutchCmd.AddCommand(applyKlutchControlPlaneCmd)
+	applyCmd.AddCommand(applyKlutchCmd)
 	rootCmd.AddCommand(applyCmd)
 }
