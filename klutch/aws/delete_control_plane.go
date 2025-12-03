@@ -2,6 +2,7 @@ package aws
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -44,6 +45,10 @@ func DeleteControlPlaneCluster(ctx context.Context, opts DeleteOptions) {
 	}
 	if opts.ControlPlaneSGName != "" {
 		cfg.ControlPlaneSGName = opts.ControlPlaneSGName
+	}
+	opts.Region = cfg.Region
+	if opts.IncludeHostedZone && !opts.IncludeDNSRecords {
+		opts.IncludeDNSRecords = true
 	}
 
 	awsLogger.Section("Klutch Control Plane Deletion (AWS)")
@@ -99,7 +104,8 @@ func DeleteControlPlaneCluster(ctx context.Context, opts DeleteOptions) {
 
 	vpcID := findKlutchVPC(ctx)
 	if vpcID == "" {
-		awsLogger.Infof("No Klutch VPC found. Nothing more to delete.")
+		awsLogger.Infof("No Klutch VPC found.")
+		dnsAndACMCleanup(ctx, nil, opts)
 		return
 	}
 
@@ -303,7 +309,7 @@ func deleteVPCDependencies(ctx context.Context, vpcID string, opts DeleteOptions
 	deleteSecurityGroups(ctx, vpcID, opts)
 	resetDHCPOptions(ctx, vpcID, opts)
 
-	dnsAndACMCleanup(lbTargets, opts)
+	dnsAndACMCleanup(ctx, lbTargets, opts)
 	releaseEIPs(ctx, natEIPs, opts)
 }
 
@@ -577,10 +583,207 @@ func releaseEIPs(ctx context.Context, natEIPs []string, opts DeleteOptions) {
 	}
 }
 
-func dnsAndACMCleanup(lbTargets []string, opts DeleteOptions) {
+func findHostedZoneIDByName(ctx context.Context, hostedZoneName string) string {
+	if strings.TrimSpace(hostedZoneName) == "" {
+		return ""
+	}
+	normalized := strings.ToLower(hostedZoneName)
+	if !strings.HasSuffix(normalized, ".") {
+		normalized += "."
+	}
+
+	query := fmt.Sprintf("HostedZones[?Name==`%s`].Id | [0]", normalized)
+	out, errOut, err := runCmd(ctx, "aws", "route53", "list-hosted-zones-by-name",
+		"--dns-name", normalized,
+		"--query", query,
+		"--output", "text")
+	if err != nil {
+		awsLogger.Warningf("Failed to list hosted zones for %s: %v\nstderr: %s", hostedZoneName, err, errOut)
+		return ""
+	}
+	if out == "" || out == "None" || out == "null" {
+		awsLogger.Warningf("Hosted zone %s not found via Route53 list-hosted-zones-by-name.", hostedZoneName)
+		return ""
+	}
+	return strings.TrimPrefix(strings.TrimSpace(out), "/hostedzone/")
+}
+
+func listHostedZoneRecords(ctx context.Context, zoneID string) ([]map[string]interface{}, error) {
+	out, errOut, err := runCmd(ctx, "aws", "route53", "list-resource-record-sets",
+		"--hosted-zone-id", zoneID,
+		"--query", "ResourceRecordSets[?Type!=`NS` && Type!=`SOA`]",
+		"--output", "json")
+	if err != nil {
+		return nil, fmt.Errorf("listing resource record sets: %v (stderr: %s)", err, errOut)
+	}
+	if strings.TrimSpace(out) == "" || strings.TrimSpace(out) == "null" {
+		return nil, nil
+	}
+
+	var records []map[string]interface{}
+	if err := json.Unmarshal([]byte(out), &records); err != nil {
+		return nil, fmt.Errorf("parsing resource record sets: %w", err)
+	}
+	return records, nil
+}
+
+func deleteDNSRecords(ctx context.Context, zoneID, hostedZoneName string, opts DeleteOptions) {
+	records, err := listHostedZoneRecords(ctx, zoneID)
+	if err != nil {
+		awsLogger.Warningf("Could not list DNS records for hosted zone %s: %v", hostedZoneName, err)
+		return
+	}
+	if len(records) == 0 {
+		awsLogger.Infof("No non-default DNS records found in hosted zone %s.", hostedZoneName)
+		return
+	}
+
+	if opts.DryRun {
+		awsLogger.Infof("Dry-run: would delete %d DNS record(s) from hosted zone %s.", len(records), hostedZoneName)
+		return
+	}
+
+	var changes []map[string]interface{}
+	for _, r := range records {
+		changes = append(changes, map[string]interface{}{
+			"Action":            "DELETE",
+			"ResourceRecordSet": r,
+		})
+	}
+
+	payload, err := json.Marshal(map[string]interface{}{
+		"Changes": changes,
+	})
+	if err != nil {
+		awsLogger.Warningf("Failed to marshal DNS deletion batch for %s: %v", hostedZoneName, err)
+		return
+	}
+
+	if _, errOut, err := runCmd(ctx, "aws", "route53", "change-resource-record-sets",
+		"--hosted-zone-id", zoneID,
+		"--change-batch", string(payload)); err != nil {
+		awsLogger.Warningf("Failed to delete DNS records in hosted zone %s: %v\nstderr: %s", hostedZoneName, err, errOut)
+	} else {
+		awsLogger.Successf("Deleted %d DNS record(s) from hosted zone %s.", len(records), hostedZoneName)
+	}
+}
+
+func deleteHostedZone(ctx context.Context, zoneID, hostedZoneName string, opts DeleteOptions) {
+	if opts.DryRun {
+		awsLogger.Infof("Dry-run: would delete hosted zone %s (ID %s).", hostedZoneName, zoneID)
+		return
+	}
+	if _, errOut, err := runCmd(ctx, "aws", "route53", "delete-hosted-zone", "--id", zoneID); err != nil {
+		awsLogger.Warningf("Failed to delete hosted zone %s: %v\nstderr: %s", hostedZoneName, err, errOut)
+	} else {
+		awsLogger.Successf("Deleted hosted zone %s.", hostedZoneName)
+	}
+}
+
+func discoverKlutchCertificateARN(ctx context.Context, opts DeleteOptions) string {
+	awsLogger.Infof("Discovering Klutch ACM certificate (tag %s=%s)...", klutchTagKey, klutchTagValue)
+	args := []string{"acm", "list-certificates", "--query", "CertificateSummaryList[].CertificateArn", "--output", "text"}
+	if opts.Region != "" {
+		args = append(args, "--region", opts.Region)
+	}
+
+	listOut, errOut, err := runCmd(ctx, "aws", args...)
+	if err != nil {
+		awsLogger.Warningf("Could not list ACM certificates: %v\nstderr: %s", err, errOut)
+		return ""
+	}
+
+	for _, arn := range strings.Fields(listOut) {
+		tagArgs := []string{"acm", "list-tags-for-certificate", "--certificate-arn", arn, "--output", "json"}
+		if opts.Region != "" {
+			tagArgs = append(tagArgs, "--region", opts.Region)
+		}
+		tagsOut, tagErrOut, tagErr := runCmd(ctx, "aws", tagArgs...)
+		if tagErr != nil {
+			awsLogger.Warningf("Could not list tags for ACM certificate %s: %v\nstderr: %s", arn, tagErr, tagErrOut)
+			continue
+		}
+
+		var resp struct {
+			Tags []struct {
+				Key   string `json:"Key"`
+				Value string `json:"Value"`
+			} `json:"Tags"`
+		}
+		if err := json.Unmarshal([]byte(tagsOut), &resp); err != nil {
+			awsLogger.Warningf("Could not parse tags for ACM certificate %s: %v", arn, err)
+			continue
+		}
+		for _, t := range resp.Tags {
+			if t.Key == klutchTagKey && t.Value == klutchTagValue {
+				return arn
+			}
+		}
+	}
+
+	return ""
+}
+
+func deleteACMCertificate(ctx context.Context, opts DeleteOptions) {
+	arn := strings.TrimSpace(opts.ACMCertificateARN)
+	if arn == "" {
+		arn = discoverKlutchCertificateARN(ctx, opts)
+		if arn == "" {
+			awsLogger.Warningf("No ACM certificate ARN provided and no Klutch-tagged certificate found. Skipping ACM deletion.")
+			return
+		}
+		awsLogger.Infof("Using discovered Klutch ACM certificate ARN: %s", arn)
+	}
+
+	if opts.DryRun {
+		awsLogger.Infof("Dry-run: would delete ACM certificate %s.", arn)
+		return
+	}
+
+	args := []string{"acm", "delete-certificate", "--certificate-arn", arn}
+	if opts.Region != "" {
+		args = append(args, "--region", opts.Region)
+	}
+	if _, errOut, err := runCmd(ctx, "aws", args...); err != nil {
+		awsLogger.Warningf("Failed to delete ACM certificate %s: %v\nstderr: %s", arn, err, errOut)
+	} else {
+		awsLogger.Successf("Deleted ACM certificate %s.", arn)
+	}
+}
+
+func dnsAndACMCleanup(ctx context.Context, lbTargets []string, opts DeleteOptions) {
 	_ = lbTargets
-	if opts.IncludeDNSRecords || opts.IncludeHostedZone || opts.IncludeSSLCertificate {
-		awsLogger.Warningf("DNS/ACM cleanup is not implemented in Go yet; please remove DNS records/hosted zone/ACM certificate manually or via the shell script.")
+	if !(opts.IncludeDNSRecords || opts.IncludeHostedZone || opts.IncludeSSLCertificate) {
+		return
+	}
+
+	awsLogger.Section("DNS and ACM Cleanup")
+
+	if opts.IncludeHostedZone && !opts.IncludeDNSRecords {
+		opts.IncludeDNSRecords = true
+	}
+
+	var zoneID string
+	hostedZoneName := strings.TrimSpace(opts.HostedZoneName)
+	if (opts.IncludeDNSRecords || opts.IncludeHostedZone) && hostedZoneName == "" {
+		awsLogger.Warningf("Hosted zone name not provided; skipping DNS/hosted zone cleanup.")
+	} else if hostedZoneName != "" && (opts.IncludeDNSRecords || opts.IncludeHostedZone) {
+		zoneID = findHostedZoneIDByName(ctx, hostedZoneName)
+		if zoneID == "" {
+			awsLogger.Warningf("Could not find hosted zone %s; skipping DNS/hosted zone cleanup. Ensure you provided --hosted-zone-name.", hostedZoneName)
+		}
+	}
+
+	if zoneID != "" && opts.IncludeDNSRecords {
+		deleteDNSRecords(ctx, zoneID, hostedZoneName, opts)
+	}
+
+	if zoneID != "" && opts.IncludeHostedZone {
+		deleteHostedZone(ctx, zoneID, hostedZoneName, opts)
+	}
+
+	if opts.IncludeSSLCertificate {
+		deleteACMCertificate(ctx, opts)
 	}
 }
 
