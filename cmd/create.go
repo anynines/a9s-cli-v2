@@ -111,6 +111,16 @@ var cmdCreateClusterA8s = &cobra.Command{
 
 var cmdCreateClusterKlutch = &cobra.Command{
 	Use:   "klutch",
+	Short: "Create Klutch clusters.",
+	Long:  `Create Klutch clusters on the selected provider. Currently only AWS is supported for the control plane.`,
+	Run: func(cmd *cobra.Command, args []string) {
+		makeup.PrintWarning(" " + "Please use a sub-command.")
+		cmd.Help()
+	},
+}
+
+var cmdCreateClusterKlutchControlPlane = &cobra.Command{
+	Use:   "control-plane",
 	Short: "Create the Klutch control plane cluster.",
 	Long:  `Creates the Klutch control plane cluster on the selected provider. Currently only AWS is supported.`,
 	Run: func(cmd *cobra.Command, args []string) {
@@ -238,9 +248,10 @@ func init() {
 	// create demo
 	cmdCreateCluster.PersistentFlags().StringVarP(&demo.KubernetesTool, "provider", "p", "", "provider for creating the Kubernetes cluster. Valid options are \"minikube\" and \"kind\" for local demos, as well as \"aws\" for Klutch.")
 	cmdCreateCluster.PersistentFlags().StringVarP(&demo.DemoClusterName, "cluster-name", "c", "a8s-demo", "name of the demo Kubernetes cluster.")
-	cmdCreateClusterKlutch.Flags().BoolVar(&createKlutchDryRun, "dry-run", false, "Show planned AWS resources and commands for Klutch without creating them.")
+	cmdCreateClusterKlutchControlPlane.Flags().BoolVar(&createKlutchDryRun, "dry-run", false, "Show planned AWS resources and commands for Klutch without creating them.")
 
 	cmdCreateCluster.AddCommand(cmdCreateClusterA8s)
+	cmdCreateClusterKlutch.AddCommand(cmdCreateClusterKlutchControlPlane)
 	cmdCreateCluster.AddCommand(cmdCreateClusterKlutch)
 	cmdCreateStack.AddCommand(cmdCreateStackA8s)
 	cmdCreateStack.PersistentFlags().StringVarP(&demo.DemoClusterName, "cluster-name", "c", "a8s-demo", "name of the demo Kubernetes cluster.")
