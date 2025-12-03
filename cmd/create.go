@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/anynines/a9s-cli-v2/demo"
+	"github.com/anynines/a9s-cli-v2/klutch"
 	klutchaws "github.com/anynines/a9s-cli-v2/klutch/aws"
 	"github.com/anynines/a9s-cli-v2/makeup"
 	"github.com/anynines/a9s-cli-v2/pg"
@@ -14,6 +15,11 @@ import (
 
 var createKlutchDryRun bool
 var createKlutchControlPlane = klutchaws.CreateControlPlaneCluster
+var createKlutchSkipApply bool
+var createKlutchApplyHost string
+var createKlutchApplyIngressPort int
+var createKlutchApplyACMCertificateARN string
+var createKlutchApplyHostedZone string
 
 var cmdCreate = &cobra.Command{
 	Use:   "create",
@@ -121,12 +127,33 @@ var cmdCreateClusterKlutch = &cobra.Command{
 
 var cmdCreateClusterKlutchControlPlane = &cobra.Command{
 	Use:   "control-plane",
-	Short: "Create the Klutch control plane cluster.",
-	Long:  `Creates the Klutch control plane cluster on the selected provider. Currently only AWS is supported.`,
+	Short: "Create the Klutch control plane cluster (and install it).",
+	Long: `Creates the Klutch control plane cluster on the selected provider and installs the Klutch control plane components. 
+Use --no-apply to only provision the cluster. Currently only AWS is supported.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if err := runKlutchClusterCreation(demo.KubernetesTool, createKlutchDryRun); err != nil {
 			makeup.ExitDueToFatalError(nil, err.Error())
 		}
+
+		if createKlutchDryRun {
+			makeup.PrintInfo("Skipping Klutch control plane install because --dry-run was provided.")
+			return
+		}
+
+		if createKlutchSkipApply {
+			makeup.PrintInfo("Skipping Klutch control plane install because --no-apply was provided.")
+			return
+		}
+
+		if createKlutchApplyHostedZone == "" {
+			makeup.ExitDueToFatalError(nil, "The --hosted-zone-name flag is required to install the Klutch control plane. Use --no-apply to provision only.")
+		}
+
+		if createKlutchApplyIngressPort < 1 || createKlutchApplyIngressPort > 65535 {
+			makeup.ExitDueToFatalError(nil, "Invalid ingress port. Must be between 1 and 65535.")
+		}
+
+		klutch.ApplyKlutchControlPlane(createKlutchApplyHost, createKlutchApplyIngressPort, createKlutchApplyACMCertificateARN, createKlutchApplyHostedZone)
 	},
 }
 
@@ -249,6 +276,11 @@ func init() {
 	cmdCreateCluster.PersistentFlags().StringVarP(&demo.KubernetesTool, "provider", "p", "", "provider for creating the Kubernetes cluster. Valid options are \"minikube\" and \"kind\" for local demos, as well as \"aws\" for Klutch.")
 	cmdCreateCluster.PersistentFlags().StringVarP(&demo.DemoClusterName, "cluster-name", "c", "a8s-demo", "name of the demo Kubernetes cluster.")
 	cmdCreateClusterKlutchControlPlane.Flags().BoolVar(&createKlutchDryRun, "dry-run", false, "Show planned AWS resources and commands for Klutch without creating them.")
+	cmdCreateClusterKlutchControlPlane.Flags().BoolVar(&createKlutchSkipApply, "no-apply", false, "Create the Klutch control plane cluster without installing the Klutch control plane components.")
+	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchApplyHost, "host", "", "Host (IP or DNS name) to reach the ingress when applying the control plane. Defaults to the Kubernetes API server host of the current kube context.")
+	cmdCreateClusterKlutchControlPlane.Flags().IntVar(&createKlutchApplyIngressPort, "ingress-port", 443, "Port the ingress should listen on when applying the control plane.")
+	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchApplyACMCertificateARN, "acm-certificate-arn", "", "ACM certificate ARN to enable HTTPS on the ALB ingress for Dex when applying the control plane.")
+	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchApplyHostedZone, "hosted-zone-name", "", "Route53 hosted zone name (FQDN). Required unless --no-apply is set. If provided and no ACM ARN is supplied, the CLI will request an ACM cert and create DNS validation records automatically.")
 
 	cmdCreateCluster.AddCommand(cmdCreateClusterA8s)
 	cmdCreateClusterKlutch.AddCommand(cmdCreateClusterKlutchControlPlane)

@@ -440,7 +440,16 @@ func verifyHostedZoneRequirements(provisioner CertificateProvisioner, hostedZone
 	liveNS, _ := lookupPublicNS(zone)
 	if len(liveNS) == 0 {
 		parent := parentDomain(zone)
-		makeup.ExitDueToFatalError(nil, fmt.Sprintf("Hosted zone %s is not publicly delegated. Create an NS record in parent zone %s with these values: %s", zone, parent, strings.Join(expectedNS, ", ")))
+		makeup.PrintWarning(fmt.Sprintf("Hosted zone %s is not publicly delegated.", zone))
+		if parent != "" {
+			makeup.PrintInfo(fmt.Sprintf("Create NS delegation records in parent zone %s (zone file format):", parent))
+		} else {
+			makeup.PrintInfo("Add the following NS delegation records (zone file format):")
+		}
+		for _, ns := range expectedNS {
+			makeup.Print(fmt.Sprintf("%s\t300\tIN\tNS\t%s", ensureTrailingDot(zone), ensureTrailingDot(ns)))
+		}
+		makeup.ExitDueToFatalError(nil, fmt.Sprintf("DNS delegation for %s is missing. Add the NS records above and rerun.", zone))
 	}
 
 	// If there is delegation but it doesn't match Route53 NS, warn with instructions.

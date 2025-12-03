@@ -227,6 +227,10 @@ func summarizeDeploymentPods(ctx context.Context, clientset *kubernetes.Clientse
 	if err != nil {
 		return nil, "", err
 	}
+	// Deployments use RestartPolicyAlways, so containers may legitimately restart a few times
+	// (e.g. CrashLoopBackOff) before stabilizing. Treat terminations as fatal only for pods
+	// that will not be restarted.
+	alwaysRestart := dep.Spec.Template.Spec.RestartPolicy == "" || dep.Spec.Template.Spec.RestartPolicy == v1.RestartPolicyAlways
 
 	selector, err := metav1.LabelSelectorAsSelector(dep.Spec.Selector)
 	if err != nil {
@@ -261,7 +265,7 @@ func summarizeDeploymentPods(ctx context.Context, clientset *kubernetes.Clientse
 				}
 			} else if cs.State.Terminated != nil {
 				statuses = append(statuses, fmt.Sprintf("%s terminated %s (%s) ready %d/%d", pod.Name, cs.State.Terminated.Reason, cs.State.Terminated.Message, ready, total))
-				if fatal == "" && cs.State.Terminated.ExitCode != 0 {
+				if fatal == "" && cs.State.Terminated.ExitCode != 0 && !alwaysRestart {
 					fatal = fmt.Sprintf("pod %s terminated: %s (%s) exitCode=%d", pod.Name, cs.State.Terminated.Reason, cs.State.Terminated.Message, cs.State.Terminated.ExitCode)
 				}
 			}
