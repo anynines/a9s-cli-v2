@@ -23,7 +23,7 @@ func TestRunKlutchClusterCreationCallsAWS(t *testing.T) {
 		gotOpts = opts
 	}
 
-	if err := runKlutchClusterCreation("aws", true); err != nil {
+	if err := runKlutchClusterCreation("aws", klutchaws.CreateOptions{DryRun: true}); err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
@@ -46,7 +46,7 @@ func TestRunKlutchClusterCreationTrimsAndLowercases(t *testing.T) {
 		called = true
 	}
 
-	if err := runKlutchClusterCreation("  AWS  ", false); err != nil {
+	if err := runKlutchClusterCreation("  AWS  ", klutchaws.CreateOptions{}); err != nil {
 		t.Fatalf("expected provider parsing to succeed, got %v", err)
 	}
 
@@ -56,7 +56,7 @@ func TestRunKlutchClusterCreationTrimsAndLowercases(t *testing.T) {
 }
 
 func TestRunKlutchClusterCreationRequiresProvider(t *testing.T) {
-	if err := runKlutchClusterCreation("", false); err == nil {
+	if err := runKlutchClusterCreation("", klutchaws.CreateOptions{}); err == nil {
 		t.Fatalf("expected error when provider not set")
 	} else if !strings.Contains(err.Error(), "provider") {
 		t.Fatalf("unexpected error message: %v", err)
@@ -64,9 +64,27 @@ func TestRunKlutchClusterCreationRequiresProvider(t *testing.T) {
 }
 
 func TestRunKlutchClusterCreationRejectsUnsupportedProvider(t *testing.T) {
-	if err := runKlutchClusterCreation("minikube", false); err == nil {
+	if err := runKlutchClusterCreation("minikube", klutchaws.CreateOptions{}); err == nil {
 		t.Fatalf("expected error for unsupported provider")
 	} else if !strings.Contains(err.Error(), "only supports") {
 		t.Fatalf("unexpected error message: %v", err)
+	}
+}
+
+func TestRunKlutchClusterCreationWithCustomCreator(t *testing.T) {
+	opts := klutchaws.CreateOptions{ClusterName: "demo-workload"}
+	called := false
+
+	err := runKlutchClusterCreationWith("aws", opts, func(ctx context.Context, got klutchaws.CreateOptions) {
+		called = true
+		if got.ClusterName != opts.ClusterName {
+			t.Fatalf("expected ClusterName %q, got %q", opts.ClusterName, got.ClusterName)
+		}
+	})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if !called {
+		t.Fatalf("expected custom creator to be invoked")
 	}
 }

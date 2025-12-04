@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"context"
+	"fmt"
+	"os"
 	"strings"
 
 	"github.com/anynines/a9s-cli-v2/demo"
@@ -98,39 +100,86 @@ var cmdDeleteKlutchControlPlane = &cobra.Command{
 	},
 }
 
+func runKlutchClusterDeletion(provider string, opts klutchaws.DeleteOptions, deleter func(context.Context, klutchaws.DeleteOptions)) error {
+	provider = strings.ToLower(strings.TrimSpace(provider))
+	if provider == "" {
+		return fmt.Errorf("Please select a provider via -p. Supported provider for Klutch cluster deletion is \"aws\".")
+	}
+
+	if provider != "aws" {
+		return fmt.Errorf("The Klutch cluster deletion currently only supports the \"aws\" provider.")
+	}
+
+	deleter(context.Background(), opts)
+	return nil
+}
+
 var cmdDeleteClusterKlutch = &cobra.Command{
 	Use:   "klutch",
 	Short: "Delete the Klutch control plane cluster (AWS).",
 	Long:  `Deletes the Klutch control plane EKS cluster and tagged AWS infrastructure (VPC, subnets, NAT, ALB, IAM). Optional flags can also remove Klutch Route53 DNS/hosted zone and ACM certificate.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		provider := strings.ToLower(strings.TrimSpace(demo.KubernetesTool))
-		if provider == "" {
-			makeup.ExitDueToFatalError(nil, "Please select a provider via -p. Supported provider for Klutch cluster deletion is \"aws\".")
-		}
-
-		if provider != "aws" {
-			makeup.ExitDueToFatalError(nil, "The Klutch cluster deletion currently only supports the \"aws\" provider.")
-		}
-
 		if (deleteKlutchCleanupDNSACM || deleteKlutchDeleteDNSZone) && strings.TrimSpace(deleteKlutchHostedZoneName) == "" {
 			makeup.ExitDueToFatalError(nil, "Hosted zone name is required when using --cleanup-dns-acm or --delete-dns-zone.")
 		}
 
-		klutchaws.DeleteControlPlaneCluster(context.Background(), klutchaws.DeleteOptions{
+		opts := klutchaws.DeleteOptions{
 			DryRun:                deleteKlutchDryRun,
 			IncludeDNSRecords:     deleteKlutchCleanupDNSACM || deleteKlutchDeleteDNSZone,
 			IncludeHostedZone:     deleteKlutchCleanupDNSACM || deleteKlutchDeleteDNSZone,
 			IncludeSSLCertificate: deleteKlutchCleanupDNSACM || deleteKlutchDeleteACMCertificate,
 			HostedZoneName:        deleteKlutchHostedZoneName,
 			ACMCertificateARN:     deleteKlutchACMCertificateARN,
-		})
+		}
+
+		if cmd.Flags().Changed("cluster-name") {
+			opts.ClusterName = strings.TrimSpace(demo.DemoClusterName)
+		}
+
+		if err := runKlutchClusterDeletion(demo.KubernetesTool, opts, klutchaws.DeleteControlPlaneCluster); err != nil {
+			makeup.ExitDueToFatalError(nil, err.Error())
+		}
+	},
+}
+
+var cmdDeleteClusterKlutchWorkload = &cobra.Command{
+	Use:   "workload",
+	Short: "Delete the Klutch workload cluster (AWS).",
+	Long:  `Deletes the Klutch workload EKS cluster and tagged AWS infrastructure (VPC, subnets, NAT, ALB, IAM).`,
+	Run: func(cmd *cobra.Command, args []string) {
+		if (deleteKlutchCleanupDNSACM || deleteKlutchDeleteDNSZone) && strings.TrimSpace(deleteKlutchHostedZoneName) == "" {
+			makeup.ExitDueToFatalError(nil, "Hosted zone name is required when using --cleanup-dns-acm or --delete-dns-zone.")
+		}
+
+		opts := klutchaws.DeleteOptions{
+			DryRun:                deleteKlutchDryRun,
+			IncludeDNSRecords:     deleteKlutchCleanupDNSACM || deleteKlutchDeleteDNSZone,
+			IncludeHostedZone:     deleteKlutchCleanupDNSACM || deleteKlutchDeleteDNSZone,
+			IncludeSSLCertificate: deleteKlutchCleanupDNSACM || deleteKlutchDeleteACMCertificate,
+			HostedZoneName:        deleteKlutchHostedZoneName,
+			ACMCertificateARN:     deleteKlutchACMCertificateARN,
+		}
+
+		if cmd.Flags().Changed("cluster-name") {
+			opts.ClusterName = strings.TrimSpace(demo.DemoClusterName)
+		} else if envName := strings.TrimSpace(os.Getenv("WORKLOAD_CLUSTER_NAME")); envName != "" {
+			opts.ClusterName = envName
+		}
+
+		if strings.TrimSpace(opts.ClusterName) == "" {
+			makeup.ExitDueToFatalError(nil, "Please provide --cluster-name or set WORKLOAD_CLUSTER_NAME to delete a Klutch workload cluster.")
+		}
+
+		if err := runKlutchClusterDeletion(demo.KubernetesTool, opts, klutchaws.DeleteWorkloadCluster); err != nil {
+			makeup.ExitDueToFatalError(nil, err.Error())
+		}
 	},
 }
 
 func init() {
 
 	cmdDeletePGInstance.PersistentFlags().StringVar(&ServiceInstanceName, "name", "a8s-pg-instance", "name of the pg service instance to be deleted.")
-	   cmdDeletePGInstance.PersistentFlags().StringVarP(&Namespace, "namespace", "n", "default", "namespace of the pg service instance to be deleted.")
+	cmdDeletePGInstance.PersistentFlags().StringVarP(&Namespace, "namespace", "n", "default", "namespace of the pg service instance to be deleted.")
 	cmdDeletePG.AddCommand(cmdDeletePGInstance)
 	cmdDelete.AddCommand(cmdDeletePG)
 	cmdDelete.AddCommand(cmdDeleteDemo)
@@ -138,7 +187,6 @@ func init() {
 	// Service Bindings
 	cmdDeletePG.PersistentFlags().StringVar(&demo.A8sPGServiceBinding.Name, "name", "example-pg-1", "name of the PG service binding. NOT the name of the PG service instance.")
 
-	
 	cmdDeletePG.AddCommand(cmdDeletePGBinding)
 
 	cmdDeleteDemo.PersistentFlags().StringVarP(&demo.KubernetesTool, "provider", "p", "", "provider for the Kubernetes cluster. Valid options are \"minikube\", \"kind\", and \"aws\" (for Klutch).")
@@ -148,11 +196,17 @@ func init() {
 	cmdDeleteClusterKlutch.Flags().BoolVar(&deleteKlutchDeleteACMCertificate, "delete-acm-certificate", false, "Delete Klutch ACM certificate.")
 	cmdDeleteClusterKlutch.Flags().StringVar(&deleteKlutchHostedZoneName, "hosted-zone-name", "", "Hosted zone name to clean up when using DNS deletion flags.")
 	cmdDeleteClusterKlutch.Flags().StringVar(&deleteKlutchACMCertificateARN, "acm-certificate-arn", "", "ACM certificate ARN to delete (falls back to discovering a tagged Klutch certificate).")
+	cmdDeleteClusterKlutchWorkload.Flags().BoolVar(&deleteKlutchCleanupDNSACM, "cleanup-dns-acm", false, "Delete Klutch Route53 DNS records/hosted zone and ACM certificate (opt-in; destructive).")
+	cmdDeleteClusterKlutchWorkload.Flags().BoolVar(&deleteKlutchDeleteDNSZone, "delete-dns-zone", false, "Delete Klutch Route53 hosted zone (and its records).")
+	cmdDeleteClusterKlutchWorkload.Flags().BoolVar(&deleteKlutchDeleteACMCertificate, "delete-acm-certificate", false, "Delete Klutch ACM certificate.")
+	cmdDeleteClusterKlutchWorkload.Flags().StringVar(&deleteKlutchHostedZoneName, "hosted-zone-name", "", "Hosted zone name to clean up when using DNS deletion flags.")
+	cmdDeleteClusterKlutchWorkload.Flags().StringVar(&deleteKlutchACMCertificateARN, "acm-certificate-arn", "", "ACM certificate ARN to delete (falls back to discovering a tagged Klutch certificate).")
 	cmdDeleteDemo.PersistentFlags().StringVarP(&demo.DemoClusterName, "cluster-name", "c", "a8s-demo", "name of the demo Kubernetes cluster.")
 	cmdDeleteDemo.PersistentFlags().BoolVarP(&demo.UnattendedMode, "yes", "y", false, "skip yes-no questions by answering with \"yes\".")
 
 	cmdDeleteDemo.AddCommand(cmdDeleteDemoA8s)
 	cmdDeleteDemo.AddCommand(cmdDeleteClusterKlutch)
+	cmdDeleteClusterKlutch.AddCommand(cmdDeleteClusterKlutchWorkload)
 	cmdDelete.AddCommand(cmdDeleteKlutchControlPlane)
 	rootCmd.AddCommand(cmdDelete)
 }

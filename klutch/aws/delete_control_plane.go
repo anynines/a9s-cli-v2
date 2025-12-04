@@ -30,7 +30,18 @@ type DeleteOptions struct {
 // DeleteControlPlaneCluster tears down the EKS control plane and AWS resources that were created by CreateControlPlaneCluster.
 // It mirrors the flow of 70-delete-eks-control-plane-cluster.sh with safe defaults (DNS/ACM are opt-in).
 func DeleteControlPlaneCluster(ctx context.Context, opts DeleteOptions) {
-	cfg := defaultConfig()
+	deleteCluster(ctx, defaultConfig(), opts)
+}
+
+// DeleteWorkloadCluster deletes a Klutch workload EKS cluster and its AWS resources.
+func DeleteWorkloadCluster(ctx context.Context, opts DeleteOptions) {
+	deleteCluster(ctx, workloadConfig(opts.ClusterName), opts)
+}
+
+func deleteCluster(ctx context.Context, cfg Config, opts DeleteOptions) {
+	restore := setKlutchContext(cfg)
+	defer restore()
+
 	if opts.Region != "" {
 		cfg.Region = opts.Region
 	}
@@ -51,7 +62,7 @@ func DeleteControlPlaneCluster(ctx context.Context, opts DeleteOptions) {
 		opts.IncludeDNSRecords = true
 	}
 
-	awsLogger.Section("Klutch Control Plane Deletion (AWS)")
+	awsLogger.Section(fmt.Sprintf("Klutch %s Deletion (AWS)", cfg.ClusterRole))
 	if opts.DryRun {
 		awsLogger.Infof("Dry-run enabled: no changes will be made. Showing planned actions and resources.")
 	}
@@ -59,7 +70,7 @@ func DeleteControlPlaneCluster(ctx context.Context, opts DeleteOptions) {
 	awsLogger.Printf("EKS Cluster Name:                 %s", cfg.ClusterName)
 	awsLogger.Printf("EKS Nodegroup Name:               %s", cfg.NodegroupName)
 	awsLogger.Printf("ALB Controller IAM Policy Name:   %s", cfg.ALBControllerPolicyName)
-	awsLogger.Printf("Control Plane Security Group Name:%s", cfg.ControlPlaneSGName)
+	awsLogger.Printf("Cluster Security Group Name:      %s", cfg.ControlPlaneSGName)
 	awsLogger.Printf("Hosted Zone Name:                 %s", defaultString(opts.HostedZoneName, "<not set>"))
 	awsLogger.Printf("Include DNS Records:              %t", opts.IncludeDNSRecords)
 	awsLogger.Printf("Include Hosted Zone:              %t", opts.IncludeHostedZone)
@@ -69,7 +80,8 @@ func DeleteControlPlaneCluster(ctx context.Context, opts DeleteOptions) {
 	awsLogger.Printf("Force DNS:                        %t", opts.ForceDNS)
 
 	if !opts.DryRun {
-		if !makeup.ConfirmYes("This will delete the Klutch Control Plane on AWS. Type 'yes' to continue: ") {
+		prompt := fmt.Sprintf("This will delete the Klutch %s on AWS. Type 'yes' to continue: ", strings.ToLower(cfg.ClusterRole))
+		if !makeup.ConfirmYes(prompt) {
 			makeup.PrintInfo("Deletion aborted.")
 			return
 		}
@@ -285,7 +297,7 @@ func deleteNodegroupsAndCluster(ctx context.Context, cfg Config, opts DeleteOpti
 func findKlutchVPC(ctx context.Context) string {
 	awsLogger.Section("Discover Klutch VPC")
 	vpcID, errOut, err := runCmd(ctx, "aws", "ec2", "describe-vpcs",
-		"--filters", "Name=tag:Klutch,Values=ControlPlane",
+		"--filters", fmt.Sprintf("Name=tag:%s,Values=%s", klutchTagKey, klutchTagValue),
 		"--query", "Vpcs[0].VpcId", "--output", "text")
 	if err != nil || vpcID == "" || vpcID == "None" {
 		awsLogger.Infof("No Klutch VPC found (stderr: %s)", errOut)

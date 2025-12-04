@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/anynines/a9s-cli-v2/demo"
@@ -15,6 +16,7 @@ import (
 
 var createKlutchDryRun bool
 var createKlutchControlPlane = klutchaws.CreateControlPlaneCluster
+var createKlutchWorkload = klutchaws.CreateWorkloadCluster
 var createKlutchSkipApply bool
 var createKlutchApplyHost string
 var createKlutchApplyIngressPort int
@@ -131,7 +133,12 @@ var cmdCreateClusterKlutchControlPlane = &cobra.Command{
 	Long: `Creates the Klutch control plane cluster on the selected provider and installs the Klutch control plane components. 
 Use --no-apply to only provision the cluster. Currently only AWS is supported.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		if err := runKlutchClusterCreation(demo.KubernetesTool, createKlutchDryRun); err != nil {
+		options := klutchaws.CreateOptions{DryRun: createKlutchDryRun}
+		if cmd.Flags().Changed("cluster-name") {
+			options.ClusterName = strings.TrimSpace(demo.DemoClusterName)
+		}
+
+		if err := runKlutchClusterCreation(demo.KubernetesTool, options); err != nil {
 			makeup.ExitDueToFatalError(nil, err.Error())
 		}
 
@@ -157,7 +164,33 @@ Use --no-apply to only provision the cluster. Currently only AWS is supported.`,
 	},
 }
 
-func runKlutchClusterCreation(provider string, dryRun bool) error {
+var cmdCreateClusterKlutchWorkload = &cobra.Command{
+	Use:   "workload",
+	Short: "Create a Klutch workload cluster (EKS).",
+	Long:  `Creates a Klutch workload cluster on the selected provider. Currently only AWS is supported.`,
+	Run: func(cmd *cobra.Command, args []string) {
+		opts := klutchaws.CreateOptions{DryRun: createKlutchDryRun}
+
+		if cmd.Flags().Changed("cluster-name") {
+			opts.ClusterName = strings.TrimSpace(demo.DemoClusterName)
+		} else if envName := strings.TrimSpace(os.Getenv("WORKLOAD_CLUSTER_NAME")); envName != "" {
+			opts.ClusterName = envName
+		} else {
+			opts.ClusterName = klutchaws.RandomWorkloadClusterName()
+			makeup.PrintInfo(fmt.Sprintf("Generated workload cluster name: %s", opts.ClusterName))
+		}
+
+		if err := runKlutchClusterCreationWith(demo.KubernetesTool, opts, createKlutchWorkload); err != nil {
+			makeup.ExitDueToFatalError(nil, err.Error())
+		}
+	},
+}
+
+func runKlutchClusterCreation(provider string, opts klutchaws.CreateOptions) error {
+	return runKlutchClusterCreationWith(provider, opts, createKlutchControlPlane)
+}
+
+func runKlutchClusterCreationWith(provider string, opts klutchaws.CreateOptions, creator func(context.Context, klutchaws.CreateOptions)) error {
 	provider = strings.ToLower(strings.TrimSpace(provider))
 	if provider == "" {
 		return fmt.Errorf("Please select a provider via -p. Supported provider for Klutch cluster creation is \"aws\".")
@@ -167,7 +200,7 @@ func runKlutchClusterCreation(provider string, dryRun bool) error {
 		return fmt.Errorf("The Klutch cluster creation currently only supports the \"aws\" provider.")
 	}
 
-	createKlutchControlPlane(context.Background(), klutchaws.CreateOptions{DryRun: dryRun})
+	creator(context.Background(), opts)
 	return nil
 }
 
@@ -276,6 +309,7 @@ func init() {
 	cmdCreateCluster.PersistentFlags().StringVarP(&demo.KubernetesTool, "provider", "p", "", "provider for creating the Kubernetes cluster. Valid options are \"minikube\" and \"kind\" for local demos, as well as \"aws\" for Klutch.")
 	cmdCreateCluster.PersistentFlags().StringVarP(&demo.DemoClusterName, "cluster-name", "c", "a8s-demo", "name of the demo Kubernetes cluster.")
 	cmdCreateClusterKlutchControlPlane.Flags().BoolVar(&createKlutchDryRun, "dry-run", false, "Show planned AWS resources and commands for Klutch without creating them.")
+	cmdCreateClusterKlutchWorkload.Flags().BoolVar(&createKlutchDryRun, "dry-run", false, "Show planned AWS resources and commands for Klutch without creating them.")
 	cmdCreateClusterKlutchControlPlane.Flags().BoolVar(&createKlutchSkipApply, "no-apply", false, "Create the Klutch control plane cluster without installing the Klutch control plane components.")
 	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchApplyHost, "host", "", "Host (IP or DNS name) to reach the ingress when applying the control plane. Defaults to the Kubernetes API server host of the current kube context.")
 	cmdCreateClusterKlutchControlPlane.Flags().IntVar(&createKlutchApplyIngressPort, "ingress-port", 443, "Port the ingress should listen on when applying the control plane.")
@@ -284,6 +318,7 @@ func init() {
 
 	cmdCreateCluster.AddCommand(cmdCreateClusterA8s)
 	cmdCreateClusterKlutch.AddCommand(cmdCreateClusterKlutchControlPlane)
+	cmdCreateClusterKlutch.AddCommand(cmdCreateClusterKlutchWorkload)
 	cmdCreateCluster.AddCommand(cmdCreateClusterKlutch)
 	cmdCreateStack.AddCommand(cmdCreateStackA8s)
 	cmdCreateStack.PersistentFlags().StringVarP(&demo.DemoClusterName, "cluster-name", "c", "a8s-demo", "name of the demo Kubernetes cluster.")
