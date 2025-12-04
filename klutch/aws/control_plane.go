@@ -772,6 +772,7 @@ func ensureNATs(ctx context.Context, vpcID, pubA, pubB, pubC string) (string, st
 			newNATs = append(newNATs, natID)
 		} else {
 			awsLogger.Successf("Reusing NAT Gateway: %s", natID)
+			tagExistingNatResources(ctx, natID, label)
 		}
 		return natID
 	}
@@ -787,6 +788,25 @@ func ensureNATs(ctx context.Context, vpcID, pubA, pubB, pubC string) (string, st
 	}
 	awsLogger.Printf("NAT Gateways: %s, %s, %s", natA, natB, natC)
 	return natA, natB, natC
+}
+
+func tagExistingNatResources(ctx context.Context, natID, label string) {
+	tagEC2Resource(ctx, natID, resourceName("nat-gateway", label))
+	allocs, errOut, err := runCmd(ctx, "aws", "ec2", "describe-nat-gateways",
+		"--nat-gateway-ids", natID,
+		"--query", "NatGateways[].NatGatewayAddresses[].AllocationId",
+		"--output", "text")
+	if err != nil {
+		awsLogger.Warningf("Failed to describe NAT Gateway %s for tagging: %v\nstderr: %s", natID, err, errOut)
+		return
+	}
+	allocs = strings.TrimSpace(allocs)
+	if allocs == "" || allocs == "None" || allocs == "null" {
+		return
+	}
+	for _, alloc := range strings.Fields(allocs) {
+		tagEC2Resource(ctx, alloc, resourceName("nat-eip", label))
+	}
 }
 
 func ensurePrivateRT(ctx context.Context, vpcID, privSubnet, natID, name string) string {
