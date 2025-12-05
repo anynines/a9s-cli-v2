@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"github.com/anynines/a9s-cli-v2/demo"
 	"github.com/anynines/a9s-cli-v2/klutch"
 	"github.com/anynines/a9s-cli-v2/makeup"
 	"github.com/spf13/cobra"
@@ -11,6 +12,11 @@ var (
 	applyKlutchControlPlanePort       int
 	applyKlutchControlPlaneACMCertARN string
 	applyKlutchControlPlaneHostedZone string
+	applyKlutchOIDCProvider           string
+	applyKlutchOIDCIssuerURL          string
+	applyKlutchOIDCClientID           string
+	applyKlutchOIDCClientSecret       string
+	applyKlutchOIDCCallbackURL        string
 )
 
 var applyCmd = &cobra.Command{
@@ -49,6 +55,14 @@ var applyKlutchControlPlaneCmd = &cobra.Command{
 			makeup.ExitDueToFatalError(nil, "The --hosted-zone-name flag is required until self-signed certificates are supported.")
 		}
 
+		klutch.SetControlPlaneOIDCOptions(klutch.OIDCOptions{
+			Provider:     klutch.OIDCProvider(applyKlutchOIDCProvider),
+			IssuerURL:    applyKlutchOIDCIssuerURL,
+			ClientID:     applyKlutchOIDCClientID,
+			ClientSecret: applyKlutchOIDCClientSecret,
+			CallbackURL:  applyKlutchOIDCCallbackURL,
+		})
+
 		klutch.ApplyKlutchControlPlane(applyKlutchControlPlaneHost, applyKlutchControlPlanePort, applyKlutchControlPlaneACMCertARN, applyKlutchControlPlaneHostedZone)
 	},
 }
@@ -56,8 +70,14 @@ var applyKlutchControlPlaneCmd = &cobra.Command{
 func init() {
 	applyKlutchControlPlaneCmd.Flags().StringVar(&applyKlutchControlPlaneHost, "host", "", "Host (IP or DNS name) to reach the ingress. Defaults to the Kubernetes API server host of the current kube context.")
 	applyKlutchControlPlaneCmd.Flags().IntVar(&applyKlutchControlPlanePort, "ingress-port", 443, "Port the ingress should listen on.")
-	applyKlutchControlPlaneCmd.Flags().StringVar(&applyKlutchControlPlaneACMCertARN, "acm-certificate-arn", "", "ACM certificate ARN to enable HTTPS on the ALB ingress for Dex.")
+	applyKlutchControlPlaneCmd.Flags().StringVar(&applyKlutchControlPlaneACMCertARN, "acm-certificate-arn", "", "ACM certificate ARN to enable HTTPS on the ALB ingress for the control plane.")
 	applyKlutchControlPlaneCmd.Flags().StringVar(&applyKlutchControlPlaneHostedZone, "hosted-zone-name", "", "Route53 hosted zone name (FQDN). Required until self-signed certificates are supported. If provided and no ACM ARN is supplied, the CLI will request an ACM cert and create DNS validation records automatically.")
+	applyKlutchControlPlaneCmd.Flags().StringVar(&applyKlutchOIDCProvider, "oidc-provider", "", "OIDC provider to use for the Klutch control plane. Defaults to cognito when --provider=aws, otherwise dex.")
+	applyKlutchControlPlaneCmd.Flags().StringVar(&applyKlutchOIDCIssuerURL, "oidc-issuer-url", "", "OIDC issuer URL (required for oidc-provider=cognito).")
+	applyKlutchControlPlaneCmd.Flags().StringVar(&applyKlutchOIDCClientID, "oidc-client-id", "", "OIDC client ID (required for oidc-provider=cognito).")
+	applyKlutchControlPlaneCmd.Flags().StringVar(&applyKlutchOIDCClientSecret, "oidc-client-secret", "", "OIDC client secret (required for oidc-provider=cognito).")
+	applyKlutchControlPlaneCmd.Flags().StringVar(&applyKlutchOIDCCallbackURL, "oidc-callback-url", "", "OIDC callback URL to configure on the backend. Defaults to https://<host>/callback when not provided.")
+	applyKlutchControlPlaneCmd.Flags().StringVarP(&demo.KubernetesTool, "provider", "p", "", "provider for the Kubernetes cluster. Valid options are \"minikube\", \"kind\", and \"aws\" (for Klutch).")
 
 	applyKlutchCmd.AddCommand(applyKlutchControlPlaneCmd)
 	applyCmd.AddCommand(applyKlutchCmd)

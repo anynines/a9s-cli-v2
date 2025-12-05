@@ -22,6 +22,11 @@ var createKlutchApplyHost string
 var createKlutchApplyIngressPort int
 var createKlutchApplyACMCertificateARN string
 var createKlutchApplyHostedZone string
+var createKlutchOIDCProvider string
+var createKlutchOIDCIssuerURL string
+var createKlutchOIDCClientID string
+var createKlutchOIDCClientSecret string
+var createKlutchOIDCCallbackURL string
 
 var cmdCreate = &cobra.Command{
 	Use:   "create",
@@ -159,6 +164,14 @@ Use --no-apply to only provision the cluster. Currently only AWS is supported.`,
 		if createKlutchApplyIngressPort < 1 || createKlutchApplyIngressPort > 65535 {
 			makeup.ExitDueToFatalError(nil, "Invalid ingress port. Must be between 1 and 65535.")
 		}
+
+		klutch.SetControlPlaneOIDCOptions(klutch.OIDCOptions{
+			Provider:     klutch.OIDCProvider(createKlutchOIDCProvider),
+			IssuerURL:    createKlutchOIDCIssuerURL,
+			ClientID:     createKlutchOIDCClientID,
+			ClientSecret: createKlutchOIDCClientSecret,
+			CallbackURL:  createKlutchOIDCCallbackURL,
+		})
 
 		klutch.ApplyKlutchControlPlane(createKlutchApplyHost, createKlutchApplyIngressPort, createKlutchApplyACMCertificateARN, createKlutchApplyHostedZone)
 	},
@@ -313,8 +326,13 @@ func init() {
 	cmdCreateClusterKlutchControlPlane.Flags().BoolVar(&createKlutchSkipApply, "no-apply", false, "Create the Klutch control plane cluster without installing the Klutch control plane components.")
 	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchApplyHost, "host", "", "Host (IP or DNS name) to reach the ingress when applying the control plane. Defaults to the Kubernetes API server host of the current kube context.")
 	cmdCreateClusterKlutchControlPlane.Flags().IntVar(&createKlutchApplyIngressPort, "ingress-port", 443, "Port the ingress should listen on when applying the control plane.")
-	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchApplyACMCertificateARN, "acm-certificate-arn", "", "ACM certificate ARN to enable HTTPS on the ALB ingress for Dex when applying the control plane.")
+	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchApplyACMCertificateARN, "acm-certificate-arn", "", "ACM certificate ARN to enable HTTPS on the ALB ingress when applying the control plane.")
 	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchApplyHostedZone, "hosted-zone-name", "", "Route53 hosted zone name (FQDN). Required unless --no-apply is set. If provided and no ACM ARN is supplied, the CLI will request an ACM cert and create DNS validation records automatically.")
+	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchOIDCProvider, "oidc-provider", "", "OIDC provider to use for the Klutch control plane. Defaults to cognito when --provider=aws, otherwise dex.")
+	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchOIDCIssuerURL, "oidc-issuer-url", "", "OIDC issuer URL (required for oidc-provider=cognito).")
+	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchOIDCClientID, "oidc-client-id", "", "OIDC client ID (required for oidc-provider=cognito).")
+	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchOIDCClientSecret, "oidc-client-secret", "", "OIDC client secret (required for oidc-provider=cognito).")
+	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchOIDCCallbackURL, "oidc-callback-url", "", "OIDC callback URL to configure on the backend. Defaults to https://<host>/callback when not provided.")
 
 	cmdCreateCluster.AddCommand(cmdCreateClusterA8s)
 	cmdCreateClusterKlutch.AddCommand(cmdCreateClusterKlutchControlPlane)

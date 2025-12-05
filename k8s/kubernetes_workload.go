@@ -163,6 +163,7 @@ func (k *KubeClient) KubectlWaitForRollout(kind string, name string, namespace s
 	defer cancel()
 
 	lastLog := time.Time{}
+	progressDeadlineLogged := false
 
 	for {
 		select {
@@ -195,12 +196,11 @@ func (k *KubeClient) KubectlWaitForRollout(kind string, name string, namespace s
 
 			for _, cond := range dep.Status.Conditions {
 				if cond.Type == appsv1.DeploymentProgressing && cond.Status == v1.ConditionFalse && cond.Reason == "ProgressDeadlineExceeded" {
-					statuses, fatal, _ := summarizeDeploymentPods(ctx, clientset, name, namespace)
-					msg := fmt.Sprintf("Deployment %s/%s exceeded its progress deadline. Pod states: %s", namespace, name, strings.Join(statuses, "; "))
-					if fatal != "" {
-						msg = fmt.Sprintf("%s. Example failure: %s", msg, fatal)
+					if !progressDeadlineLogged {
+						statuses, _, _ := summarizeDeploymentPods(ctx, clientset, name, namespace)
+						makeup.PrintWarning(fmt.Sprintf("Deployment %s/%s reported ProgressDeadlineExceeded; continuing to wait. Pod states: %s", namespace, name, strings.Join(statuses, "; ")))
+						progressDeadlineLogged = true
 					}
-					makeup.ExitDueToFatalError(nil, msg)
 				}
 			}
 

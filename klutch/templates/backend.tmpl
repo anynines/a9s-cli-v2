@@ -18,6 +18,7 @@ spec:
         app: anynines-backend
     spec:
       serviceAccountName: anynines-backend
+{{- if .WaitForDex }}
       initContainers:
       - name: wait-for-dex
         image: curlimages/curl:8.9.1
@@ -29,6 +30,7 @@ spec:
               echo "Waiting for dex";
               sleep 5;
             done
+{{- end }}
       containers:
       - name: anynines-backend
         image: public.ecr.aws/w5n9a2g2/anynines/kubebind-backend:v1.4.1

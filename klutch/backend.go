@@ -32,10 +32,11 @@ type backendTemplateVars struct {
 	ACMCertificateARN   string
 	EnableTLS           bool
 	ServiceType         string
+	WaitForDex          bool
 }
 
-// Deploys dex and the klutch-bind backend.
-func (k *KlutchManager) DeployBindBackend(host string, ingressPort string, ingressClass string, scheme string, acmCertificateARN string, enableTLS bool) {
+// Deploys dex (if required by OIDC provider) and the klutch-bind backend.
+func (k *KlutchManager) DeployBindBackend(host string, ingressPort string, ingressClass string, scheme string, acmCertificateARN string, enableTLS bool, waitForDex bool) {
 	makeup.PrintH1("Deploying the klutch-bind backend...")
 
 	makeup.PrintH2("Applying the klutch-bind backend CRDs...")
@@ -64,6 +65,7 @@ func (k *KlutchManager) DeployBindBackend(host string, ingressPort string, ingre
 		Scheme:              scheme,
 		ACMCertificateARN:   acmCertificateARN,
 		EnableTLS:           enableTLS,
+		WaitForDex:          waitForDex,
 	}
 
 	if ingressClass == "alb" {

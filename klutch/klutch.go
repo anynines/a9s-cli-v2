@@ -5,6 +5,7 @@ import (
 	_ "embed"
 	"fmt"
 	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/anynines/a9s-cli-v2/demo"
 	"github.com/anynines/a9s-cli-v2/k8s"
+	klutchaws "github.com/anynines/a9s-cli-v2/klutch/aws"
 	"github.com/anynines/a9s-cli-v2/makeup"
 	prereq "github.com/anynines/a9s-cli-v2/prerequisites"
 	"gopkg.in/yaml.v2"
@@ -124,6 +126,16 @@ func ApplyKlutchControlPlane(host string, ingressPort int, acmCertificateARN str
 		backendHost = fmt.Sprintf("klutch-bind.%s", baseDomain)
 	}
 
+	if controlPlaneOIDCOptions.Provider == "" {
+		controlPlaneOIDCOptions.Provider = defaultOIDCProvider(demo.KubernetesTool)
+	}
+	controlPlaneOIDCOptions = controlPlaneOIDCOptions.normalize()
+	useDex := controlPlaneOIDCOptions.Provider != OIDCProviderCognito
+	if !useDex {
+		dexHost = ""
+	}
+	makeup.PrintInfo(fmt.Sprintf("Using OIDC provider: %s", controlPlaneOIDCOptions.Provider))
+
 	var provisioner CertificateProvisioner
 	if hostedZoneName != "" {
 		provisioner = NewCertificateProvisioner("")
@@ -183,7 +195,7 @@ func (k *KlutchManager) deployControlPlaneCluster() {
 	k.DeployDex(hostIP, port, ingressClass, scheme, "")
 	k.WaitForDex()
 
-	k.DeployBindBackend(hostIP, port, ingressClass, scheme, "", false)
+	k.DeployBindBackend(hostIP, port, ingressClass, scheme, "", false, true)
 	k.WaitForBindBackend(hostIP, port, scheme)
 
 	k.DeployCrossplaneComponents()
@@ -206,7 +218,7 @@ func printSummary() {
 	makeup.PrintH1("Summary")
 	makeup.Print("You've successfully accomplished the followings steps:")
 	makeup.PrintCheckmark("Deployed a Klutch Control Plane Cluster with Kind.")
-	makeup.PrintCheckmark("Deployed Dex Idp and the anynines klutch-bind backend.")
+	makeup.PrintCheckmark("Configured OIDC and deployed the anynines klutch-bind backend.")
 	makeup.PrintCheckmark("Deployed Crossplane and the Kubernetes provider.")
 	makeup.PrintCheckmark("Deployed the Klutch Crossplane configuration package.")
 	makeup.PrintCheckmark("Deployed Klutch API Service Export Templates to make the Klutch Crossplane APIs available to App Clusters.")
@@ -232,9 +244,16 @@ func (k *KlutchManager) applyControlPlaneToContext(baseDomain string, dexHost st
 
 	scheme := determineIngressScheme(ingressClass, tlsEnabled)
 
+	useDex := controlPlaneOIDCOptions.Provider != OIDCProviderCognito
 	zone := strings.TrimSuffix(hostedZoneName, ".")
 
-	publicHost := dexHost
+	publicHost := ""
+	if useDex {
+		publicHost = dexHost
+	}
+	if publicHost == "" {
+		publicHost = backendHost
+	}
 	if publicHost == "" {
 		publicHost = baseDomain
 	}
@@ -242,7 +261,7 @@ func (k *KlutchManager) applyControlPlaneToContext(baseDomain string, dexHost st
 		publicHost = getClusterExternalHost("")
 		makeup.PrintInfo(fmt.Sprintf("No host provided. Using provisional host `%s` to bootstrap deployment.", publicHost))
 	} else {
-		makeup.PrintInfo(fmt.Sprintf("Using host `%s` for Dex and OIDC configuration.", publicHost))
+		makeup.PrintInfo(fmt.Sprintf("Using host `%s` for OIDC configuration.", publicHost))
 	}
 
 	if ingressClass == "nginx" {
@@ -257,22 +276,78 @@ func (k *KlutchManager) applyControlPlaneToContext(baseDomain string, dexHost st
 		waitHost = publicHost
 	}
 
-	k.DeployDex(publicHost, ingressPort, ingressClass, scheme, acmCertificateARN)
-	k.WaitForDex()
+	resolvedOIDC := effectiveOIDCOptions(demo.KubernetesTool, scheme, waitHost)
+	if resolvedOIDC.Provider == OIDCProviderCognito && (resolvedOIDC.IssuerURL == "" || resolvedOIDC.ClientID == "" || resolvedOIDC.ClientSecret == "") {
+		region := defaultAWSRegion()
+		prefix := sanitizeCognitoPrefix(baseDomain)
+		if prefix == "" {
+			prefix = sanitizeCognitoPrefix(demo.DemoClusterName)
+		}
+		if prefix == "" {
+			prefix = "klutch"
+		}
+		makeup.PrintInfo(fmt.Sprintf("No Cognito settings provided. Provisioning Cognito (region: %s, prefix: %s)...", region, prefix))
+		oidcConn, err := klutchaws.EnsureCognitoOIDC(context.Background(), region, prefix)
+		if err != nil {
+			makeup.ExitDueToFatalError(err, "Failed to provision Cognito for Klutch OIDC.")
+		}
+		if resolvedOIDC.IssuerURL == "" {
+			resolvedOIDC.IssuerURL = oidcConn.IssuerURL
+		}
+		if resolvedOIDC.ClientID == "" {
+			resolvedOIDC.ClientID = oidcConn.ClientID
+		}
+		if resolvedOIDC.ClientSecret == "" {
+			resolvedOIDC.ClientSecret = oidcConn.ClientSecret
+		}
+		if resolvedOIDC.CallbackURL == "" {
+			resolvedOIDC.CallbackURL = fmt.Sprintf("%s://%s/callback", scheme, waitHost)
+		}
+		makeup.PrintInfo(fmt.Sprintf("Using Cognito issuer %s", resolvedOIDC.IssuerURL))
+	}
+	if err := resolvedOIDC.validate(); err != nil {
+		makeup.ExitDueToFatalError(err, "Invalid OIDC configuration for Klutch control plane.")
+	}
 
-	k.DeployBindBackend(waitHost, ingressPort, ingressClass, scheme, acmCertificateARN, tlsEnabled)
+	useDex = resolvedOIDC.Provider != OIDCProviderCognito
+
+	if resolvedOIDC.IssuerURL != "" {
+		if err := waitForOIDCDiscovery(resolvedOIDC.IssuerURL, 2*time.Minute); err != nil {
+			makeup.ExitDueToFatalError(err, fmt.Sprintf("OIDC issuer %s is not reachable/valid. Provide explicit OIDC values or re-run with a working issuer.", resolvedOIDC.IssuerURL))
+		}
+	}
+
+	if useDex {
+		k.DeployDex(publicHost, ingressPort, ingressClass, scheme, acmCertificateARN)
+		k.WaitForDex()
+	} else {
+		k.applyOIDCSecret(resolvedOIDC)
+	}
+
+	k.DeployBindBackend(waitHost, ingressPort, ingressClass, scheme, acmCertificateARN, tlsEnabled, useDex)
 
 	// If we're using ALB, wait for the ingress hostnames. When a hosted zone is available, create a CNAME
 	// or ALIAS to the ALB and keep using the public hosts; otherwise fall back to using the ALB hostname directly.
 	if ingressClass == "alb" {
-		dexIngressHost := waitForIngressHost(k.cpK8s, "dex-ingress", "default")
-		if dexIngressHost == "" {
-			makeup.ExitDueToFatalError(nil, "Could not determine ingress hostname/IP. Aborting instead of using the Kubernetes API server host.")
+		dexIngressHost := ""
+		if useDex {
+			dexIngressHost = waitForIngressHost(k.cpK8s, "dex-ingress", "default")
+			if dexIngressHost == "" {
+				makeup.ExitDueToFatalError(nil, "Could not determine ingress hostname/IP for dex. Aborting instead of using the Kubernetes API server host.")
+			}
 		}
 
 		backendIngressHost := waitForIngressHost(k.cpK8s, "anynines-backend", "default")
 		if backendIngressHost == "" {
 			backendIngressHost = dexIngressHost
+		}
+		if backendIngressHost == "" {
+			makeup.ExitDueToFatalError(nil, "Could not determine ingress hostname/IP for the Klutch backend.")
+		}
+
+		defaultIngressTarget := backendIngressHost
+		if defaultIngressTarget == "" {
+			defaultIngressTarget = dexIngressHost
 		}
 
 		if provisioner != nil && hostedZoneName != "" {
@@ -287,24 +362,35 @@ func (k *KlutchManager) applyControlPlaneToContext(baseDomain string, dexHost st
 			var aliasHosts []string
 			records := map[string]string{}
 			for h := range hostSet {
-				if h == zone {
-					aliasHosts = append(aliasHosts, h)
-				} else {
-					target := dexIngressHost
-					if h == backendHost && backendIngressHost != "" {
-						target = backendIngressHost
-					}
-					records[h] = target
+				target := defaultIngressTarget
+				if h == backendHost && backendIngressHost != "" {
+					target = backendIngressHost
 				}
+				if h == dexHost && dexIngressHost != "" {
+					target = dexIngressHost
+				}
+
+				if h == zone {
+					if target == "" {
+						makeup.ExitDueToFatalError(nil, fmt.Sprintf("No ingress target available for alias host %s", h))
+					}
+					aliasHosts = append(aliasHosts, h)
+					continue
+				}
+
+				records[h] = target
 			}
 
 			if len(aliasHosts) > 0 {
-				makeup.PrintInfo(fmt.Sprintf("Planned action: create/update ALIAS %v -> %s in hosted zone %s for ingress.", aliasHosts, dexIngressHost, hostedZoneName))
+				makeup.PrintInfo(fmt.Sprintf("Planned action: create/update ALIAS %v -> %s in hosted zone %s for ingress.", aliasHosts, defaultIngressTarget, hostedZoneName))
 				makeup.WaitForUser(demo.UnattendedMode)
 				for _, h := range aliasHosts {
-					target := dexIngressHost
+					target := defaultIngressTarget
 					if h == backendHost && backendIngressHost != "" {
 						target = backendIngressHost
+					}
+					if h == dexHost && dexIngressHost != "" {
+						target = dexIngressHost
 					}
 					if err := provisioner.EnsureALBAliasRecord(hostedZoneName, h, target); err != nil {
 						makeup.ExitDueToFatalError(err, fmt.Sprintf("Could not create ALIAS record in hosted zone %s.", hostedZoneName))
@@ -403,6 +489,65 @@ func keys(m map[string]string) []string {
 		out = append(out, k)
 	}
 	return out
+}
+
+func defaultAWSRegion() string {
+	envs := []string{"CONTROL_PLANE_CLUSTER_REGION", "WORKLOAD_CLUSTER_REGION", "AWS_REGION", "AWS_DEFAULT_REGION"}
+	for _, e := range envs {
+		if v := strings.TrimSpace(os.Getenv(e)); v != "" {
+			return v
+		}
+	}
+	return "eu-central-1"
+}
+
+func sanitizeCognitoPrefix(val string) string {
+	val = strings.TrimSpace(val)
+	val = strings.TrimSuffix(val, ".")
+	for strings.Contains(val, "..") {
+		val = strings.ReplaceAll(val, "..", ".")
+	}
+	if idx := strings.Index(val, "."); idx > 0 {
+		val = val[:idx]
+	}
+	val = strings.ToLower(val)
+	out := strings.Builder{}
+	for _, r := range val {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' {
+			out.WriteRune(r)
+		}
+	}
+	return strings.Trim(out.String(), "-")
+}
+
+// waitForOIDCDiscovery checks that the issuer exposes a valid discovery document, retrying for a while to allow hosted domains to become active.
+func waitForOIDCDiscovery(issuer string, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	url := strings.TrimSuffix(issuer, "/") + "/.well-known/openid-configuration"
+
+	for {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		req, _ := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+		resp, err := http.DefaultClient.Do(req)
+		if err == nil {
+			if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+				resp.Body.Close()
+				cancel()
+				return nil
+			}
+			resp.Body.Close()
+		}
+		cancel()
+
+		if time.Now().After(deadline) {
+			if err != nil {
+				return fmt.Errorf("failed to reach OIDC issuer %s: %w", issuer, err)
+			}
+			return fmt.Errorf("OIDC discovery at %s returned status %d", url, resp.StatusCode)
+		}
+
+		time.Sleep(5 * time.Second)
+	}
 }
 
 // verifyHostedZoneRequirements ensures that the provided hosts are within the hosted zone
@@ -634,7 +779,7 @@ func printControlPlaneSummary(workDir string) {
 	makeup.PrintH1("Summary")
 	makeup.Print("You've successfully accomplished the followings steps:")
 	makeup.PrintCheckmark("Installed the Klutch control plane components into the current Kubernetes cluster.")
-	makeup.PrintCheckmark("Deployed Dex Idp and the anynines klutch-bind backend.")
+	makeup.PrintCheckmark("Configured OIDC and deployed the anynines klutch-bind backend.")
 	makeup.PrintCheckmark("Deployed Crossplane and the Kubernetes provider.")
 	makeup.PrintCheckmark("Deployed the Klutch Crossplane configuration package.")
 	makeup.PrintCheckmark("Deployed Klutch API Service Export Templates to make the Klutch Crossplane APIs available to App Clusters.")
