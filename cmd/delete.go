@@ -116,6 +116,40 @@ func runKlutchClusterDeletion(provider string, opts klutchaws.DeleteOptions, del
 
 var cmdDeleteClusterKlutch = &cobra.Command{
 	Use:   "klutch",
+	Short: "Delete Klutch workload cluster and infrastructure (AWS).",
+	Long:  `Delete the Klutch workload EKS cluster and tagged AWS infrastructure (VPC, subnets, NAT, ALB, IAM). Optional flags can also remove Klutch Route53 DNS/hosted zone and ACM certificate. Use the control-plane subcommand for control plane deletion.`,
+	Run: func(cmd *cobra.Command, args []string) {
+		if (deleteKlutchCleanupDNSACM || deleteKlutchDeleteDNSZone) && strings.TrimSpace(deleteKlutchHostedZoneName) == "" {
+			makeup.ExitDueToFatalError(nil, "Hosted zone name is required when using --cleanup-dns-acm or --delete-dns-zone.")
+		}
+
+		opts := klutchaws.DeleteOptions{
+			DryRun:                deleteKlutchDryRun,
+			IncludeDNSRecords:     deleteKlutchCleanupDNSACM || deleteKlutchDeleteDNSZone,
+			IncludeHostedZone:     deleteKlutchCleanupDNSACM || deleteKlutchDeleteDNSZone,
+			IncludeSSLCertificate: deleteKlutchCleanupDNSACM || deleteKlutchDeleteACMCertificate,
+			HostedZoneName:        deleteKlutchHostedZoneName,
+			ACMCertificateARN:     deleteKlutchACMCertificateARN,
+		}
+
+		if cmd.Flags().Changed("cluster-name") {
+			opts.ClusterName = strings.TrimSpace(demo.DemoClusterName)
+		} else if envName := strings.TrimSpace(os.Getenv("WORKLOAD_CLUSTER_NAME")); envName != "" {
+			opts.ClusterName = envName
+		}
+
+		if strings.TrimSpace(opts.ClusterName) == "" {
+			makeup.ExitDueToFatalError(nil, "Please provide --cluster-name or set WORKLOAD_CLUSTER_NAME to delete a Klutch workload cluster.")
+		}
+
+		if err := runKlutchClusterDeletion(demo.KubernetesTool, opts, klutchaws.DeleteWorkloadCluster); err != nil {
+			makeup.ExitDueToFatalError(nil, err.Error())
+		}
+	},
+}
+
+var cmdDeleteClusterKlutchControlPlane = &cobra.Command{
+	Use:   "control-plane",
 	Short: "Delete the Klutch control plane cluster (AWS).",
 	Long:  `Deletes the Klutch control plane EKS cluster and tagged AWS infrastructure (VPC, subnets, NAT, ALB, IAM). Optional flags can also remove Klutch Route53 DNS/hosted zone and ACM certificate.`,
 	Run: func(cmd *cobra.Command, args []string) {
@@ -191,22 +225,32 @@ func init() {
 
 	cmdDeleteDemo.PersistentFlags().StringVarP(&demo.KubernetesTool, "provider", "p", "", "provider for the Kubernetes cluster. Valid options are \"minikube\", \"kind\", and \"aws\" (for Klutch).")
 	cmdDeleteDemo.PersistentFlags().BoolVar(&deleteKlutchDryRun, "dry-run", false, "Show planned AWS deletions for Klutch without making changes.")
-	cmdDeleteClusterKlutch.Flags().BoolVar(&deleteKlutchCleanupDNSACM, "cleanup-dns-acm", false, "Delete Klutch Route53 DNS records/hosted zone and ACM certificate (opt-in; destructive).")
-	cmdDeleteClusterKlutch.Flags().BoolVar(&deleteKlutchDeleteDNSZone, "delete-dns-zone", false, "Delete Klutch Route53 hosted zone (and its records).")
-	cmdDeleteClusterKlutch.Flags().BoolVar(&deleteKlutchDeleteACMCertificate, "delete-acm-certificate", false, "Delete Klutch ACM certificate.")
-	cmdDeleteClusterKlutch.Flags().StringVar(&deleteKlutchHostedZoneName, "hosted-zone-name", "", "Hosted zone name to clean up when using DNS deletion flags.")
-	cmdDeleteClusterKlutch.Flags().StringVar(&deleteKlutchACMCertificateARN, "acm-certificate-arn", "", "ACM certificate ARN to delete (falls back to discovering a tagged Klutch certificate).")
-	cmdDeleteClusterKlutchWorkload.Flags().BoolVar(&deleteKlutchCleanupDNSACM, "cleanup-dns-acm", false, "Delete Klutch Route53 DNS records/hosted zone and ACM certificate (opt-in; destructive).")
-	cmdDeleteClusterKlutchWorkload.Flags().BoolVar(&deleteKlutchDeleteDNSZone, "delete-dns-zone", false, "Delete Klutch Route53 hosted zone (and its records).")
-	cmdDeleteClusterKlutchWorkload.Flags().BoolVar(&deleteKlutchDeleteACMCertificate, "delete-acm-certificate", false, "Delete Klutch ACM certificate.")
-	cmdDeleteClusterKlutchWorkload.Flags().StringVar(&deleteKlutchHostedZoneName, "hosted-zone-name", "", "Hosted zone name to clean up when using DNS deletion flags.")
-	cmdDeleteClusterKlutchWorkload.Flags().StringVar(&deleteKlutchACMCertificateARN, "acm-certificate-arn", "", "ACM certificate ARN to delete (falls back to discovering a tagged Klutch certificate).")
+	addKlutchWorkloadFlags(cmdDeleteClusterKlutch)
+	addKlutchControlPlaneFlags(cmdDeleteClusterKlutchControlPlane)
+	addKlutchWorkloadFlags(cmdDeleteClusterKlutchWorkload)
 	cmdDeleteDemo.PersistentFlags().StringVarP(&demo.DemoClusterName, "cluster-name", "c", "a8s-demo", "name of the demo Kubernetes cluster.")
 	cmdDeleteDemo.PersistentFlags().BoolVarP(&demo.UnattendedMode, "yes", "y", false, "skip yes-no questions by answering with \"yes\".")
 
 	cmdDeleteDemo.AddCommand(cmdDeleteDemoA8s)
 	cmdDeleteDemo.AddCommand(cmdDeleteClusterKlutch)
+	cmdDeleteClusterKlutch.AddCommand(cmdDeleteClusterKlutchControlPlane)
 	cmdDeleteClusterKlutch.AddCommand(cmdDeleteClusterKlutchWorkload)
 	cmdDelete.AddCommand(cmdDeleteKlutchControlPlane)
 	rootCmd.AddCommand(cmdDelete)
+}
+
+func addKlutchControlPlaneFlags(cmd *cobra.Command) {
+	cmd.Flags().BoolVar(&deleteKlutchCleanupDNSACM, "cleanup-dns-acm", false, "Delete Klutch Route53 DNS records/hosted zone and ACM certificate (opt-in; destructive).")
+	cmd.Flags().BoolVar(&deleteKlutchDeleteDNSZone, "delete-dns-zone", false, "Delete Klutch Route53 hosted zone (and its records).")
+	cmd.Flags().BoolVar(&deleteKlutchDeleteACMCertificate, "delete-acm-certificate", false, "Delete Klutch ACM certificate.")
+	cmd.Flags().StringVar(&deleteKlutchHostedZoneName, "hosted-zone-name", "", "Hosted zone name to clean up when using DNS deletion flags.")
+	cmd.Flags().StringVar(&deleteKlutchACMCertificateARN, "acm-certificate-arn", "", "ACM certificate ARN to delete (falls back to discovering a tagged Klutch certificate).")
+}
+
+func addKlutchWorkloadFlags(cmd *cobra.Command) {
+	cmd.Flags().BoolVar(&deleteKlutchCleanupDNSACM, "cleanup-dns-acm", false, "Delete Klutch Route53 DNS records/hosted zone and ACM certificate (opt-in; destructive).")
+	cmd.Flags().BoolVar(&deleteKlutchDeleteDNSZone, "delete-dns-zone", false, "Delete Klutch Route53 hosted zone (and its records).")
+	cmd.Flags().BoolVar(&deleteKlutchDeleteACMCertificate, "delete-acm-certificate", false, "Delete Klutch ACM certificate.")
+	cmd.Flags().StringVar(&deleteKlutchHostedZoneName, "hosted-zone-name", "", "Hosted zone name to clean up when using DNS deletion flags.")
+	cmd.Flags().StringVar(&deleteKlutchACMCertificateARN, "acm-certificate-arn", "", "ACM certificate ARN to delete (falls back to discovering a tagged Klutch certificate).")
 }

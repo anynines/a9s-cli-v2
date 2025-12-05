@@ -118,11 +118,13 @@ func deleteCluster(ctx context.Context, cfg Config, opts DeleteOptions) {
 	if vpcID == "" {
 		awsLogger.Infof("No Klutch VPC found.")
 		dnsAndACMCleanup(ctx, nil, opts)
+		cleanupTaggedEIPs(ctx, opts)
 		return
 	}
 
 	deleteVPCDependencies(ctx, vpcID, opts)
 	deleteVPC(ctx, vpcID, opts)
+	cleanupTaggedEIPs(ctx, opts)
 }
 
 func discoverCluster(ctx context.Context, cfg Config, opts DeleteOptions) (bool, bool) {
@@ -577,7 +579,7 @@ func resetDHCPOptions(ctx context.Context, vpcID string, opts DeleteOptions) {
 
 func releaseEIPs(ctx context.Context, natEIPs []string, opts DeleteOptions) {
 	if len(natEIPs) == 0 {
-		awsLogger.Infof("No NAT EIP AllocationIds found to release.")
+		awsLogger.Infof("No EIP AllocationIds found to release.")
 		return
 	}
 	for _, alloc := range natEIPs {
@@ -611,6 +613,36 @@ func releaseEIPs(ctx context.Context, natEIPs []string, opts DeleteOptions) {
 			break
 		}
 	}
+}
+
+func cleanupTaggedEIPs(ctx context.Context, opts DeleteOptions) {
+	awsLogger.Section("Orphaned EIP Cleanup")
+
+	filters := []string{fmt.Sprintf("Name=tag:%s,Values=%s", klutchTagKey, klutchTagValue)}
+	if cn := strings.TrimSpace(opts.ClusterName); cn != "" {
+		filters = append(filters, fmt.Sprintf("Name=tag:%s,Values=%s", clusterNameTagKey, cn))
+	}
+
+	args := []string{"ec2", "describe-addresses", "--filters"}
+	args = append(args, filters...)
+	args = append(args, "--query", "Addresses[].AllocationId", "--output", "text")
+	if opts.Region != "" {
+		args = append(args, "--region", opts.Region)
+	}
+
+	out, errOut, err := runCmd(ctx, "aws", args...)
+	if err != nil {
+		awsLogger.Warningf("Failed to list Klutch-tagged EIPs: %v\nstderr: %s", err, errOut)
+		return
+	}
+	allocs := strings.Fields(out)
+	if len(allocs) == 0 {
+		awsLogger.Infof("No Klutch-tagged EIPs remaining.")
+		return
+	}
+
+	awsLogger.Infof("Found %d Klutch-tagged EIP(s) to release post-delete.", len(allocs))
+	releaseEIPs(ctx, allocs, opts)
 }
 
 func findHostedZoneIDByName(ctx context.Context, hostedZoneName string) string {
