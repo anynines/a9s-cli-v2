@@ -25,6 +25,7 @@ type DeleteOptions struct {
 	ACMCertificateARN       string
 	DryRun                  bool
 	ForceDNS                bool
+	CleanupOrphans          bool
 }
 
 // DeleteControlPlaneCluster tears down the EKS control plane and AWS resources that were created by CreateControlPlaneCluster.
@@ -118,13 +119,17 @@ func deleteCluster(ctx context.Context, cfg Config, opts DeleteOptions) {
 	if vpcID == "" {
 		awsLogger.Infof("No Klutch VPC found.")
 		dnsAndACMCleanup(ctx, nil, opts)
-		cleanupTaggedEIPs(ctx, opts)
+		if opts.CleanupOrphans {
+			cleanupTaggedEIPs(ctx, opts)
+		}
 		return
 	}
 
 	deleteVPCDependencies(ctx, vpcID, opts)
 	deleteVPC(ctx, vpcID, opts)
-	cleanupTaggedEIPs(ctx, opts)
+	if opts.CleanupOrphans {
+		cleanupTaggedEIPs(ctx, opts)
+	}
 }
 
 func discoverCluster(ctx context.Context, cfg Config, opts DeleteOptions) (bool, bool) {

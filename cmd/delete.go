@@ -20,6 +20,7 @@ var deleteKlutchDeleteDNSZone bool
 var deleteKlutchDeleteACMCertificate bool
 var deleteKlutchHostedZoneName string
 var deleteKlutchACMCertificateARN string
+var deleteKlutchCleanupOrphans bool
 
 var cmdDelete = &cobra.Command{
 	Use:   "delete",
@@ -130,6 +131,7 @@ var cmdDeleteClusterKlutch = &cobra.Command{
 			IncludeSSLCertificate: deleteKlutchCleanupDNSACM || deleteKlutchDeleteACMCertificate,
 			HostedZoneName:        deleteKlutchHostedZoneName,
 			ACMCertificateARN:     deleteKlutchACMCertificateARN,
+			CleanupOrphans:        deleteKlutchCleanupOrphans,
 		}
 
 		if cmd.Flags().Changed("cluster-name") {
@@ -164,6 +166,7 @@ var cmdDeleteClusterKlutchControlPlane = &cobra.Command{
 			IncludeSSLCertificate: deleteKlutchCleanupDNSACM || deleteKlutchDeleteACMCertificate,
 			HostedZoneName:        deleteKlutchHostedZoneName,
 			ACMCertificateARN:     deleteKlutchACMCertificateARN,
+			CleanupOrphans:        deleteKlutchCleanupOrphans,
 		}
 
 		if cmd.Flags().Changed("cluster-name") {
@@ -245,6 +248,7 @@ func addKlutchControlPlaneFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&deleteKlutchDeleteACMCertificate, "delete-acm-certificate", false, "Delete Klutch ACM certificate.")
 	cmd.Flags().StringVar(&deleteKlutchHostedZoneName, "hosted-zone-name", "", "Hosted zone name to clean up when using DNS deletion flags.")
 	cmd.Flags().StringVar(&deleteKlutchACMCertificateARN, "acm-certificate-arn", "", "ACM certificate ARN to delete (falls back to discovering a tagged Klutch certificate).")
+	cmd.Flags().BoolVar(&deleteKlutchCleanupOrphans, "cleanup-orphans", false, "Attempt to remove Klutch-tagged orphaned AWS resources (e.g., EIPs) after cluster deletion.")
 }
 
 func addKlutchWorkloadFlags(cmd *cobra.Command) {
@@ -253,4 +257,5 @@ func addKlutchWorkloadFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&deleteKlutchDeleteACMCertificate, "delete-acm-certificate", false, "Delete Klutch ACM certificate.")
 	cmd.Flags().StringVar(&deleteKlutchHostedZoneName, "hosted-zone-name", "", "Hosted zone name to clean up when using DNS deletion flags.")
 	cmd.Flags().StringVar(&deleteKlutchACMCertificateARN, "acm-certificate-arn", "", "ACM certificate ARN to delete (falls back to discovering a tagged Klutch certificate).")
+	cmd.Flags().BoolVar(&deleteKlutchCleanupOrphans, "cleanup-orphans", false, "Attempt to remove Klutch-tagged orphaned AWS resources (e.g., EIPs) after cluster deletion.")
 }
