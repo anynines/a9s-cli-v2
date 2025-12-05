@@ -21,6 +21,8 @@ var deleteKlutchDeleteACMCertificate bool
 var deleteKlutchHostedZoneName string
 var deleteKlutchACMCertificateARN string
 var deleteKlutchCleanupOrphans bool
+var deleteKlutchTenantRegion string
+var deleteKlutchTenantSecretName string
 
 var cmdDelete = &cobra.Command{
 	Use:   "delete",
@@ -213,6 +215,33 @@ var cmdDeleteClusterKlutchWorkload = &cobra.Command{
 	},
 }
 
+var cmdDeleteKlutchTenant = &cobra.Command{
+	Use:   "tenant",
+	Short: "Delete a Klutch tenant (Cognito credentials secret).",
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		tenantName := strings.TrimSpace(args[0])
+		if tenantName == "" {
+			makeup.ExitDueToFatalError(nil, "Please provide a tenant name.")
+		}
+		region := strings.TrimSpace(deleteKlutchTenantRegion)
+		if region == "" {
+			region = klutchaws.ControlPlaneDefaultRegion()
+		}
+		secretName := klutchaws.TenantSecretName(tenantName, deleteKlutchTenantSecretName)
+
+		if !makeup.ConfirmYes(fmt.Sprintf("This will delete Secrets Manager secret %s in %s. Type 'yes' to continue: ", secretName, region)) {
+			makeup.PrintInfo("Deletion aborted.")
+			return
+		}
+
+		if err := klutchaws.DeleteTenantSecret(context.Background(), region, secretName); err != nil {
+			makeup.ExitDueToFatalError(err, "Failed to delete tenant secret.")
+		}
+		makeup.PrintSuccessSummary(fmt.Sprintf("Deleted tenant secret %s in %s.", secretName, region))
+	},
+}
+
 func init() {
 
 	cmdDeletePGInstance.PersistentFlags().StringVar(&ServiceInstanceName, "name", "a8s-pg-instance", "name of the pg service instance to be deleted.")
@@ -231,6 +260,8 @@ func init() {
 	addKlutchWorkloadFlags(cmdDeleteClusterKlutch)
 	addKlutchControlPlaneFlags(cmdDeleteClusterKlutchControlPlane)
 	addKlutchWorkloadFlags(cmdDeleteClusterKlutchWorkload)
+	cmdDeleteKlutchTenant.Flags().StringVar(&deleteKlutchTenantRegion, "region", "", "AWS region for Cognito/Secrets Manager (defaults to CONTROL_PLANE_CLUSTER_REGION or eu-central-1).")
+	cmdDeleteKlutchTenant.Flags().StringVar(&deleteKlutchTenantSecretName, "secret-name", "", "Secrets Manager name that holds the tenant credentials (defaults to klutch/<tenant>/oidc-client).")
 	cmdDeleteDemo.PersistentFlags().StringVarP(&demo.DemoClusterName, "cluster-name", "c", "a8s-demo", "name of the demo Kubernetes cluster.")
 	cmdDeleteDemo.PersistentFlags().BoolVarP(&demo.UnattendedMode, "yes", "y", false, "skip yes-no questions by answering with \"yes\".")
 
@@ -239,6 +270,7 @@ func init() {
 	cmdDeleteClusterKlutch.AddCommand(cmdDeleteClusterKlutchControlPlane)
 	cmdDeleteClusterKlutch.AddCommand(cmdDeleteClusterKlutchWorkload)
 	cmdDelete.AddCommand(cmdDeleteKlutchControlPlane)
+	cmdDelete.AddCommand(cmdDeleteKlutchTenant)
 	rootCmd.AddCommand(cmdDelete)
 }
 

@@ -17,6 +17,7 @@ import (
 	klutchaws "github.com/anynines/a9s-cli-v2/klutch/aws"
 	"github.com/anynines/a9s-cli-v2/makeup"
 	prereq "github.com/anynines/a9s-cli-v2/prerequisites"
+	"github.com/google/uuid"
 	"gopkg.in/yaml.v2"
 )
 
@@ -287,7 +288,8 @@ func (k *KlutchManager) applyControlPlaneToContext(baseDomain string, dexHost st
 			prefix = "klutch"
 		}
 		makeup.PrintInfo(fmt.Sprintf("No Cognito settings provided. Provisioning Cognito (region: %s, prefix: %s)...", region, prefix))
-		oidcConn, err := klutchaws.EnsureCognitoOIDC(context.Background(), region, prefix, "")
+		tenantUUID := uuid.New().String()
+		oidcConn, err := klutchaws.EnsureCognitoOIDC(context.Background(), region, prefix, "", tenantUUID)
 		if err != nil {
 			makeup.ExitDueToFatalError(err, "Failed to provision Cognito for Klutch OIDC.")
 		}

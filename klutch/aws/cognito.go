@@ -15,6 +15,9 @@ type OIDCConnection struct {
 	ClientID     string
 	ClientSecret string
 	Scope        string
+	TenantName   string
+	TenantUUID   string
+	UserPoolID   string
 }
 
 // EnsureCognitoOIDC provisions (or reuses) a minimal Cognito setup for client-credentials:
@@ -22,7 +25,7 @@ type OIDCConnection struct {
 // - resource server with scope klutch/bind
 // - app client with secret and client_credentials flow
 // - Amazon-hosted domain
-func EnsureCognitoOIDC(ctx context.Context, region string, namePrefix string, userPoolID string) (OIDCConnection, error) {
+func EnsureCognitoOIDC(ctx context.Context, region string, namePrefix string, userPoolID string, tenantUUID string) (OIDCConnection, error) {
 	prefix := strings.ToLower(strings.TrimSpace(namePrefix))
 	if prefix == "" {
 		prefix = "klutch"
@@ -41,11 +44,15 @@ func EnsureCognitoOIDC(ctx context.Context, region string, namePrefix string, us
 	if poolID == "" {
 		poolID = discoverUserPool(ctx, region, userPoolName)
 		if poolID == "" {
-			poolID = mustRun(ctx, "aws", "cognito-idp", "create-user-pool",
+			tagArg := buildTenantUserPoolTags(ctx, region, tenantUUID, prefix, userPoolName)
+			args := []string{
+				"cognito-idp", "create-user-pool",
 				"--region", region,
 				"--pool-name", userPoolName,
-				"--query", "UserPool.Id",
-				"--output", "text")
+				"--user-pool-tags", tagArg[0],
+			}
+			args = append(args, "--query", "UserPool.Id", "--output", "text")
+			poolID = mustRun(ctx, "aws", args...)
 		}
 	} else {
 		// Validate provided pool ID
@@ -55,6 +62,11 @@ func EnsureCognitoOIDC(ctx context.Context, region string, namePrefix string, us
 			"--query", "UserPool.Id",
 			"--output", "text"); err != nil {
 			return OIDCConnection{}, fmt.Errorf("provided user pool id %s is not accessible: %w (stderr: %s)", poolID, err, errOut)
+		}
+	}
+	if tenantUUID != "" {
+		if err := tagUserPool(ctx, region, poolID, buildTenantUserPoolTags(ctx, region, tenantUUID, prefix, userPoolName)); err != nil {
+			return OIDCConnection{}, err
 		}
 	}
 
@@ -81,6 +93,9 @@ func EnsureCognitoOIDC(ctx context.Context, region string, namePrefix string, us
 		ClientID:     client.ClientID,
 		ClientSecret: client.ClientSecret,
 		Scope:        resourceScope,
+		TenantName:   namePrefix,
+		TenantUUID:   tenantUUID,
+		UserPoolID:   poolID,
 	}, nil
 }
 
@@ -189,20 +204,101 @@ func ensureCognitoOAuthSupport(ctx context.Context) error {
 	return nil
 }
 
+func buildTenantUserPoolTags(ctx context.Context, region, tenantUUID, tenantName, resourceName string) []string {
+	accountID, _ := getAccountID(ctx)
+	cfg := defaultConfig()
+	clusterName := cfg.ClusterName
+	clusterArn := fmt.Sprintf("arn:aws:eks:%s:%s:cluster/%s", region, accountID, clusterName)
+
+	// For Cognito CLI, user-pool-tags expects a single comma-separated map string.
+	tagMap := []string{
+		"Klutch=ControlPlane",
+		fmt.Sprintf("KlutchTenantName=%s", tenantName),
+		fmt.Sprintf("KlutchTenantUUID=%s", tenantUUID),
+		fmt.Sprintf("Name=%s", resourceName),
+		fmt.Sprintf("eks.cluster/name=%s", clusterName),
+		fmt.Sprintf("eks.cluster/id=%s", clusterArn),
+	}
+	return []string{strings.Join(tagMap, ",")}
+}
+
+func tagUserPool(ctx context.Context, region, poolID string, tags []string) error {
+	arn, errOut, err := runCmd(ctx, "aws", "cognito-idp", "describe-user-pool",
+		"--region", region,
+		"--user-pool-id", poolID,
+		"--query", "UserPool.Arn",
+		"--output", "text")
+	if err != nil {
+		return fmt.Errorf("could not describe user pool %s: %w (stderr: %s)", poolID, err, errOut)
+	}
+	if strings.TrimSpace(arn) == "" || strings.Contains(strings.ToLower(arn), "none") {
+		return fmt.Errorf("could not determine ARN for user pool %s", poolID)
+	}
+	tagArg := ""
+	if len(tags) > 0 {
+		tagArg = tags[0]
+	}
+	if _, errOut, err := runCmd(ctx, "aws", "cognito-idp", "tag-resource",
+		"--region", region,
+		"--resource-arn", strings.TrimSpace(arn),
+		"--tags", tagArg); err != nil {
+		return fmt.Errorf("failed to tag user pool %s: %w (stderr: %s)", poolID, err, errOut)
+	}
+	return nil
+}
+
+func getAccountID(ctx context.Context) (string, error) {
+	out, errOut, err := runCmd(ctx, "aws", "sts", "get-caller-identity", "--query", "Account", "--output", "text")
+	if err != nil {
+		return "", fmt.Errorf("aws sts get-caller-identity failed: %w (stderr: %s)", err, errOut)
+	}
+	return strings.TrimSpace(out), nil
+}
+
 // StoreCognitoCredentialsSecret stores OIDC client credentials in AWS Secrets Manager (create or update).
 func StoreCognitoCredentialsSecret(ctx context.Context, region, secretName string, conn OIDCConnection) error {
-	payload := fmt.Sprintf(`{"issuer":"%s","client_id":"%s","client_secret":"%s","scope":"%s"}`, conn.IssuerURL, conn.ClientID, conn.ClientSecret, conn.Scope)
+	payload := fmt.Sprintf(`{"issuer":"%s","client_id":"%s","client_secret":"%s","scope":"%s","tenant_name":"%s","tenant_uuid":"%s"}`, conn.IssuerURL, conn.ClientID, conn.ClientSecret, conn.Scope, conn.TenantName, conn.TenantUUID)
+	accountID, err := getAccountID(ctx)
+	if err != nil {
+		return fmt.Errorf("could not determine AWS account ID for tagging: %w", err)
+	}
+	cfg := defaultConfig()
+	clusterName := cfg.ClusterName
+	clusterArn := fmt.Sprintf("arn:aws:eks:%s:%s:cluster/%s", region, accountID, clusterName)
 
-	if _, errOut, err := runCmd(ctx, "aws", "secretsmanager", "create-secret",
+	tagArgs := []string{
+		"Key=Klutch,Value=ControlPlane",
+		fmt.Sprintf("Key=KlutchTenantName,Value=%s", conn.TenantName),
+		fmt.Sprintf("Key=KlutchTenantUUID,Value=%s", conn.TenantUUID),
+		fmt.Sprintf("Key=Name,Value=%s", secretName),
+		fmt.Sprintf("Key=eks.cluster/name,Value=%s", clusterName),
+		fmt.Sprintf("Key=eks.cluster/id,Value=%s", clusterArn),
+	}
+	createArgs := []string{
+		"secretsmanager", "create-secret",
 		"--region", region,
 		"--name", secretName,
-		"--secret-string", payload); err != nil {
+		"--secret-string", payload,
+		"--tags",
+	}
+	createArgs = append(createArgs, tagArgs...)
+	if _, errOut, err := runCmd(ctx, "aws", createArgs...); err != nil {
 		if strings.Contains(strings.ToLower(errOut), "resourceexistsexception") {
 			if _, errOut2, err2 := runCmd(ctx, "aws", "secretsmanager", "put-secret-value",
 				"--region", region,
 				"--secret-id", secretName,
 				"--secret-string", payload); err2 != nil {
 				return fmt.Errorf("could not update existing secret %s: %w (stderr: %s)", secretName, err2, errOut2)
+			}
+			tagArgsExisting := []string{
+				"secretsmanager", "tag-resource",
+				"--region", region,
+				"--secret-id", secretName,
+				"--tags",
+			}
+			tagArgsExisting = append(tagArgsExisting, tagArgs...)
+			if _, errOut3, err3 := runCmd(ctx, "aws", tagArgsExisting...); err3 != nil {
+				return fmt.Errorf("updated secret but failed to tag %s: %w (stderr: %s)", secretName, err3, errOut3)
 			}
 			return nil
 		}

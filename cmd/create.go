@@ -11,6 +11,7 @@ import (
 	klutchaws "github.com/anynines/a9s-cli-v2/klutch/aws"
 	"github.com/anynines/a9s-cli-v2/makeup"
 	"github.com/anynines/a9s-cli-v2/pg"
+	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 )
 
@@ -32,6 +33,7 @@ var createKlutchTenantRegion string
 var createKlutchTenantUserPoolID string
 var createKlutchTenantStoreSecret bool = true
 var createKlutchTenantSecretName string
+var createKlutchTenantForce bool
 
 var cmdCreate = &cobra.Command{
 	Use:   "create",
@@ -206,22 +208,31 @@ var cmdCreateClusterKlutchTenant = &cobra.Command{
 			region = klutchaws.ControlPlaneDefaultRegion()
 		}
 
-		conn, err := klutchaws.EnsureCognitoOIDC(context.Background(), region, createKlutchTenantName, createKlutchTenantUserPoolID)
+		secretName := klutchaws.TenantSecretName(createKlutchTenantName, createKlutchTenantSecretName)
+
+		if klutchaws.TenantSecretExists(context.Background(), region, secretName) && !createKlutchTenantForce {
+			makeup.ExitDueToFatalError(nil, fmt.Sprintf("A tenant secret already exists at %s in %s. Use --force to overwrite.", secretName, region))
+		}
+
+		makeup.PrintInfo("Creating or reusing Cognito app client for Klutch tenant...")
+		tenantUUID := uuid.New().String()
+
+		conn, err := klutchaws.EnsureCognitoOIDC(context.Background(), region, createKlutchTenantName, createKlutchTenantUserPoolID, tenantUUID)
 		if err != nil {
 			makeup.ExitDueToFatalError(err, "Failed to create or discover the Cognito app client for the Klutch tenant.")
 		}
+		conn.TenantUUID = tenantUUID
+		conn.TenantName = createKlutchTenantName
 
 		makeup.PrintH1("Klutch Tenant Credentials")
 		makeup.PrintInfo(fmt.Sprintf("Issuer:        %s", conn.IssuerURL))
 		makeup.PrintInfo(fmt.Sprintf("Client ID:     %s", conn.ClientID))
 		makeup.PrintInfo(fmt.Sprintf("Client Secret: %s", conn.ClientSecret))
 		makeup.PrintInfo(fmt.Sprintf("Scope:         %s", conn.Scope))
+		makeup.PrintInfo(fmt.Sprintf("Tenant UUID:   %s", conn.TenantUUID))
 
 		if createKlutchTenantStoreSecret {
-			secretName := strings.TrimSpace(createKlutchTenantSecretName)
-			if secretName == "" {
-				secretName = fmt.Sprintf("klutch/%s/oidc-client", createKlutchTenantName)
-			}
+			makeup.PrintInfo("Storing tenant credentials in AWS Secrets Manager...")
 			if err := klutchaws.StoreCognitoCredentialsSecret(context.Background(), region, secretName, conn); err != nil {
 				makeup.ExitDueToFatalError(err, "Failed to store Cognito credentials in AWS Secrets Manager.")
 			}
@@ -399,8 +410,9 @@ func init() {
 	cmdCreateClusterKlutchTenant.Flags().StringVar(&createKlutchTenantName, "tenant-name", "", "Name/prefix for the tenant (used to name the Cognito app client).")
 	cmdCreateClusterKlutchTenant.Flags().StringVar(&createKlutchTenantRegion, "region", "", "AWS region for Cognito (defaults to CONTROL_PLANE_CLUSTER_REGION or eu-central-1).")
 	cmdCreateClusterKlutchTenant.Flags().StringVar(&createKlutchTenantUserPoolID, "user-pool-id", "", "Existing Cognito user pool ID to reuse. If omitted, a pool named <tenant>-klutch is created or reused.")
-	cmdCreateClusterKlutchTenant.Flags().BoolVar(&createKlutchTenantStoreSecret, "store-secret", false, "Store the tenant credentials in AWS Secrets Manager.")
+	cmdCreateClusterKlutchTenant.Flags().BoolVar(&createKlutchTenantStoreSecret, "store-secret", true, "Store the tenant credentials in AWS Secrets Manager.")
 	cmdCreateClusterKlutchTenant.Flags().StringVar(&createKlutchTenantSecretName, "secret-name", "", "Secrets Manager name to store the tenant credentials (defaults to klutch/<tenant>/oidc-client).")
+	cmdCreateClusterKlutchTenant.Flags().BoolVar(&createKlutchTenantForce, "force", false, "Overwrite an existing tenant secret if it already exists.")
 
 	cmdCreateCluster.AddCommand(cmdCreateClusterA8s)
 	cmdCreateClusterKlutch.AddCommand(cmdCreateClusterKlutchControlPlane)
