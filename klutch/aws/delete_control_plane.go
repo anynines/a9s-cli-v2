@@ -589,8 +589,26 @@ func releaseEIPs(ctx context.Context, natEIPs []string, opts DeleteOptions) {
 			awsLogger.Infof("Dry-run: would release EIP %s", alloc)
 			continue
 		}
-		if _, errOut, err := runCmd(ctx, "aws", "ec2", "release-address", "--allocation-id", alloc); err != nil {
-			awsLogger.Warningf("Failed to release EIP %s: %v\nstderr: %s", alloc, err, errOut)
+		args := []string{"ec2", "release-address", "--allocation-id", alloc}
+		if opts.Region != "" {
+			args = append(args, "--region", opts.Region)
+		}
+		for attempt := 1; attempt <= 2; attempt++ {
+			if _, errOut, err := runCmd(ctx, "aws", args...); err != nil {
+				if attempt == 1 && isAuthError(errOut) {
+					awsLogger.Warningf("Release failed for %s due to AWS authentication. Retrying once after validating credentials...", alloc)
+					if _, idErrOut, idErr := runCmd(ctx, "aws", "sts", "get-caller-identity", "--output", "text"); idErr != nil {
+						awsLogger.Warningf("AWS credentials appear invalid. Refresh them (e.g., aws sso login) and rerun:\n  aws ec2 release-address --allocation-id %s --region %s\nSTS stderr: %s", alloc, defaultString(opts.Region, "<region>"), idErrOut)
+						break
+					}
+					time.Sleep(2 * time.Second)
+					continue
+				}
+				awsLogger.Warningf("Failed to release EIP %s: %v\nstderr: %s", alloc, err, errOut)
+			} else {
+				awsLogger.Successf("Released EIP %s.", alloc)
+			}
+			break
 		}
 	}
 }

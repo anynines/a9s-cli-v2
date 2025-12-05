@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -246,7 +247,33 @@ func defaultRunCmd(ctx context.Context, name string, args ...string) (string, st
 	cmd.Stdout = &outBuf
 	cmd.Stderr = &errBuf
 	err := cmd.Run()
-	return strings.TrimSpace(outBuf.String()), strings.TrimSpace(errBuf.String()), err
+	stdout := strings.TrimSpace(outBuf.String())
+	stderr := strings.TrimSpace(errBuf.String())
+
+	if err != nil && isAWSCLI(name) && isAuthError(stderr) {
+		awsLogger.Fatalf(err, "AWS authentication failed while running %s %s. Refresh credentials (e.g., aws sso login) and rerun.\nstderr: %s", name, strings.Join(args, " "), stderr)
+	}
+
+	return stdout, stderr, err
+}
+
+func isAWSCLI(name string) bool {
+	base := filepath.Base(name)
+	return base == "aws" || base == "aws.exe"
+}
+
+func isAuthError(errOut string) bool {
+	lower := strings.ToLower(errOut)
+	return strings.Contains(lower, "authfailure") ||
+		strings.Contains(lower, "validate the provided access credentials") ||
+		strings.Contains(lower, "expiredtoken") ||
+		strings.Contains(lower, "token has expired") ||
+		strings.Contains(lower, "invalidclienttokenid") ||
+		strings.Contains(lower, "signaturedoesnotmatch") ||
+		strings.Contains(lower, "request has expired") ||
+		strings.Contains(lower, "security token included in the request is invalid") ||
+		strings.Contains(lower, "could not find credentials") ||
+		strings.Contains(lower, "no credential providers")
 }
 
 func mustRun(ctx context.Context, name string, args ...string) string {
