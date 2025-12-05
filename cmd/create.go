@@ -27,6 +27,11 @@ var createKlutchOIDCIssuerURL string
 var createKlutchOIDCClientID string
 var createKlutchOIDCClientSecret string
 var createKlutchOIDCCallbackURL string
+var createKlutchTenantName string
+var createKlutchTenantRegion string
+var createKlutchTenantUserPoolID string
+var createKlutchTenantStoreSecret bool = true
+var createKlutchTenantSecretName string
 
 var cmdCreate = &cobra.Command{
 	Use:   "create",
@@ -132,6 +137,16 @@ var cmdCreateClusterKlutch = &cobra.Command{
 	},
 }
 
+var cmdCreateKlutch = &cobra.Command{
+	Use:   "klutch",
+	Short: "Create Klutch resources.",
+	Long:  `Create Klutch resources such as tenants (Cognito app clients).`,
+	Run: func(cmd *cobra.Command, args []string) {
+		makeup.PrintWarning(" " + "Please use a sub-command.")
+		cmd.Help()
+	},
+}
+
 var cmdCreateClusterKlutchControlPlane = &cobra.Command{
 	Use:   "control-plane",
 	Short: "Create the Klutch control plane cluster (and install it).",
@@ -174,6 +189,54 @@ Use --no-apply to only provision the cluster. Currently only AWS is supported.`,
 		})
 
 		klutch.ApplyKlutchControlPlane(createKlutchApplyHost, createKlutchApplyIngressPort, createKlutchApplyACMCertificateARN, createKlutchApplyHostedZone)
+	},
+}
+
+var cmdCreateClusterKlutchTenant = &cobra.Command{
+	Use:   "tenant",
+	Short: "Create a Klutch tenant (Cognito app client) for workload bindings.",
+	Long:  `Creates or reuses a Cognito app client scoped for Klutch bindings and prints issuer/client credentials for the workload owner.`,
+	Run: func(cmd *cobra.Command, args []string) {
+		if strings.TrimSpace(createKlutchTenantName) == "" {
+			makeup.ExitDueToFatalError(nil, "The --tenant-name flag is required.")
+		}
+
+		region := strings.TrimSpace(createKlutchTenantRegion)
+		if region == "" {
+			region = klutchaws.ControlPlaneDefaultRegion()
+		}
+
+		conn, err := klutchaws.EnsureCognitoOIDC(context.Background(), region, createKlutchTenantName, createKlutchTenantUserPoolID)
+		if err != nil {
+			makeup.ExitDueToFatalError(err, "Failed to create or discover the Cognito app client for the Klutch tenant.")
+		}
+
+		makeup.PrintH1("Klutch Tenant Credentials")
+		makeup.PrintInfo(fmt.Sprintf("Issuer:        %s", conn.IssuerURL))
+		makeup.PrintInfo(fmt.Sprintf("Client ID:     %s", conn.ClientID))
+		makeup.PrintInfo(fmt.Sprintf("Client Secret: %s", conn.ClientSecret))
+		makeup.PrintInfo(fmt.Sprintf("Scope:         %s", conn.Scope))
+
+		if createKlutchTenantStoreSecret {
+			secretName := strings.TrimSpace(createKlutchTenantSecretName)
+			if secretName == "" {
+				secretName = fmt.Sprintf("klutch/%s/oidc-client", createKlutchTenantName)
+			}
+			if err := klutchaws.StoreCognitoCredentialsSecret(context.Background(), region, secretName, conn); err != nil {
+				makeup.ExitDueToFatalError(err, "Failed to store Cognito credentials in AWS Secrets Manager.")
+			}
+			makeup.PrintSuccess(fmt.Sprintf("Stored credentials in Secrets Manager secret: %s", secretName))
+		}
+
+		if createKlutchTenantStoreSecret {
+			makeup.PrintSuccessSummary("Credentials stored in AWS Secrets Manager; share access (not raw secrets) with the workload owner.")
+			makeup.PrintInfo("Workload owners can create their cluster with `a9s create cluster klutch workload --provider aws --cluster-name <name>`.")
+			makeup.PrintInfo("Keep the issuer/client ID/secret for this tenant; they are required by the non-interactive bind flow (`a9s klutch bind` using a token issued by this OIDC app).")
+		} else {
+			makeup.PrintSuccessSummary("Store these values securely (e.g., AWS Secrets Manager) and share with the workload cluster owner.")
+			makeup.PrintInfo("Workload owners can create their cluster with `a9s create cluster klutch workload --provider aws --cluster-name <name>`.")
+			makeup.PrintInfo("Keep the issuer/client ID/secret for this tenant; they are required by the non-interactive bind flow (`a9s klutch bind` using a token issued by this OIDC app).")
+		}
 	},
 }
 
@@ -333,15 +396,23 @@ func init() {
 	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchOIDCClientID, "oidc-client-id", "", "OIDC client ID (required for oidc-provider=cognito).")
 	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchOIDCClientSecret, "oidc-client-secret", "", "OIDC client secret (required for oidc-provider=cognito).")
 	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchOIDCCallbackURL, "oidc-callback-url", "", "OIDC callback URL to configure on the backend. Defaults to https://<host>/callback when not provided.")
+	cmdCreateClusterKlutchTenant.Flags().StringVar(&createKlutchTenantName, "tenant-name", "", "Name/prefix for the tenant (used to name the Cognito app client).")
+	cmdCreateClusterKlutchTenant.Flags().StringVar(&createKlutchTenantRegion, "region", "", "AWS region for Cognito (defaults to CONTROL_PLANE_CLUSTER_REGION or eu-central-1).")
+	cmdCreateClusterKlutchTenant.Flags().StringVar(&createKlutchTenantUserPoolID, "user-pool-id", "", "Existing Cognito user pool ID to reuse. If omitted, a pool named <tenant>-klutch is created or reused.")
+	cmdCreateClusterKlutchTenant.Flags().BoolVar(&createKlutchTenantStoreSecret, "store-secret", false, "Store the tenant credentials in AWS Secrets Manager.")
+	cmdCreateClusterKlutchTenant.Flags().StringVar(&createKlutchTenantSecretName, "secret-name", "", "Secrets Manager name to store the tenant credentials (defaults to klutch/<tenant>/oidc-client).")
 
 	cmdCreateCluster.AddCommand(cmdCreateClusterA8s)
 	cmdCreateClusterKlutch.AddCommand(cmdCreateClusterKlutchControlPlane)
 	cmdCreateClusterKlutch.AddCommand(cmdCreateClusterKlutchWorkload)
+	cmdCreateClusterKlutch.AddCommand(cmdCreateClusterKlutchTenant)
 	cmdCreateCluster.AddCommand(cmdCreateClusterKlutch)
+	cmdCreateKlutch.AddCommand(cmdCreateClusterKlutchTenant)
 	cmdCreateStack.AddCommand(cmdCreateStackA8s)
 	cmdCreateStack.PersistentFlags().StringVarP(&demo.DemoClusterName, "cluster-name", "c", "a8s-demo", "name of the demo Kubernetes cluster.")
 
 	cmdCreate.AddCommand(cmdCreateCluster)
+	cmdCreate.AddCommand(cmdCreateKlutch)
 	cmdCreate.AddCommand(cmdCreateStack)
 	rootCmd.PersistentFlags().BoolVarP(&demo.UnattendedMode, "yes", "y", false, "skip yes-no questions by answering with \"yes\".")
 	rootCmd.PersistentFlags().BoolVarP(&makeup.Verbose, "verbose", "v", false, "enable verbose output?")

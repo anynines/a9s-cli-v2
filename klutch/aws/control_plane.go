@@ -200,6 +200,11 @@ func defaultConfig() Config {
 	}
 }
 
+// ControlPlaneDefaultRegion returns the default region used for Klutch control plane resources.
+func ControlPlaneDefaultRegion() string {
+	return defaultConfig().Region
+}
+
 func workloadConfig(clusterName string) Config {
 	cfg := defaultConfig()
 	cfg.KlutchTagValue = "Workload"

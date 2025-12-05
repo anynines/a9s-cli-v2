@@ -287,7 +287,7 @@ func (k *KlutchManager) applyControlPlaneToContext(baseDomain string, dexHost st
 			prefix = "klutch"
 		}
 		makeup.PrintInfo(fmt.Sprintf("No Cognito settings provided. Provisioning Cognito (region: %s, prefix: %s)...", region, prefix))
-		oidcConn, err := klutchaws.EnsureCognitoOIDC(context.Background(), region, prefix)
+		oidcConn, err := klutchaws.EnsureCognitoOIDC(context.Background(), region, prefix, "")
 		if err != nil {
 			makeup.ExitDueToFatalError(err, "Failed to provision Cognito for Klutch OIDC.")
 		}

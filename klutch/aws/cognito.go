@@ -14,14 +14,15 @@ type OIDCConnection struct {
 	IssuerURL    string
 	ClientID     string
 	ClientSecret string
+	Scope        string
 }
 
 // EnsureCognitoOIDC provisions (or reuses) a minimal Cognito setup for client-credentials:
-// - user pool
+// - user pool (existing or created)
 // - resource server with scope klutch/bind
 // - app client with secret and client_credentials flow
 // - Amazon-hosted domain
-func EnsureCognitoOIDC(ctx context.Context, region string, namePrefix string) (OIDCConnection, error) {
+func EnsureCognitoOIDC(ctx context.Context, region string, namePrefix string, userPoolID string) (OIDCConnection, error) {
 	prefix := strings.ToLower(strings.TrimSpace(namePrefix))
 	if prefix == "" {
 		prefix = "klutch"
@@ -36,13 +37,25 @@ func EnsureCognitoOIDC(ctx context.Context, region string, namePrefix string) (O
 	resourceScope := "klutch/bind"
 	clientName := fmt.Sprintf("%s-konnector", prefix)
 
-	poolID := discoverUserPool(ctx, region, userPoolName)
+	poolID := strings.TrimSpace(userPoolID)
 	if poolID == "" {
-		poolID = mustRun(ctx, "aws", "cognito-idp", "create-user-pool",
+		poolID = discoverUserPool(ctx, region, userPoolName)
+		if poolID == "" {
+			poolID = mustRun(ctx, "aws", "cognito-idp", "create-user-pool",
+				"--region", region,
+				"--pool-name", userPoolName,
+				"--query", "UserPool.Id",
+				"--output", "text")
+		}
+	} else {
+		// Validate provided pool ID
+		if _, errOut, err := runCmd(ctx, "aws", "cognito-idp", "describe-user-pool",
 			"--region", region,
-			"--pool-name", userPoolName,
+			"--user-pool-id", poolID,
 			"--query", "UserPool.Id",
-			"--output", "text")
+			"--output", "text"); err != nil {
+			return OIDCConnection{}, fmt.Errorf("provided user pool id %s is not accessible: %w (stderr: %s)", poolID, err, errOut)
+		}
 	}
 
 	// Create resource server + scope (best effort).
@@ -67,6 +80,7 @@ func EnsureCognitoOIDC(ctx context.Context, region string, namePrefix string) (O
 		IssuerURL:    issuer,
 		ClientID:     client.ClientID,
 		ClientSecret: client.ClientSecret,
+		Scope:        resourceScope,
 	}, nil
 }
 
@@ -171,6 +185,28 @@ func ensureCognitoOAuthSupport(ctx context.Context) error {
 	}
 	if !strings.Contains(out+errOut, "allowed-o-auth-flows-user-pool-client") {
 		return fmt.Errorf("installed aws cli does not support Cognito OAuth flags (allowed-o-auth-flows-user-pool-client). Please upgrade awscli v2 or provide OIDC issuer/client credentials via flags.")
+	}
+	return nil
+}
+
+// StoreCognitoCredentialsSecret stores OIDC client credentials in AWS Secrets Manager (create or update).
+func StoreCognitoCredentialsSecret(ctx context.Context, region, secretName string, conn OIDCConnection) error {
+	payload := fmt.Sprintf(`{"issuer":"%s","client_id":"%s","client_secret":"%s","scope":"%s"}`, conn.IssuerURL, conn.ClientID, conn.ClientSecret, conn.Scope)
+
+	if _, errOut, err := runCmd(ctx, "aws", "secretsmanager", "create-secret",
+		"--region", region,
+		"--name", secretName,
+		"--secret-string", payload); err != nil {
+		if strings.Contains(strings.ToLower(errOut), "resourceexistsexception") {
+			if _, errOut2, err2 := runCmd(ctx, "aws", "secretsmanager", "put-secret-value",
+				"--region", region,
+				"--secret-id", secretName,
+				"--secret-string", payload); err2 != nil {
+				return fmt.Errorf("could not update existing secret %s: %w (stderr: %s)", secretName, err2, errOut2)
+			}
+			return nil
+		}
+		return fmt.Errorf("could not create secret %s: %w (stderr: %s)", secretName, err, errOut)
 	}
 	return nil
 }
