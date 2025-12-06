@@ -93,7 +93,7 @@ func selectContext(contexts []string, clusterName string) string {
 }
 
 func init() {
-	useKlutchCmd.Flags().StringVar(&useKlutchClusterName, "cluster-name", "", "Klutch cluster name to switch to.")
+	useKlutchCmd.Flags().StringVarP(&useKlutchClusterName, "cluster-name", "c", "", "Klutch cluster name to switch to.")
 
 	useCmd.AddCommand(useKlutchCmd)
 	rootCmd.AddCommand(useCmd)

@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"os/exec"
 	"strings"
 
 	klutchaws "github.com/anynines/a9s-cli-v2/klutch/aws"
@@ -13,6 +14,44 @@ import (
 var getKlutchTenantRegion string
 var getKlutchTenantSecretName string
 var getKlutchTenantPrefix string
+
+// getKlutchClustersCmd lists Klutch-related kubectl contexts/clusters.
+var getKlutchClustersCmd = &cobra.Command{
+	Use:   "clusters",
+	Short: "List Klutch clusters (control-plane and workload) from kubectl contexts/clusters.",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		contexts, err := listKubectlNames("config", "get-contexts", "-o", "name")
+		if err != nil {
+			return fmt.Errorf("failed to list kubectl contexts: %w", err)
+		}
+		clusters, err := listKubectlNames("config", "get-clusters")
+		if err != nil {
+			return fmt.Errorf("failed to list kubectl clusters: %w", err)
+		}
+
+		seen := map[string]struct{}{}
+		var matches []string
+		for _, n := range append(contexts, clusters...) {
+			if strings.Contains(strings.ToLower(n), "klutch") {
+				if _, ok := seen[n]; !ok {
+					seen[n] = struct{}{}
+					matches = append(matches, n)
+				}
+			}
+		}
+
+		if len(matches) == 0 {
+			makeup.PrintInfo("No Klutch-related kubectl contexts or clusters found.")
+			return nil
+		}
+
+		makeup.PrintH1("Klutch clusters detected in kubectl config")
+		for _, m := range matches {
+			makeup.Print(fmt.Sprintf("- %s", m))
+		}
+		return nil
+	},
+}
 
 var getCmd = &cobra.Command{
 	Use:   "get",
@@ -93,6 +132,23 @@ func init() {
 
 	getKlutchCmd.AddCommand(getKlutchTenantsCmd)
 	getKlutchCmd.AddCommand(getKlutchTenantCmd)
+	getKlutchCmd.AddCommand(getKlutchClustersCmd)
 	getCmd.AddCommand(getKlutchCmd)
 	rootCmd.AddCommand(getCmd)
+}
+
+// listKubectlNames runs a kubectl subcommand and returns non-empty lines from stdout.
+func listKubectlNames(args ...string) ([]string, error) {
+	out, err := exec.Command("kubectl", args...).Output()
+	if err != nil {
+		return nil, err
+	}
+	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+	var res []string
+	for _, l := range lines {
+		if s := strings.TrimSpace(l); s != "" {
+			res = append(res, s)
+		}
+	}
+	return res, nil
 }
