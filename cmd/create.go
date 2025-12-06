@@ -304,6 +304,8 @@ var cmdCreateClusterKlutchWorkload = &cobra.Command{
 	Long:  `Creates a Klutch workload cluster on the selected provider. Currently only AWS is supported.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		opts := klutchaws.CreateOptions{DryRun: createKlutchDryRun}
+		var tenantConn *klutchaws.OIDCConnection
+		var tenantBindRequest []byte
 
 		if cmd.Flags().Changed("cluster-name") {
 			opts.ClusterName = strings.TrimSpace(demo.DemoClusterName)
@@ -314,11 +316,7 @@ var cmdCreateClusterKlutchWorkload = &cobra.Command{
 			makeup.PrintInfo(fmt.Sprintf("Generated workload cluster name: %s", opts.ClusterName))
 		}
 
-		if err := runKlutchClusterCreationWith(demo.KubernetesTool, opts, createKlutchWorkload); err != nil {
-			makeup.ExitDueToFatalError(nil, err.Error())
-		}
-
-		// Auto-bind if a tenant was provided.
+		// Pre-validate tenant and bind request to fail fast before provisioning.
 		if strings.TrimSpace(createKlutchWorkloadTenantName) != "" || strings.TrimSpace(createKlutchWorkloadTenantSecretName) != "" {
 			region := strings.TrimSpace(createKlutchWorkloadTenantRegion)
 			if region == "" {
@@ -329,30 +327,41 @@ var cmdCreateClusterKlutchWorkload = &cobra.Command{
 			if err != nil {
 				makeup.ExitDueToFatalError(err, fmt.Sprintf("Failed to load tenant secret %s in %s", secretName, region))
 			}
+			if strings.TrimSpace(conn.BindURL) == "" {
+				makeup.ExitDueToFatalError(nil, "Tenant secret is missing bind_url. Provide a tenant with bind_url or recreate the tenant.")
+			}
+			tenantConn = &conn
 
+			if strings.TrimSpace(createKlutchWorkloadBindRequestFile) != "" {
+				data, err := os.ReadFile(createKlutchWorkloadBindRequestFile)
+				if err != nil {
+					makeup.ExitDueToFatalError(err, "Failed to read bind request file override.")
+				}
+				tenantBindRequest = data
+			} else if strings.TrimSpace(conn.BindRequest) != "" {
+				tenantBindRequest = []byte(conn.BindRequest)
+			}
+			if err := klutch.ValidateBindRequest(tenantBindRequest); err != nil {
+				makeup.ExitDueToFatalError(err, "Invalid or missing bind request (tenant secret or override).")
+			}
+		}
+
+		if err := runKlutchClusterCreationWith(demo.KubernetesTool, opts, createKlutchWorkload); err != nil {
+			makeup.ExitDueToFatalError(nil, err.Error())
+		}
+
+		if tenantConn != nil {
 			bindOpts := klutch.NonInteractiveBindOptions{
-				ControlPlaneURL:    strings.TrimSpace(conn.BindURL),
-				OIDCClientID:       conn.ClientID,
-				OIDCClientSecret:   conn.ClientSecret,
-				OIDCTokenURL:       conn.TokenURL,
-				OIDCScope:          conn.Scope,
+				ControlPlaneURL:    strings.TrimSpace(tenantConn.BindURL),
+				OIDCClientID:       tenantConn.ClientID,
+				OIDCClientSecret:   tenantConn.ClientSecret,
+				OIDCTokenURL:       tenantConn.TokenURL,
+				OIDCScope:          tenantConn.Scope,
 				KonnectorImage:     "",
 				WriteKubeconfigTo:  "",
 				WorkloadKubeconfig: "",
 				WorkloadContext:    "",
-				BindRequestData:    []byte(conn.BindRequest),
-			}
-			if strings.TrimSpace(createKlutchWorkloadBindRequestFile) != "" {
-				if data, err := os.ReadFile(createKlutchWorkloadBindRequestFile); err == nil {
-					bindOpts.BindRequestData = data
-				} else {
-					makeup.ExitDueToFatalError(err, "Failed to read bind request file override.")
-				}
-			}
-			if len(bindOpts.BindRequestData) == 0 {
-				if br, err := klutch.DefaultBindRequestJSON(createKlutchWorkloadTenantName); err == nil {
-					bindOpts.BindRequestData = br
-				}
+				BindRequestData:    tenantBindRequest,
 			}
 
 			makeup.PrintInfo("Auto-binding workload cluster using tenant credentials...")

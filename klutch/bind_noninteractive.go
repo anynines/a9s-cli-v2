@@ -45,14 +45,32 @@ type bindRequest struct {
 	Apis      []metav1.GroupResource `json:"apis"`
 }
 
+// ValidateBindRequest ensures the payload is valid JSON and has required fields.
+func ValidateBindRequest(data []byte) error {
+	if len(data) == 0 {
+		return fmt.Errorf("bind request is required (from tenant secret or --bind-request-file)")
+	}
+	var br bindRequest
+	if err := json.Unmarshal(data, &br); err != nil {
+		return fmt.Errorf("bind request is invalid JSON: %w", err)
+	}
+	if strings.TrimSpace(br.ClusterID) == "" {
+		return fmt.Errorf("bind request is missing clusterID")
+	}
+	if len(br.Apis) == 0 {
+		return fmt.Errorf("bind request has no apis")
+	}
+	return nil
+}
+
 // NonInteractiveBind executes the helper workflow inline: requests a binding via the backend,
 // applies the returned manifests to the workload cluster, and creates export requests on the control plane.
 func NonInteractiveBind(ctx context.Context, opts NonInteractiveBindOptions) error {
 	if strings.TrimSpace(opts.ControlPlaneURL) == "" {
 		return fmt.Errorf("control-plane URL is required")
 	}
-	if strings.TrimSpace(opts.BindRequestPath) == "" {
-		return fmt.Errorf("bind request file (--bind-request-file) is required")
+	if len(opts.BindRequestData) == 0 && strings.TrimSpace(opts.BindRequestPath) == "" {
+		return fmt.Errorf("bind request is required (from tenant secret or --bind-request-file)")
 	}
 
 	clientID := firstNonEmpty(opts.OIDCClientID, os.Getenv("OIDC_CLIENT_ID"))
@@ -76,11 +94,10 @@ func NonInteractiveBind(ctx context.Context, opts NonInteractiveBindOptions) err
 		}
 	}
 	if len(reqBytes) == 0 {
-		return fmt.Errorf("bind request is required (from secret or --bind-request-file)")
+		return fmt.Errorf("bind request is required (from tenant secret or --bind-request-file)")
 	}
-	var br bindRequest
-	if err := json.Unmarshal(reqBytes, &br); err != nil {
-		return fmt.Errorf("bind request is invalid: %w", err)
+	if err := ValidateBindRequest(reqBytes); err != nil {
+		return err
 	}
 
 	targetURL := opts.ControlPlaneURL

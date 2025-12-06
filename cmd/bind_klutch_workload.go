@@ -137,18 +137,18 @@ var bindKlutchWorkloadCmd = &cobra.Command{
 			if len(opts.BindRequestData) == 0 && strings.TrimSpace(conn.BindRequest) != "" {
 				opts.BindRequestData = []byte(conn.BindRequest)
 			}
-			if len(opts.BindRequestData) == 0 {
-				if br, err := klutch.DefaultBindRequestJSON(conn.TenantName); err == nil {
-					opts.BindRequestData = br
-				}
-			}
 		}
 
 		if opts.ControlPlaneURL == "" {
 			return fmt.Errorf("control-plane URL is required (flag --control-plane or bind_url in tenant secret)")
 		}
 		if len(opts.BindRequestData) == 0 && strings.TrimSpace(opts.BindRequestPath) == "" {
-			return fmt.Errorf("bind request is required (from tenant secret, default exports, or --bind-request-file)")
+			return fmt.Errorf("bind request is required (from tenant secret or --bind-request-file)")
+		}
+		if len(opts.BindRequestData) > 0 {
+			if err := klutch.ValidateBindRequest(opts.BindRequestData); err != nil {
+				return err
+			}
 		}
 
 		makeup.PrintInfo(fmt.Sprintf("Binding workload cluster to control plane %s (non-interactive)...", opts.ControlPlaneURL))
