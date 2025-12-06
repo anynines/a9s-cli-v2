@@ -20,36 +20,16 @@ var getKlutchClustersCmd = &cobra.Command{
 	Use:   "clusters",
 	Short: "List Klutch clusters (control-plane and workload) from kubectl contexts/clusters.",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		contexts, err := listKubectlNames("config", "get-contexts", "-o", "name")
-		if err != nil {
-			return fmt.Errorf("failed to list kubectl contexts: %w", err)
-		}
-		clusters, err := listKubectlNames("config", "get-clusters")
-		if err != nil {
-			return fmt.Errorf("failed to list kubectl clusters: %w", err)
-		}
+		return printKlutchClusters()
+	},
+}
 
-		seen := map[string]struct{}{}
-		var matches []string
-		for _, n := range append(contexts, clusters...) {
-			if strings.Contains(strings.ToLower(n), "klutch") {
-				if _, ok := seen[n]; !ok {
-					seen[n] = struct{}{}
-					matches = append(matches, n)
-				}
-			}
-		}
-
-		if len(matches) == 0 {
-			makeup.PrintInfo("No Klutch-related kubectl contexts or clusters found.")
-			return nil
-		}
-
-		makeup.PrintH1("Klutch clusters detected in kubectl config")
-		for _, m := range matches {
-			makeup.Print(fmt.Sprintf("- %s", m))
-		}
-		return nil
+// a9s get clusters klutch
+var getClustersKlutchCmd = &cobra.Command{
+	Use:   "klutch",
+	Short: "List Klutch clusters (control-plane and workload) from kubectl contexts/clusters.",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return printKlutchClusters()
 	},
 }
 
@@ -134,6 +114,17 @@ func init() {
 	getKlutchCmd.AddCommand(getKlutchTenantCmd)
 	getKlutchCmd.AddCommand(getKlutchClustersCmd)
 	getCmd.AddCommand(getKlutchCmd)
+	// synonym: a9s get clusters klutch
+	getClustersCmd := &cobra.Command{
+		Use:   "clusters",
+		Short: "List clusters",
+		Run: func(cmd *cobra.Command, args []string) {
+			makeup.PrintWarning(" " + "Please select a subcommand from the list below.")
+			_ = cmd.Help()
+		},
+	}
+	getClustersCmd.AddCommand(getClustersKlutchCmd)
+	getCmd.AddCommand(getClustersCmd)
 	rootCmd.AddCommand(getCmd)
 }
 
@@ -151,4 +142,37 @@ func listKubectlNames(args ...string) ([]string, error) {
 		}
 	}
 	return res, nil
+}
+
+func printKlutchClusters() error {
+	contexts, err := listKubectlNames("config", "get-contexts", "-o", "name")
+	if err != nil {
+		return fmt.Errorf("failed to list kubectl contexts: %w", err)
+	}
+	clusters, err := listKubectlNames("config", "get-clusters")
+	if err != nil {
+		return fmt.Errorf("failed to list kubectl clusters: %w", err)
+	}
+
+	seen := map[string]struct{}{}
+	var matches []string
+	for _, n := range append(contexts, clusters...) {
+		if strings.Contains(strings.ToLower(n), "klutch") {
+			if _, ok := seen[n]; !ok {
+				seen[n] = struct{}{}
+				matches = append(matches, n)
+			}
+		}
+	}
+
+	if len(matches) == 0 {
+		makeup.PrintInfo("No Klutch-related kubectl contexts or clusters found.")
+		return nil
+	}
+
+	makeup.PrintH1("Klutch clusters detected in kubectl config")
+	for _, m := range matches {
+		makeup.Print(fmt.Sprintf("- %s", m))
+	}
+	return nil
 }
