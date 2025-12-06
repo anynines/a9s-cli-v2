@@ -34,6 +34,13 @@ var createKlutchTenantUserPoolID string
 var createKlutchTenantStoreSecret bool = true
 var createKlutchTenantSecretName string
 var createKlutchTenantForce bool
+var createKlutchTenantTokenURL string
+var createKlutchTenantBindURL string
+var createKlutchTenantBindRequestFile string
+var createKlutchWorkloadTenantName string
+var createKlutchWorkloadTenantSecretName string
+var createKlutchWorkloadTenantRegion string
+var createKlutchWorkloadBindRequestFile string
 
 var cmdCreate = &cobra.Command{
 	Use:   "create",
@@ -223,13 +230,53 @@ var cmdCreateClusterKlutchTenant = &cobra.Command{
 		}
 		conn.TenantUUID = tenantUUID
 		conn.TenantName = createKlutchTenantName
+		if conn.BindURL == "" {
+			if info, err := klutch.LoadControlPlaneInfoFromCluster(""); err == nil {
+				if url := klutch.DefaultBindURLFromInfo(info); strings.TrimSpace(url) != "" {
+					conn.BindURL = url
+				}
+			} else if info, err := klutch.LoadControlPlaneInfo(demo.DemoConfig.WorkingDir); err == nil {
+				if url := klutch.DefaultBindURLFromInfo(info); strings.TrimSpace(url) != "" {
+					conn.BindURL = url
+				}
+			}
+		}
+		if strings.TrimSpace(createKlutchTenantTokenURL) != "" {
+			conn.TokenURL = strings.TrimSpace(createKlutchTenantTokenURL)
+		}
+		if strings.TrimSpace(createKlutchTenantBindURL) != "" {
+			conn.BindURL = strings.TrimSpace(createKlutchTenantBindURL)
+		}
+		if strings.TrimSpace(conn.BindURL) == "" {
+			makeup.ExitDueToFatalError(nil, "Could not determine the control-plane bind URL. Provide --bind-url or ensure the control plane info file is present.")
+		}
+		if strings.TrimSpace(createKlutchTenantBindRequestFile) != "" {
+			b, err := os.ReadFile(createKlutchTenantBindRequestFile)
+			if err != nil {
+				makeup.ExitDueToFatalError(err, "Failed to read bind request file.")
+			}
+			conn.BindRequest = string(b)
+		} else {
+			if br, err := klutch.DefaultBindRequestJSON(createKlutchTenantName); err == nil {
+				conn.BindRequest = string(br)
+			}
+		}
 
 		makeup.PrintH1("Klutch Tenant Credentials")
 		makeup.PrintInfo(fmt.Sprintf("Issuer:        %s", conn.IssuerURL))
+		if conn.TokenURL != "" {
+			makeup.PrintInfo(fmt.Sprintf("Token URL:     %s", conn.TokenURL))
+		}
 		makeup.PrintInfo(fmt.Sprintf("Client ID:     %s", conn.ClientID))
 		makeup.PrintInfo(fmt.Sprintf("Client Secret: %s", conn.ClientSecret))
 		makeup.PrintInfo(fmt.Sprintf("Scope:         %s", conn.Scope))
 		makeup.PrintInfo(fmt.Sprintf("Tenant UUID:   %s", conn.TenantUUID))
+		if conn.BindURL != "" {
+			makeup.PrintInfo(fmt.Sprintf("Bind URL:      %s", conn.BindURL))
+		}
+		if conn.BindRequest != "" {
+			makeup.PrintInfo("Bind Request:  stored in tenant secret")
+		}
 
 		if createKlutchTenantStoreSecret {
 			makeup.PrintInfo("Storing tenant credentials in AWS Secrets Manager...")
@@ -269,6 +316,50 @@ var cmdCreateClusterKlutchWorkload = &cobra.Command{
 
 		if err := runKlutchClusterCreationWith(demo.KubernetesTool, opts, createKlutchWorkload); err != nil {
 			makeup.ExitDueToFatalError(nil, err.Error())
+		}
+
+		// Auto-bind if a tenant was provided.
+		if strings.TrimSpace(createKlutchWorkloadTenantName) != "" || strings.TrimSpace(createKlutchWorkloadTenantSecretName) != "" {
+			region := strings.TrimSpace(createKlutchWorkloadTenantRegion)
+			if region == "" {
+				region = klutchaws.ControlPlaneDefaultRegion()
+			}
+			secretName := klutchaws.TenantSecretName(createKlutchWorkloadTenantName, createKlutchWorkloadTenantSecretName)
+			conn, err := klutchaws.GetTenantCredentials(context.Background(), region, secretName)
+			if err != nil {
+				makeup.ExitDueToFatalError(err, fmt.Sprintf("Failed to load tenant secret %s in %s", secretName, region))
+			}
+
+			bindOpts := klutch.NonInteractiveBindOptions{
+				ControlPlaneURL:    strings.TrimSpace(conn.BindURL),
+				OIDCClientID:       conn.ClientID,
+				OIDCClientSecret:   conn.ClientSecret,
+				OIDCTokenURL:       conn.TokenURL,
+				OIDCScope:          conn.Scope,
+				KonnectorImage:     "",
+				WriteKubeconfigTo:  "",
+				WorkloadKubeconfig: "",
+				WorkloadContext:    "",
+				BindRequestData:    []byte(conn.BindRequest),
+			}
+			if strings.TrimSpace(createKlutchWorkloadBindRequestFile) != "" {
+				if data, err := os.ReadFile(createKlutchWorkloadBindRequestFile); err == nil {
+					bindOpts.BindRequestData = data
+				} else {
+					makeup.ExitDueToFatalError(err, "Failed to read bind request file override.")
+				}
+			}
+			if len(bindOpts.BindRequestData) == 0 {
+				if br, err := klutch.DefaultBindRequestJSON(createKlutchWorkloadTenantName); err == nil {
+					bindOpts.BindRequestData = br
+				}
+			}
+
+			makeup.PrintInfo("Auto-binding workload cluster using tenant credentials...")
+			if err := klutch.NonInteractiveBind(context.Background(), bindOpts); err != nil {
+				makeup.ExitDueToFatalError(err, "Failed to bind workload cluster.")
+			}
+			makeup.PrintSuccessSummary("Workload cluster bound to control plane using tenant secret.")
 		}
 	},
 }
@@ -413,6 +504,13 @@ func init() {
 	cmdCreateClusterKlutchTenant.Flags().BoolVar(&createKlutchTenantStoreSecret, "store-secret", true, "Store the tenant credentials in AWS Secrets Manager.")
 	cmdCreateClusterKlutchTenant.Flags().StringVar(&createKlutchTenantSecretName, "secret-name", "", "Secrets Manager name to store the tenant credentials (defaults to klutch/<tenant>/oidc-client).")
 	cmdCreateClusterKlutchTenant.Flags().BoolVar(&createKlutchTenantForce, "force", false, "Overwrite an existing tenant secret if it already exists.")
+	cmdCreateClusterKlutchTenant.Flags().StringVar(&createKlutchTenantTokenURL, "token-url", "", "Override the OAuth2 token URL (defaults to Cognito hosted domain token endpoint).")
+	cmdCreateClusterKlutchTenant.Flags().StringVar(&createKlutchTenantBindURL, "bind-url", "", "Control-plane bind URL to store with the tenant (e.g. https://klutch-bind.example.com/bind-noninteractive).")
+	cmdCreateClusterKlutchTenant.Flags().StringVar(&createKlutchTenantBindRequestFile, "bind-request-file", "", "Path to bind request JSON to store with the tenant (defaults to all exported services).")
+	cmdCreateClusterKlutchWorkload.Flags().StringVar(&createKlutchWorkloadTenantName, "tenant-name", "", "Tenant name to auto-bind with.")
+	cmdCreateClusterKlutchWorkload.Flags().StringVar(&createKlutchWorkloadTenantSecretName, "tenant-secret-name", "", "Explicit tenant secret name (defaults to klutch/<tenant>/oidc-client).")
+	cmdCreateClusterKlutchWorkload.Flags().StringVar(&createKlutchWorkloadTenantRegion, "tenant-region", "", "AWS region for the tenant secret (defaults to CONTROL_PLANE_CLUSTER_REGION or eu-central-1).")
+	cmdCreateClusterKlutchWorkload.Flags().StringVar(&createKlutchWorkloadBindRequestFile, "bind-request-file", "", "Optional bind request JSON to override the tenant's stored bind request.")
 
 	cmdCreateCluster.AddCommand(cmdCreateClusterA8s)
 	cmdCreateClusterKlutch.AddCommand(cmdCreateClusterKlutchControlPlane)

@@ -790,7 +790,7 @@ func printControlPlaneSummary(workDir string) {
 	makeup.PrintSuccessSummary("You are now ready to bind APIs from an App Cluster using the `a9s klutch bind` command.")
 }
 
-// Writes information about the Control Plane Cluster to a file, to give other commands such as `bind` the information they need.
+// Writes information about the Control Plane Cluster to a file and ConfigMap, to give other commands such as `bind` the information they need.
 func writeControlPlaneClusterInfoToFile(workDir string, hostIP string, ingressPort string) {
 	info := &ControlPlaneClusterInfo{
 		Host:        hostIP,
@@ -815,6 +815,13 @@ func writeControlPlaneClusterInfoToFile(workDir string, hostIP string, ingressPo
 	}
 
 	makeup.PrintInfo(fmt.Sprintf("Wrote Control Plane Cluster information to %s", file))
+
+	// Also store in-cluster ConfigMap for discovery without local files.
+	if err := SaveControlPlaneInfoToCluster("", *info); err != nil {
+		makeup.PrintWarning(fmt.Sprintf("Could not store control plane info ConfigMap: %v", err))
+	} else {
+		makeup.PrintInfo("Stored Control Plane info ConfigMap in cluster.")
+	}
 }
 
 // Checks if prerequisites of the deploy command are met.

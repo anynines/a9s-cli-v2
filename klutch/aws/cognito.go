@@ -11,13 +11,16 @@ import (
 
 // OIDCConnection holds the issuer and client credentials for Cognito.
 type OIDCConnection struct {
-	IssuerURL    string
-	ClientID     string
-	ClientSecret string
-	Scope        string
-	TenantName   string
-	TenantUUID   string
-	UserPoolID   string
+	IssuerURL    string `json:"issuer"`
+	TokenURL     string `json:"token_url"`
+	ClientID     string `json:"client_id"`
+	ClientSecret string `json:"client_secret"`
+	Scope        string `json:"scope"`
+	TenantName   string `json:"tenant_name"`
+	TenantUUID   string `json:"tenant_uuid"`
+	UserPoolID   string `json:"user_pool_id"`
+	BindURL      string `json:"bind_url"`
+	BindRequest  string `json:"bind_request"`
 }
 
 // EnsureCognitoOIDC provisions (or reuses) a minimal Cognito setup for client-credentials:
@@ -84,12 +87,13 @@ func EnsureCognitoOIDC(ctx context.Context, region string, namePrefix string, us
 	}
 
 	domain := ensureUserPoolDomain(ctx, region, poolID, prefix)
-	_ = domain // domain is still useful for browser flows; issuer comes from the identity provider endpoint.
 
 	issuer := fmt.Sprintf("https://cognito-idp.%s.amazonaws.com/%s", region, poolID)
+	tokenURL := fmt.Sprintf("https://%s.auth.%s.amazoncognito.com/oauth2/token", domain, region)
 
 	return OIDCConnection{
 		IssuerURL:    issuer,
+		TokenURL:     tokenURL,
 		ClientID:     client.ClientID,
 		ClientSecret: client.ClientSecret,
 		Scope:        resourceScope,
@@ -257,7 +261,8 @@ func getAccountID(ctx context.Context) (string, error) {
 
 // StoreCognitoCredentialsSecret stores OIDC client credentials in AWS Secrets Manager (create or update).
 func StoreCognitoCredentialsSecret(ctx context.Context, region, secretName string, conn OIDCConnection) error {
-	payload := fmt.Sprintf(`{"issuer":"%s","client_id":"%s","client_secret":"%s","scope":"%s","tenant_name":"%s","tenant_uuid":"%s"}`, conn.IssuerURL, conn.ClientID, conn.ClientSecret, conn.Scope, conn.TenantName, conn.TenantUUID)
+	payload := fmt.Sprintf(`{"issuer":"%s","token_url":"%s","client_id":"%s","client_secret":"%s","scope":"%s","tenant_name":"%s","tenant_uuid":"%s","bind_url":"%s","bind_request":%q}`,
+		conn.IssuerURL, conn.TokenURL, conn.ClientID, conn.ClientSecret, conn.Scope, conn.TenantName, conn.TenantUUID, conn.BindURL, conn.BindRequest)
 	accountID, err := getAccountID(ctx)
 	if err != nil {
 		return fmt.Errorf("could not determine AWS account ID for tagging: %w", err)
