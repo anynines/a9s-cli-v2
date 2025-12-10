@@ -26,6 +26,8 @@ func deployTenantOperator(ctx context.Context, cfg Config, accountID string) {
 	ns := "a9s-tenants-operator-system"
 	release := "a9s-tenants-operator"
 
+	ensureHelmRegistryLogin(ctx, cfg)
+
 	args := []string{
 		"helm", "upgrade", "--install", release, cfg.TenantOperatorChart,
 		"--namespace", ns, "--create-namespace",
@@ -69,5 +71,68 @@ func deployTenantOperator(ctx context.Context, cfg Config, accountID string) {
 	if makeup.Verbose {
 		makeup.Print(outBuf.String())
 	}
-	makeup.PrintSuccess("Tenant operator deployed.")
+	waitForTenantOperator(ctx, ns)
+}
+
+// ensureHelmRegistryLogin performs a helm registry login for ECR-backed OCI charts to avoid 403 token expiry.
+func ensureHelmRegistryLogin(ctx context.Context, cfg Config) {
+	chart := strings.TrimSpace(cfg.TenantOperatorChart)
+	if !strings.HasPrefix(chart, "oci://") {
+		return
+	}
+	trimmed := strings.TrimPrefix(chart, "oci://")
+	parts := strings.SplitN(trimmed, "/", 2)
+	if len(parts) == 0 {
+		return
+	}
+	host := parts[0]
+	if !strings.Contains(host, ".ecr.") {
+		return
+	}
+	region := strings.TrimSpace(cfg.TenantOperatorRegion)
+	if region == "" {
+		region = strings.TrimSpace(cfg.Region)
+	}
+	if region == "" {
+		region = "eu-central-1"
+	}
+
+	makeup.PrintInfo(fmt.Sprintf("Logging into Helm OCI registry %s via ECR...", host))
+	passCmd := exec.CommandContext(ctx, "aws", "ecr", "get-login-password", "--region", region)
+	var pwBuf bytes.Buffer
+	passCmd.Stdout = &pwBuf
+	if err := passCmd.Run(); err != nil {
+		makeup.PrintWarning(fmt.Sprintf("Failed to obtain ECR login password for %s: %v", host, err))
+		return
+	}
+
+	loginCmd := exec.CommandContext(ctx, "helm", "registry", "login", host, "--username", "AWS", "--password-stdin")
+	loginCmd.Stdin = bytes.NewReader(pwBuf.Bytes())
+	var outBuf, errBuf bytes.Buffer
+	loginCmd.Stdout = &outBuf
+	loginCmd.Stderr = &errBuf
+	if err := loginCmd.Run(); err != nil {
+		makeup.PrintWarning(fmt.Sprintf("Helm registry login to %s failed: %v\nstderr: %s", host, err, strings.TrimSpace(errBuf.String())))
+		return
+	}
+	if makeup.Verbose {
+		makeup.Print(outBuf.String())
+	}
+	makeup.PrintInfo(fmt.Sprintf("Helm registry login to %s succeeded.", host))
+}
+
+// waitForTenantOperator waits for the tenant operator deployment to become ready.
+func waitForTenantOperator(ctx context.Context, namespace string) {
+	makeup.PrintInfo("Waiting for tenant operator deployment to become ready...")
+	cmd := exec.CommandContext(ctx, "kubectl", "-n", namespace, "rollout", "status", "deployment/a9s-tenants-operator", "--timeout=2m")
+	var outBuf, errBuf bytes.Buffer
+	cmd.Stdout = &outBuf
+	cmd.Stderr = &errBuf
+	if err := cmd.Run(); err != nil {
+		makeup.ExitDueToFatalError(err, fmt.Sprintf("Tenant operator did not become ready.\nstderr: %s", strings.TrimSpace(errBuf.String())))
+	}
+	if makeup.Verbose {
+		makeup.Print(outBuf.String())
+	}
+	makeup.PrintSuccess("Tenant operator is ready.")
 }

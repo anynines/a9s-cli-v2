@@ -1,8 +1,12 @@
 package cmd
 
 import (
+	"context"
+	"strings"
+
 	"github.com/anynines/a9s-cli-v2/demo"
 	"github.com/anynines/a9s-cli-v2/klutch"
+	klutchaws "github.com/anynines/a9s-cli-v2/klutch/aws"
 	"github.com/anynines/a9s-cli-v2/makeup"
 	"github.com/spf13/cobra"
 )
@@ -17,6 +21,7 @@ var (
 	applyKlutchOIDCClientID           string
 	applyKlutchOIDCClientSecret       string
 	applyKlutchOIDCCallbackURL        string
+	applyKlutchClusterName            string
 )
 
 var applyCmd = &cobra.Command{
@@ -63,6 +68,10 @@ var applyKlutchControlPlaneCmd = &cobra.Command{
 			CallbackURL:  applyKlutchOIDCCallbackURL,
 		})
 
+		if strings.EqualFold(strings.TrimSpace(demo.KubernetesTool), "aws") {
+			klutchaws.ApplyControlPlaneAddons(context.Background(), applyKlutchClusterName)
+		}
+
 		klutch.ApplyKlutchControlPlane(applyKlutchControlPlaneHost, applyKlutchControlPlanePort, applyKlutchControlPlaneACMCertARN, applyKlutchControlPlaneHostedZone)
 	},
 }
@@ -77,6 +86,7 @@ func init() {
 	applyKlutchControlPlaneCmd.Flags().StringVar(&applyKlutchOIDCClientID, "oidc-client-id", "", "OIDC client ID (required for oidc-provider=cognito).")
 	applyKlutchControlPlaneCmd.Flags().StringVar(&applyKlutchOIDCClientSecret, "oidc-client-secret", "", "OIDC client secret (required for oidc-provider=cognito).")
 	applyKlutchControlPlaneCmd.Flags().StringVar(&applyKlutchOIDCCallbackURL, "oidc-callback-url", "", "OIDC callback URL to configure on the backend. Defaults to https://<host>/callback when not provided.")
+	applyKlutchControlPlaneCmd.Flags().StringVar(&applyKlutchClusterName, "cluster-name", "", "Existing AWS control-plane cluster name (defaults to klutch-control-plane).")
 	applyKlutchControlPlaneCmd.Flags().StringVarP(&demo.KubernetesTool, "provider", "p", "", "provider for the Kubernetes cluster. Valid options are \"minikube\", \"kind\", and \"aws\" (for Klutch).")
 
 	applyKlutchCmd.AddCommand(applyKlutchControlPlaneCmd)

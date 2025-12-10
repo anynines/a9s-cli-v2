@@ -182,37 +182,34 @@ func tagEC2Resource(ctx context.Context, resourceID, name string) {
 }
 
 func getenv(key, def string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
 	return def
 }
 
 func defaultConfig() Config {
 	return Config{
-		Region:                  getenv("CONTROL_PLANE_CLUSTER_REGION", "eu-central-1"),
-		ClusterName:             getenv("CONTROL_PLANE_CLUSTER_NAME", "klutch-control-plane"),
-		NodegroupName:           getenv("CONTROL_PLANE_CLUSTER_NODEGROUP_NAME", "klutch-control-plane-nodegroup"),
-		NodeInstanceTypes:       getenv("CONTROL_PLANE_CLUSTER_NODEGROUP_INSTANCE_TYPES", "t3a.xlarge"),
-		NodeScalingConfig:       getenv("CONTROL_PLANE_CLUSTER_NODEGROUP_SCALING_CONFIG", "minSize=3,maxSize=5,desiredSize=3"),
-		NodeAMIType:             getenv("CONTROL_PLANE_CLUSTER_NODEGROUP_AMI_TYPE", "AL2023_x86_64_STANDARD"),
-		ClusterRoleName:         getenv("EKS_CLUSTER_ROLE_NAME", "EKSClusterRole"),
-		NodeRoleName:            getenv("EKS_NODE_ROLE_NAME", "EKSNodeInstanceRole"),
-		BaseCIDR:                getenv("BASE_CIDR", "10.0.0.0/16"),
-		PubACIDR:                getenv("PUB_A_CIDR", "10.0.1.0/24"),
-		PubBCIDR:                getenv("PUB_B_CIDR", "10.0.2.0/24"),
-		PubCCIDR:                getenv("PUB_C_CIDR", "10.0.3.0/24"),
-		PrivACIDR:               getenv("PRIV_A_CIDR", "10.0.101.0/24"),
-		PrivBCIDR:               getenv("PRIV_B_CIDR", "10.0.102.0/24"),
-		PrivCCIDR:               getenv("PRIV_C_CIDR", "10.0.103.0/24"),
-		ALBControllerVersion:    getenv("ALB_CONTROLLER_VERSION", "v2.7.1"),
-		ALBControllerPolicyName: getenv("ALB_CONTROLLER_POLICY_NAME", "AWSLoadBalancerControllerIAMPolicy"),
-		ControlPlaneSGName:      getenv("CONTROL_PLANE_SG_NAME", "klutch-control-plane-sg"),
+		Region:                  "eu-central-1",
+		ClusterName:             "klutch-control-plane",
+		NodegroupName:           "klutch-control-plane-nodegroup",
+		NodeInstanceTypes:       "t3a.xlarge",
+		NodeScalingConfig:       "minSize=3,maxSize=5,desiredSize=3",
+		NodeAMIType:             "AL2023_x86_64_STANDARD",
+		ClusterRoleName:         "EKSClusterRole",
+		NodeRoleName:            "EKSNodeInstanceRole",
+		BaseCIDR:                "10.0.0.0/16",
+		PubACIDR:                "10.0.1.0/24",
+		PubBCIDR:                "10.0.2.0/24",
+		PubCCIDR:                "10.0.3.0/24",
+		PrivACIDR:               "10.0.101.0/24",
+		PrivBCIDR:               "10.0.102.0/24",
+		PrivCCIDR:               "10.0.103.0/24",
+		ALBControllerVersion:    "v2.7.1",
+		ALBControllerPolicyName: "AWSLoadBalancerControllerIAMPolicy",
+		ControlPlaneSGName:      "klutch-control-plane-sg",
 		KlutchTagValue:          "ControlPlane",
 		ResourceNamePrefix:      "klutch-control-plane",
 		ClusterRole:             "Control Plane",
-		TenantOperatorImage:     getenv("TENANT_OPERATOR_IMAGE", "032720848313.dkr.ecr.eu-central-1.amazonaws.com/a9s-tenants-operator:dev"),
-		TenantOperatorChart:     getenv("TENANT_OPERATOR_CHART", "oci://032720848313.dkr.ecr.eu-central-1.amazonaws.com/a9s-tenants-operator"),
+		TenantOperatorImage:     "032720848313.dkr.ecr.eu-central-1.amazonaws.com/a9s-tenants-operator:dev",
+		TenantOperatorChart:     "oci://032720848313.dkr.ecr.eu-central-1.amazonaws.com/a9s-tenants-operator:0.1.3",
 	}
 }
 
@@ -226,35 +223,14 @@ func workloadConfig(clusterName string) Config {
 	cfg.KlutchTagValue = "Workload"
 	cfg.ClusterRole = "Workload"
 
-	if region := getenv("WORKLOAD_CLUSTER_REGION", ""); region != "" {
-		cfg.Region = region
-	}
-
 	if clusterName == "" {
-		clusterName = getenv("WORKLOAD_CLUSTER_NAME", "")
-		if clusterName == "" {
-			clusterName = RandomWorkloadClusterName()
-		}
+		clusterName = RandomWorkloadClusterName()
 	}
 	cfg.ClusterName = clusterName
 
-	if ng := getenv("WORKLOAD_CLUSTER_NODEGROUP_NAME", ""); ng != "" {
-		cfg.NodegroupName = ng
-	} else {
-		cfg.NodegroupName = fmt.Sprintf("%s-nodegroup", clusterName)
-	}
-
-	if sg := getenv("WORKLOAD_SG_NAME", ""); sg != "" {
-		cfg.ControlPlaneSGName = sg
-	} else {
-		cfg.ControlPlaneSGName = fmt.Sprintf("%s-sg", clusterName)
-	}
-
-	if prefix := getenv("WORKLOAD_RESOURCE_PREFIX", ""); prefix != "" {
-		cfg.ResourceNamePrefix = prefix
-	} else {
-		cfg.ResourceNamePrefix = clusterName
-	}
+	cfg.NodegroupName = fmt.Sprintf("%s-nodegroup", clusterName)
+	cfg.ControlPlaneSGName = fmt.Sprintf("%s-sg", clusterName)
+	cfg.ResourceNamePrefix = clusterName
 
 	return cfg
 }
@@ -831,6 +807,39 @@ func ensureTenantOperatorRole(ctx context.Context, cfg Config, accountID string)
 
 	awsLogger.Successf("Created tenant operator IAM role: %s", roleArn)
 	return roleArn
+}
+
+// ApplyControlPlaneAddons installs AWS-side addons (tenant operator) onto an existing control-plane cluster.
+// It assumes the EKS cluster already exists and that ALB/etc. are in place.
+func ApplyControlPlaneAddons(ctx context.Context, clusterName string) {
+	cfg := defaultConfig()
+	if strings.TrimSpace(clusterName) != "" {
+		cfg.ClusterName = strings.TrimSpace(clusterName)
+	}
+
+	awsLogger.Successf("Applying Klutch control-plane addons to existing cluster %s", cfg.ClusterName)
+
+	accountID, errOut, err := runCmd(ctx, "aws", "sts", "get-caller-identity", "--query", "Account", "--output", "text")
+	if err != nil || strings.TrimSpace(accountID) == "" {
+		awsLogger.Fatalf(err, "Unable to determine AWS Account ID. stderr: %s", errOut)
+	}
+	clusterArn := fmt.Sprintf("arn:aws:eks:%s:%s:cluster/%s", cfg.Region, accountID, cfg.ClusterName)
+	setClusterTagContext(cfg.ClusterName, clusterArn)
+
+	// Ensure kubeconfig points to the cluster.
+	mustRun(ctx, "aws", "eks", "update-kubeconfig", "--region", cfg.Region, "--name", cfg.ClusterName)
+
+	// Ensure OIDC provider associated for IRSA.
+	mustRun(ctx, "eksctl", "utils", "associate-iam-oidc-provider",
+		"--region", cfg.Region,
+		"--cluster", cfg.ClusterName,
+		"--approve")
+
+	// Ensure IAM role for tenant operator and deploy it.
+	cfg.TenantOperatorRoleARN = ensureTenantOperatorRole(ctx, cfg, accountID)
+	deployTenantOperator(ctx, cfg, accountID)
+
+	awsLogger.Successf("Klutch control-plane addons applied to cluster %s.", cfg.ClusterName)
 }
 
 func ensureKMSKey(ctx context.Context, region, accountID, clusterRole string) string {
