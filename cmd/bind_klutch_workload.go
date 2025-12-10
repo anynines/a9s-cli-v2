@@ -54,9 +54,10 @@ var bindKlutchWorkloadGroupCmd = &cobra.Command{
 }
 
 var bindKlutchWorkloadCmd = &cobra.Command{
-	Use:   "workload",
-	Short: "Bind a workload cluster to a Klutch control plane.",
-	Long:  "Runs the non-interactive helper workflow by default to connect a workload cluster to a Klutch control plane endpoint, or falls back to the interactive kube-bind flow.",
+	Use:          "workload",
+	Short:        "Bind a workload cluster to a Klutch control plane.",
+	Long:         "Runs the non-interactive helper workflow by default to connect a workload cluster to a Klutch control plane endpoint, or falls back to the interactive kube-bind flow.",
+	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if bindKlutchWorkloadInteractive {
 			if strings.TrimSpace(bindKlutchWorkloadControlPlane) == "" {
@@ -131,12 +132,16 @@ var bindKlutchWorkloadCmd = &cobra.Command{
 			if opts.OIDCTokenURL == "" {
 				opts.OIDCTokenURL = conn.TokenURL
 			}
-			if opts.OIDCScope == "" {
+			if strings.TrimSpace(opts.OIDCScope) == "" {
 				opts.OIDCScope = conn.Scope
 			}
 			if len(opts.BindRequestData) == 0 && strings.TrimSpace(conn.BindRequest) != "" {
 				opts.BindRequestData = []byte(conn.BindRequest)
 			}
+			if opts.OIDCClientID == "" || opts.OIDCClientSecret == "" || opts.OIDCTokenURL == "" {
+				return fmt.Errorf("tenant secret %s is missing required OIDC fields (client_id/client_secret/token_url)", secretName)
+			}
+			makeup.PrintInfo(fmt.Sprintf("Using tenant OIDC client %s (issuer %s)", opts.OIDCClientID, conn.IssuerURL))
 		}
 
 		if opts.ControlPlaneURL == "" {
@@ -170,7 +175,7 @@ func init() {
 	bindKlutchWorkloadCmd.Flags().StringVar(&bindKlutchWorkloadOIDCClientID, "oidc-client-id", "", "OIDC client ID for non-interactive flow (defaults to OIDC_CLIENT_ID).")
 	bindKlutchWorkloadCmd.Flags().StringVar(&bindKlutchWorkloadOIDCClientSecret, "oidc-client-secret", "", "OIDC client secret for non-interactive flow (defaults to OIDC_CLIENT_SECRET).")
 	bindKlutchWorkloadCmd.Flags().StringVar(&bindKlutchWorkloadOIDCTokenURL, "oidc-token-url", "", "OIDC token URL for non-interactive flow (defaults to OIDC_TOKEN_URL).")
-	bindKlutchWorkloadCmd.Flags().StringVar(&bindKlutchWorkloadOIDCScope, "oidc-scope", "openid profile email offline_access", "OIDC scopes for non-interactive flow.")
+	bindKlutchWorkloadCmd.Flags().StringVar(&bindKlutchWorkloadOIDCScope, "oidc-scope", "", "OIDC scopes for non-interactive flow (defaults to tenant scope).")
 	bindKlutchWorkloadCmd.Flags().StringVar(&bindKlutchWorkloadWriteKubeconfig, "write-kubeconfig", "", "Optional path to write control-plane kubeconfig returned by backend.")
 	bindKlutchWorkloadCmd.Flags().StringVar(&bindKlutchWorkloadTenantName, "tenant-name", "", "Klutch tenant name whose secret holds OIDC credentials.")
 	bindKlutchWorkloadCmd.Flags().StringVar(&bindKlutchWorkloadTenantSecretName, "tenant-secret-name", "", "Explicit Secrets Manager name for the tenant credentials (defaults to klutch/<tenant>/oidc-client).")

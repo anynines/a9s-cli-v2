@@ -35,6 +35,13 @@ type Config struct {
 	KlutchTagValue                  string
 	ResourceNamePrefix              string
 	ClusterRole                     string
+
+	TenantOperatorImage       string
+	TenantOperatorChart       string
+	TenantOperatorRoleARN     string
+	TenantOperatorRegion      string
+	TenantOperatorBindURL     string
+	TenantOperatorBindRequest string
 }
 
 // CreateOptions configures Klutch cluster creation.
@@ -197,6 +204,8 @@ func defaultConfig() Config {
 		KlutchTagValue:          "ControlPlane",
 		ResourceNamePrefix:      "klutch-control-plane",
 		ClusterRole:             "Control Plane",
+		TenantOperatorImage:     getenv("TENANT_OPERATOR_IMAGE", "032720848313.dkr.ecr.eu-central-1.amazonaws.com/a9s-tenants-operator:dev"),
+		TenantOperatorChart:     getenv("TENANT_OPERATOR_CHART", "oci://032720848313.dkr.ecr.eu-central-1.amazonaws.com/a9s-tenants-operator"),
 	}
 }
 
@@ -336,6 +345,12 @@ func provisionCluster(ctx context.Context, cfg Config, opts CreateOptions) {
 	awsLogger.Printf("ALB Controller Version:           %s", cfg.ALBControllerVersion)
 	awsLogger.Printf("ALB Controller Policy Name:       %s", cfg.ALBControllerPolicyName)
 	awsLogger.Printf("Cluster Security Group:           %s", cfg.ControlPlaneSGName)
+	if cfg.TenantOperatorImage != "" {
+		awsLogger.Printf("Tenant Operator Image:            %s", cfg.TenantOperatorImage)
+	}
+	if cfg.TenantOperatorChart != "" {
+		awsLogger.Printf("Tenant Operator Chart:            %s", cfg.TenantOperatorChart)
+	}
 
 	if opts.DryRun {
 		printCreatePlan(cfg)
@@ -430,6 +445,8 @@ func provisionCluster(ctx context.Context, cfg Config, opts CreateOptions) {
 	ensureGp3StorageClass(ctx)
 
 	ensureALBController(ctx, cfg, vpcID, accountID)
+
+	deployTenantOperator(ctx, cfg, accountID)
 
 	awsLogger.Summaryf("Klutch %s EKS cluster is ready.", klutchRoleLabel)
 	awsLogger.Printf("   Cluster:   %s", cfg.ClusterName)

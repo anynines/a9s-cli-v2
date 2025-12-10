@@ -2,17 +2,24 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+	"net/url"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/anynines/a9s-cli-v2/demo"
+	"github.com/anynines/a9s-cli-v2/k8s"
 	"github.com/anynines/a9s-cli-v2/klutch"
 	klutchaws "github.com/anynines/a9s-cli-v2/klutch/aws"
 	"github.com/anynines/a9s-cli-v2/makeup"
 	"github.com/anynines/a9s-cli-v2/pg"
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 var createKlutchDryRun bool
@@ -41,6 +48,110 @@ var createKlutchWorkloadTenantName string
 var createKlutchWorkloadTenantSecretName string
 var createKlutchWorkloadTenantRegion string
 var createKlutchWorkloadBindRequestFile string
+
+// controlPlaneCognitoPoolFromCluster tries to read the control-plane Cognito issuer
+// from the in-cluster oidc-config secret and derives the user pool ID (and region).
+func controlPlaneCognitoPoolFromCluster() (poolID string, region string) {
+	kc := k8s.NewKubeClient("")
+	clientset := kc.GetKubernetesClientSet()
+	sec, err := clientset.CoreV1().Secrets("default").Get(context.Background(), "oidc-config", metav1.GetOptions{})
+	if err != nil {
+		return "", ""
+	}
+	issuer := ""
+	if b, ok := sec.Data["oidc-issuer-url"]; ok {
+		issuer = string(b)
+	}
+	if issuer == "" {
+		if s, ok := sec.StringData["oidc-issuer-url"]; ok {
+			issuer = s
+		}
+	}
+	issuer = strings.TrimSpace(issuer)
+	if issuer == "" {
+		return "", ""
+	}
+	u, err := url.Parse(issuer)
+	if err != nil {
+		return "", ""
+	}
+	pathSegs := strings.Split(strings.Trim(u.Path, "/"), "/")
+	if len(pathSegs) > 0 {
+		poolID = pathSegs[len(pathSegs)-1]
+	}
+	hostParts := strings.Split(u.Host, ".")
+	if len(hostParts) >= 2 {
+		region = hostParts[1]
+	}
+	return poolID, region
+}
+
+type controlPlaneOIDCCreds struct {
+	Issuer       string
+	ClientID     string
+	ClientSecret string
+	TokenURL     string
+}
+
+// controlPlaneOIDCFromCluster reads the control-plane oidc-config secret and discovers the token endpoint.
+func controlPlaneOIDCFromCluster() controlPlaneOIDCCreds {
+	kc := k8s.NewKubeClient("")
+	clientset := kc.GetKubernetesClientSet()
+	sec, err := clientset.CoreV1().Secrets("default").Get(context.Background(), "oidc-config", metav1.GetOptions{})
+	if err != nil {
+		return controlPlaneOIDCCreds{}
+	}
+
+	getVal := func(key string) string {
+		if b, ok := sec.Data[key]; ok {
+			return strings.TrimSpace(string(b))
+		}
+		if sec.StringData != nil {
+			if s, ok := sec.StringData[key]; ok {
+				return strings.TrimSpace(s)
+			}
+		}
+		return ""
+	}
+
+	issuer := getVal("oidc-issuer-url")
+	clientID := getVal("oidc-issuer-client-id")
+	clientSecret := getVal("oidc-issuer-client-secret")
+	tokenURL := discoverTokenEndpoint(issuer)
+	return controlPlaneOIDCCreds{
+		Issuer:       issuer,
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
+		TokenURL:     tokenURL,
+	}
+}
+
+// discoverTokenEndpoint performs OIDC discovery to find the token endpoint.
+func discoverTokenEndpoint(issuer string) string {
+	issuer = strings.TrimSpace(issuer)
+	if issuer == "" {
+		return ""
+	}
+	url := strings.TrimRight(issuer, "/") + "/.well-known/openid-configuration"
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Get(url)
+	if err != nil {
+		return ""
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return ""
+	}
+	var doc map[string]interface{}
+	if err := json.Unmarshal(body, &doc); err != nil {
+		return ""
+	}
+	if t, ok := doc["token_endpoint"].(string); ok {
+		return strings.TrimSpace(t)
+	}
+	return ""
+}
 
 var cmdCreate = &cobra.Command{
 	Use:   "create",
@@ -217,19 +328,48 @@ var cmdCreateClusterKlutchTenant = &cobra.Command{
 
 		secretName := klutchaws.TenantSecretName(createKlutchTenantName, createKlutchTenantSecretName)
 
+		if createKlutchTenantUserPoolID == "" {
+			if poolID, poolRegion := controlPlaneCognitoPoolFromCluster(); poolID != "" {
+				createKlutchTenantUserPoolID = poolID
+				if region == "" && poolRegion != "" {
+					region = poolRegion
+				}
+				makeup.PrintInfo(fmt.Sprintf("Reusing control-plane Cognito user pool %s", poolID))
+			}
+		}
+
 		if klutchaws.TenantSecretExists(context.Background(), region, secretName) && !createKlutchTenantForce {
 			makeup.ExitDueToFatalError(nil, fmt.Sprintf("A tenant secret already exists at %s in %s. Use --force to overwrite.", secretName, region))
 		}
 
-		makeup.PrintInfo("Creating or reusing Cognito app client for Klutch tenant...")
 		tenantUUID := uuid.New().String()
-
-		conn, err := klutchaws.EnsureCognitoOIDC(context.Background(), region, createKlutchTenantName, createKlutchTenantUserPoolID, tenantUUID)
-		if err != nil {
-			makeup.ExitDueToFatalError(err, "Failed to create or discover the Cognito app client for the Klutch tenant.")
+		// Default to reusing the control-plane OIDC client (shared audience) to avoid backend audience mismatch.
+		var conn klutchaws.OIDCConnection
+		cpCreds := controlPlaneOIDCFromCluster()
+		if cpCreds.Issuer != "" && cpCreds.ClientID != "" && cpCreds.ClientSecret != "" && cpCreds.TokenURL != "" {
+			makeup.PrintInfo("Reusing control-plane OIDC client for tenant credentials (shared audience).")
+			conn = klutchaws.OIDCConnection{
+				IssuerURL:    cpCreds.Issuer,
+				TokenURL:     cpCreds.TokenURL,
+				ClientID:     cpCreds.ClientID,
+				ClientSecret: cpCreds.ClientSecret,
+				Scope:        "klutch/bind",
+				TenantUUID:   tenantUUID,
+				TenantName:   createKlutchTenantName,
+				UserPoolID:   createKlutchTenantUserPoolID,
+			}
+		} else {
+			makeup.PrintInfo("Creating or reusing Cognito app client for Klutch tenant...")
+			// Reuse control-plane pool by prefix; default to "klutch" unless overridden by user-pool-id.
+			poolPrefix := "klutch"
+			c, err := klutchaws.EnsureCognitoOIDC(context.Background(), region, poolPrefix, createKlutchTenantUserPoolID, tenantUUID)
+			if err != nil {
+				makeup.ExitDueToFatalError(err, "Failed to create or discover the Cognito app client for the Klutch tenant.")
+			}
+			c.TenantUUID = tenantUUID
+			c.TenantName = createKlutchTenantName
+			conn = c
 		}
-		conn.TenantUUID = tenantUUID
-		conn.TenantName = createKlutchTenantName
 		if conn.BindURL == "" {
 			if info, err := klutch.LoadControlPlaneInfoFromCluster(""); err == nil {
 				if url := klutch.DefaultBindURLFromInfo(info); strings.TrimSpace(url) != "" {
@@ -260,6 +400,9 @@ var cmdCreateClusterKlutchTenant = &cobra.Command{
 			if br, err := klutch.DefaultBindRequestJSON(createKlutchTenantName); err == nil {
 				conn.BindRequest = string(br)
 			}
+		}
+		if strings.TrimSpace(conn.TokenURL) == "" {
+			makeup.ExitDueToFatalError(nil, "Could not determine token URL for tenant credentials (control-plane OIDC discovery failed).")
 		}
 
 		makeup.PrintH1("Klutch Tenant Credentials")

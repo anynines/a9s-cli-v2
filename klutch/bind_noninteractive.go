@@ -82,7 +82,7 @@ func NonInteractiveBind(ctx context.Context, opts NonInteractiveBindOptions) err
 
 	scope := opts.OIDCScope
 	if strings.TrimSpace(scope) == "" {
-		scope = "openid profile email offline_access"
+		return fmt.Errorf("OIDC scope is required")
 	}
 
 	reqBytes := opts.BindRequestData

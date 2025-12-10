@@ -41,11 +41,15 @@ func EnsureCognitoOIDC(ctx context.Context, region string, namePrefix string, us
 	userPoolName := fmt.Sprintf("%s-klutch", prefix)
 	resourceServerID := "klutch"
 	resourceScope := "klutch/bind"
-	clientName := fmt.Sprintf("%s-konnector", prefix)
+	clientName := fmt.Sprintf("%s-konnector-%s", prefix, tenantUUID)
 
 	poolID := strings.TrimSpace(userPoolID)
 	if poolID == "" {
-		poolID = discoverUserPool(ctx, region, userPoolName)
+		if tagged := findTaggedControlPlaneUserPool(ctx, region); tagged != "" {
+			poolID = tagged
+		} else {
+			poolID = discoverUserPool(ctx, region, userPoolName)
+		}
 		if poolID == "" {
 			tagArg := buildTenantUserPoolTags(ctx, region, tenantUUID, prefix, userPoolName)
 			args := []string{
@@ -73,13 +77,14 @@ func EnsureCognitoOIDC(ctx context.Context, region string, namePrefix string, us
 		}
 	}
 
-	// Create resource server + scope (best effort).
+	// Create resource server + per-tenant scope (best effort).
 	_, _, _ = runCmd(ctx, "aws", "cognito-idp", "create-resource-server",
 		"--region", region,
 		"--user-pool-id", poolID,
 		"--identifier", resourceServerID,
 		"--name", "Klutch",
-		"--scopes", fmt.Sprintf("ScopeName=bind,ScopeDescription=%q", "Klutch bind"))
+		"--scopes", fmt.Sprintf("ScopeName=bind,ScopeDescription=%q", "Klutch bind scope"))
+	ensureResourceServerScope(ctx, region, poolID, resourceServerID, "bind")
 
 	client, err := discoverOrCreateClient(ctx, region, poolID, clientName, resourceScope)
 	if err != nil {
@@ -100,6 +105,8 @@ func EnsureCognitoOIDC(ctx context.Context, region string, namePrefix string, us
 		TenantName:   namePrefix,
 		TenantUUID:   tenantUUID,
 		UserPoolID:   poolID,
+		BindURL:      "",
+		BindRequest:  "",
 	}, nil
 }
 
@@ -113,6 +120,44 @@ func discoverUserPool(ctx context.Context, region, name string) string {
 		return ""
 	}
 	return strings.TrimSpace(out)
+}
+
+// findControlPlaneUserPool tries to find an existing pool to reuse for control-plane tenants.
+func findControlPlaneUserPool(ctx context.Context, region string) string {
+	out, _, _ := runCmd(ctx, "aws", "cognito-idp", "list-user-pools",
+		"--region", region,
+		"--max-results", "50",
+		"--query", "UserPools[?contains(Name, `klutch`)].Id",
+		"--output", "text")
+	if strings.TrimSpace(out) == "" || strings.ToLower(strings.TrimSpace(out)) == "none" {
+		return ""
+	}
+	parts := strings.Fields(out)
+	if len(parts) > 0 {
+		return parts[0]
+	}
+	return ""
+}
+
+// findTaggedControlPlaneUserPool looks for a pool tagged Klutch=ControlPlane.
+func findTaggedControlPlaneUserPool(ctx context.Context, region string) string {
+	out, _, _ := runCmd(ctx, "aws", "cognito-idp", "list-user-pools",
+		"--region", region,
+		"--max-results", "50",
+		"--query", "UserPools[].Id",
+		"--output", "text")
+	pools := strings.Fields(out)
+	for _, pid := range pools {
+		tags, _, _ := runCmd(ctx, "aws", "cognito-idp", "list-user-pool-tags",
+			"--region", region,
+			"--user-pool-id", pid,
+			"--query", "Tags",
+			"--output", "text")
+		if strings.Contains(tags, "Klutch") && strings.Contains(tags, "ControlPlane") {
+			return pid
+		}
+	}
+	return ""
 }
 
 type oidcClient struct {
@@ -186,6 +231,38 @@ func ensureUserPoolDomain(ctx context.Context, region, poolID, prefix string) st
 		return fmt.Sprintf("%s-%s", prefix, randomHex(4))
 	}
 	return strings.TrimSpace(out)
+}
+
+// ensureResourceServerScope adds the scope to the resource server if missing.
+func ensureResourceServerScope(ctx context.Context, region, poolID, identifier, scopeName string) {
+	out, _, _ := runCmd(ctx, "aws", "cognito-idp", "describe-resource-server",
+		"--region", region,
+		"--user-pool-id", poolID,
+		"--identifier", identifier,
+		"--query", "ResourceServer.Scopes[].ScopeName",
+		"--output", "text")
+	existing := strings.Fields(out)
+	for _, s := range existing {
+		if s == scopeName {
+			return
+		}
+	}
+	// merge existing scopes with new one
+	var scopesArgs []string
+	for _, s := range existing {
+		scopesArgs = append(scopesArgs, fmt.Sprintf("ScopeName=%s,ScopeDescription=%q", s, "Klutch scope"))
+	}
+	scopesArgs = append(scopesArgs, fmt.Sprintf("ScopeName=%s,ScopeDescription=%q", scopeName, "Klutch tenant scope"))
+	args := []string{
+		"cognito-idp", "update-resource-server",
+		"--region", region,
+		"--user-pool-id", poolID,
+		"--identifier", identifier,
+		"--name", "Klutch",
+		"--scopes",
+	}
+	args = append(args, scopesArgs...)
+	_, _, _ = runCmd(ctx, "aws", args...)
 }
 
 func randomHex(n int) string {
