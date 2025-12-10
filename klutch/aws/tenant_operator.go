@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 
@@ -56,7 +57,9 @@ func deployTenantOperator(ctx context.Context, cfg Config, accountID string) {
 	}
 
 	makeup.PrintInfo("Deploying tenant operator via Helm...")
-	cmd := execCommandContext(ctx, args[0], args[1:]...)
+	cmd := exec.CommandContext(ctx, args[0], args[1:]...)
+	// Ensure OCI support is on for Helm (required for ECR-hosted charts).
+	cmd.Env = append(os.Environ(), "HELM_EXPERIMENTAL_OCI=1")
 	var outBuf, errBuf bytes.Buffer
 	cmd.Stdout = &outBuf
 	cmd.Stderr = &errBuf
