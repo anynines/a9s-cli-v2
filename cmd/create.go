@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -20,6 +22,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/yaml"
 )
 
 var createKlutchDryRun bool
@@ -327,7 +330,7 @@ Use --no-apply to only provision the cluster. Currently only AWS is supported.`,
 var cmdCreateClusterKlutchTenant = &cobra.Command{
 	Use:   "tenant",
 	Short: "Create a Klutch tenant (Cognito app client) for workload bindings.",
-	Long:  `Creates or reuses a Cognito app client scoped for Klutch bindings and prints issuer/client credentials for the workload owner.`,
+	Long:  `Creates a Klutch tenant by applying a Tenant CR to the control-plane cluster (reconciled by the tenant operator).`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if strings.TrimSpace(createKlutchTenantName) == "" {
 			makeup.ExitDueToFatalError(nil, "The --tenant-name flag is required.")
@@ -338,118 +341,82 @@ var cmdCreateClusterKlutchTenant = &cobra.Command{
 			region = klutchaws.ControlPlaneDefaultRegion()
 		}
 
-		secretName := klutchaws.TenantSecretName(createKlutchTenantName, createKlutchTenantSecretName)
-
-		if createKlutchTenantUserPoolID == "" {
-			if poolID, poolRegion := controlPlaneCognitoPoolFromCluster(); poolID != "" {
-				createKlutchTenantUserPoolID = poolID
-				if region == "" && poolRegion != "" {
-					region = poolRegion
-				}
-				makeup.PrintInfo(fmt.Sprintf("Reusing control-plane Cognito user pool %s", poolID))
-			}
-		}
-
-		if klutchaws.TenantSecretExists(context.Background(), region, secretName) && !createKlutchTenantForce {
-			makeup.ExitDueToFatalError(nil, fmt.Sprintf("A tenant secret already exists at %s in %s. Use --force to overwrite.", secretName, region))
-		}
-
-		tenantUUID := uuid.New().String()
-		// Default to reusing the control-plane OIDC client (shared audience) to avoid backend audience mismatch.
-		var conn klutchaws.OIDCConnection
-		cpCreds := controlPlaneOIDCFromCluster()
-		if cpCreds.Issuer != "" && cpCreds.ClientID != "" && cpCreds.ClientSecret != "" && cpCreds.TokenURL != "" {
-			makeup.PrintInfo("Reusing control-plane OIDC client for tenant credentials (shared audience).")
-			conn = klutchaws.OIDCConnection{
-				IssuerURL:    cpCreds.Issuer,
-				TokenURL:     cpCreds.TokenURL,
-				ClientID:     cpCreds.ClientID,
-				ClientSecret: cpCreds.ClientSecret,
-				Scope:        "klutch/bind",
-				TenantUUID:   tenantUUID,
-				TenantName:   createKlutchTenantName,
-				UserPoolID:   createKlutchTenantUserPoolID,
-			}
-		} else {
-			makeup.PrintInfo("Creating or reusing Cognito app client for Klutch tenant...")
-			// Reuse control-plane pool by prefix; default to "klutch" unless overridden by user-pool-id.
-			poolPrefix := "klutch"
-			c, err := klutchaws.EnsureCognitoOIDC(context.Background(), region, poolPrefix, createKlutchTenantUserPoolID, tenantUUID)
-			if err != nil {
-				makeup.ExitDueToFatalError(err, "Failed to create or discover the Cognito app client for the Klutch tenant.")
-			}
-			c.TenantUUID = tenantUUID
-			c.TenantName = createKlutchTenantName
-			conn = c
-		}
-		if conn.BindURL == "" {
-			if info, err := klutch.LoadControlPlaneInfoFromCluster(""); err == nil {
-				if url := klutch.DefaultBindURLFromInfo(info); strings.TrimSpace(url) != "" {
-					conn.BindURL = url
-				}
-			} else if info, err := klutch.LoadControlPlaneInfo(demo.DemoConfig.WorkingDir); err == nil {
-				if url := klutch.DefaultBindURLFromInfo(info); strings.TrimSpace(url) != "" {
-					conn.BindURL = url
-				}
-			}
-		}
-		if strings.TrimSpace(createKlutchTenantTokenURL) != "" {
-			conn.TokenURL = strings.TrimSpace(createKlutchTenantTokenURL)
-		}
-		if strings.TrimSpace(createKlutchTenantBindURL) != "" {
-			conn.BindURL = strings.TrimSpace(createKlutchTenantBindURL)
-		}
-		if strings.TrimSpace(conn.BindURL) == "" {
-			makeup.ExitDueToFatalError(nil, "Could not determine the control-plane bind URL. Provide --bind-url or ensure the control plane info file is present.")
-		}
+		// Build bind request APIs (default or from file).
+		var apis []klutch.GroupResource
 		if strings.TrimSpace(createKlutchTenantBindRequestFile) != "" {
-			b, err := os.ReadFile(createKlutchTenantBindRequestFile)
+			data, err := os.ReadFile(createKlutchTenantBindRequestFile)
 			if err != nil {
 				makeup.ExitDueToFatalError(err, "Failed to read bind request file.")
 			}
-			conn.BindRequest = string(b)
+			var payload struct {
+				ClusterID string                 `json:"clusterID"`
+				Apis      []klutch.GroupResource `json:"apis"`
+			}
+			if err := json.Unmarshal(data, &payload); err != nil {
+				makeup.ExitDueToFatalError(err, "Bind request file is not valid JSON.")
+			}
+			apis = payload.Apis
 		} else {
 			if br, err := klutch.DefaultBindRequestJSON(createKlutchTenantName); err == nil {
-				conn.BindRequest = string(br)
+				var payload struct {
+					ClusterID string                 `json:"clusterID"`
+					Apis      []klutch.GroupResource `json:"apis"`
+				}
+				_ = json.Unmarshal(br, &payload)
+				apis = payload.Apis
 			}
 		}
-		if strings.TrimSpace(conn.TokenURL) == "" {
-			makeup.ExitDueToFatalError(nil, "Could not determine token URL for tenant credentials (control-plane OIDC discovery failed).")
+		if len(apis) == 0 {
+			makeup.ExitDueToFatalError(nil, "No APIs specified for the tenant bind request.")
 		}
 
-		makeup.PrintH1("Klutch Tenant Credentials")
-		makeup.PrintInfo(fmt.Sprintf("Issuer:        %s", conn.IssuerURL))
-		if conn.TokenURL != "" {
-			makeup.PrintInfo(fmt.Sprintf("Token URL:     %s", conn.TokenURL))
+		ns := "a9s-tenants-operator-system"
+		tenantUUID := uuid.New().String()
+		if createKlutchTenantUserPoolID != "" {
+			makeup.PrintWarning("Ignoring --user-pool-id; tenant operator manages user pools.")
 		}
-		makeup.PrintInfo(fmt.Sprintf("Client ID:     %s", conn.ClientID))
-		makeup.PrintInfo(fmt.Sprintf("Client Secret: %s", conn.ClientSecret))
-		makeup.PrintInfo(fmt.Sprintf("Scope:         %s", conn.Scope))
-		makeup.PrintInfo(fmt.Sprintf("Tenant UUID:   %s", conn.TenantUUID))
-		if conn.BindURL != "" {
-			makeup.PrintInfo(fmt.Sprintf("Bind URL:      %s", conn.BindURL))
+		if strings.TrimSpace(createKlutchTenantBindURL) != "" {
+			makeup.PrintWarning("Ignoring --bind-url; tenant operator config map provides bind URL.")
 		}
-		if conn.BindRequest != "" {
-			makeup.PrintInfo("Bind Request:  stored in tenant secret")
+		if strings.TrimSpace(createKlutchTenantTokenURL) != "" {
+			makeup.PrintWarning("Ignoring --token-url; tenant operator discovers token URL.")
 		}
 
-		if createKlutchTenantStoreSecret {
-			makeup.PrintInfo("Storing tenant credentials in AWS Secrets Manager...")
-			if err := klutchaws.StoreCognitoCredentialsSecret(context.Background(), region, secretName, conn); err != nil {
-				makeup.ExitDueToFatalError(err, "Failed to store Cognito credentials in AWS Secrets Manager.")
-			}
-			makeup.PrintSuccess(fmt.Sprintf("Stored credentials in Secrets Manager secret: %s", secretName))
+		tenantCR := map[string]interface{}{
+			"apiVersion": "klutch.anynines.com/v1alpha1",
+			"kind":       "Tenant",
+			"metadata": map[string]interface{}{
+				"name":      createKlutchTenantName,
+				"namespace": ns,
+			},
+			"spec": map[string]interface{}{
+				"displayName": createKlutchTenantName,
+				"tenantUUID":  tenantUUID,
+				"provider":    "cognito",
+				"region":      region,
+				"apis":        apis,
+			},
 		}
 
-		if createKlutchTenantStoreSecret {
-			makeup.PrintSuccessSummary("Credentials stored in AWS Secrets Manager; share access (not raw secrets) with the workload owner.")
-			makeup.PrintInfo("Workload owners can create their cluster with `a9s create cluster klutch workload --provider aws --cluster-name <name>`.")
-			makeup.PrintInfo("Keep the issuer/client ID/secret for this tenant; they are required by the non-interactive bind flow (`a9s klutch bind` using a token issued by this OIDC app).")
-		} else {
-			makeup.PrintSuccessSummary("Store these values securely (e.g., AWS Secrets Manager) and share with the workload cluster owner.")
-			makeup.PrintInfo("Workload owners can create their cluster with `a9s create cluster klutch workload --provider aws --cluster-name <name>`.")
-			makeup.PrintInfo("Keep the issuer/client ID/secret for this tenant; they are required by the non-interactive bind flow (`a9s klutch bind` using a token issued by this OIDC app).")
+		yamlBytes, err := yaml.Marshal(tenantCR)
+		if err != nil {
+			makeup.ExitDueToFatalError(err, "Failed to render Tenant manifest.")
 		}
+
+		makeup.PrintInfo(fmt.Sprintf("Applying Tenant %s to namespace %s...", createKlutchTenantName, ns))
+		applyCmd := exec.Command("kubectl", "apply", "-f", "-")
+		applyCmd.Stdin = strings.NewReader(string(yamlBytes))
+		var outBuf, errBuf bytes.Buffer
+		applyCmd.Stdout = &outBuf
+		applyCmd.Stderr = &errBuf
+		if err := applyCmd.Run(); err != nil {
+			makeup.ExitDueToFatalError(err, fmt.Sprintf("Failed to apply Tenant CR.\nstderr: %s", errBuf.String()))
+		}
+		if makeup.Verbose {
+			makeup.Print(outBuf.String())
+		}
+
+		makeup.PrintSuccessSummary(fmt.Sprintf("Tenant %s created via tenant operator. Wait for reconciliation to provision Cognito client and secret.", createKlutchTenantName))
 	},
 }
 
