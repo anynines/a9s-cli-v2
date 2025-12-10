@@ -50,6 +50,13 @@ type CreateOptions struct {
 	DryRun bool
 	// ClusterName overrides the default name if set (used by workload clusters).
 	ClusterName string
+	// TenantOperator overrides (control-plane only).
+	TenantOperatorImage       string
+	TenantOperatorChart       string
+	TenantOperatorRoleARN     string
+	TenantOperatorRegion      string
+	TenantOperatorBindURL     string
+	TenantOperatorBindRequest string
 }
 
 type styledLogger struct{}
@@ -303,6 +310,24 @@ func CreateControlPlaneCluster(ctx context.Context, opts CreateOptions) {
 	if opts.ClusterName != "" {
 		cfg.ClusterName = opts.ClusterName
 	}
+	if opts.TenantOperatorImage != "" {
+		cfg.TenantOperatorImage = opts.TenantOperatorImage
+	}
+	if opts.TenantOperatorChart != "" {
+		cfg.TenantOperatorChart = opts.TenantOperatorChart
+	}
+	if opts.TenantOperatorRoleARN != "" {
+		cfg.TenantOperatorRoleARN = opts.TenantOperatorRoleARN
+	}
+	if opts.TenantOperatorRegion != "" {
+		cfg.TenantOperatorRegion = opts.TenantOperatorRegion
+	}
+	if opts.TenantOperatorBindURL != "" {
+		cfg.TenantOperatorBindURL = opts.TenantOperatorBindURL
+	}
+	if opts.TenantOperatorBindRequest != "" {
+		cfg.TenantOperatorBindRequest = opts.TenantOperatorBindRequest
+	}
 	provisionCluster(ctx, cfg, opts)
 }
 
@@ -445,6 +470,12 @@ func provisionCluster(ctx context.Context, cfg Config, opts CreateOptions) {
 	ensureGp3StorageClass(ctx)
 
 	ensureALBController(ctx, cfg, vpcID, accountID)
+
+	if cfg.TenantOperatorRoleARN == "" {
+		cfg.TenantOperatorRoleARN = ensureTenantOperatorRole(ctx, cfg, accountID)
+	} else {
+		awsLogger.Infof("Using provided tenant operator IAM role: %s", cfg.TenantOperatorRoleARN)
+	}
 
 	deployTenantOperator(ctx, cfg, accountID)
 
@@ -681,6 +712,125 @@ func ensureNodeRole(ctx context.Context, roleName string) {
 		"--role-name", roleName,
 		"--policy-arn", "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly")
 	awsLogger.Successf("Created EKS node role '%s'.", roleName)
+}
+
+func ensureTenantOperatorRole(ctx context.Context, cfg Config, accountID string) string {
+	roleName := resourceName("tenant-operator")
+	roleArn := fmt.Sprintf("arn:aws:iam::%s:role/%s", accountID, roleName)
+
+	awsLogger.Section("Tenant Operator IAM role")
+	awsLogger.Infof("Ensuring IAM role for tenant operator exists (role=%s)...", roleName)
+
+	// Ensure OIDC provider associated for IRSA.
+	mustRun(ctx, "eksctl", "utils", "associate-iam-oidc-provider",
+		"--region", cfg.Region,
+		"--cluster", cfg.ClusterName,
+		"--approve")
+
+	if _, _, err := runCmd(ctx, "aws", "iam", "get-role", "--role-name", roleName); err == nil {
+		awsLogger.Successf("Tenant operator IAM role already exists: %s", roleArn)
+		return roleArn
+	}
+
+	issuer, errOut, err := runCmd(ctx, "aws", "eks", "describe-cluster",
+		"--name", cfg.ClusterName,
+		"--region", cfg.Region,
+		"--query", "cluster.identity.oidc.issuer",
+		"--output", "text")
+	if err != nil || strings.TrimSpace(issuer) == "" {
+		awsLogger.Fatalf(err, "Failed to discover OIDC issuer for cluster %s\nstderr: %s", cfg.ClusterName, errOut)
+	}
+	issuer = strings.TrimSpace(issuer)
+	providerHost := strings.TrimPrefix(issuer, "https://")
+	providerArn := fmt.Sprintf("arn:aws:iam::%s:oidc-provider/%s", accountID, providerHost)
+
+	trust := fmt.Sprintf(`{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Federated": "%s"
+      },
+      "Action": "sts:AssumeRoleWithWebIdentity",
+      "Condition": {
+        "StringEquals": {
+          "%s:sub": "system:serviceaccount:a9s-tenants-operator-system:a9s-tenants-operator",
+          "%s:aud": "sts.amazonaws.com"
+        }
+      }
+    }
+  ]
+}`, providerArn, providerHost, providerHost)
+	trustFile := "/tmp/tenant-operator-trust.json"
+	if err := os.WriteFile(trustFile, []byte(trust), 0600); err != nil {
+		awsLogger.Fatalf(err, "writing tenant operator trust policy failed")
+	}
+
+	args := []string{
+		"iam", "create-role",
+		"--role-name", roleName,
+		"--assume-role-policy-document", "file://" + trustFile,
+		"--description", fmt.Sprintf("Allows the Klutch %s tenant operator to manage Cognito and Secrets Manager for tenants", klutchRoleLabel),
+		"--tags",
+	}
+	args = append(args, append([]string{
+		fmt.Sprintf("Key=%s,Value=%s", klutchTagKey, klutchTagValue),
+		fmt.Sprintf("Key=Name,Value=%s", roleName),
+	}, clusterTagPairsKV()...)...)
+	mustRun(ctx, "aws", args...)
+
+	secretArn := fmt.Sprintf("arn:aws:secretsmanager:%s:%s:secret:klutch/*", cfg.Region, accountID)
+	policy := fmt.Sprintf(`{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "cognito-idp:CreateUserPoolClient",
+        "cognito-idp:DescribeUserPool",
+        "cognito-idp:DescribeUserPoolClient",
+        "cognito-idp:ListUserPoolClients",
+        "cognito-idp:UpdateUserPoolClient",
+        "cognito-idp:DeleteUserPoolClient",
+        "cognito-idp:CreateUserPoolDomain",
+        "cognito-idp:DescribeUserPoolDomain",
+        "cognito-idp:DeleteUserPoolDomain",
+        "secretsmanager:CreateSecret",
+        "secretsmanager:PutSecretValue",
+        "secretsmanager:UpdateSecret",
+        "secretsmanager:GetSecretValue",
+        "secretsmanager:DescribeSecret",
+        "secretsmanager:TagResource"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "secretsmanager:CreateSecret",
+        "secretsmanager:PutSecretValue",
+        "secretsmanager:UpdateSecret",
+        "secretsmanager:GetSecretValue",
+        "secretsmanager:DescribeSecret",
+        "secretsmanager:TagResource"
+      ],
+      "Resource": "%s"
+    }
+  ]
+}`, secretArn)
+	policyFile := "/tmp/tenant-operator-policy.json"
+	if err := os.WriteFile(policyFile, []byte(policy), 0600); err != nil {
+		awsLogger.Fatalf(err, "writing tenant operator policy failed")
+	}
+
+	mustRun(ctx, "aws", "iam", "put-role-policy",
+		"--role-name", roleName,
+		"--policy-name", "TenantOperatorInline",
+		"--policy-document", "file://"+policyFile)
+
+	awsLogger.Successf("Created tenant operator IAM role: %s", roleArn)
+	return roleArn
 }
 
 func ensureKMSKey(ctx context.Context, region, accountID, clusterRole string) string {

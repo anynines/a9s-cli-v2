@@ -48,6 +48,12 @@ var createKlutchWorkloadTenantName string
 var createKlutchWorkloadTenantSecretName string
 var createKlutchWorkloadTenantRegion string
 var createKlutchWorkloadBindRequestFile string
+var createKlutchTenantOperatorImage string
+var createKlutchTenantOperatorChart string
+var createKlutchTenantOperatorRoleARN string
+var createKlutchTenantOperatorRegion string
+var createKlutchTenantOperatorBindURL string
+var createKlutchTenantOperatorBindRequest string
 
 // controlPlaneCognitoPoolFromCluster tries to read the control-plane Cognito issuer
 // from the in-cluster oidc-config secret and derives the user pool ID (and region).
@@ -277,6 +283,12 @@ Use --no-apply to only provision the cluster. Currently only AWS is supported.`,
 		if cmd.Flags().Changed("cluster-name") {
 			options.ClusterName = strings.TrimSpace(demo.DemoClusterName)
 		}
+		options.TenantOperatorImage = strings.TrimSpace(createKlutchTenantOperatorImage)
+		options.TenantOperatorChart = strings.TrimSpace(createKlutchTenantOperatorChart)
+		options.TenantOperatorRoleARN = strings.TrimSpace(createKlutchTenantOperatorRoleARN)
+		options.TenantOperatorRegion = strings.TrimSpace(createKlutchTenantOperatorRegion)
+		options.TenantOperatorBindURL = strings.TrimSpace(createKlutchTenantOperatorBindURL)
+		options.TenantOperatorBindRequest = strings.TrimSpace(createKlutchTenantOperatorBindRequest)
 
 		if err := runKlutchClusterCreation(demo.KubernetesTool, options); err != nil {
 			makeup.ExitDueToFatalError(nil, err.Error())
@@ -650,6 +662,12 @@ func init() {
 	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchOIDCClientID, "oidc-client-id", "", "OIDC client ID (required for oidc-provider=cognito).")
 	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchOIDCClientSecret, "oidc-client-secret", "", "OIDC client secret (required for oidc-provider=cognito).")
 	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchOIDCCallbackURL, "oidc-callback-url", "", "OIDC callback URL to configure on the backend. Defaults to https://<host>/callback when not provided.")
+	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchTenantOperatorImage, "tenant-operator-image", "", "Tenant operator container image (defaults to built-in ECR dev image).")
+	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchTenantOperatorChart, "tenant-operator-chart", "", "Tenant operator Helm chart (OCI URL).")
+	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchTenantOperatorRoleARN, "tenant-operator-role-arn", "", "IAM role ARN for the tenant operator service account (IRSA).")
+	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchTenantOperatorRegion, "tenant-operator-region", "", "Region for tenant operator AWS calls (defaults to control-plane region).")
+	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchTenantOperatorBindURL, "tenant-operator-bind-url", "", "Bind URL to pass to the tenant operator config (override default derived bind URL).")
+	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchTenantOperatorBindRequest, "tenant-operator-bind-request", "", "Bind request JSON to pass to the tenant operator config (defaults to all exported services).")
 	cmdCreateClusterKlutchTenant.Flags().StringVar(&createKlutchTenantName, "tenant-name", "", "Name/prefix for the tenant (used to name the Cognito app client).")
 	cmdCreateClusterKlutchTenant.Flags().StringVar(&createKlutchTenantRegion, "region", "", "AWS region for Cognito (defaults to CONTROL_PLANE_CLUSTER_REGION or eu-central-1).")
 	cmdCreateClusterKlutchTenant.Flags().StringVar(&createKlutchTenantUserPoolID, "user-pool-id", "", "Existing Cognito user pool ID to reuse. If omitted, a pool named <tenant>-klutch is created or reused.")
