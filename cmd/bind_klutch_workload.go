@@ -120,6 +120,9 @@ var bindKlutchWorkloadCmd = &cobra.Command{
 			if err != nil {
 				return fmt.Errorf("failed to load tenant secret %s in %s: %w", secretName, region, err)
 			}
+			if strings.TrimSpace(conn.BindURL) == "" {
+				return fmt.Errorf("tenant secret %s is missing bind_url; recreate the tenant or set --control-plane explicitly", secretName)
+			}
 			if opts.ControlPlaneURL == "" && strings.TrimSpace(conn.BindURL) != "" {
 				opts.ControlPlaneURL = strings.TrimSpace(conn.BindURL)
 			}
@@ -134,6 +137,9 @@ var bindKlutchWorkloadCmd = &cobra.Command{
 			}
 			if strings.TrimSpace(opts.OIDCScope) == "" {
 				opts.OIDCScope = conn.Scope
+			}
+			if len(opts.BindRequestData) == 0 && strings.TrimSpace(conn.BindRequest) == "" {
+				return fmt.Errorf("tenant secret %s is missing bind_request; regenerate the tenant or supply --bind-request-file", secretName)
 			}
 			if len(opts.BindRequestData) == 0 && strings.TrimSpace(conn.BindRequest) != "" {
 				opts.BindRequestData = []byte(conn.BindRequest)
