@@ -36,12 +36,13 @@ type Config struct {
 	ResourceNamePrefix              string
 	ClusterRole                     string
 
-	TenantOperatorImage       string
-	TenantOperatorChart       string
-	TenantOperatorRoleARN     string
-	TenantOperatorRegion      string
-	TenantOperatorBindURL     string
-	TenantOperatorBindRequest string
+	TenantOperatorImage        string
+	TenantOperatorChart        string
+	TenantOperatorChartVersion string
+	TenantOperatorRoleARN      string
+	TenantOperatorRegion       string
+	TenantOperatorBindURL      string
+	TenantOperatorBindRequest  string
 }
 
 // CreateOptions configures Klutch cluster creation.
@@ -51,12 +52,13 @@ type CreateOptions struct {
 	// ClusterName overrides the default name if set (used by workload clusters).
 	ClusterName string
 	// TenantOperator overrides (control-plane only).
-	TenantOperatorImage       string
-	TenantOperatorChart       string
-	TenantOperatorRoleARN     string
-	TenantOperatorRegion      string
-	TenantOperatorBindURL     string
-	TenantOperatorBindRequest string
+	TenantOperatorImage        string
+	TenantOperatorChart        string
+	TenantOperatorChartVersion string
+	TenantOperatorRoleARN      string
+	TenantOperatorRegion       string
+	TenantOperatorBindURL      string
+	TenantOperatorBindRequest  string
 }
 
 type styledLogger struct{}
@@ -187,29 +189,30 @@ func getenv(key, def string) string {
 
 func defaultConfig() Config {
 	return Config{
-		Region:                  "eu-central-1",
-		ClusterName:             "klutch-control-plane",
-		NodegroupName:           "klutch-control-plane-nodegroup",
-		NodeInstanceTypes:       "t3a.xlarge",
-		NodeScalingConfig:       "minSize=3,maxSize=5,desiredSize=3",
-		NodeAMIType:             "AL2023_x86_64_STANDARD",
-		ClusterRoleName:         "EKSClusterRole",
-		NodeRoleName:            "EKSNodeInstanceRole",
-		BaseCIDR:                "10.0.0.0/16",
-		PubACIDR:                "10.0.1.0/24",
-		PubBCIDR:                "10.0.2.0/24",
-		PubCCIDR:                "10.0.3.0/24",
-		PrivACIDR:               "10.0.101.0/24",
-		PrivBCIDR:               "10.0.102.0/24",
-		PrivCCIDR:               "10.0.103.0/24",
-		ALBControllerVersion:    "v2.7.1",
-		ALBControllerPolicyName: "AWSLoadBalancerControllerIAMPolicy",
-		ControlPlaneSGName:      "klutch-control-plane-sg",
-		KlutchTagValue:          "ControlPlane",
-		ResourceNamePrefix:      "klutch-control-plane",
-		ClusterRole:             "Control Plane",
-		TenantOperatorImage:     "032720848313.dkr.ecr.eu-central-1.amazonaws.com/a9s-tenants-operator:dev",
-		TenantOperatorChart:     "oci://032720848313.dkr.ecr.eu-central-1.amazonaws.com/a9s-tenants-operator:0.1.3",
+		Region:                     "eu-central-1",
+		ClusterName:                "klutch-control-plane",
+		NodegroupName:              "klutch-control-plane-nodegroup",
+		NodeInstanceTypes:          "t3a.xlarge",
+		NodeScalingConfig:          "minSize=3,maxSize=5,desiredSize=3",
+		NodeAMIType:                "AL2023_x86_64_STANDARD",
+		ClusterRoleName:            "EKSClusterRole",
+		NodeRoleName:               "EKSNodeInstanceRole",
+		BaseCIDR:                   "10.0.0.0/16",
+		PubACIDR:                   "10.0.1.0/24",
+		PubBCIDR:                   "10.0.2.0/24",
+		PubCCIDR:                   "10.0.3.0/24",
+		PrivACIDR:                  "10.0.101.0/24",
+		PrivBCIDR:                  "10.0.102.0/24",
+		PrivCCIDR:                  "10.0.103.0/24",
+		ALBControllerVersion:       "v2.7.1",
+		ALBControllerPolicyName:    "AWSLoadBalancerControllerIAMPolicy",
+		ControlPlaneSGName:         "klutch-control-plane-sg",
+		KlutchTagValue:             "ControlPlane",
+		ResourceNamePrefix:         "klutch-control-plane",
+		ClusterRole:                "Control Plane",
+		TenantOperatorImage:        "032720848313.dkr.ecr.eu-central-1.amazonaws.com/a9s-tenants-operator:dev",
+		TenantOperatorChart:        "oci://032720848313.dkr.ecr.eu-central-1.amazonaws.com/a9s-tenants-operator",
+		TenantOperatorChartVersion: "0.1.3",
 	}
 }
 
@@ -291,6 +294,9 @@ func CreateControlPlaneCluster(ctx context.Context, opts CreateOptions) {
 	}
 	if opts.TenantOperatorChart != "" {
 		cfg.TenantOperatorChart = opts.TenantOperatorChart
+	}
+	if opts.TenantOperatorChartVersion != "" {
+		cfg.TenantOperatorChartVersion = opts.TenantOperatorChartVersion
 	}
 	if opts.TenantOperatorRoleARN != "" {
 		cfg.TenantOperatorRoleARN = opts.TenantOperatorRoleARN
@@ -703,24 +709,26 @@ func ensureTenantOperatorRole(ctx context.Context, cfg Config, accountID string)
 		"--cluster", cfg.ClusterName,
 		"--approve")
 
+	roleExists := false
 	if _, _, err := runCmd(ctx, "aws", "iam", "get-role", "--role-name", roleName); err == nil {
 		awsLogger.Successf("Tenant operator IAM role already exists: %s", roleArn)
-		return roleArn
+		roleExists = true
 	}
 
-	issuer, errOut, err := runCmd(ctx, "aws", "eks", "describe-cluster",
-		"--name", cfg.ClusterName,
-		"--region", cfg.Region,
-		"--query", "cluster.identity.oidc.issuer",
-		"--output", "text")
-	if err != nil || strings.TrimSpace(issuer) == "" {
-		awsLogger.Fatalf(err, "Failed to discover OIDC issuer for cluster %s\nstderr: %s", cfg.ClusterName, errOut)
-	}
-	issuer = strings.TrimSpace(issuer)
-	providerHost := strings.TrimPrefix(issuer, "https://")
-	providerArn := fmt.Sprintf("arn:aws:iam::%s:oidc-provider/%s", accountID, providerHost)
+	if !roleExists {
+		issuer, errOut, err := runCmd(ctx, "aws", "eks", "describe-cluster",
+			"--name", cfg.ClusterName,
+			"--region", cfg.Region,
+			"--query", "cluster.identity.oidc.issuer",
+			"--output", "text")
+		if err != nil || strings.TrimSpace(issuer) == "" {
+			awsLogger.Fatalf(err, "Failed to discover OIDC issuer for cluster %s\nstderr: %s", cfg.ClusterName, errOut)
+		}
+		issuer = strings.TrimSpace(issuer)
+		providerHost := strings.TrimPrefix(issuer, "https://")
+		providerArn := fmt.Sprintf("arn:aws:iam::%s:oidc-provider/%s", accountID, providerHost)
 
-	trust := fmt.Sprintf(`{
+		trust := fmt.Sprintf(`{
   "Version": "2012-10-17",
   "Statement": [
     {
@@ -738,23 +746,24 @@ func ensureTenantOperatorRole(ctx context.Context, cfg Config, accountID string)
     }
   ]
 }`, providerArn, providerHost, providerHost)
-	trustFile := "/tmp/tenant-operator-trust.json"
-	if err := os.WriteFile(trustFile, []byte(trust), 0600); err != nil {
-		awsLogger.Fatalf(err, "writing tenant operator trust policy failed")
-	}
+		trustFile := "/tmp/tenant-operator-trust.json"
+		if err := os.WriteFile(trustFile, []byte(trust), 0600); err != nil {
+			awsLogger.Fatalf(err, "writing tenant operator trust policy failed")
+		}
 
-	args := []string{
-		"iam", "create-role",
-		"--role-name", roleName,
-		"--assume-role-policy-document", "file://" + trustFile,
-		"--description", fmt.Sprintf("Allows the Klutch %s tenant operator to manage Cognito and Secrets Manager for tenants", klutchRoleLabel),
-		"--tags",
+		args := []string{
+			"iam", "create-role",
+			"--role-name", roleName,
+			"--assume-role-policy-document", "file://" + trustFile,
+			"--description", fmt.Sprintf("Allows the Klutch %s tenant operator to manage Cognito and Secrets Manager for tenants", klutchRoleLabel),
+			"--tags",
+		}
+		args = append(args, append([]string{
+			fmt.Sprintf("Key=%s,Value=%s", klutchTagKey, klutchTagValue),
+			fmt.Sprintf("Key=Name,Value=%s", roleName),
+		}, clusterTagPairsKV()...)...)
+		mustRun(ctx, "aws", args...)
 	}
-	args = append(args, append([]string{
-		fmt.Sprintf("Key=%s,Value=%s", klutchTagKey, klutchTagValue),
-		fmt.Sprintf("Key=Name,Value=%s", roleName),
-	}, clusterTagPairsKV()...)...)
-	mustRun(ctx, "aws", args...)
 
 	secretArn := fmt.Sprintf("arn:aws:secretsmanager:%s:%s:secret:klutch/*", cfg.Region, accountID)
 	policy := fmt.Sprintf(`{
@@ -763,6 +772,8 @@ func ensureTenantOperatorRole(ctx context.Context, cfg Config, accountID string)
     {
       "Effect": "Allow",
       "Action": [
+        "cognito-idp:CreateUserPool",
+        "cognito-idp:ListUserPools",
         "cognito-idp:CreateUserPoolClient",
         "cognito-idp:DescribeUserPool",
         "cognito-idp:DescribeUserPoolClient",
@@ -772,6 +783,11 @@ func ensureTenantOperatorRole(ctx context.Context, cfg Config, accountID string)
         "cognito-idp:CreateUserPoolDomain",
         "cognito-idp:DescribeUserPoolDomain",
         "cognito-idp:DeleteUserPoolDomain",
+        "cognito-idp:CreateResourceServer",
+        "cognito-idp:DescribeResourceServer",
+        "cognito-idp:UpdateResourceServer",
+        "cognito-idp:DeleteResourceServer",
+        "cognito-idp:TagResource",
         "secretsmanager:CreateSecret",
         "secretsmanager:PutSecretValue",
         "secretsmanager:UpdateSecret",
@@ -805,16 +821,41 @@ func ensureTenantOperatorRole(ctx context.Context, cfg Config, accountID string)
 		"--policy-name", "TenantOperatorInline",
 		"--policy-document", "file://"+policyFile)
 
-	awsLogger.Successf("Created tenant operator IAM role: %s", roleArn)
+	if roleExists {
+		awsLogger.Successf("Updated tenant operator IAM role: %s", roleArn)
+	} else {
+		awsLogger.Successf("Created tenant operator IAM role: %s", roleArn)
+	}
 	return roleArn
 }
 
 // ApplyControlPlaneAddons installs AWS-side addons (tenant operator) onto an existing control-plane cluster.
 // It assumes the EKS cluster already exists and that ALB/etc. are in place.
-func ApplyControlPlaneAddons(ctx context.Context, clusterName string) {
+func ApplyControlPlaneAddons(ctx context.Context, opts CreateOptions) {
 	cfg := defaultConfig()
-	if strings.TrimSpace(clusterName) != "" {
-		cfg.ClusterName = strings.TrimSpace(clusterName)
+	if strings.TrimSpace(opts.ClusterName) != "" {
+		cfg.ClusterName = strings.TrimSpace(opts.ClusterName)
+	}
+	if opts.TenantOperatorImage != "" {
+		cfg.TenantOperatorImage = opts.TenantOperatorImage
+	}
+	if opts.TenantOperatorChart != "" {
+		cfg.TenantOperatorChart = opts.TenantOperatorChart
+	}
+	if opts.TenantOperatorChartVersion != "" {
+		cfg.TenantOperatorChartVersion = opts.TenantOperatorChartVersion
+	}
+	if opts.TenantOperatorRoleARN != "" {
+		cfg.TenantOperatorRoleARN = opts.TenantOperatorRoleARN
+	}
+	if opts.TenantOperatorRegion != "" {
+		cfg.TenantOperatorRegion = opts.TenantOperatorRegion
+	}
+	if opts.TenantOperatorBindURL != "" {
+		cfg.TenantOperatorBindURL = opts.TenantOperatorBindURL
+	}
+	if opts.TenantOperatorBindRequest != "" {
+		cfg.TenantOperatorBindRequest = opts.TenantOperatorBindRequest
 	}
 
 	awsLogger.Successf("Applying Klutch control-plane addons to existing cluster %s", cfg.ClusterName)

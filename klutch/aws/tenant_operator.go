@@ -18,6 +18,20 @@ func deployTenantOperator(ctx context.Context, cfg Config, accountID string) {
 		return
 	}
 
+	chart := strings.TrimSpace(cfg.TenantOperatorChart)
+	version := strings.TrimSpace(cfg.TenantOperatorChartVersion)
+	// If the chart ref includes a tag (oci://...:x.y.z), split it into chart+version to avoid invalid reference errors.
+	if strings.HasPrefix(chart, "oci://") {
+		if parts := strings.Split(chart, ":"); len(parts) > 2 {
+			version = parts[len(parts)-1]
+			chart = strings.Join(parts[:len(parts)-1], ":")
+		} else if len(parts) == 2 && strings.Contains(parts[1], "/") == false {
+			// oci://repo:tag (unlikely), handle gracefully
+			version = parts[1]
+			chart = parts[0]
+		}
+	}
+
 	imageRepo := cfg.TenantOperatorImage
 	if idx := strings.LastIndex(imageRepo, ":"); idx > 0 {
 		// split tag if present
@@ -29,8 +43,11 @@ func deployTenantOperator(ctx context.Context, cfg Config, accountID string) {
 	ensureHelmRegistryLogin(ctx, cfg)
 
 	args := []string{
-		"helm", "upgrade", "--install", release, cfg.TenantOperatorChart,
+		"helm", "upgrade", "--install", release, chart,
 		"--namespace", ns, "--create-namespace",
+	}
+	if version != "" {
+		args = append(args, "--version", version)
 	}
 	if cfg.TenantOperatorImage != "" {
 		tag := "latest"

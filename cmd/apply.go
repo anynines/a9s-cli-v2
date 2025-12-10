@@ -12,16 +12,23 @@ import (
 )
 
 var (
-	applyKlutchControlPlaneHost       string
-	applyKlutchControlPlanePort       int
-	applyKlutchControlPlaneACMCertARN string
-	applyKlutchControlPlaneHostedZone string
-	applyKlutchOIDCProvider           string
-	applyKlutchOIDCIssuerURL          string
-	applyKlutchOIDCClientID           string
-	applyKlutchOIDCClientSecret       string
-	applyKlutchOIDCCallbackURL        string
-	applyKlutchClusterName            string
+	applyKlutchControlPlaneHost           string
+	applyKlutchControlPlanePort           int
+	applyKlutchControlPlaneACMCertARN     string
+	applyKlutchControlPlaneHostedZone     string
+	applyKlutchOIDCProvider               string
+	applyKlutchOIDCIssuerURL              string
+	applyKlutchOIDCClientID               string
+	applyKlutchOIDCClientSecret           string
+	applyKlutchOIDCCallbackURL            string
+	applyKlutchClusterName                string
+	applyKlutchTenantOperatorImage        string
+	applyKlutchTenantOperatorChart        string
+	applyKlutchTenantOperatorChartVersion string
+	applyKlutchTenantOperatorRoleARN      string
+	applyKlutchTenantOperatorRegion       string
+	applyKlutchTenantOperatorBindURL      string
+	applyKlutchTenantOperatorBindRequest  string
 )
 
 var applyCmd = &cobra.Command{
@@ -69,7 +76,17 @@ var applyKlutchControlPlaneCmd = &cobra.Command{
 		})
 
 		if strings.EqualFold(strings.TrimSpace(demo.KubernetesTool), "aws") {
-			klutchaws.ApplyControlPlaneAddons(context.Background(), applyKlutchClusterName)
+			cfgOpts := klutchaws.CreateOptions{
+				ClusterName:                strings.TrimSpace(applyKlutchClusterName),
+				TenantOperatorImage:        strings.TrimSpace(applyKlutchTenantOperatorImage),
+				TenantOperatorChart:        strings.TrimSpace(applyKlutchTenantOperatorChart),
+				TenantOperatorChartVersion: strings.TrimSpace(applyKlutchTenantOperatorChartVersion),
+				TenantOperatorRoleARN:      strings.TrimSpace(applyKlutchTenantOperatorRoleARN),
+				TenantOperatorRegion:       strings.TrimSpace(applyKlutchTenantOperatorRegion),
+				TenantOperatorBindURL:      strings.TrimSpace(applyKlutchTenantOperatorBindURL),
+				TenantOperatorBindRequest:  strings.TrimSpace(applyKlutchTenantOperatorBindRequest),
+			}
+			klutchaws.ApplyControlPlaneAddons(context.Background(), cfgOpts)
 		}
 
 		klutch.ApplyKlutchControlPlane(applyKlutchControlPlaneHost, applyKlutchControlPlanePort, applyKlutchControlPlaneACMCertARN, applyKlutchControlPlaneHostedZone)
@@ -87,6 +104,13 @@ func init() {
 	applyKlutchControlPlaneCmd.Flags().StringVar(&applyKlutchOIDCClientSecret, "oidc-client-secret", "", "OIDC client secret (required for oidc-provider=cognito).")
 	applyKlutchControlPlaneCmd.Flags().StringVar(&applyKlutchOIDCCallbackURL, "oidc-callback-url", "", "OIDC callback URL to configure on the backend. Defaults to https://<host>/callback when not provided.")
 	applyKlutchControlPlaneCmd.Flags().StringVar(&applyKlutchClusterName, "cluster-name", "", "Existing AWS control-plane cluster name (defaults to klutch-control-plane).")
+	applyKlutchControlPlaneCmd.Flags().StringVar(&applyKlutchTenantOperatorImage, "tenant-operator-image", "", "Tenant operator container image (override default).")
+	applyKlutchControlPlaneCmd.Flags().StringVar(&applyKlutchTenantOperatorChart, "tenant-operator-chart", "", "Tenant operator Helm chart (OCI URL, override default).")
+	applyKlutchControlPlaneCmd.Flags().StringVar(&applyKlutchTenantOperatorChartVersion, "tenant-operator-chart-version", "", "Tenant operator Helm chart version (for OCI charts).")
+	applyKlutchControlPlaneCmd.Flags().StringVar(&applyKlutchTenantOperatorRoleARN, "tenant-operator-role-arn", "", "IAM role ARN for the tenant operator service account (IRSA).")
+	applyKlutchControlPlaneCmd.Flags().StringVar(&applyKlutchTenantOperatorRegion, "tenant-operator-region", "", "Region for tenant operator AWS calls (defaults to control-plane region).")
+	applyKlutchControlPlaneCmd.Flags().StringVar(&applyKlutchTenantOperatorBindURL, "tenant-operator-bind-url", "", "Bind URL to pass to the tenant operator config (override default).")
+	applyKlutchControlPlaneCmd.Flags().StringVar(&applyKlutchTenantOperatorBindRequest, "tenant-operator-bind-request", "", "Bind request JSON to pass to the tenant operator config (override default).")
 	applyKlutchControlPlaneCmd.Flags().StringVarP(&demo.KubernetesTool, "provider", "p", "", "provider for the Kubernetes cluster. Valid options are \"minikube\", \"kind\", and \"aws\" (for Klutch).")
 
 	applyKlutchCmd.AddCommand(applyKlutchControlPlaneCmd)

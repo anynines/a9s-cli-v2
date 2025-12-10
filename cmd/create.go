@@ -53,6 +53,7 @@ var createKlutchWorkloadTenantRegion string
 var createKlutchWorkloadBindRequestFile string
 var createKlutchTenantOperatorImage string
 var createKlutchTenantOperatorChart string
+var createKlutchTenantOperatorChartVersion string
 var createKlutchTenantOperatorRoleARN string
 var createKlutchTenantOperatorRegion string
 var createKlutchTenantOperatorBindURL string
@@ -288,6 +289,7 @@ Use --no-apply to only provision the cluster. Currently only AWS is supported.`,
 		}
 		options.TenantOperatorImage = strings.TrimSpace(createKlutchTenantOperatorImage)
 		options.TenantOperatorChart = strings.TrimSpace(createKlutchTenantOperatorChart)
+		options.TenantOperatorChartVersion = strings.TrimSpace(createKlutchTenantOperatorChartVersion)
 		options.TenantOperatorRoleARN = strings.TrimSpace(createKlutchTenantOperatorRoleARN)
 		options.TenantOperatorRegion = strings.TrimSpace(createKlutchTenantOperatorRegion)
 		options.TenantOperatorBindURL = strings.TrimSpace(createKlutchTenantOperatorBindURL)
