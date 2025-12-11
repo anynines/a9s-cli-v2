@@ -294,6 +294,7 @@ Use --no-apply to only provision the cluster. Currently only AWS is supported.`,
 		options.TenantOperatorRegion = strings.TrimSpace(createKlutchTenantOperatorRegion)
 		options.TenantOperatorBindURL = strings.TrimSpace(createKlutchTenantOperatorBindURL)
 		options.TenantOperatorBindRequest = strings.TrimSpace(createKlutchTenantOperatorBindRequest)
+		options.HostedZoneName = strings.TrimSpace(createKlutchApplyHostedZone)
 
 		if err := runKlutchClusterCreation(demo.KubernetesTool, options); err != nil {
 			makeup.ExitDueToFatalError(nil, err.Error())

@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/anynines/a9s-cli-v2/makeup"
 )
@@ -63,16 +64,31 @@ func deployTenantOperator(ctx context.Context, cfg Config, accountID string) {
 		escaped := strings.ReplaceAll(cfg.TenantOperatorRoleARN, "/", "\\/")
 		args = append(args, "--set", fmt.Sprintf(`serviceAccount.annotations.eks\.amazonaws\.com/role-arn=%s`, escaped))
 	}
-	if cfg.TenantOperatorRegion != "" {
-		args = append(args, "--set", fmt.Sprintf("config.region=%s", cfg.TenantOperatorRegion))
-	} else {
-		args = append(args, "--set", fmt.Sprintf("config.region=%s", cfg.Region))
+
+	// Build a values file for config to avoid --set parsing issues with JSON (commas/quotes).
+	var valuesBuf bytes.Buffer
+	valuesBuf.WriteString("config:\n")
+	region := strings.TrimSpace(cfg.TenantOperatorRegion)
+	if region == "" {
+		region = strings.TrimSpace(cfg.Region)
 	}
-	if cfg.TenantOperatorBindURL != "" {
-		args = append(args, "--set", fmt.Sprintf("config.bindURL=%s", cfg.TenantOperatorBindURL))
+	if region != "" {
+		fmt.Fprintf(&valuesBuf, "  region: \"%s\"\n", region)
+		// Also pass via --set to ensure region is applied even if the values file is ignored.
+		args = append(args, "--set", fmt.Sprintf("config.region=%s", region))
 	}
-	if cfg.TenantOperatorBindRequest != "" {
-		args = append(args, "--set", fmt.Sprintf("config.bindRequest=%s", cfg.TenantOperatorBindRequest))
+	if strings.TrimSpace(cfg.TenantOperatorBindURL) != "" {
+		fmt.Fprintf(&valuesBuf, "  bindURL: \"%s\"\n", cfg.TenantOperatorBindURL)
+	}
+	if strings.TrimSpace(cfg.TenantOperatorBindRequest) != "" {
+		valuesBuf.WriteString("  bindRequest: |\n")
+		for _, line := range strings.Split(cfg.TenantOperatorBindRequest, "\n") {
+			fmt.Fprintf(&valuesBuf, "    %s\n", line)
+		}
+	}
+	tmpValues := fmt.Sprintf("/tmp/tenant-operator-values-%d.yaml", time.Now().UnixNano())
+	if err := os.WriteFile(tmpValues, valuesBuf.Bytes(), 0600); err == nil {
+		args = append(args, "-f", tmpValues)
 	}
 
 	makeup.PrintInfo("Deploying tenant operator via Helm...")

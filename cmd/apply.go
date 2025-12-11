@@ -85,6 +85,7 @@ var applyKlutchControlPlaneCmd = &cobra.Command{
 				TenantOperatorRegion:       strings.TrimSpace(applyKlutchTenantOperatorRegion),
 				TenantOperatorBindURL:      strings.TrimSpace(applyKlutchTenantOperatorBindURL),
 				TenantOperatorBindRequest:  strings.TrimSpace(applyKlutchTenantOperatorBindRequest),
+				HostedZoneName:             strings.TrimSpace(applyKlutchControlPlaneHostedZone),
 			}
 			klutchaws.ApplyControlPlaneAddons(context.Background(), cfgOpts)
 		}

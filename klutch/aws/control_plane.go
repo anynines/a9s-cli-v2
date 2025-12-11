@@ -43,6 +43,7 @@ type Config struct {
 	TenantOperatorRegion       string
 	TenantOperatorBindURL      string
 	TenantOperatorBindRequest  string
+	HostedZoneName             string
 }
 
 // CreateOptions configures Klutch cluster creation.
@@ -59,6 +60,7 @@ type CreateOptions struct {
 	TenantOperatorRegion       string
 	TenantOperatorBindURL      string
 	TenantOperatorBindRequest  string
+	HostedZoneName             string
 }
 
 type styledLogger struct{}
@@ -213,6 +215,7 @@ func defaultConfig() Config {
 		TenantOperatorImage:        "032720848313.dkr.ecr.eu-central-1.amazonaws.com/a9s-tenants-operator:dev",
 		TenantOperatorChart:        "oci://032720848313.dkr.ecr.eu-central-1.amazonaws.com/a9s-tenants-operator",
 		TenantOperatorChartVersion: "0.1.3",
+		HostedZoneName:             "",
 	}
 }
 
@@ -309,6 +312,9 @@ func CreateControlPlaneCluster(ctx context.Context, opts CreateOptions) {
 	}
 	if opts.TenantOperatorBindRequest != "" {
 		cfg.TenantOperatorBindRequest = opts.TenantOperatorBindRequest
+	}
+	if opts.HostedZoneName != "" {
+		cfg.HostedZoneName = opts.HostedZoneName
 	}
 	provisionCluster(ctx, cfg, opts)
 }
@@ -453,6 +459,7 @@ func provisionCluster(ctx context.Context, cfg Config, opts CreateOptions) {
 
 	ensureALBController(ctx, cfg, vpcID, accountID)
 
+	populateTenantOperatorDefaults(ctx, &cfg)
 	if cfg.TenantOperatorRoleARN == "" {
 		cfg.TenantOperatorRoleARN = ensureTenantOperatorRole(ctx, cfg, accountID)
 	} else {
@@ -857,6 +864,9 @@ func ApplyControlPlaneAddons(ctx context.Context, opts CreateOptions) {
 	if opts.TenantOperatorBindRequest != "" {
 		cfg.TenantOperatorBindRequest = opts.TenantOperatorBindRequest
 	}
+	if opts.HostedZoneName != "" {
+		cfg.HostedZoneName = opts.HostedZoneName
+	}
 
 	awsLogger.Successf("Applying Klutch control-plane addons to existing cluster %s", cfg.ClusterName)
 
@@ -878,6 +888,10 @@ func ApplyControlPlaneAddons(ctx context.Context, opts CreateOptions) {
 
 	// Ensure IAM role for tenant operator and deploy it.
 	cfg.TenantOperatorRoleARN = ensureTenantOperatorRole(ctx, cfg, accountID)
+
+	// Derive defaults for bind URL/request if missing.
+	populateTenantOperatorDefaults(ctx, &cfg)
+
 	deployTenantOperator(ctx, cfg, accountID)
 
 	awsLogger.Successf("Klutch control-plane addons applied to cluster %s.", cfg.ClusterName)
@@ -982,6 +996,72 @@ func ensureNetworking(ctx context.Context, cfg Config, vpcID string) {
 	awsLogger.Printf("PRIVATE ROUTE TABLES: %s, %s, %s", privRTA, privRTB, privRTC)
 
 	ensureSecurityGroup(ctx, vpcID, cfg.ControlPlaneSGName)
+}
+
+// deriveBindURLFromCluster tries to read the control-plane info ConfigMap to build a bind URL.
+func deriveBindURLFromCluster(ctx context.Context) string {
+	host, _, _ := runCmd(ctx, "kubectl", "-n", "default", "get", "configmap", "klutch-control-plane-info", "-o", "jsonpath={.data.host}")
+	port, _, _ := runCmd(ctx, "kubectl", "-n", "default", "get", "configmap", "klutch-control-plane-info", "-o", "jsonpath={.data.ingressPort}")
+	host = strings.TrimSpace(host)
+	port = strings.TrimSpace(port)
+	if host == "" {
+		return ""
+	}
+	scheme := "https"
+	if port == "80" {
+		scheme = "http"
+	}
+	switch port {
+	case "", "443", "80":
+		return fmt.Sprintf("%s://%s/bind-noninteractive", scheme, host)
+	default:
+		return fmt.Sprintf("%s://%s:%s/bind-noninteractive", scheme, host, port)
+	}
+}
+
+// defaultBindRequestJSON returns the default bind request JSON for a tenant clusterID.
+func defaultBindRequestJSON(clusterID string) string {
+	req := struct {
+		ClusterID string `json:"clusterID"`
+		Apis      []struct {
+			Group    string `json:"group"`
+			Resource string `json:"resource"`
+		} `json:"apis"`
+	}{
+		ClusterID: clusterID,
+		Apis: []struct {
+			Group    string `json:"group"`
+			Resource string `json:"resource"`
+		}{
+			{Group: "anynines.com", Resource: "postgresqlinstances"},
+			{Group: "anynines.com", Resource: "servicebindings"},
+			{Group: "anynines.com", Resource: "backups"},
+			{Group: "anynines.com", Resource: "restores"},
+		},
+	}
+	b, err := json.Marshal(req)
+	if err != nil {
+		return ""
+	}
+	return string(b)
+}
+
+// populateTenantOperatorDefaults fills bind URL/request and region if missing.
+func populateTenantOperatorDefaults(ctx context.Context, cfg *Config) {
+	if strings.TrimSpace(cfg.TenantOperatorBindURL) == "" {
+		if url := deriveBindURLFromCluster(ctx); strings.TrimSpace(url) != "" {
+			cfg.TenantOperatorBindURL = url
+		} else if hz := strings.Trim(strings.TrimSpace(cfg.HostedZoneName), "."); hz != "" {
+			host := fmt.Sprintf("klutch-bind.%s", hz)
+			cfg.TenantOperatorBindURL = fmt.Sprintf("https://%s/bind-noninteractive", host)
+		}
+	}
+	if strings.TrimSpace(cfg.TenantOperatorBindRequest) == "" {
+		cfg.TenantOperatorBindRequest = defaultBindRequestJSON(cfg.ClusterName)
+	}
+	if strings.TrimSpace(cfg.TenantOperatorRegion) == "" {
+		cfg.TenantOperatorRegion = cfg.Region
+	}
 }
 
 func ensureIGW(ctx context.Context, vpcID string) string {
