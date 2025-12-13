@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+	"time"
+
+	"github.com/charmbracelet/lipgloss"
 
 	klutchaws "github.com/anynines/a9s-cli-v2/klutch/aws"
 	"github.com/anynines/a9s-cli-v2/makeup"
@@ -145,6 +148,8 @@ func listKubectlNames(args ...string) ([]string, error) {
 }
 
 func printKlutchClusters() error {
+	makeup.PrintInfo("Detecting Klutch clusters...")
+
 	contexts, err := listKubectlNames("config", "get-contexts", "-o", "name")
 	if err != nil {
 		return fmt.Errorf("failed to list kubectl contexts: %w", err)
@@ -170,9 +175,101 @@ func printKlutchClusters() error {
 		return nil
 	}
 
-	makeup.PrintH1("Klutch clusters detected in kubectl config")
+	var rows []clusterRow
 	for _, m := range matches {
-		makeup.Print(fmt.Sprintf("- %s", m))
+		clusterName := deriveClusterName(m)
+		status := "inactive"
+		// Quick existence check with low timeout.
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		cmd := exec.CommandContext(ctx, "kubectl", "cluster-info", "--context", m)
+		if err := cmd.Run(); err == nil {
+			status = "active"
+		}
+		cancel()
+		rows = append(rows, clusterRow{
+			Cluster: clusterName,
+			Status:  status,
+		})
 	}
+
+	makeup.PrintH1("Klutch clusters detected in kubectl config")
+	makeup.Print(renderClusterTable(rows))
+	makeup.PrintInfo("Tip: switch kubectl context with `a9s use klutch --cluster-name <name>` or `a9s use cluster klutch -c <name>`.")
 	return nil
+}
+
+// deriveClusterName tries to extract the bare cluster name from a context/cluster string.
+func deriveClusterName(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return ""
+	}
+	parts := strings.Split(s, "/")
+	return parts[len(parts)-1]
+}
+
+type clusterRow struct {
+	Cluster string
+	Status  string
+}
+
+func renderClusterTable(rows []clusterRow) string {
+	if len(rows) == 0 {
+		return ""
+	}
+	headers := []string{"Cluster", "Status"}
+	data := make([][]string, 0, len(rows))
+	for _, r := range rows {
+		icon := "⏳"
+		if strings.EqualFold(r.Status, "active") {
+			icon = "✅"
+		}
+		data = append(data, []string{r.Cluster, fmt.Sprintf("%s %s", icon, r.Status)})
+	}
+	// compute widths
+	widths := make([]int, len(headers))
+	for i, h := range headers {
+		widths[i] = len(h)
+	}
+	for _, row := range data {
+		for i, col := range row {
+			if len(col) > widths[i] {
+				widths[i] = len(col)
+			}
+		}
+	}
+	headerStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#e4833e")).Padding(0, 1)
+	rowStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#D9DCCF")).Padding(0, 1)
+	divider := lipgloss.NewStyle().
+		Border(lipgloss.NormalBorder(), true, false, true, false).
+		BorderForeground(lipgloss.Color("#505d7a"))
+
+	renderRow := func(cols []string, style lipgloss.Style) string {
+		rendered := make([]string, len(cols))
+		for i, c := range cols {
+			rendered[i] = lipgloss.NewStyle().Width(widths[i]).Render(c)
+		}
+		return style.Render(lipgloss.JoinHorizontal(lipgloss.Top, rendered...))
+	}
+
+	lines := []string{
+		renderRow(headers, headerStyle),
+		divider.Render(strings.Repeat(" ", sum(widths)+len(widths))),
+	}
+	for _, row := range data {
+		lines = append(lines, renderRow(row, rowStyle))
+	}
+	box := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("#505d7a")).
+		Padding(0, 1)
+	return box.Render(strings.Join(lines, "\n"))
+}
+
+func sum(ints []int) int {
+	total := 0
+	for _, v := range ints {
+		total += v
+	}
+	return total
 }
