@@ -459,14 +459,17 @@ func provisionCluster(ctx context.Context, cfg Config, opts CreateOptions) {
 
 	ensureALBController(ctx, cfg, vpcID, accountID)
 
-	populateTenantOperatorDefaults(ctx, &cfg)
-	if cfg.TenantOperatorRoleARN == "" {
-		cfg.TenantOperatorRoleARN = ensureTenantOperatorRole(ctx, cfg, accountID)
+	if strings.EqualFold(cfg.ClusterRole, "Control Plane") {
+		populateTenantOperatorDefaults(ctx, &cfg)
+		if cfg.TenantOperatorRoleARN == "" {
+			cfg.TenantOperatorRoleARN = ensureTenantOperatorRole(ctx, cfg, accountID)
+		} else {
+			awsLogger.Infof("Using provided tenant operator IAM role: %s", cfg.TenantOperatorRoleARN)
+		}
+		deployTenantOperator(ctx, cfg, accountID)
 	} else {
-		awsLogger.Infof("Using provided tenant operator IAM role: %s", cfg.TenantOperatorRoleARN)
+		awsLogger.Infof("Skipping tenant operator IAM role and deployment for %s cluster.", cfg.ClusterRole)
 	}
-
-	deployTenantOperator(ctx, cfg, accountID)
 
 	awsLogger.Summaryf("Klutch %s EKS cluster is ready.", klutchRoleLabel)
 	awsLogger.Printf("   Cluster:   %s", cfg.ClusterName)
