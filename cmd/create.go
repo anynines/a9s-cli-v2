@@ -58,6 +58,9 @@ var createKlutchTenantOperatorRoleARN string
 var createKlutchTenantOperatorRegion string
 var createKlutchTenantOperatorBindURL string
 var createKlutchTenantOperatorBindRequest string
+var createKlutchBackendImageRef string
+var createKlutchBackendImageURL string
+var createKlutchBackendImageTag string
 
 // controlPlaneCognitoPoolFromCluster tries to read the control-plane Cognito issuer
 // from the in-cluster oidc-config secret and derives the user pool ID (and region).
@@ -317,6 +320,9 @@ Use --no-apply to only provision the cluster. Currently only AWS is supported.`,
 		if createKlutchApplyIngressPort < 1 || createKlutchApplyIngressPort > 65535 {
 			makeup.ExitDueToFatalError(nil, "Invalid ingress port. Must be between 1 and 65535.")
 		}
+
+		imgURL, imgTag := resolveBackendImageRef(createKlutchBackendImageRef, createKlutchBackendImageURL, createKlutchBackendImageTag)
+		klutch.SetBindBackendImage(imgURL, imgTag)
 
 		klutch.SetControlPlaneOIDCOptions(klutch.OIDCOptions{
 			Provider:     klutch.OIDCProvider(createKlutchOIDCProvider),
@@ -638,6 +644,9 @@ func init() {
 	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchTenantOperatorRegion, "tenant-operator-region", "", "Region for tenant operator AWS calls (defaults to control-plane region).")
 	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchTenantOperatorBindURL, "tenant-operator-bind-url", "", "Bind URL to pass to the tenant operator config (override default derived bind URL).")
 	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchTenantOperatorBindRequest, "tenant-operator-bind-request", "", "Bind request JSON to pass to the tenant operator config (defaults to all exported services).")
+	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchBackendImageRef, "klutch-bind-backend-img", "", "Override the klutch-bind backend image as <repo>:<tag>.")
+	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchBackendImageURL, "klutch-bind-backend-img-url", "", "Override the klutch-bind backend image URL (repository).")
+	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchBackendImageTag, "klutch-bind-backend-img-tag", "", "Override the klutch-bind backend image tag.")
 	cmdCreateClusterKlutchTenant.Flags().StringVar(&createKlutchTenantName, "tenant-name", "", "Name/prefix for the tenant (used to name the Cognito app client).")
 	cmdCreateClusterKlutchTenant.Flags().StringVar(&createKlutchTenantRegion, "region", "", "AWS region for Cognito (defaults to CONTROL_PLANE_CLUSTER_REGION or eu-central-1).")
 	cmdCreateClusterKlutchTenant.Flags().StringVar(&createKlutchTenantUserPoolID, "user-pool-id", "", "Existing Cognito user pool ID to reuse. If omitted, a pool named <tenant>-klutch is created or reused.")
@@ -667,4 +676,17 @@ func init() {
 	rootCmd.PersistentFlags().BoolVarP(&demo.UnattendedMode, "yes", "y", false, "skip yes-no questions by answering with \"yes\".")
 	rootCmd.PersistentFlags().BoolVarP(&makeup.Verbose, "verbose", "v", false, "enable verbose output?")
 	rootCmd.AddCommand(cmdCreate)
+}
+
+// resolveBackendImageRef picks the backend image URL/tag from either a combined ref or separate URL/tag.
+// If ref contains a ":", the portion after the last colon is treated as the tag.
+func resolveBackendImageRef(ref, url, tag string) (string, string) {
+	ref = strings.TrimSpace(ref)
+	if ref != "" {
+		if idx := strings.LastIndex(ref, ":"); idx != -1 && idx != len(ref)-1 {
+			return strings.TrimSpace(ref[:idx]), strings.TrimSpace(ref[idx+1:])
+		}
+		return ref, ""
+	}
+	return strings.TrimSpace(url), strings.TrimSpace(tag)
 }

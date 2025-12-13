@@ -29,6 +29,9 @@ var (
 	applyKlutchTenantOperatorRegion       string
 	applyKlutchTenantOperatorBindURL      string
 	applyKlutchTenantOperatorBindRequest  string
+	applyKlutchBackendImageRef            string
+	applyKlutchBackendImageURL            string
+	applyKlutchBackendImageTag            string
 )
 
 var applyCmd = &cobra.Command{
@@ -66,6 +69,9 @@ var applyKlutchControlPlaneCmd = &cobra.Command{
 		if applyKlutchControlPlaneHostedZone == "" {
 			makeup.ExitDueToFatalError(nil, "The --hosted-zone-name flag is required until self-signed certificates are supported.")
 		}
+
+		imgURL, imgTag := resolveBackendImageRef(applyKlutchBackendImageRef, applyKlutchBackendImageURL, applyKlutchBackendImageTag)
+		klutch.SetBindBackendImage(imgURL, imgTag)
 
 		klutch.SetControlPlaneOIDCOptions(klutch.OIDCOptions{
 			Provider:     klutch.OIDCProvider(applyKlutchOIDCProvider),
@@ -112,9 +118,25 @@ func init() {
 	applyKlutchControlPlaneCmd.Flags().StringVar(&applyKlutchTenantOperatorRegion, "tenant-operator-region", "", "Region for tenant operator AWS calls (defaults to control-plane region).")
 	applyKlutchControlPlaneCmd.Flags().StringVar(&applyKlutchTenantOperatorBindURL, "tenant-operator-bind-url", "", "Bind URL to pass to the tenant operator config (override default).")
 	applyKlutchControlPlaneCmd.Flags().StringVar(&applyKlutchTenantOperatorBindRequest, "tenant-operator-bind-request", "", "Bind request JSON to pass to the tenant operator config (override default).")
+	applyKlutchControlPlaneCmd.Flags().StringVar(&applyKlutchBackendImageRef, "klutch-bind-backend-img", "", "Override the klutch-bind backend image as <repo>:<tag>.")
+	applyKlutchControlPlaneCmd.Flags().StringVar(&applyKlutchBackendImageURL, "klutch-bind-backend-img-url", "", "Override the klutch-bind backend image URL (repository).")
+	applyKlutchControlPlaneCmd.Flags().StringVar(&applyKlutchBackendImageTag, "klutch-bind-backend-img-tag", "", "Override the klutch-bind backend image tag.")
 	applyKlutchControlPlaneCmd.Flags().StringVarP(&demo.KubernetesTool, "provider", "p", "", "provider for the Kubernetes cluster. Valid options are \"minikube\", \"kind\", and \"aws\" (for Klutch).")
 
 	applyKlutchCmd.AddCommand(applyKlutchControlPlaneCmd)
 	applyCmd.AddCommand(applyKlutchCmd)
 	rootCmd.AddCommand(applyCmd)
+}
+
+// resolveBackendImageRef picks the backend image URL/tag from either a combined ref or separate URL/tag.
+// If ref contains a ":", the portion after the last colon is treated as the tag.
+func resolveBackendImageRef(ref, url, tag string) (string, string) {
+	ref = strings.TrimSpace(ref)
+	if ref != "" {
+		if idx := strings.LastIndex(ref, ":"); idx != -1 && idx != len(ref)-1 {
+			return strings.TrimSpace(ref[:idx]), strings.TrimSpace(ref[idx+1:])
+		}
+		return ref, ""
+	}
+	return strings.TrimSpace(url), strings.TrimSpace(tag)
 }

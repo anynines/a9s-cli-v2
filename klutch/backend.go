@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/anynines/a9s-cli-v2/demo"
@@ -24,6 +25,8 @@ var bindBackendManifestsTemplate string
 type backendTemplateVars struct {
 	CookieEncryptionKey string
 	CookieSigningKey    string
+	BackendImageURL     string
+	BackendImageTag     string
 	ExternalAddress     string
 	IngressPort         string
 	K8sApiCaCertB64     string
@@ -33,6 +36,26 @@ type backendTemplateVars struct {
 	EnableTLS           bool
 	ServiceType         string
 	WaitForDex          bool
+}
+
+const (
+	defaultBackendImageURL = "public.ecr.aws/w5n9a2g2/anynines/kubebind-backend"
+	defaultBackendImageTag = "v1.4.1"
+)
+
+var (
+	bindBackendImageURL = defaultBackendImageURL
+	bindBackendImageTag = defaultBackendImageTag
+)
+
+// SetBindBackendImage overrides the backend image URL/tag when provided (non-empty).
+func SetBindBackendImage(imageURL, imageTag string) {
+	if imageURL = strings.TrimSpace(imageURL); imageURL != "" {
+		bindBackendImageURL = imageURL
+	}
+	if imageTag = strings.TrimSpace(imageTag); imageTag != "" {
+		bindBackendImageTag = imageTag
+	}
 }
 
 // Deploys dex (if required by OIDC provider) and the klutch-bind backend.
@@ -58,6 +81,8 @@ func (k *KlutchManager) DeployBindBackend(host string, ingressPort string, ingre
 	templateVars := &backendTemplateVars{
 		CookieEncryptionKey: cookieEncryptionKey,
 		CookieSigningKey:    cookieSigningKey,
+		BackendImageURL:     bindBackendImageURL,
+		BackendImageTag:     bindBackendImageTag,
 		ExternalAddress:     externalAddress,
 		IngressPort:         ingressPort,
 		K8sApiCaCertB64:     encodedCert,
