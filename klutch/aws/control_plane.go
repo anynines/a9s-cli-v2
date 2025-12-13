@@ -52,6 +52,9 @@ type CreateOptions struct {
 	DryRun bool
 	// ClusterName overrides the default name if set (used by workload clusters).
 	ClusterName string
+	// Node overrides for control-plane/workload clusters.
+	NodeInstanceTypes string
+	NodeCount         int
 	// TenantOperator overrides (control-plane only).
 	TenantOperatorImage        string
 	TenantOperatorChart        string
@@ -195,7 +198,7 @@ func defaultConfig() Config {
 		ClusterName:                "klutch-control-plane",
 		NodegroupName:              "klutch-control-plane-nodegroup",
 		NodeInstanceTypes:          "t3a.xlarge",
-		NodeScalingConfig:          "minSize=3,maxSize=5,desiredSize=3",
+		NodeScalingConfig:          "minSize=3,maxSize=3,desiredSize=3",
 		NodeAMIType:                "AL2023_x86_64_STANDARD",
 		ClusterRoleName:            "EKSClusterRole",
 		NodeRoleName:               "EKSNodeInstanceRole",
@@ -292,6 +295,12 @@ func CreateControlPlaneCluster(ctx context.Context, opts CreateOptions) {
 	if opts.ClusterName != "" {
 		cfg.ClusterName = opts.ClusterName
 	}
+	if opts.NodeInstanceTypes != "" {
+		cfg.NodeInstanceTypes = opts.NodeInstanceTypes
+	}
+	if opts.NodeCount > 0 {
+		cfg.NodeScalingConfig = fmt.Sprintf("minSize=%d,maxSize=%d,desiredSize=%d", opts.NodeCount, opts.NodeCount, opts.NodeCount)
+	}
 	if opts.TenantOperatorImage != "" {
 		cfg.TenantOperatorImage = opts.TenantOperatorImage
 	}
@@ -320,7 +329,14 @@ func CreateControlPlaneCluster(ctx context.Context, opts CreateOptions) {
 }
 
 func CreateWorkloadCluster(ctx context.Context, opts CreateOptions) {
-	provisionCluster(ctx, workloadConfig(opts.ClusterName), opts)
+	cfg := workloadConfig(opts.ClusterName)
+	if opts.NodeInstanceTypes != "" {
+		cfg.NodeInstanceTypes = opts.NodeInstanceTypes
+	}
+	if opts.NodeCount > 0 {
+		cfg.NodeScalingConfig = fmt.Sprintf("minSize=%d,maxSize=%d,desiredSize=%d", opts.NodeCount, opts.NodeCount, opts.NodeCount)
+	}
+	provisionCluster(ctx, cfg, opts)
 }
 
 func provisionCluster(ctx context.Context, cfg Config, opts CreateOptions) {

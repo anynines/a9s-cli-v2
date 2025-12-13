@@ -51,6 +51,8 @@ var createKlutchWorkloadTenantName string
 var createKlutchWorkloadTenantSecretName string
 var createKlutchWorkloadTenantRegion string
 var createKlutchWorkloadBindRequestFile string
+var createKlutchNodeType string
+var createKlutchNodes int
 var createKlutchTenantOperatorImage string
 var createKlutchTenantOperatorChart string
 var createKlutchTenantOperatorChartVersion string
@@ -290,6 +292,8 @@ Use --no-apply to only provision the cluster. Currently only AWS is supported.`,
 		if cmd.Flags().Changed("cluster-name") {
 			options.ClusterName = strings.TrimSpace(demo.DemoClusterName)
 		}
+		options.NodeInstanceTypes = strings.TrimSpace(createKlutchNodeType)
+		options.NodeCount = createKlutchNodes
 		options.TenantOperatorImage = strings.TrimSpace(createKlutchTenantOperatorImage)
 		options.TenantOperatorChart = strings.TrimSpace(createKlutchTenantOperatorChart)
 		options.TenantOperatorChartVersion = strings.TrimSpace(createKlutchTenantOperatorChartVersion)
@@ -435,6 +439,8 @@ var cmdCreateClusterKlutchWorkload = &cobra.Command{
 	Long:  `Creates a Klutch workload cluster on the selected provider. Currently only AWS is supported.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		opts := klutchaws.CreateOptions{DryRun: createKlutchDryRun}
+		opts.NodeInstanceTypes = strings.TrimSpace(createKlutchNodeType)
+		opts.NodeCount = createKlutchNodes
 		var tenantConn *klutchaws.OIDCConnection
 		var tenantBindRequest []byte
 
@@ -644,6 +650,8 @@ func init() {
 	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchTenantOperatorRegion, "tenant-operator-region", "", "Region for tenant operator AWS calls (defaults to control-plane region).")
 	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchTenantOperatorBindURL, "tenant-operator-bind-url", "", "Bind URL to pass to the tenant operator config (override default derived bind URL).")
 	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchTenantOperatorBindRequest, "tenant-operator-bind-request", "", "Bind request JSON to pass to the tenant operator config (defaults to all exported services).")
+	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchNodeType, "eks-node-type", "t3a.xlarge", "Instance type for EKS nodegroups.")
+	cmdCreateClusterKlutchControlPlane.Flags().IntVar(&createKlutchNodes, "eks-nodes", 3, "Number of worker nodes (sets min/max/desired to this value).")
 	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchBackendImageRef, "klutch-bind-backend-img", "", "Override the klutch-bind backend image as <repo>:<tag>.")
 	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchBackendImageURL, "klutch-bind-backend-img-url", "", "Override the klutch-bind backend image URL (repository).")
 	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchBackendImageTag, "klutch-bind-backend-img-tag", "", "Override the klutch-bind backend image tag.")
@@ -660,6 +668,8 @@ func init() {
 	cmdCreateClusterKlutchWorkload.Flags().StringVar(&createKlutchWorkloadTenantSecretName, "tenant-secret-name", "", "Explicit tenant secret name (defaults to klutch/<tenant>/oidc-client).")
 	cmdCreateClusterKlutchWorkload.Flags().StringVar(&createKlutchWorkloadTenantRegion, "tenant-region", "", "AWS region for the tenant secret (defaults to CONTROL_PLANE_CLUSTER_REGION or eu-central-1).")
 	cmdCreateClusterKlutchWorkload.Flags().StringVar(&createKlutchWorkloadBindRequestFile, "bind-request-file", "", "Optional bind request JSON to override the tenant's stored bind request.")
+	cmdCreateClusterKlutchWorkload.Flags().StringVar(&createKlutchNodeType, "eks-node-type", "t3a.xlarge", "Instance type for EKS nodegroups.")
+	cmdCreateClusterKlutchWorkload.Flags().IntVar(&createKlutchNodes, "eks-nodes", 3, "Number of worker nodes (sets min/max/desired to this value).")
 
 	cmdCreateCluster.AddCommand(cmdCreateClusterA8s)
 	cmdCreateClusterKlutch.AddCommand(cmdCreateClusterKlutchControlPlane)

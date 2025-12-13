@@ -96,5 +96,21 @@ func init() {
 	useKlutchCmd.Flags().StringVarP(&useKlutchClusterName, "cluster-name", "c", "", "Klutch cluster name to switch to.")
 
 	useCmd.AddCommand(useKlutchCmd)
+	useClusterCmd := &cobra.Command{
+		Use:   "cluster",
+		Short: "Switch kubectl context to a cluster.",
+		Run: func(cmd *cobra.Command, args []string) {
+			makeup.PrintWarning(" " + "Please select a subcommand from the list below.")
+			_ = cmd.Help()
+		},
+	}
+	useClusterKlutchCmd := &cobra.Command{
+		Use:   "klutch",
+		Short: "Switch kubectl context to a Klutch cluster.",
+		RunE:  useKlutchCmd.RunE,
+	}
+	useClusterKlutchCmd.Flags().StringVarP(&useKlutchClusterName, "cluster-name", "c", "", "Klutch cluster name to switch to.")
+	useClusterCmd.AddCommand(useClusterKlutchCmd)
+	useCmd.AddCommand(useClusterCmd)
 	rootCmd.AddCommand(useCmd)
 }
