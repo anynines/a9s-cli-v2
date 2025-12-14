@@ -49,7 +49,6 @@ spec:
         - --cookie-signing-key=$(COOKIE-SIGNING-KEY)
         - --cookie-encryption-key=$(COOKIE-ENCRYPTION-KEY)
         - --external-address={{ .ExternalAddress }}
-        - --external-ca-file=/certa/ca
         env:
         - name: OIDC-ISSUER-CLIENT-ID
           valueFrom:
@@ -89,8 +88,6 @@ spec:
             cpu: "100m"
             memory: 256Mi
         volumeMounts:
-        - name: ca
-          mountPath: /certa/
 {{- if .ExternalCASecret }}
         - name: external-ca
           mountPath: /etc/klutch/external
@@ -107,12 +104,6 @@ spec:
       - name: cookie-config
         secret:
           secretName: cookie-config
-      - name: ca
-        secret:
-          secretName: k8sca
-          items:
-          - key: ca
-            path: ca
 {{- if .ExternalCASecret }}
       - name: external-ca
         secret:
