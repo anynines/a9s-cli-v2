@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/anynines/a9s-cli-v2/makeup"
 	"github.com/anynines/klutchio/bind/deploy/crd"
@@ -19,6 +20,7 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/clientcredentials"
 	corev1 "k8s.io/api/core/v1"
+	apixv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/yaml"
@@ -151,12 +153,12 @@ func NonInteractiveBind(ctx context.Context, opts NonInteractiveBindOptions) err
 		makeup.PrintCheckmark(fmt.Sprintf("Wrote control-plane kubeconfig to %s", opts.WriteKubeconfigTo))
 	}
 
-	manifests, exportRequests, err := buildManifests(bindingResp, firstNonEmpty(opts.KonnectorImage, konnectorImage))
+	crdManifests, manifests, exportRequests, err := buildManifests(bindingResp, firstNonEmpty(opts.KonnectorImage, konnectorImage))
 	if err != nil {
 		return err
 	}
 
-	if err := applyManifests(ctx, manifests, opts.WorkloadKubeconfig, opts.WorkloadContext); err != nil {
+	if err := applyManifests(ctx, crdManifests, manifests, opts.WorkloadKubeconfig, opts.WorkloadContext); err != nil {
 		return err
 	}
 	makeup.PrintCheckmark("Applied klutch-bind resources to the workload cluster.")
@@ -170,7 +172,8 @@ func NonInteractiveBind(ctx context.Context, opts NonInteractiveBindOptions) err
 }
 
 // buildManifests assembles the YAML to apply on the workload cluster and returns the export requests for the control plane.
-func buildManifests(resp bindv1alpha1.BindingResponse, konnectorImg string) (string, []bindv1alpha1.APIServiceExportRequest, error) {
+// CRDs are returned separately to allow applying them before the remaining resources.
+func buildManifests(resp bindv1alpha1.BindingResponse, konnectorImg string) (string, string, []bindv1alpha1.APIServiceExportRequest, error) {
 	ns := corev1.Namespace{
 		TypeMeta: metav1.TypeMeta{Kind: "Namespace", APIVersion: corev1.SchemeGroupVersion.Version},
 		ObjectMeta: metav1.ObjectMeta{
@@ -192,32 +195,24 @@ func buildManifests(resp bindv1alpha1.BindingResponse, konnectorImg string) (str
 
 	crds, err := crd.CRDs()
 	if err != nil {
-		return "", nil, fmt.Errorf("failed to load CRDs: %w", err)
+		return "", "", nil, fmt.Errorf("failed to load CRDs: %w", err)
 	}
 
 	konnectorManifests, err := konnector.Bytes(konnectorImg)
 	if err != nil {
-		return "", nil, fmt.Errorf("failed to load konnector manifests: %w", err)
+		return "", "", nil, fmt.Errorf("failed to load konnector manifests: %w", err)
 	}
 
 	apiBindings, exportReqs, err := parseBindingResponse(resp)
 	if err != nil {
-		return "", nil, err
+		return "", "", nil, err
 	}
 
 	var docs []string
 	for _, obj := range []metav1.Object{&ns, &kfgSecret} {
 		yml, err := yamlStr(obj)
 		if err != nil {
-			return "", nil, err
-		}
-		docs = append(docs, yml)
-	}
-
-	for _, cr := range crds {
-		yml, err := yamlStr(&cr)
-		if err != nil {
-			return "", nil, err
+			return "", "", nil, err
 		}
 		docs = append(docs, yml)
 	}
@@ -225,7 +220,7 @@ func buildManifests(resp bindv1alpha1.BindingResponse, konnectorImg string) (str
 	for _, b := range apiBindings {
 		yml, err := yamlStr(&b)
 		if err != nil {
-			return "", nil, err
+			return "", "", nil, err
 		}
 		docs = append(docs, yml)
 	}
@@ -234,7 +229,18 @@ func buildManifests(resp bindv1alpha1.BindingResponse, konnectorImg string) (str
 		docs = append(docs, string(km))
 	}
 
-	return strings.Join(docs, "\n---\n"), exportReqs, nil
+	return strings.Join(crdDocs(crds), "\n---\n"), strings.Join(docs, "\n---\n"), exportReqs, nil
+}
+
+func crdDocs(crds []apixv1.CustomResourceDefinition) []string {
+	var docs []string
+	for _, cr := range crds {
+		yml, err := yamlStr(&cr)
+		if err == nil {
+			docs = append(docs, yml)
+		}
+	}
+	return docs
 }
 
 func parseBindingResponse(resp bindv1alpha1.BindingResponse) ([]bindv1alpha1.APIServiceBinding, []bindv1alpha1.APIServiceExportRequest, error) {
@@ -291,26 +297,63 @@ func parseBindingResponse(resp bindv1alpha1.BindingResponse) ([]bindv1alpha1.API
 	return bindings, exportReqs, nil
 }
 
-func applyManifests(ctx context.Context, manifest string, kubeconfigPath, kubeContext string) error {
-	cmdArgs := []string{"apply", "-f", "-"}
+func applyManifests(ctx context.Context, crdManifest, mainManifest string, kubeconfigPath, kubeContext string) error {
+	apply := func(manifest string) error {
+		cmdArgs := []string{"apply", "-f", "-"}
+		if strings.TrimSpace(kubeconfigPath) != "" {
+			cmdArgs = append(cmdArgs, "--kubeconfig", kubeconfigPath)
+		}
+		if strings.TrimSpace(kubeContext) != "" {
+			cmdArgs = append(cmdArgs, "--context", kubeContext)
+		}
+		cmd := exec.CommandContext(ctx, "kubectl", cmdArgs...)
+		cmd.Stdin = bytes.NewBufferString(manifest)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("failed to apply workload manifests: %w (output: %s)", err, strings.TrimSpace(string(out)))
+		}
+		if makeup.Verbose {
+			fmt.Println(string(out))
+		}
+		return nil
+	}
+
+	if strings.TrimSpace(crdManifest) != "" {
+		if err := apply(crdManifest); err != nil {
+			return err
+		}
+		if err := waitForAPIServiceBinding(ctx, kubeconfigPath, kubeContext); err != nil {
+			return err
+		}
+	}
+
+	return apply(mainManifest)
+}
+
+func waitForAPIServiceBinding(ctx context.Context, kubeconfigPath, kubeContext string) error {
+	cmdArgs := []string{"api-resources", "--api-group=klutch.anynines.com", "-o", "name"}
 	if strings.TrimSpace(kubeconfigPath) != "" {
 		cmdArgs = append(cmdArgs, "--kubeconfig", kubeconfigPath)
 	}
 	if strings.TrimSpace(kubeContext) != "" {
 		cmdArgs = append(cmdArgs, "--context", kubeContext)
 	}
-
-	cmd := exec.CommandContext(ctx, "kubectl", cmdArgs...)
-	cmd.Stdin = bytes.NewBufferString(manifest)
-
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("failed to apply workload manifests: %w (output: %s)", err, strings.TrimSpace(string(out)))
+	timeout := time.After(30 * time.Second)
+	tick := time.Tick(1 * time.Second)
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-timeout:
+			return fmt.Errorf("APIServiceBinding CRD not registered in time")
+		case <-tick:
+			cmd := exec.CommandContext(ctx, "kubectl", cmdArgs...)
+			out, err := cmd.Output()
+			if err == nil && strings.Contains(string(out), "apiservicebindings") {
+				return nil
+			}
+		}
 	}
-	if makeup.Verbose {
-		fmt.Println(string(out))
-	}
-	return nil
 }
 
 func createExportRequests(ctx context.Context, kubeconfig []byte, requests []bindv1alpha1.APIServiceExportRequest) error {
