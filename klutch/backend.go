@@ -1,6 +1,7 @@
 package klutch
 
 import (
+	"bytes"
 	"crypto/tls"
 	_ "embed"
 	"encoding/base64"
@@ -8,10 +9,12 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"os/exec"
 	"strings"
 	"time"
 
 	"github.com/anynines/a9s-cli-v2/demo"
+	"github.com/anynines/a9s-cli-v2/k8s"
 	"github.com/anynines/a9s-cli-v2/makeup"
 )
 
@@ -27,6 +30,7 @@ type backendTemplateVars struct {
 	CookieSigningKey    string
 	BackendImageURL     string
 	BackendImageTag     string
+	ExternalCASecret    string
 	ExternalAddress     string
 	IngressPort         string
 	K8sApiCaCertB64     string
@@ -41,6 +45,7 @@ type backendTemplateVars struct {
 const (
 	defaultBackendImageURL = "public.ecr.aws/w5n9a2g2/anynines/kubebind-backend"
 	defaultBackendImageTag = "v1.4.1"
+	externalCASecretName   = "klutch-bind-external-ca"
 )
 
 var (
@@ -56,6 +61,59 @@ func SetBindBackendImage(imageURL, imageTag string) {
 	if imageTag = strings.TrimSpace(imageTag); imageTag != "" {
 		bindBackendImageTag = imageTag
 	}
+}
+
+// createExternalCASecret fetches the ACM certificate chain and creates a secret for the backend to mount.
+func createExternalCASecret(acmArn string, k *k8s.KubeClient) (string, error) {
+	arn := strings.TrimSpace(acmArn)
+	if arn == "" {
+		return "", fmt.Errorf("empty ACM ARN")
+	}
+	// Fetch cert + chain; concatenating covers intermediates.
+	cmd := exec.Command("aws", "acm", "get-certificate", "--certificate-arn", arn, "--query", "Certificate")
+	certOut, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("failed to fetch ACM certificate: %w", err)
+	}
+	cmd = exec.Command("aws", "acm", "get-certificate", "--certificate-arn", arn, "--query", "CertificateChain")
+	chainOut, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("failed to fetch ACM certificate chain: %w", err)
+	}
+	// Remove surrounding quotes from JSON string output.
+	clean := func(b []byte) string {
+		s := strings.TrimSpace(string(b))
+		s = strings.TrimPrefix(s, "\"")
+		s = strings.TrimSuffix(s, "\"")
+		s = strings.ReplaceAll(s, `\n`, "\n")
+		return s
+	}
+	pem := strings.TrimSpace(clean(certOut) + "\n" + clean(chainOut))
+	if pem == "" {
+		return "", fmt.Errorf("empty ACM certificate data")
+	}
+
+	manifest := fmt.Sprintf(`apiVersion: v1
+kind: Secret
+metadata:
+  name: %s
+  namespace: default
+type: Opaque
+stringData:
+  ca.crt: |
+%s
+`, externalCASecretName, indent(pem, "    "))
+
+	k.KubectlApplyStdin(bytes.NewBufferString(manifest))
+	return externalCASecretName, nil
+}
+
+func indent(text, pad string) string {
+	lines := strings.Split(text, "\n")
+	for i, l := range lines {
+		lines[i] = pad + l
+	}
+	return strings.Join(lines, "\n")
 }
 
 // Deploys dex (if required by OIDC provider) and the klutch-bind backend.
@@ -76,13 +134,29 @@ func (k *KlutchManager) DeployBindBackend(host string, ingressPort string, ingre
 	rbg := RandomByteGenerator{}
 	cookieSigningKey := rbg.GenerateRandom32BytesBase64()
 	cookieEncryptionKey := rbg.GenerateRandom32BytesBase64()
-	externalAddress := fmt.Sprintf("%s://%s:%s", scheme, host, ingressPort)
+	// Build external address; avoid appending the default port for cleanliness.
+	externalAddress := fmt.Sprintf("%s://%s", scheme, host)
+	if !(scheme == "https" && ingressPort == "443") && !(scheme == "http" && ingressPort == "80") {
+		externalAddress = fmt.Sprintf("%s:%s", externalAddress, ingressPort)
+	}
+
+	// If an ACM certificate was provided, try to fetch its chain and create a secret the backend can mount for CA.
+	externalCASecret := ""
+	if strings.TrimSpace(acmCertificateARN) != "" {
+		if secret, err := createExternalCASecret(acmCertificateARN, k.cpK8s); err != nil {
+			makeup.PrintWarning(fmt.Sprintf("Could not create external CA secret from ACM certificate: %v", err))
+		} else {
+			externalCASecret = secret
+			makeup.PrintInfo(fmt.Sprintf("Created external CA secret %s for backend TLS validation.", secret))
+		}
+	}
 
 	templateVars := &backendTemplateVars{
 		CookieEncryptionKey: cookieEncryptionKey,
 		CookieSigningKey:    cookieSigningKey,
 		BackendImageURL:     bindBackendImageURL,
 		BackendImageTag:     bindBackendImageTag,
+		ExternalCASecret:    externalCASecret,
 		ExternalAddress:     externalAddress,
 		IngressPort:         ingressPort,
 		K8sApiCaCertB64:     encodedCert,

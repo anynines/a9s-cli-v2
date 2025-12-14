@@ -38,6 +38,9 @@ spec:
         - --namespace-prefix=kube-bind-
         - --pretty-name=anynines
         - --consumer-scope=Namespaced
+{{- if .ExternalCASecret }}
+        - --external-ca-file=/etc/klutch/external/ca.crt
+{{- end }}
         - --oidc-issuer-client-id=$(OIDC-ISSUER-CLIENT-ID)
         - --oidc-issuer-client-secret=$(OIDC-ISSUER-CLIENT-SECRET)
         - --oidc-issuer-url=$(OIDC-ISSUER-URL)
@@ -88,6 +91,11 @@ spec:
         volumeMounts:
         - name: ca
           mountPath: /certa/
+{{- if .ExternalCASecret }}
+        - name: external-ca
+          mountPath: /etc/klutch/external
+          readOnly: true
+{{- end }}
         readinessProbe:
           httpGet:
             path: "/healthz"
@@ -105,6 +113,11 @@ spec:
           items:
           - key: ca
             path: ca
+{{- if .ExternalCASecret }}
+      - name: external-ca
+        secret:
+          secretName: {{ .ExternalCASecret }}
+{{- end }}
 ---
 apiVersion: v1
 kind: Secret
