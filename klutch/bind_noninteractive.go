@@ -21,7 +21,10 @@ import (
 	"golang.org/x/oauth2/clientcredentials"
 	corev1 "k8s.io/api/core/v1"
 	apixv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/yaml"
 )
@@ -380,11 +383,41 @@ func createExportRequests(ctx context.Context, kubeconfig []byte, requests []bin
 
 	for _, r := range requests {
 		r := r
-		_, err := client.KlutchBindV1alpha1().APIServiceExportRequests(ns).Create(ctx, &r, metav1.CreateOptions{})
-		if err != nil {
+		if _, err := client.KlutchBindV1alpha1().APIServiceExportRequests(ns).Create(ctx, &r, metav1.CreateOptions{}); err != nil {
+			// If the returned control-plane kubeconfig cannot reach the CRD (e.g., missing resources via backend),
+			// fall back to the current kubectl context kubeconfig.
+			if apierrors.IsNotFound(err) || meta.IsNoMatchError(err) {
+				makeup.PrintWarning(fmt.Sprintf("Control-plane kubeconfig cannot create APIServiceExportRequest (%v); falling back to current kubectl context.", err))
+				if err := createExportRequestWithDefaultContext(ctx, ns, &r); err != nil {
+					return fmt.Errorf("failed to create export request %s in %s (fallback): %w", r.GenerateName, ns, err)
+				}
+				continue
+			}
 			return fmt.Errorf("failed to create export request %s in %s: %w", r.GenerateName, ns, err)
 		}
 	}
+	return nil
+}
+
+func createExportRequestWithDefaultContext(ctx context.Context, ns string, req *bindv1alpha1.APIServiceExportRequest) error {
+	// Use default kubeconfig (current kubectl context)
+	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
+	overrides := &clientcmd.ConfigOverrides{}
+	cfg := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, overrides)
+	restCfg, err := cfg.ClientConfig()
+	if err != nil {
+		return err
+	}
+	client, err := bindclient.NewForConfig(restCfg)
+	if err != nil {
+		return err
+	}
+	_, err = client.KlutchBindV1alpha1().APIServiceExportRequests(ns).Create(ctx, req, metav1.CreateOptions{})
+	return err
+}
+
+func ensureControlPlaneCRDs(ctx context.Context, restCfg *rest.Config) error {
+	// CRDs must already exist on the control-plane; the returned kubeconfig typically cannot create them.
 	return nil
 }
 

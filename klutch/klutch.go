@@ -1,12 +1,14 @@
 package klutch
 
 import (
+	"bytes"
 	"context"
 	_ "embed"
 	"fmt"
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -17,8 +19,10 @@ import (
 	klutchaws "github.com/anynines/a9s-cli-v2/klutch/aws"
 	"github.com/anynines/a9s-cli-v2/makeup"
 	prereq "github.com/anynines/a9s-cli-v2/prerequisites"
+	"github.com/anynines/klutchio/bind/deploy/crd"
 	"github.com/google/uuid"
 	"gopkg.in/yaml.v2"
+	sigyaml "sigs.k8s.io/yaml"
 )
 
 const (
@@ -168,7 +172,8 @@ func ApplyKlutchControlPlane(host string, ingressPort int, acmCertificateARN str
 		makeup.PrintInfo(fmt.Sprintf("Using ACM certificate ARN: %s", acmCertificateARN))
 	}
 
-	manager := NewKlutchManagerWithContexts("", "")
+	cpCtx := currentKubectlContext()
+	manager := NewKlutchManagerWithContexts(cpCtx, "")
 	manager.applyControlPlaneToContext(baseDomain, dexHost, backendHost, hostedZoneName, provisioner, strconv.Itoa(ingressPort), acmCertificateARN)
 	printControlPlaneSummary(demo.DemoConfig.WorkingDir)
 }
@@ -229,6 +234,7 @@ func printSummary() {
 }
 
 func (k *KlutchManager) applyControlPlaneToContext(baseDomain string, dexHost string, backendHost string, hostedZoneName string, provisioner CertificateProvisioner, ingressPort string, acmCertificateARN string) {
+	ctx := context.Background()
 	ingressClass := detectIngressClass(k.cpK8s)
 	tlsEnabled := acmCertificateARN != "" && ingressClass == "alb"
 
@@ -324,6 +330,10 @@ func (k *KlutchManager) applyControlPlaneToContext(baseDomain string, dexHost st
 		k.WaitForDex()
 	} else {
 		k.applyOIDCSecret(resolvedOIDC)
+	}
+
+	if err := applyControlPlaneCRDs(ctx, k.cpContext); err != nil {
+		makeup.ExitDueToFatalError(err, "Failed to apply Klutch control-plane CRDs.")
 	}
 
 	k.DeployBindBackend(waitHost, ingressPort, ingressClass, scheme, acmCertificateARN, tlsEnabled, useDex)
@@ -773,6 +783,47 @@ func nsSetsMatch(expected []string, live []string) bool {
 	}
 
 	return true
+}
+
+func currentKubectlContext() string {
+	cmd := exec.Command("kubectl", "config", "current-context")
+	out, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
+}
+
+func applyControlPlaneCRDs(ctx context.Context, kubeContext string) error {
+	crds, err := crd.CRDs()
+	if err != nil {
+		return fmt.Errorf("failed to load Klutch CRDs: %w", err)
+	}
+	var docs []string
+	for i := range crds {
+		y, err := sigyaml.Marshal(&crds[i])
+		if err != nil {
+			return fmt.Errorf("failed to render CRD %s: %w", crds[i].Name, err)
+		}
+		docs = append(docs, string(y))
+	}
+	manifest := strings.Join(docs, "\n---\n")
+	args := []string{"kubectl", "apply", "-f", "-"}
+	if strings.TrimSpace(kubeContext) != "" {
+		args = append(args, "--context", kubeContext)
+	}
+	makeup.PrintInfo(fmt.Sprintf("Applying Klutch control-plane CRDs to context %q...", kubeContext))
+	cmd := exec.CommandContext(ctx, args[0], args[1:]...)
+	cmd.Stdin = bytes.NewBufferString(manifest)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to apply Klutch control-plane CRDs: %w (output: %s)", err, strings.TrimSpace(string(out)))
+	}
+	if makeup.Verbose {
+		makeup.Print(string(out))
+	}
+	makeup.PrintCheckmark("Applied Klutch control-plane CRDs.")
+	return nil
 }
 
 func printControlPlaneSummary(workDir string) {

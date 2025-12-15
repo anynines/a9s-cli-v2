@@ -855,6 +855,24 @@ func ensureTenantOperatorRole(ctx context.Context, cfg Config, accountID string)
 	return roleArn
 }
 
+func resolveKubectlContextForCluster(ctx context.Context, clusterName string) string {
+	out, _, err := runCmd(ctx, "kubectl", "config", "get-contexts", "-o", "name")
+	if err != nil {
+		return clusterName
+	}
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	for _, l := range lines {
+		ln := strings.TrimSpace(l)
+		if ln == "" {
+			continue
+		}
+		if ln == clusterName || strings.HasSuffix(ln, "/"+clusterName) || strings.Contains(ln, ":"+clusterName) {
+			return ln
+		}
+	}
+	return clusterName
+}
+
 // ApplyControlPlaneAddons installs AWS-side addons (tenant operator) onto an existing control-plane cluster.
 // It assumes the EKS cluster already exists and that ALB/etc. are in place.
 func ApplyControlPlaneAddons(ctx context.Context, opts CreateOptions) {
@@ -898,6 +916,15 @@ func ApplyControlPlaneAddons(ctx context.Context, opts CreateOptions) {
 
 	// Ensure kubeconfig points to the cluster.
 	mustRun(ctx, "aws", "eks", "update-kubeconfig", "--region", cfg.Region, "--name", cfg.ClusterName)
+	// Switch kubectl context to the control-plane cluster so subsequent apply steps hit the right cluster.
+	cpCtx := resolveKubectlContextForCluster(ctx, cfg.ClusterName)
+	if strings.TrimSpace(cpCtx) != "" {
+		if _, errOut, err := runCmd(ctx, "kubectl", "config", "use-context", cpCtx); err != nil {
+			awsLogger.Warningf("Failed to switch kubectl context to %s (continuing): %v\nstderr: %s", cpCtx, err, errOut)
+		} else {
+			awsLogger.Infof("Using kubectl context %s for control-plane apply.", cpCtx)
+		}
+	}
 
 	// Ensure OIDC provider associated for IRSA.
 	mustRun(ctx, "eksctl", "utils", "associate-iam-oidc-provider",

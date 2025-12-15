@@ -210,6 +210,12 @@ func verifyBindEndpoint(host, port, scheme string, timeout time.Duration) {
 		return
 	}
 
+	base := fmt.Sprintf("%s://%s", scheme, host)
+	if !(scheme == "https" && port == "443") && !(scheme == "http" && port == "80") {
+		base = fmt.Sprintf("%s:%s", base, port)
+	}
+	url := fmt.Sprintf("%s/export", strings.TrimRight(base, "/"))
+
 	deadline := time.Now().Add(timeout)
 	client := &http.Client{
 		Timeout: 10 * time.Second,
@@ -217,8 +223,6 @@ func verifyBindEndpoint(host, port, scheme string, timeout time.Duration) {
 			TLSClientConfig: insecureTLSConfig(),
 		},
 	}
-
-	url := fmt.Sprintf("%s://%s:%s/export", scheme, host, port)
 
 	for {
 		resp, err := client.Get(url)

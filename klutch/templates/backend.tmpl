@@ -136,7 +136,7 @@ spec:
   ports:
   - protocol: TCP
     name: anynines-backend
-    port: 443
+    port: 80
     targetPort: 9443
   selector:
     app: anynines-backend
@@ -151,10 +151,19 @@ metadata:
     alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443},{"HTTP":80}]'
     alb.ingress.kubernetes.io/ssl-redirect: "443"
     alb.ingress.kubernetes.io/backend-protocol: HTTP
+    alb.ingress.kubernetes.io/healthcheck-protocol: HTTP
+    alb.ingress.kubernetes.io/healthcheck-path: "/healthz"
+    alb.ingress.kubernetes.io/healthcheck-port: traffic-port
+    alb.ingress.kubernetes.io/success-codes: "200-399"
     alb.ingress.kubernetes.io/scheme: internet-facing
 {{- else }}
   annotations:
     alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/backend-protocol: HTTP
+    alb.ingress.kubernetes.io/healthcheck-protocol: HTTP
+    alb.ingress.kubernetes.io/healthcheck-path: "/healthz"
+    alb.ingress.kubernetes.io/healthcheck-port: traffic-port
+    alb.ingress.kubernetes.io/success-codes: "200-399"
 {{- end }}
 spec:
   ingressClassName: {{ .IngressClass }}
@@ -167,7 +176,7 @@ spec:
           service:
             name: anynines-backend
             port:
-              number: 443
+              number: 80
 ---
 apiVersion: v1
 kind: ServiceAccount
