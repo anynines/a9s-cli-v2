@@ -14,7 +14,7 @@ import (
 // It is intended to clean up resources created by "a9s apply klutch-control-plane".
 func DeleteControlPlaneInstall() {
 	makeup.PrintH1("Deleting Klutch control plane resources from the current Kubernetes cluster...")
-	makeup.PrintWarning("This will delete the klutch backend, Dex related ingresses, services, secrets, and the crossplane release/namespace from the CURRENT Kubernetes context. This action cannot be undone.")
+	makeup.PrintWarning("This will delete the klutch backend, Dex related ingresses, services, secrets, the tenant operator release/namespace, and the crossplane release/namespace from the CURRENT Kubernetes context. This action cannot be undone.")
 
 	ctxName, server := currentContextAndServer()
 	if ctxName != "" || server != "" {
@@ -50,6 +50,17 @@ func DeleteControlPlaneInstall() {
 
 	// Delete crossplane namespace (best-effort)
 	deleteKubectlResource(manager, "delete", "ns", "crossplane-system", "--ignore-not-found")
+
+	// Tenant operator helm release
+	cmd = exec.Command("helm", "uninstall", "a9s-tenants-operator", "-n", "a9s-tenants-operator-system")
+	if output, err := cmd.CombinedOutput(); err != nil {
+		makeup.PrintWarning(fmt.Sprintf("Helm uninstall tenant operator failed (ignored): %v %s", err, string(output)))
+	} else {
+		makeup.PrintCheckmark("Uninstalled tenant operator helm release.")
+	}
+
+	// Delete tenant operator namespace (best-effort)
+	deleteKubectlResource(manager, "delete", "ns", "a9s-tenants-operator-system", "--ignore-not-found")
 
 	makeup.PrintSuccessSummary("Klutch control plane resources removed from the current cluster.")
 }
