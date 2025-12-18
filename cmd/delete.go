@@ -95,11 +95,21 @@ var cmdDeletePGBinding = &cobra.Command{
 }
 
 var cmdDeleteKlutchControlPlane = &cobra.Command{
-	Use:   "klutch-control-plane",
+	Use:   "control-plane",
 	Short: "Delete Klutch control plane resources from the current Kubernetes cluster.",
 	Long:  `Deletes Klutch control plane resources (Dex, backend, ingress, Crossplane release) from the current kube context.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		klutch.DeleteControlPlaneInstall()
+	},
+}
+
+var cmdDeleteKlutch = &cobra.Command{
+	Use:   "klutch",
+	Short: "Delete Klutch components from the current Kubernetes cluster.",
+	Long:  `Deletes Klutch components such as the control plane from the current kube context.`,
+	Run: func(cmd *cobra.Command, args []string) {
+		makeup.PrintWarning(" " + "Please select a subcommand from the list below.")
+		cmd.Help()
 	},
 }
 
@@ -269,7 +279,8 @@ func init() {
 	cmdDeleteDemo.AddCommand(cmdDeleteClusterKlutch)
 	cmdDeleteClusterKlutch.AddCommand(cmdDeleteClusterKlutchControlPlane)
 	cmdDeleteClusterKlutch.AddCommand(cmdDeleteClusterKlutchWorkload)
-	cmdDelete.AddCommand(cmdDeleteKlutchControlPlane)
+	cmdDeleteKlutch.AddCommand(cmdDeleteKlutchControlPlane)
+	cmdDelete.AddCommand(cmdDeleteKlutch)
 	cmdDelete.AddCommand(cmdDeleteKlutchTenant)
 	rootCmd.AddCommand(cmdDelete)
 }

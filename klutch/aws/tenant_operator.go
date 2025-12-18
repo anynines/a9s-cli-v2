@@ -42,6 +42,9 @@ func deployTenantOperator(ctx context.Context, cfg Config, accountID string) {
 	release := "a9s-tenants-operator"
 
 	ensureHelmRegistryLogin(ctx, cfg)
+	if err := verifyTenantOperatorArtifacts(ctx, cfg, chart, version); err != nil {
+		makeup.ExitDueToFatalError(err, err.Error())
+	}
 
 	args := []string{
 		"helm", "upgrade", "--install", release, chart,
@@ -168,4 +171,155 @@ func waitForTenantOperator(ctx context.Context, namespace string) {
 		makeup.Print(outBuf.String())
 	}
 	makeup.PrintSuccess("Tenant operator is ready.")
+}
+
+func verifyTenantOperatorArtifacts(ctx context.Context, cfg Config, chart, version string) error {
+	if err := verifyTenantOperatorChart(ctx, chart, version); err != nil {
+		return err
+	}
+	if err := verifyTenantOperatorImage(ctx, cfg); err != nil {
+		return err
+	}
+	return nil
+}
+
+func verifyTenantOperatorChart(ctx context.Context, chart, version string) error {
+	if strings.TrimSpace(chart) == "" {
+		return nil
+	}
+	args := []string{"show", "chart", chart}
+	if strings.TrimSpace(version) != "" {
+		args = append(args, "--version", version)
+	}
+	_, errOut, err := runCmd(ctx, "helm", args...)
+	if err == nil {
+		return nil
+	}
+	if isOCIChartDescriptorError(errOut) {
+		if version == "" {
+			return fmt.Errorf("Tenant operator chart %q is not a Helm chart artifact in the OCI registry (manifest has only one descriptor). Ensure the chart is pushed to the registry (not a container image).", chart)
+		}
+		return fmt.Errorf("Tenant operator chart %q (version %s) is not a Helm chart artifact in the OCI registry (manifest has only one descriptor). Ensure the chart is pushed to the registry (not a container image).", chart, version)
+	}
+	if version == "" {
+		return fmt.Errorf("Tenant operator chart %q not found or not accessible via Helm.\nstderr: %s", chart, strings.TrimSpace(errOut))
+	}
+	return fmt.Errorf("Tenant operator chart %q (version %s) not found or not accessible via Helm.\nstderr: %s", chart, version, strings.TrimSpace(errOut))
+}
+
+func verifyTenantOperatorImage(ctx context.Context, cfg Config) error {
+	ref := parseImageRef(cfg.TenantOperatorImage)
+	if ref.original == "" {
+		return nil
+	}
+	if ref.repository == "" {
+		return fmt.Errorf("Tenant operator image reference %q is invalid (missing repository).", ref.original)
+	}
+	if ref.registry != "" && strings.Contains(ref.registry, ".ecr.") {
+		region := strings.TrimSpace(cfg.TenantOperatorRegion)
+		if region == "" {
+			region = strings.TrimSpace(cfg.Region)
+		}
+		if region == "" {
+			region = ecrRegionFromHost(ref.registry)
+		}
+		if region == "" {
+			return fmt.Errorf("Unable to determine AWS region for tenant operator image %q. Set --tenant-operator-region or AWS_REGION.", ref.original)
+		}
+		args := []string{"ecr", "describe-images", "--region", region, "--repository-name", ref.repository, "--image-ids"}
+		if ref.digest != "" {
+			args = append(args, fmt.Sprintf("imageDigest=%s", ref.digest))
+		} else {
+			args = append(args, fmt.Sprintf("imageTag=%s", ref.tag))
+		}
+		_, errOut, err := runCmd(ctx, "aws", args...)
+		if err == nil {
+			return nil
+		}
+		if strings.Contains(errOut, "RepositoryNotFoundException") {
+			return fmt.Errorf("Tenant operator image repository %q not found in ECR registry %s. Create the repository or update --tenant-operator-image.", ref.repository, ref.registry)
+		}
+		if strings.Contains(errOut, "ImageNotFoundException") {
+			return fmt.Errorf("Tenant operator image %q not found in ECR (tag/digest missing). Push the image or update --tenant-operator-image.", ref.original)
+		}
+		return fmt.Errorf("Failed to verify tenant operator image %q in ECR.\nstderr: %s", ref.original, strings.TrimSpace(errOut))
+	}
+
+	if _, err := execLookPath("docker"); err != nil {
+		return fmt.Errorf("Unable to verify tenant operator image %q because Docker is not installed. Install Docker or use an ECR image so the CLI can verify it.", ref.original)
+	}
+	_, errOut, err := runCmd(ctx, "docker", "manifest", "inspect", ref.original)
+	if err != nil {
+		if strings.TrimSpace(errOut) == "" {
+			errOut = err.Error()
+		}
+		return fmt.Errorf("Tenant operator image %q not found or not accessible via Docker.\nstderr: %s", ref.original, strings.TrimSpace(errOut))
+	}
+	return nil
+}
+
+type imageRef struct {
+	original   string
+	registry   string
+	repository string
+	tag        string
+	digest     string
+}
+
+func parseImageRef(ref string) imageRef {
+	trimmed := strings.TrimSpace(ref)
+	if trimmed == "" {
+		return imageRef{}
+	}
+	out := imageRef{original: trimmed}
+
+	base := trimmed
+	if at := strings.Index(base, "@"); at != -1 {
+		out.digest = base[at+1:]
+		base = base[:at]
+	}
+
+	tag := ""
+	if colon := strings.LastIndex(base, ":"); colon != -1 {
+		slash := strings.LastIndex(base, "/")
+		if colon > slash {
+			tag = base[colon+1:]
+			base = base[:colon]
+		}
+	}
+	if tag == "" && out.digest == "" {
+		tag = "latest"
+	}
+	out.tag = tag
+
+	parts := strings.Split(base, "/")
+	if len(parts) == 1 {
+		out.repository = base
+		return out
+	}
+	if looksLikeRegistryHost(parts[0]) {
+		out.registry = parts[0]
+		out.repository = strings.Join(parts[1:], "/")
+		return out
+	}
+	out.repository = base
+	return out
+}
+
+func looksLikeRegistryHost(host string) bool {
+	return strings.Contains(host, ".") || strings.Contains(host, ":") || host == "localhost"
+}
+
+func ecrRegionFromHost(host string) string {
+	parts := strings.SplitN(host, ".ecr.", 2)
+	if len(parts) != 2 {
+		return ""
+	}
+	region := strings.TrimSuffix(parts[1], ".amazonaws.com")
+	region = strings.TrimSuffix(region, ".amazonaws.com.cn")
+	return region
+}
+
+func isOCIChartDescriptorError(errOut string) bool {
+	return strings.Contains(errOut, "manifest does not contain minimum number of descriptors")
 }

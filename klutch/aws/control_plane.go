@@ -215,9 +215,9 @@ func defaultConfig() Config {
 		KlutchTagValue:             "ControlPlane",
 		ResourceNamePrefix:         "klutch-control-plane",
 		ClusterRole:                "Control Plane",
-		TenantOperatorImage:        "032720848313.dkr.ecr.eu-central-1.amazonaws.com/a9s-tenants-operator:dev",
-		TenantOperatorChart:        "oci://032720848313.dkr.ecr.eu-central-1.amazonaws.com/a9s-tenants-operator",
-		TenantOperatorChartVersion: "0.1.3",
+		TenantOperatorImage:        "032720848313.dkr.ecr.eu-central-1.amazonaws.com/a9s-tenants-operator:0.16.0",
+		TenantOperatorChart:        "oci://032720848313.dkr.ecr.eu-central-1.amazonaws.com/a9s-tenants-operator-chart",
+		TenantOperatorChartVersion: "0.16.0",
 		HostedZoneName:             "",
 	}
 }

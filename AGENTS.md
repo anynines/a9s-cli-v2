@@ -34,6 +34,7 @@
 - Documentation: update `Readme.md`/`docs/` and CLI help when behavior changes; keep examples runnable.
 - Build + tests required for every change: code must compile and tests must exist, stay current, and pass; if no relevant tests exist, add them or document the gap explicitly.
 - Architecture decisions: create or update ADRs in `docs/adr/` when introducing non-trivial behavior changes, new contracts, or security/compatibility impacts.
+- If the program flow depends on external artefacts such as container images, helm charts etc. implement preflight validation to verify their existence. Provide meaningful error messages if not and fail fast.
 
 ### Repo-Specific Guidance
 - `a9s-cli-v2`: Go 1.22; build with `make build` (binary in `bin/a9s`). Tests are sparse (`make test`). Preserve logging/UX (`makeup`), config under `~/.a9s`, and kube context/namespace plumbing. Klutch AWS logic sits in `klutch/aws/`; binding UX in `cmd/bind_klutch_workload.go`.
@@ -44,6 +45,7 @@
 - Start with `rg` and small, targeted diffs (`apply_patch`); keep changes ASCII and terse. Comment only when logic is non-obvious.
 - For AWS paths, never skip dry-run handling; gate destructive actions behind confirmations unless `--yes` is set.
 - Add focused tests where practical; for destructive flows, guard with env flags or dry-run switches. Keep new flags/plumbing consistent across Cobra, execution, and docs.
+- Do not "fix" a failing primary path by inventing alternate execution paths (for example, retrying with a local chart when the OCI chart is expected). Stick to the intended flow, explain why it is failing, and list concrete options to fix it (e.g., mispublished artifacts, wrong version/tag, missing auth/permissions, or required preflight checks).
 
 ### Handy Commands
 - Build: `make build` (binary at `bin/a9s`); cross-compile with `make build-all`.

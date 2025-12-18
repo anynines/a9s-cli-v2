@@ -134,11 +134,8 @@ func (k *KlutchManager) DeployBindBackend(host string, ingressPort string, ingre
 	rbg := RandomByteGenerator{}
 	cookieSigningKey := rbg.GenerateRandom32BytesBase64()
 	cookieEncryptionKey := rbg.GenerateRandom32BytesBase64()
-	// Build external address; avoid appending the default port for cleanliness.
-	externalAddress := fmt.Sprintf("%s://%s", scheme, host)
-	if !(scheme == "https" && ingressPort == "443") && !(scheme == "http" && ingressPort == "80") {
-		externalAddress = fmt.Sprintf("%s:%s", externalAddress, ingressPort)
-	}
+	// Use the control-plane Kubernetes API address for generated kubeconfigs (not the backend ingress).
+	externalAddress := getClusterExternalAddress(k.cpContext)
 
 	// If an ACM certificate was provided, try to fetch its chain and create a secret the backend can mount for CA.
 	externalCASecret := ""
