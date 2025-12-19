@@ -215,9 +215,9 @@ func defaultConfig() Config {
 		KlutchTagValue:             "ControlPlane",
 		ResourceNamePrefix:         "klutch-control-plane",
 		ClusterRole:                "Control Plane",
-		TenantOperatorImage:        "032720848313.dkr.ecr.eu-central-1.amazonaws.com/a9s-tenants-operator:0.16.0",
+		TenantOperatorImage:        "032720848313.dkr.ecr.eu-central-1.amazonaws.com/a9s-tenants-operator:0.17.0",
 		TenantOperatorChart:        "oci://032720848313.dkr.ecr.eu-central-1.amazonaws.com/a9s-tenants-operator-chart",
-		TenantOperatorChartVersion: "0.16.0",
+		TenantOperatorChartVersion: "0.17.0",
 		HostedZoneName:             "",
 	}
 }
@@ -735,26 +735,19 @@ func ensureTenantOperatorRole(ctx context.Context, cfg Config, accountID string)
 		"--cluster", cfg.ClusterName,
 		"--approve")
 
-	roleExists := false
-	if _, _, err := runCmd(ctx, "aws", "iam", "get-role", "--role-name", roleName); err == nil {
-		awsLogger.Successf("Tenant operator IAM role already exists: %s", roleArn)
-		roleExists = true
+	issuer, errOut, err := runCmd(ctx, "aws", "eks", "describe-cluster",
+		"--name", cfg.ClusterName,
+		"--region", cfg.Region,
+		"--query", "cluster.identity.oidc.issuer",
+		"--output", "text")
+	if err != nil || strings.TrimSpace(issuer) == "" {
+		awsLogger.Fatalf(err, "Failed to discover OIDC issuer for cluster %s\nstderr: %s", cfg.ClusterName, errOut)
 	}
+	issuer = strings.TrimSpace(issuer)
+	providerHost := strings.TrimPrefix(issuer, "https://")
+	providerArn := fmt.Sprintf("arn:aws:iam::%s:oidc-provider/%s", accountID, providerHost)
 
-	if !roleExists {
-		issuer, errOut, err := runCmd(ctx, "aws", "eks", "describe-cluster",
-			"--name", cfg.ClusterName,
-			"--region", cfg.Region,
-			"--query", "cluster.identity.oidc.issuer",
-			"--output", "text")
-		if err != nil || strings.TrimSpace(issuer) == "" {
-			awsLogger.Fatalf(err, "Failed to discover OIDC issuer for cluster %s\nstderr: %s", cfg.ClusterName, errOut)
-		}
-		issuer = strings.TrimSpace(issuer)
-		providerHost := strings.TrimPrefix(issuer, "https://")
-		providerArn := fmt.Sprintf("arn:aws:iam::%s:oidc-provider/%s", accountID, providerHost)
-
-		trust := fmt.Sprintf(`{
+	trust := fmt.Sprintf(`{
   "Version": "2012-10-17",
   "Statement": [
     {
@@ -772,11 +765,23 @@ func ensureTenantOperatorRole(ctx context.Context, cfg Config, accountID string)
     }
   ]
 }`, providerArn, providerHost, providerHost)
-		trustFile := "/tmp/tenant-operator-trust.json"
-		if err := os.WriteFile(trustFile, []byte(trust), 0600); err != nil {
-			awsLogger.Fatalf(err, "writing tenant operator trust policy failed")
-		}
+	trustFile := "/tmp/tenant-operator-trust.json"
+	if err := os.WriteFile(trustFile, []byte(trust), 0600); err != nil {
+		awsLogger.Fatalf(err, "writing tenant operator trust policy failed")
+	}
 
+	roleExists := false
+	if _, _, err := runCmd(ctx, "aws", "iam", "get-role", "--role-name", roleName); err == nil {
+		roleExists = true
+		// Update trust to match current cluster issuer/subject.
+		if _, errOut, err := runCmd(ctx, "aws", "iam", "update-assume-role-policy",
+			"--role-name", roleName,
+			"--policy-document", "file://"+trustFile); err != nil {
+			awsLogger.Warningf("Failed to update tenant operator role trust policy: %v\nstderr: %s", err, errOut)
+		} else {
+			awsLogger.Successf("Updated tenant operator IAM role trust policy: %s", roleArn)
+		}
+	} else {
 		args := []string{
 			"iam", "create-role",
 			"--role-name", roleName,

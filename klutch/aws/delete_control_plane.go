@@ -104,10 +104,8 @@ func deleteCluster(ctx context.Context, cfg Config, opts DeleteOptions) {
 
 	if clusterReachable {
 		kubernetesCleanup(ctx, opts)
-		iamCleanup(ctx, cfg, opts)
-	} else {
-		awsLogger.Warningf("Skipping Kubernetes/IAM cleanup (cluster unreachable or missing).")
 	}
+	iamCleanup(ctx, cfg, opts, accountID, clusterReachable)
 
 	if clusterExists {
 		deleteNodegroupsAndCluster(ctx, cfg, opts)
@@ -190,11 +188,11 @@ func kubernetesCleanup(ctx context.Context, opts DeleteOptions) {
 	}
 }
 
-func iamCleanup(ctx context.Context, cfg Config, opts DeleteOptions) {
+func iamCleanup(ctx context.Context, cfg Config, opts DeleteOptions, accountID string, clusterReachable bool) {
 	awsLogger.Section("IAM Cleanup")
 	if opts.DryRun {
 		awsLogger.Infof("Dry-run: would delete IAM service account aws-load-balancer-controller.")
-	} else {
+	} else if clusterReachable {
 		if _, errOut, err := runCmd(ctx, "eksctl", "delete", "iamserviceaccount",
 			"--cluster", cfg.ClusterName,
 			"--region", cfg.Region,
@@ -205,20 +203,15 @@ func iamCleanup(ctx context.Context, cfg Config, opts DeleteOptions) {
 		} else {
 			awsLogger.Successf("Deleted IAM service account (if present).")
 		}
+	} else {
+		awsLogger.Warningf("Skipping IAM service account deletion via eksctl (cluster unreachable).")
 	}
 
-	if opts.DryRun {
-		awsLogger.Infof("Dry-run: would disassociate IAM OIDC provider.")
-	} else {
-		if _, errOut, err := runCmd(ctx, "eksctl", "utils", "disassociate-iam-oidc-provider",
-			"--cluster", cfg.ClusterName,
-			"--region", cfg.Region,
-			"--approve"); err != nil {
-			awsLogger.Warningf("Failed to disassociate OIDC provider: %v\nstderr: %s", err, errOut)
-		} else {
-			awsLogger.Successf("Disassociated OIDC provider (if present).")
-		}
-	}
+	// Delete all Tenant CRs (best-effort) before tearing down operator/IAM.
+	deleteTenants(ctx, clusterReachable)
+	// Attempt to delete tenant operator IAM role (stale roles break IRSA on recreate).
+	deleteTenantOperatorRole(ctx, cfg, accountID, opts)
+	deleteOIDCProvider(ctx, cfg, accountID, opts, clusterReachable)
 
 	policyArn, _, err := runCmd(ctx, "aws", "iam", "list-policies", "--scope", "Local",
 		"--query", fmt.Sprintf("Policies[?PolicyName=='%s'].Arn | [0]", cfg.ALBControllerPolicyName),
@@ -527,6 +520,94 @@ func deleteENIs(ctx context.Context, vpcID string, opts DeleteOptions) {
 			if _, errOut, err := runCmd(ctx, "aws", "ec2", "delete-network-interface", "--network-interface-id", eni); err != nil {
 				awsLogger.Warningf("Failed to delete ENI %s: %v\nstderr: %s", eni, err, errOut)
 			}
+		}
+	}
+}
+
+func deleteTenantOperatorRole(ctx context.Context, cfg Config, accountID string, opts DeleteOptions) {
+	roleName := resourceName("tenant-operator")
+	roleArn := fmt.Sprintf("arn:aws:iam::%s:role/%s", accountID, roleName)
+
+	if opts.DryRun {
+		awsLogger.Infof("Dry-run: would delete tenant operator IAM role %s (inline policies first).", roleArn)
+		return
+	}
+
+	_, _, _ = runCmd(ctx, "aws", "iam", "delete-role-policy",
+		"--role-name", roleName,
+		"--policy-name", "TenantOperatorInline")
+
+	if _, errOut, err := runCmd(ctx, "aws", "iam", "delete-role", "--role-name", roleName); err != nil {
+		if strings.Contains(errOut, "NoSuchEntity") {
+			awsLogger.Infof("Tenant operator IAM role %s not found (nothing to delete).", roleArn)
+			return
+		}
+		awsLogger.Warningf("Failed to delete tenant operator IAM role %s: %v\nstderr: %s", roleArn, err, errOut)
+		return
+	}
+	awsLogger.Successf("Deleted tenant operator IAM role %s.", roleArn)
+}
+
+func deleteOIDCProvider(ctx context.Context, cfg Config, accountID string, opts DeleteOptions, clusterReachable bool) {
+	if opts.DryRun {
+		awsLogger.Infof("Dry-run: would delete IAM OIDC provider for cluster %s.", cfg.ClusterName)
+		return
+	}
+
+	issuer := ""
+	if clusterReachable {
+		out, errOut, err := runCmd(ctx, "aws", "eks", "describe-cluster",
+			"--name", cfg.ClusterName,
+			"--region", cfg.Region,
+			"--query", "cluster.identity.oidc.issuer",
+			"--output", "text")
+		if err != nil || strings.TrimSpace(out) == "" {
+			awsLogger.Warningf("Failed to discover OIDC issuer for cluster %s; skipping OIDC provider deletion.\nstderr: %s", cfg.ClusterName, errOut)
+			return
+		}
+		issuer = strings.TrimSpace(out)
+	} else {
+		awsLogger.Warningf("Cluster unreachable; skipping OIDC provider discovery/deletion.")
+		return
+	}
+
+	providerHost := strings.TrimPrefix(issuer, "https://")
+	providerArn := fmt.Sprintf("arn:aws:iam::%s:oidc-provider/%s", accountID, providerHost)
+
+	if _, errOut, err := runCmd(ctx, "aws", "iam", "delete-open-id-connect-provider",
+		"--open-id-connect-provider-arn", providerArn); err != nil {
+		if strings.Contains(errOut, "NoSuchEntity") {
+			awsLogger.Infof("IAM OIDC provider %s not found (nothing to delete).", providerArn)
+			return
+		}
+		awsLogger.Warningf("Failed to delete IAM OIDC provider %s: %v\nstderr: %s", providerArn, err, errOut)
+		return
+	}
+	awsLogger.Successf("Deleted IAM OIDC provider %s.", providerArn)
+}
+
+func deleteTenants(ctx context.Context, clusterReachable bool) {
+	if !clusterReachable {
+		awsLogger.Warningf("Cluster unreachable; skipping Tenant CR deletion.")
+		return
+	}
+	awsLogger.Section("Tenant Cleanup")
+	out, errOut, err := runCmd(ctx, "kubectl", "get", "tenants.klutch.anynines.com", "-A", "-o", "jsonpath={range .items[*]}{.metadata.namespace}/{.metadata.name}{\"\\n\"}{end}")
+	if err != nil {
+		awsLogger.Warningf("Failed to list tenants: %v\nstderr: %s", err, errOut)
+		return
+	}
+	tenants := strings.Fields(out)
+	if len(tenants) == 0 {
+		awsLogger.Infof("No Tenant CRs found.")
+		return
+	}
+	for _, t := range tenants {
+		parts := strings.SplitN(t, "/", 2)
+		ns, name := parts[0], parts[1]
+		awsLogger.Infof("Deleting Tenant %s/%s...", ns, name)
+		if _, errOut, err := runCmd(ctx, "kubectl", "-n", ns, "delete", "tenant", name, "--ignore-not-found"); err != nil {
+			awsLogger.Warningf("Failed to delete Tenant %s/%s: %v\nstderr: %s", ns, name, err, errOut)
 		}
 	}
 }

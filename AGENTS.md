@@ -45,6 +45,7 @@
 - Start with `rg` and small, targeted diffs (`apply_patch`); keep changes ASCII and terse. Comment only when logic is non-obvious.
 - For AWS paths, never skip dry-run handling; gate destructive actions behind confirmations unless `--yes` is set.
 - Add focused tests where practical; for destructive flows, guard with env flags or dry-run switches. Keep new flags/plumbing consistent across Cobra, execution, and docs.
+- Keep create/delete flows paired: anything created should have a corresponding delete path (unless explicitly intended to remain, e.g., DNS/ACM when opted out). When reusing resources (IAM roles, OIDC providers, hosted zones), reconcile or validate them for consistency with the current cluster; if validation is expensive or brittle, prefer a clean delete/recreate path and document the choice.
 - Do not "fix" a failing primary path by inventing alternate execution paths (for example, retrying with a local chart when the OCI chart is expected). Stick to the intended flow, explain why it is failing, and list concrete options to fix it (e.g., mispublished artifacts, wrong version/tag, missing auth/permissions, or required preflight checks).
 
 ### Handy Commands
