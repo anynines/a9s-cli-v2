@@ -207,10 +207,12 @@ func iamCleanup(ctx context.Context, cfg Config, opts DeleteOptions, accountID s
 		awsLogger.Warningf("Skipping IAM service account deletion via eksctl (cluster unreachable).")
 	}
 
-	// Delete all Tenant CRs (best-effort) before tearing down operator/IAM.
-	deleteTenants(ctx, clusterReachable)
-	// Attempt to delete tenant operator IAM role (stale roles break IRSA on recreate).
-	deleteTenantOperatorRole(ctx, cfg, accountID, opts)
+	if strings.EqualFold(cfg.ClusterRole, "control plane") {
+		// Delete all Tenant CRs (best-effort) before tearing down operator/IAM.
+		deleteTenants(ctx, clusterReachable)
+		// Attempt to delete tenant operator IAM role (stale roles break IRSA on recreate).
+		deleteTenantOperatorRole(ctx, cfg, accountID, opts)
+	}
 	deleteOIDCProvider(ctx, cfg, accountID, opts, clusterReachable)
 
 	policyArn, _, err := runCmd(ctx, "aws", "iam", "list-policies", "--scope", "Local",

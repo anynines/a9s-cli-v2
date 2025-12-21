@@ -3,15 +3,18 @@ package klutch
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"strings"
 	"time"
 
+	"encoding/pem"
 	"github.com/anynines/a9s-cli-v2/makeup"
 	"github.com/anynines/klutchio/bind/deploy/crd"
 	"github.com/anynines/klutchio/bind/deploy/konnector"
@@ -53,17 +56,8 @@ func ValidateBindRequest(data []byte) error {
 	if len(data) == 0 {
 		return fmt.Errorf("bind request is required (from tenant secret or --bind-request-file)")
 	}
-	var br bindRequest
-	if err := json.Unmarshal(data, &br); err != nil {
-		return fmt.Errorf("bind request is invalid JSON: %w", err)
-	}
-	if strings.TrimSpace(br.ClusterID) == "" {
-		return fmt.Errorf("bind request is missing clusterID")
-	}
-	if len(br.Apis) == 0 {
-		return fmt.Errorf("bind request has no apis")
-	}
-	return nil
+	_, err := parseBindRequest(data)
+	return err
 }
 
 // NonInteractiveBind executes the helper workflow inline: requests a binding via the backend,
@@ -99,7 +93,8 @@ func NonInteractiveBind(ctx context.Context, opts NonInteractiveBindOptions) err
 	if len(reqBytes) == 0 {
 		return fmt.Errorf("bind request is required (from tenant secret or --bind-request-file)")
 	}
-	if err := ValidateBindRequest(reqBytes); err != nil {
+	br, err := parseBindRequest(reqBytes)
+	if err != nil {
 		return err
 	}
 
@@ -147,6 +142,13 @@ func NonInteractiveBind(ctx context.Context, opts NonInteractiveBindOptions) err
 		return fmt.Errorf("failed to parse backend response: %w", err)
 	}
 
+	regionHint := strings.TrimSpace(os.Getenv("CONTROL_PLANE_CLUSTER_REGION"))
+	if patched, err := ensureKubeconfigCA(bindingResp.Kubeconfig, br.ClusterID, regionHint); err == nil {
+		bindingResp.Kubeconfig = patched
+	} else {
+		makeup.PrintWarning(fmt.Sprintf("Could not ensure control-plane CA in kubeconfig: %v", err))
+	}
+
 	if opts.WriteKubeconfigTo != "" {
 		if err := os.WriteFile(opts.WriteKubeconfigTo, bindingResp.Kubeconfig, 0600); err != nil {
 			return fmt.Errorf("failed to write kubeconfig to %s: %w", opts.WriteKubeconfigTo, err)
@@ -170,6 +172,115 @@ func NonInteractiveBind(ctx context.Context, opts NonInteractiveBindOptions) err
 	makeup.PrintCheckmark("Submitted export requests to the control plane.")
 
 	return nil
+}
+
+// ensureKubeconfigCA injects control-plane CA data when missing to avoid TLS errors.
+func ensureKubeconfigCA(kubeconfig []byte, clusterHint, regionHint string) ([]byte, error) {
+	cfg, err := clientcmd.Load(kubeconfig)
+	if err != nil {
+		return nil, fmt.Errorf("load kubeconfig: %w", err)
+	}
+
+	changed := false
+	for name, c := range cfg.Clusters {
+		if c == nil || c.InsecureSkipTLSVerify {
+			continue
+		}
+		if len(c.CertificateAuthorityData) > 0 {
+			// If existing CA data is present and decodes to PEM, keep it.
+			if _, err := pem.Decode(c.CertificateAuthorityData); err == nil {
+				continue
+			}
+		}
+		region := regionHint
+		if region == "" {
+			region = controlPlaneRegionFromURL(c.Server)
+		}
+		if env := strings.TrimSpace(os.Getenv("CONTROL_PLANE_CLUSTER_REGION")); env != "" {
+			region = env
+		}
+		if region == "" {
+			return nil, fmt.Errorf("could not infer region for cluster %s", name)
+		}
+		clusterName := name
+		if strings.TrimSpace(clusterHint) != "" {
+			clusterName = strings.TrimSpace(clusterHint)
+		}
+		ca, err := fetchClusterCA(clusterName, region)
+		if err != nil {
+			return nil, err
+		}
+		if len(ca) == 0 {
+			return nil, fmt.Errorf("empty CA data for cluster %s", clusterName)
+		}
+		c.CertificateAuthorityData = ca
+		cfg.Clusters[name] = c
+		changed = true
+	}
+	if !changed {
+		return kubeconfig, nil
+	}
+	out, err := clientcmd.Write(*cfg)
+	if err != nil {
+		return nil, fmt.Errorf("write kubeconfig: %w", err)
+	}
+	return out, nil
+}
+
+func controlPlaneRegionFromURL(endpoint string) string {
+	u, err := url.Parse(endpoint)
+	if err != nil {
+		return ""
+	}
+	host := u.Hostname()
+	parts := strings.Split(host, ".")
+	for i, p := range parts {
+		if p == "eks" && i > 0 {
+			return parts[i-1]
+		}
+	}
+	if len(parts) >= 3 {
+		return parts[len(parts)-3]
+	}
+	return ""
+}
+
+func fetchClusterCA(clusterName, region string) ([]byte, error) {
+	cmd := exec.Command("aws", "eks", "describe-cluster",
+		"--name", clusterName,
+		"--region", region,
+		"--query", "cluster.certificateAuthority.data",
+		"--output", "text")
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("fetch CA for cluster %s in %s: %w", clusterName, region, err)
+	}
+	raw := strings.TrimSpace(string(out))
+	if raw == "" {
+		return nil, nil
+	}
+	pem, err := base64.StdEncoding.DecodeString(raw)
+	if err != nil {
+		return nil, fmt.Errorf("decode CA for cluster %s: %w", clusterName, err)
+	}
+	return pem, nil
+}
+
+func parseBindRequest(data []byte) (bindRequest, error) {
+	var br bindRequest
+	if len(data) == 0 {
+		return br, fmt.Errorf("bind request is required (from tenant secret or --bind-request-file)")
+	}
+	if err := json.Unmarshal(data, &br); err != nil {
+		return br, fmt.Errorf("bind request is invalid JSON: %w", err)
+	}
+	if strings.TrimSpace(br.ClusterID) == "" {
+		return br, fmt.Errorf("bind request is missing clusterID")
+	}
+	if len(br.Apis) == 0 {
+		return br, fmt.Errorf("bind request has no apis")
+	}
+	return br, nil
 }
 
 // buildManifests assembles the YAML to apply on the workload cluster and returns the export requests for the control plane.

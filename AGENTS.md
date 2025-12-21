@@ -35,6 +35,7 @@
 - Build + tests required for every change: code must compile and tests must exist, stay current, and pass; if no relevant tests exist, add them or document the gap explicitly.
 - Architecture decisions: create or update ADRs in `docs/adr/` when introducing non-trivial behavior changes, new contracts, or security/compatibility impacts.
 - If the program flow depends on external artefacts such as container images, helm charts etc. implement preflight validation to verify their existence. Provide meaningful error messages if not and fail fast.
+- When code has been changed, ensure the code compiles and is free of syntax errors.
 
 ### Repo-Specific Guidance
 - `a9s-cli-v2`: Go 1.22; build with `make build` (binary in `bin/a9s`). Tests are sparse (`make test`). Preserve logging/UX (`makeup`), config under `~/.a9s`, and kube context/namespace plumbing. Klutch AWS logic sits in `klutch/aws/`; binding UX in `cmd/bind_klutch_workload.go`.
