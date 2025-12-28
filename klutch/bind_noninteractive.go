@@ -3,6 +3,7 @@ package klutch
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -14,7 +15,6 @@ import (
 	"strings"
 	"time"
 
-	"encoding/pem"
 	"github.com/anynines/a9s-cli-v2/makeup"
 	"github.com/anynines/klutchio/bind/deploy/crd"
 	"github.com/anynines/klutchio/bind/deploy/konnector"
@@ -30,19 +30,22 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
+const DefaultControlPlaneClusterName = "klutch-control-plane"
+
 // NonInteractiveBindOptions controls the non-interactive workload bind flow.
 type NonInteractiveBindOptions struct {
-	ControlPlaneURL    string
-	BindRequestPath    string
-	BindRequestData    []byte
-	OIDCClientID       string
-	OIDCClientSecret   string
-	OIDCTokenURL       string
-	OIDCScope          string
-	KonnectorImage     string
-	WriteKubeconfigTo  string
-	WorkloadKubeconfig string
-	WorkloadContext    string
+	ControlPlaneURL         string
+	BindRequestPath         string
+	BindRequestData         []byte
+	OIDCClientID            string
+	OIDCClientSecret        string
+	OIDCTokenURL            string
+	OIDCScope               string
+	KonnectorImage          string
+	WriteKubeconfigTo       string
+	WorkloadKubeconfig      string
+	WorkloadContext         string
+	ControlPlaneClusterName string
 }
 
 // bindRequest mirrors the backend BindRequest payload.
@@ -93,8 +96,7 @@ func NonInteractiveBind(ctx context.Context, opts NonInteractiveBindOptions) err
 	if len(reqBytes) == 0 {
 		return fmt.Errorf("bind request is required (from tenant secret or --bind-request-file)")
 	}
-	br, err := parseBindRequest(reqBytes)
-	if err != nil {
+	if _, err := parseBindRequest(reqBytes); err != nil {
 		return err
 	}
 
@@ -142,8 +144,13 @@ func NonInteractiveBind(ctx context.Context, opts NonInteractiveBindOptions) err
 		return fmt.Errorf("failed to parse backend response: %w", err)
 	}
 
+	clusterName := strings.TrimSpace(opts.ControlPlaneClusterName)
+	if clusterName == "" {
+		clusterName = DefaultControlPlaneClusterName
+	}
+
 	regionHint := strings.TrimSpace(os.Getenv("CONTROL_PLANE_CLUSTER_REGION"))
-	if patched, err := ensureKubeconfigCA(bindingResp.Kubeconfig, br.ClusterID, regionHint); err == nil {
+	if patched, err := ensureKubeconfigCA(bindingResp.Kubeconfig, clusterName, regionHint); err == nil {
 		bindingResp.Kubeconfig = patched
 	} else {
 		makeup.PrintWarning(fmt.Sprintf("Could not ensure control-plane CA in kubeconfig: %v", err))
@@ -174,48 +181,64 @@ func NonInteractiveBind(ctx context.Context, opts NonInteractiveBindOptions) err
 	return nil
 }
 
-// ensureKubeconfigCA injects control-plane CA data when missing to avoid TLS errors.
-func ensureKubeconfigCA(kubeconfig []byte, clusterHint, regionHint string) ([]byte, error) {
+// ensureKubeconfigCA injects control-plane CA data to avoid TLS errors.
+func ensureKubeconfigCA(kubeconfig []byte, clusterName, regionHint string) ([]byte, error) {
 	cfg, err := clientcmd.Load(kubeconfig)
 	if err != nil {
 		return nil, fmt.Errorf("load kubeconfig: %w", err)
 	}
 
 	changed := false
+
+	// Determine region from env or first cluster server.
+	region := strings.TrimSpace(regionHint)
+	if region == "" {
+		for _, c := range cfg.Clusters {
+			if c != nil {
+				region = controlPlaneRegionFromURL(c.Server)
+				if region != "" {
+					break
+				}
+			}
+		}
+	}
+	if env := strings.TrimSpace(os.Getenv("CONTROL_PLANE_CLUSTER_REGION")); env != "" {
+		region = env
+	}
+	if region == "" {
+		return nil, fmt.Errorf("could not infer control-plane region")
+	}
+
+	// Fetch CA for the explicit control-plane cluster name, fallback to kubeconfig name.
+	var ca []byte
+	var fetchErr error
+	if cn := strings.TrimSpace(clusterName); cn != "" {
+		ca, fetchErr = fetchClusterCA(cn, region)
+	}
+	if fetchErr != nil || len(ca) == 0 {
+		for name := range cfg.Clusters {
+			ca, fetchErr = fetchClusterCA(name, region)
+			if fetchErr == nil && len(ca) > 0 {
+				break
+			}
+		}
+	}
+	if fetchErr != nil {
+		return nil, fetchErr
+	}
+	if len(ca) == 0 {
+		return nil, fmt.Errorf("empty CA data for control-plane cluster")
+	}
+
 	for name, c := range cfg.Clusters {
 		if c == nil || c.InsecureSkipTLSVerify {
 			continue
 		}
-		if len(c.CertificateAuthorityData) > 0 {
-			// If existing CA data is present and decodes to PEM, keep it.
-			if _, err := pem.Decode(c.CertificateAuthorityData); err == nil {
-				continue
-			}
+		if !sameCA(ca, c.CertificateAuthorityData) {
+			c.CertificateAuthorityData = ca
+			cfg.Clusters[name] = c
+			changed = true
 		}
-		region := regionHint
-		if region == "" {
-			region = controlPlaneRegionFromURL(c.Server)
-		}
-		if env := strings.TrimSpace(os.Getenv("CONTROL_PLANE_CLUSTER_REGION")); env != "" {
-			region = env
-		}
-		if region == "" {
-			return nil, fmt.Errorf("could not infer region for cluster %s", name)
-		}
-		clusterName := name
-		if strings.TrimSpace(clusterHint) != "" {
-			clusterName = strings.TrimSpace(clusterHint)
-		}
-		ca, err := fetchClusterCA(clusterName, region)
-		if err != nil {
-			return nil, err
-		}
-		if len(ca) == 0 {
-			return nil, fmt.Errorf("empty CA data for cluster %s", clusterName)
-		}
-		c.CertificateAuthorityData = ca
-		cfg.Clusters[name] = c
-		changed = true
 	}
 	if !changed {
 		return kubeconfig, nil
@@ -264,6 +287,15 @@ func fetchClusterCA(clusterName, region string) ([]byte, error) {
 		return nil, fmt.Errorf("decode CA for cluster %s: %w", clusterName, err)
 	}
 	return pem, nil
+}
+
+func sameCA(expected, existing []byte) bool {
+	e := bytes.TrimSpace(expected)
+	c := bytes.TrimSpace(existing)
+	if len(e) == 0 && len(c) == 0 {
+		return true
+	}
+	return sha256.Sum256(e) == sha256.Sum256(c)
 }
 
 func parseBindRequest(data []byte) (bindRequest, error) {

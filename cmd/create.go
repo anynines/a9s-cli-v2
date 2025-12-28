@@ -489,16 +489,17 @@ var cmdCreateClusterKlutchWorkload = &cobra.Command{
 
 		if tenantConn != nil {
 			bindOpts := klutch.NonInteractiveBindOptions{
-				ControlPlaneURL:    strings.TrimSpace(tenantConn.BindURL),
-				OIDCClientID:       tenantConn.ClientID,
-				OIDCClientSecret:   tenantConn.ClientSecret,
-				OIDCTokenURL:       tenantConn.TokenURL,
-				OIDCScope:          tenantConn.Scope,
-				KonnectorImage:     "",
-				WriteKubeconfigTo:  "",
-				WorkloadKubeconfig: "",
-				WorkloadContext:    "",
-				BindRequestData:    tenantBindRequest,
+				ControlPlaneURL:         strings.TrimSpace(tenantConn.BindURL),
+				OIDCClientID:            tenantConn.ClientID,
+				OIDCClientSecret:        tenantConn.ClientSecret,
+				OIDCTokenURL:            tenantConn.TokenURL,
+				OIDCScope:               tenantConn.Scope,
+				KonnectorImage:          "",
+				WriteKubeconfigTo:       "",
+				WorkloadKubeconfig:      "",
+				WorkloadContext:         "",
+				BindRequestData:         tenantBindRequest,
+				ControlPlaneClusterName: klutch.DefaultControlPlaneClusterName,
 			}
 
 			makeup.PrintInfo("Auto-binding workload cluster using tenant credentials...")

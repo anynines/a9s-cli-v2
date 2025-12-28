@@ -14,24 +14,25 @@ import (
 )
 
 var (
-	bindKlutchWorkloadControlPlane     string
-	bindKlutchWorkloadKubeconfig       string
-	bindKlutchWorkloadContext          string
-	bindKlutchWorkloadOutput           string
-	bindKlutchWorkloadDryRun           bool
-	bindKlutchWorkloadSkipKonnector    bool
-	bindKlutchWorkloadKonnectorImage   string
-	bindKlutchWorkloadExtraArgs        []string
-	bindKlutchWorkloadInteractive      bool
-	bindKlutchWorkloadRequestFile      string
-	bindKlutchWorkloadOIDCClientID     string
-	bindKlutchWorkloadOIDCClientSecret string
-	bindKlutchWorkloadOIDCTokenURL     string
-	bindKlutchWorkloadOIDCScope        string
-	bindKlutchWorkloadWriteKubeconfig  string
-	bindKlutchWorkloadTenantName       string
-	bindKlutchWorkloadTenantSecretName string
-	bindKlutchWorkloadTenantRegion     string
+	bindKlutchWorkloadControlPlane        string
+	bindKlutchWorkloadControlPlaneCluster string
+	bindKlutchWorkloadKubeconfig          string
+	bindKlutchWorkloadContext             string
+	bindKlutchWorkloadOutput              string
+	bindKlutchWorkloadDryRun              bool
+	bindKlutchWorkloadSkipKonnector       bool
+	bindKlutchWorkloadKonnectorImage      string
+	bindKlutchWorkloadExtraArgs           []string
+	bindKlutchWorkloadInteractive         bool
+	bindKlutchWorkloadRequestFile         string
+	bindKlutchWorkloadOIDCClientID        string
+	bindKlutchWorkloadOIDCClientSecret    string
+	bindKlutchWorkloadOIDCTokenURL        string
+	bindKlutchWorkloadOIDCScope           string
+	bindKlutchWorkloadWriteKubeconfig     string
+	bindKlutchWorkloadTenantName          string
+	bindKlutchWorkloadTenantSecretName    string
+	bindKlutchWorkloadTenantRegion        string
 )
 
 var bindCmd = &cobra.Command{
@@ -98,16 +99,17 @@ var bindKlutchWorkloadCmd = &cobra.Command{
 		}
 
 		opts := klutch.NonInteractiveBindOptions{
-			ControlPlaneURL:    strings.TrimSpace(bindKlutchWorkloadControlPlane),
-			BindRequestPath:    bindKlutchWorkloadRequestFile,
-			OIDCClientID:       bindKlutchWorkloadOIDCClientID,
-			OIDCClientSecret:   bindKlutchWorkloadOIDCClientSecret,
-			OIDCTokenURL:       bindKlutchWorkloadOIDCTokenURL,
-			OIDCScope:          bindKlutchWorkloadOIDCScope,
-			KonnectorImage:     bindKlutchWorkloadKonnectorImage,
-			WriteKubeconfigTo:  bindKlutchWorkloadWriteKubeconfig,
-			WorkloadKubeconfig: bindKlutchWorkloadKubeconfig,
-			WorkloadContext:    bindKlutchWorkloadContext,
+			ControlPlaneURL:         strings.TrimSpace(bindKlutchWorkloadControlPlane),
+			BindRequestPath:         bindKlutchWorkloadRequestFile,
+			OIDCClientID:            bindKlutchWorkloadOIDCClientID,
+			OIDCClientSecret:        bindKlutchWorkloadOIDCClientSecret,
+			OIDCTokenURL:            bindKlutchWorkloadOIDCTokenURL,
+			OIDCScope:               bindKlutchWorkloadOIDCScope,
+			KonnectorImage:          bindKlutchWorkloadKonnectorImage,
+			WriteKubeconfigTo:       bindKlutchWorkloadWriteKubeconfig,
+			WorkloadKubeconfig:      bindKlutchWorkloadKubeconfig,
+			WorkloadContext:         bindKlutchWorkloadContext,
+			ControlPlaneClusterName: strings.TrimSpace(bindKlutchWorkloadControlPlaneCluster),
 		}
 
 		if strings.TrimSpace(bindKlutchWorkloadTenantName) != "" || strings.TrimSpace(bindKlutchWorkloadTenantSecretName) != "" {
@@ -169,6 +171,7 @@ var bindKlutchWorkloadCmd = &cobra.Command{
 
 func init() {
 	bindKlutchWorkloadCmd.Flags().StringVar(&bindKlutchWorkloadControlPlane, "control-plane", "", "Klutch control plane bind endpoint (e.g. https://klutch-bind.example.com/exports).")
+	bindKlutchWorkloadCmd.Flags().StringVar(&bindKlutchWorkloadControlPlaneCluster, "control-plane-cluster", klutch.DefaultControlPlaneClusterName, "Control plane cluster name for CA lookup (defaults to klutch-control-plane).")
 	bindKlutchWorkloadCmd.Flags().StringVar(&bindKlutchWorkloadKubeconfig, "kubeconfig", "", "Path to the workload cluster kubeconfig.")
 	bindKlutchWorkloadCmd.Flags().StringVar(&bindKlutchWorkloadContext, "context", "", "Workload cluster kubeconfig context to use.")
 	bindKlutchWorkloadCmd.Flags().StringVarP(&bindKlutchWorkloadOutput, "output", "o", "", "Output format passed to kube-bind (e.g. yaml).")
