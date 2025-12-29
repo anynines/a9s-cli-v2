@@ -135,11 +135,12 @@ func (k *KlutchManager) DeployBindBackend(host string, ingressPort string, ingre
 	cookieSigningKey := rbg.GenerateRandom32BytesBase64()
 	cookieEncryptionKey := rbg.GenerateRandom32BytesBase64()
 	// Use the control-plane Kubernetes API address for generated kubeconfigs (not the backend ingress).
-	externalAddress := getClusterExternalAddress(k.cpContext)
+	apiAddress := getClusterExternalAddress(k.cpContext)
+	externalAddress := apiAddress
 
-	// If an ACM certificate was provided, try to fetch its chain and create a secret the backend can mount for CA.
+	// Only mount an external CA when the backend targets a different endpoint than the control-plane API.
 	externalCASecret := ""
-	if strings.TrimSpace(acmCertificateARN) != "" {
+	if strings.TrimSpace(acmCertificateARN) != "" && externalAddress != apiAddress {
 		if secret, err := createExternalCASecret(acmCertificateARN, k.cpK8s); err != nil {
 			makeup.PrintWarning(fmt.Sprintf("Could not create external CA secret from ACM certificate: %v", err))
 		} else {
