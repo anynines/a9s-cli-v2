@@ -129,36 +129,11 @@ func runKlutchClusterDeletion(provider string, opts klutchaws.DeleteOptions, del
 
 var cmdDeleteClusterKlutch = &cobra.Command{
 	Use:   "klutch",
-	Short: "Delete Klutch workload cluster and infrastructure (AWS).",
-	Long:  `Delete the Klutch workload EKS cluster and tagged AWS infrastructure (VPC, subnets, NAT, ALB, IAM). Optional flags can also remove Klutch Route53 DNS/hosted zone and ACM certificate. Use the control-plane subcommand for control plane deletion.`,
+	Short: "Delete Klutch clusters on AWS.",
+	Long:  "Use the control-plane or workload subcommand to delete the corresponding Klutch EKS cluster and tagged AWS infrastructure.",
 	Run: func(cmd *cobra.Command, args []string) {
-		if (deleteKlutchCleanupDNSACM || deleteKlutchDeleteDNSZone) && strings.TrimSpace(deleteKlutchHostedZoneName) == "" {
-			makeup.ExitDueToFatalError(nil, "Hosted zone name is required when using --cleanup-dns-acm or --delete-dns-zone.")
-		}
-
-		opts := klutchaws.DeleteOptions{
-			DryRun:                deleteKlutchDryRun,
-			IncludeDNSRecords:     deleteKlutchCleanupDNSACM || deleteKlutchDeleteDNSZone,
-			IncludeHostedZone:     deleteKlutchCleanupDNSACM || deleteKlutchDeleteDNSZone,
-			IncludeSSLCertificate: deleteKlutchCleanupDNSACM || deleteKlutchDeleteACMCertificate,
-			HostedZoneName:        deleteKlutchHostedZoneName,
-			ACMCertificateARN:     deleteKlutchACMCertificateARN,
-			CleanupOrphans:        deleteKlutchCleanupOrphans,
-		}
-
-		if cmd.Flags().Changed("cluster-name") {
-			opts.ClusterName = strings.TrimSpace(demo.DemoClusterName)
-		} else if envName := strings.TrimSpace(os.Getenv("WORKLOAD_CLUSTER_NAME")); envName != "" {
-			opts.ClusterName = envName
-		}
-
-		if strings.TrimSpace(opts.ClusterName) == "" {
-			makeup.ExitDueToFatalError(nil, "Please provide --cluster-name or set WORKLOAD_CLUSTER_NAME to delete a Klutch workload cluster.")
-		}
-
-		if err := runKlutchClusterDeletion(demo.KubernetesTool, opts, klutchaws.DeleteWorkloadCluster); err != nil {
-			makeup.ExitDueToFatalError(nil, err.Error())
-		}
+		makeup.PrintWarning(" " + "Please select either the control-plane or workload subcommand.")
+		cmd.Help()
 	},
 }
 
@@ -267,7 +242,6 @@ func init() {
 
 	cmdDeleteDemo.PersistentFlags().StringVarP(&demo.KubernetesTool, "provider", "p", "", "provider for the Kubernetes cluster. Valid options are \"minikube\", \"kind\", and \"aws\" (for Klutch).")
 	cmdDeleteDemo.PersistentFlags().BoolVar(&deleteKlutchDryRun, "dry-run", false, "Show planned AWS deletions for Klutch without making changes.")
-	addKlutchWorkloadFlags(cmdDeleteClusterKlutch)
 	addKlutchControlPlaneFlags(cmdDeleteClusterKlutchControlPlane)
 	addKlutchWorkloadFlags(cmdDeleteClusterKlutchWorkload)
 	cmdDeleteKlutchTenant.Flags().StringVar(&deleteKlutchTenantRegion, "region", "", "AWS region for Cognito/Secrets Manager (defaults to CONTROL_PLANE_CLUSTER_REGION or eu-central-1).")

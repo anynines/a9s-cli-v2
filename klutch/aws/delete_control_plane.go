@@ -113,7 +113,7 @@ func deleteCluster(ctx context.Context, cfg Config, opts DeleteOptions) {
 		awsLogger.Infof("Cluster does not exist. Skipping nodegroup/cluster deletion.")
 	}
 
-	vpcID := findKlutchVPC(ctx)
+	vpcID := findKlutchVPC(ctx, opts.Region)
 	if vpcID == "" {
 		awsLogger.Infof("No Klutch VPC found.")
 		dnsAndACMCleanup(ctx, nil, opts)
@@ -296,11 +296,13 @@ func deleteNodegroupsAndCluster(ctx context.Context, cfg Config, opts DeleteOpti
 	}
 }
 
-func findKlutchVPC(ctx context.Context) string {
+func findKlutchVPC(ctx context.Context, region string) string {
 	awsLogger.Section("Discover Klutch VPC")
-	vpcID, errOut, err := runCmd(ctx, "aws", "ec2", "describe-vpcs",
+	args := []string{"ec2", "describe-vpcs",
 		"--filters", fmt.Sprintf("Name=tag:%s,Values=%s", klutchTagKey, klutchTagValue),
-		"--query", "Vpcs[0].VpcId", "--output", "text")
+		"--query", "Vpcs[0].VpcId", "--output", "text"}
+	args = appendRegion(args, region)
+	vpcID, errOut, err := runCmd(ctx, "aws", args...)
 	if err != nil || vpcID == "" || vpcID == "None" {
 		awsLogger.Infof("No Klutch VPC found (stderr: %s)", errOut)
 		return ""
@@ -329,16 +331,20 @@ func deleteVPCDependencies(ctx context.Context, vpcID string, opts DeleteOptions
 
 func deleteVPCEndpoints(ctx context.Context, vpcID string, opts DeleteOptions) {
 	awsLogger.Infof("Deleting VPC Endpoints...")
-	eps, _, _ := runCmd(ctx, "aws", "ec2", "describe-vpc-endpoints",
-		"--filters", "Name=vpc-id,Values="+vpcID,
+	args := []string{"ec2", "describe-vpc-endpoints",
+		"--filters", "Name=vpc-id,Values=" + vpcID,
 		"--query", "VpcEndpoints[].VpcEndpointId",
-		"--output", "text")
+		"--output", "text"}
+	args = appendRegion(args, opts.Region)
+	eps, _, _ := runCmd(ctx, "aws", args...)
 	for _, ep := range strings.Fields(eps) {
 		if opts.DryRun {
 			awsLogger.Infof("Dry-run: would delete VPC endpoint %s", ep)
 			continue
 		}
-		_, errOut, err := runCmd(ctx, "aws", "ec2", "delete-vpc-endpoints", "--vpc-endpoint-ids", ep)
+		args = []string{"ec2", "delete-vpc-endpoints", "--vpc-endpoint-ids", ep}
+		args = appendRegion(args, opts.Region)
+		_, errOut, err := runCmd(ctx, "aws", args...)
 		if err != nil {
 			awsLogger.Warningf("Failed to delete VPC endpoint %s: %v\nstderr: %s", ep, err, errOut)
 		}
@@ -348,36 +354,46 @@ func deleteVPCEndpoints(ctx context.Context, vpcID string, opts DeleteOptions) {
 func deleteLoadBalancers(ctx context.Context, vpcID string, opts DeleteOptions) []string {
 	awsLogger.Infof("Deleting Load Balancers in VPC...")
 	var lbTargets []string
-	lbs, _, _ := runCmd(ctx, "aws", "elbv2", "describe-load-balancers",
-		"--query", "LoadBalancers[?VpcId==`"+vpcID+"`].LoadBalancerArn",
-		"--output", "text")
+	args := []string{"elbv2", "describe-load-balancers",
+		"--query", "LoadBalancers[?VpcId==`" + vpcID + "`].LoadBalancerArn",
+		"--output", "text"}
+	args = appendRegion(args, opts.Region)
+	lbs, _, _ := runCmd(ctx, "aws", args...)
 	for _, lb := range strings.Fields(lbs) {
 		awsLogger.Infof("  LoadBalancer: %s", lb)
 
-		lbDNS, _, _ := runCmd(ctx, "aws", "elbv2", "describe-load-balancers",
+		args = []string{"elbv2", "describe-load-balancers",
 			"--load-balancer-arns", lb,
 			"--query", "LoadBalancers[0].DNSName",
-			"--output", "text")
+			"--output", "text"}
+		args = appendRegion(args, opts.Region)
+		lbDNS, _, _ := runCmd(ctx, "aws", args...)
 		if lbDNS != "" && lbDNS != "None" {
 			lbTargets = append(lbTargets, lbDNS)
 		}
 
-		tgs, _, _ := runCmd(ctx, "aws", "elbv2", "describe-target-groups",
+		args = []string{"elbv2", "describe-target-groups",
 			"--load-balancer-arn", lb,
 			"--query", "TargetGroups[].TargetGroupArn",
-			"--output", "text")
+			"--output", "text"}
+		args = appendRegion(args, opts.Region)
+		tgs, _, _ := runCmd(ctx, "aws", args...)
 
 		if opts.DryRun {
 			awsLogger.Infof("Dry-run: would delete load balancer %s and target groups %s", lb, strings.TrimSpace(tgs))
 		} else {
-			if _, errOut, err := runCmd(ctx, "aws", "elbv2", "delete-load-balancer", "--load-balancer-arn", lb); err != nil {
+			args = []string{"elbv2", "delete-load-balancer", "--load-balancer-arn", lb}
+			args = appendRegion(args, opts.Region)
+			if _, errOut, err := runCmd(ctx, "aws", args...); err != nil {
 				awsLogger.Warningf("Failed to delete load balancer %s: %v\nstderr: %s", lb, err, errOut)
 			}
 
 			time.Sleep(20 * time.Second) // allow ENIs to detach
 
 			for _, tg := range strings.Fields(tgs) {
-				if _, errOut, err := runCmd(ctx, "aws", "elbv2", "delete-target-group", "--target-group-arn", tg); err != nil {
+				args = []string{"elbv2", "delete-target-group", "--target-group-arn", tg}
+				args = appendRegion(args, opts.Region)
+				if _, errOut, err := runCmd(ctx, "aws", args...); err != nil {
 					awsLogger.Warningf("Failed to delete target group %s: %v\nstderr: %s", tg, err, errOut)
 				}
 			}
@@ -393,10 +409,12 @@ func waitForELBENIs(ctx context.Context, vpcID string, opts DeleteOptions) {
 		return
 	}
 	for i := 0; i < 10; i++ {
-		enis, _, _ := runCmd(ctx, "aws", "ec2", "describe-network-interfaces",
-			"--filters", "Name=vpc-id,Values="+vpcID,
+		args := []string{"ec2", "describe-network-interfaces",
+			"--filters", "Name=vpc-id,Values=" + vpcID,
 			"--query", "NetworkInterfaces[?starts_with(Description, 'ELB ')].NetworkInterfaceId",
-			"--output", "text")
+			"--output", "text"}
+		args = appendRegion(args, opts.Region)
+		enis, _, _ := runCmd(ctx, "aws", args...)
 		if strings.TrimSpace(enis) == "" {
 			awsLogger.Infof("No ELB ENIs remaining.")
 			return
@@ -408,15 +426,19 @@ func waitForELBENIs(ctx context.Context, vpcID string, opts DeleteOptions) {
 
 func deleteNATGateways(ctx context.Context, vpcID string, opts DeleteOptions) []string {
 	awsLogger.Infof("Deleting NAT Gateways...")
-	natEIPs, _, _ := runCmd(ctx, "aws", "ec2", "describe-nat-gateways",
-		"--filter", "Name=vpc-id,Values="+vpcID,
+	args := []string{"ec2", "describe-nat-gateways",
+		"--filter", "Name=vpc-id,Values=" + vpcID,
 		"--query", "NatGateways[].NatGatewayAddresses[].AllocationId",
-		"--output", "text")
+		"--output", "text"}
+	args = appendRegion(args, opts.Region)
+	natEIPs, _, _ := runCmd(ctx, "aws", args...)
 
-	ngws, _, _ := runCmd(ctx, "aws", "ec2", "describe-nat-gateways",
-		"--filter", "Name=vpc-id,Values="+vpcID,
+	args = []string{"ec2", "describe-nat-gateways",
+		"--filter", "Name=vpc-id,Values=" + vpcID,
 		"--query", "NatGateways[].NatGatewayId",
-		"--output", "text")
+		"--output", "text"}
+	args = appendRegion(args, opts.Region)
+	ngws, _, _ := runCmd(ctx, "aws", args...)
 
 	for _, ng := range strings.Fields(ngws) {
 		awsLogger.Infof("Requesting deletion of NAT Gateway %s...", ng)
@@ -424,7 +446,9 @@ func deleteNATGateways(ctx context.Context, vpcID string, opts DeleteOptions) []
 			awsLogger.Infof("Dry-run: would delete NAT Gateway %s", ng)
 			continue
 		}
-		if _, errOut, err := runCmd(ctx, "aws", "ec2", "delete-nat-gateway", "--nat-gateway-id", ng); err != nil {
+		args = []string{"ec2", "delete-nat-gateway", "--nat-gateway-id", ng}
+		args = appendRegion(args, opts.Region)
+		if _, errOut, err := runCmd(ctx, "aws", args...); err != nil {
 			awsLogger.Warningf("Failed to delete NAT Gateway %s: %v\nstderr: %s", ng, err, errOut)
 		}
 	}
@@ -438,10 +462,12 @@ func deleteNATGateways(ctx context.Context, vpcID string, opts DeleteOptions) []
 			continue
 		}
 		for {
-			state, _, _ := runCmd(ctx, "aws", "ec2", "describe-nat-gateways",
+			args = []string{"ec2", "describe-nat-gateways",
 				"--nat-gateway-ids", ng,
 				"--query", "NatGateways[0].State",
-				"--output", "text")
+				"--output", "text"}
+			args = appendRegion(args, opts.Region)
+			state, _, _ := runCmd(ctx, "aws", args...)
 			if state == "deleted" || state == "nat-gateway-not-found" || state == "None" || state == "null" {
 				awsLogger.Infof("NAT Gateway %s is deleted.", ng)
 				break
@@ -455,10 +481,12 @@ func deleteNATGateways(ctx context.Context, vpcID string, opts DeleteOptions) []
 
 func deleteInternetGateway(ctx context.Context, vpcID string, opts DeleteOptions) {
 	awsLogger.Infof("Detaching and deleting Internet Gateway...")
-	igwID, _, _ := runCmd(ctx, "aws", "ec2", "describe-internet-gateways",
-		"--filters", "Name=attachment.vpc-id,Values="+vpcID,
+	args := []string{"ec2", "describe-internet-gateways",
+		"--filters", "Name=attachment.vpc-id,Values=" + vpcID,
 		"--query", "InternetGateways[0].InternetGatewayId",
-		"--output", "text")
+		"--output", "text"}
+	args = appendRegion(args, opts.Region)
+	igwID, _, _ := runCmd(ctx, "aws", args...)
 	if igwID == "" || igwID == "None" {
 		return
 	}
@@ -466,43 +494,55 @@ func deleteInternetGateway(ctx context.Context, vpcID string, opts DeleteOptions
 		awsLogger.Infof("Dry-run: would detach and delete IGW %s", igwID)
 		return
 	}
-	if _, errOut, err := runCmd(ctx, "aws", "ec2", "detach-internet-gateway",
+	args = []string{"ec2", "detach-internet-gateway",
 		"--internet-gateway-id", igwID,
-		"--vpc-id", vpcID); err != nil {
+		"--vpc-id", vpcID}
+	args = appendRegion(args, opts.Region)
+	if _, errOut, err := runCmd(ctx, "aws", args...); err != nil {
 		awsLogger.Warningf("Failed to detach IGW %s: %v\nstderr: %s", igwID, err, errOut)
 	}
-	if _, errOut, err := runCmd(ctx, "aws", "ec2", "delete-internet-gateway",
-		"--internet-gateway-id", igwID); err != nil {
+	args = []string{"ec2", "delete-internet-gateway",
+		"--internet-gateway-id", igwID}
+	args = appendRegion(args, opts.Region)
+	if _, errOut, err := runCmd(ctx, "aws", args...); err != nil {
 		awsLogger.Warningf("Failed to delete IGW %s: %v\nstderr: %s", igwID, err, errOut)
 	}
 }
 
 func deleteRouteTables(ctx context.Context, vpcID string, opts DeleteOptions) {
 	awsLogger.Infof("Deleting Route Tables...")
-	nonMainRTs, _, _ := runCmd(ctx, "aws", "ec2", "describe-route-tables",
-		"--filters", "Name=vpc-id,Values="+vpcID,
+	args := []string{"ec2", "describe-route-tables",
+		"--filters", "Name=vpc-id,Values=" + vpcID,
 		"--query", "RouteTables[?!(Associations[?Main==`true`])].RouteTableId",
-		"--output", "text")
+		"--output", "text"}
+	args = appendRegion(args, opts.Region)
+	nonMainRTs, _, _ := runCmd(ctx, "aws", args...)
 
 	for _, rt := range strings.Fields(nonMainRTs) {
 		awsLogger.Infof("Processing non-main route table %s...", rt)
-		assocs, _, _ := runCmd(ctx, "aws", "ec2", "describe-route-tables",
+		args = []string{"ec2", "describe-route-tables",
 			"--route-table-ids", rt,
 			"--query", "RouteTables[0].Associations[].RouteTableAssociationId",
-			"--output", "text")
+			"--output", "text"}
+		args = appendRegion(args, opts.Region)
+		assocs, _, _ := runCmd(ctx, "aws", args...)
 		for _, assoc := range strings.Fields(assocs) {
 			if opts.DryRun {
 				awsLogger.Infof("Dry-run: would disassociate route table %s association %s", rt, assoc)
 				continue
 			}
-			if _, errOut, err := runCmd(ctx, "aws", "ec2", "disassociate-route-table", "--association-id", assoc); err != nil {
+			args = []string{"ec2", "disassociate-route-table", "--association-id", assoc}
+			args = appendRegion(args, opts.Region)
+			if _, errOut, err := runCmd(ctx, "aws", args...); err != nil {
 				awsLogger.Warningf("Failed to disassociate route table %s: %v\nstderr: %s", assoc, err, errOut)
 			}
 		}
 		if opts.DryRun {
 			awsLogger.Infof("Dry-run: would delete route table %s", rt)
 		} else {
-			if _, errOut, err := runCmd(ctx, "aws", "ec2", "delete-route-table", "--route-table-id", rt); err != nil {
+			args = []string{"ec2", "delete-route-table", "--route-table-id", rt}
+			args = appendRegion(args, opts.Region)
+			if _, errOut, err := runCmd(ctx, "aws", args...); err != nil {
 				awsLogger.Warningf("Failed to delete route table %s: %v\nstderr: %s", rt, err, errOut)
 			}
 		}
@@ -511,15 +551,19 @@ func deleteRouteTables(ctx context.Context, vpcID string, opts DeleteOptions) {
 
 func deleteENIs(ctx context.Context, vpcID string, opts DeleteOptions) {
 	awsLogger.Infof("Deleting ENIs...")
-	enis, _, _ := runCmd(ctx, "aws", "ec2", "describe-network-interfaces",
-		"--filters", "Name=vpc-id,Values="+vpcID,
+	args := []string{"ec2", "describe-network-interfaces",
+		"--filters", "Name=vpc-id,Values=" + vpcID,
 		"--query", "NetworkInterfaces[].NetworkInterfaceId",
-		"--output", "text")
+		"--output", "text"}
+	args = appendRegion(args, opts.Region)
+	enis, _, _ := runCmd(ctx, "aws", args...)
 	for _, eni := range strings.Fields(enis) {
 		if opts.DryRun {
 			awsLogger.Infof("Dry-run: would delete ENI %s", eni)
 		} else {
-			if _, errOut, err := runCmd(ctx, "aws", "ec2", "delete-network-interface", "--network-interface-id", eni); err != nil {
+			args = []string{"ec2", "delete-network-interface", "--network-interface-id", eni}
+			args = appendRegion(args, opts.Region)
+			if _, errOut, err := runCmd(ctx, "aws", args...); err != nil {
 				awsLogger.Warningf("Failed to delete ENI %s: %v\nstderr: %s", eni, err, errOut)
 			}
 		}
@@ -616,15 +660,19 @@ func deleteTenants(ctx context.Context, clusterReachable bool) {
 
 func deleteSubnets(ctx context.Context, vpcID string, opts DeleteOptions) {
 	awsLogger.Infof("Deleting Subnets...")
-	subnets, _, _ := runCmd(ctx, "aws", "ec2", "describe-subnets",
-		"--filters", "Name=vpc-id,Values="+vpcID,
+	args := []string{"ec2", "describe-subnets",
+		"--filters", "Name=vpc-id,Values=" + vpcID,
 		"--query", "Subnets[].SubnetId",
-		"--output", "text")
+		"--output", "text"}
+	args = appendRegion(args, opts.Region)
+	subnets, _, _ := runCmd(ctx, "aws", args...)
 	for _, sn := range strings.Fields(subnets) {
 		if opts.DryRun {
 			awsLogger.Infof("Dry-run: would delete subnet %s", sn)
 		} else {
-			if _, errOut, err := runCmd(ctx, "aws", "ec2", "delete-subnet", "--subnet-id", sn); err != nil {
+			args = []string{"ec2", "delete-subnet", "--subnet-id", sn}
+			args = appendRegion(args, opts.Region)
+			if _, errOut, err := runCmd(ctx, "aws", args...); err != nil {
 				awsLogger.Warningf("Failed to delete subnet %s: %v\nstderr: %s", sn, err, errOut)
 			}
 		}
@@ -633,10 +681,12 @@ func deleteSubnets(ctx context.Context, vpcID string, opts DeleteOptions) {
 
 func deleteSecurityGroups(ctx context.Context, vpcID string, opts DeleteOptions) {
 	awsLogger.Infof("Deleting non-default Security Groups in VPC...")
-	sgs, _, _ := runCmd(ctx, "aws", "ec2", "describe-security-groups",
-		"--filters", "Name=vpc-id,Values="+vpcID,
+	args := []string{"ec2", "describe-security-groups",
+		"--filters", "Name=vpc-id,Values=" + vpcID,
 		"--query", "SecurityGroups[?GroupName!=`default`].GroupId",
-		"--output", "text")
+		"--output", "text"}
+	args = appendRegion(args, opts.Region)
+	sgs, _, _ := runCmd(ctx, "aws", args...)
 	if strings.TrimSpace(sgs) == "" {
 		awsLogger.Infof("No non-default Security Groups found to delete.")
 		return
@@ -645,7 +695,9 @@ func deleteSecurityGroups(ctx context.Context, vpcID string, opts DeleteOptions)
 		if opts.DryRun {
 			awsLogger.Infof("Dry-run: would delete security group %s", sg)
 		} else {
-			if _, errOut, err := runCmd(ctx, "aws", "ec2", "delete-security-group", "--group-id", sg); err != nil {
+			args = []string{"ec2", "delete-security-group", "--group-id", sg}
+			args = appendRegion(args, opts.Region)
+			if _, errOut, err := runCmd(ctx, "aws", args...); err != nil {
 				awsLogger.Warningf("Failed to delete security group %s: %v\nstderr: %s", sg, err, errOut)
 			}
 		}
@@ -658,9 +710,11 @@ func resetDHCPOptions(ctx context.Context, vpcID string, opts DeleteOptions) {
 		awsLogger.Infof("Dry-run: would associate default DHCP options with VPC %s", vpcID)
 		return
 	}
-	if _, errOut, err := runCmd(ctx, "aws", "ec2", "associate-dhcp-options",
+	args := []string{"ec2", "associate-dhcp-options",
 		"--dhcp-options-id", "default",
-		"--vpc-id", vpcID); err != nil {
+		"--vpc-id", vpcID}
+	args = appendRegion(args, opts.Region)
+	if _, errOut, err := runCmd(ctx, "aws", args...); err != nil {
 		awsLogger.Warningf("Failed to reset DHCP options: %v\nstderr: %s", err, errOut)
 	}
 }
@@ -943,15 +997,17 @@ func deleteVPC(ctx context.Context, vpcID string, opts DeleteOptions) {
 		awsLogger.Infof("Dry-run: would delete VPC %s", vpcID)
 		return
 	}
-	if _, errOut, err := runCmd(ctx, "aws", "ec2", "delete-vpc", "--vpc-id", vpcID); err != nil {
+	args := []string{"ec2", "delete-vpc", "--vpc-id", vpcID}
+	args = appendRegion(args, opts.Region)
+	if _, errOut, err := runCmd(ctx, "aws", args...); err != nil {
 		awsLogger.Warningf("Failed to delete VPC %s due to dependencies. Running diagnostics...\nstderr: %s", vpcID, errOut)
-		runDiagnostics(ctx, vpcID)
+		runDiagnostics(ctx, vpcID, opts.Region)
 	} else {
 		awsLogger.Successf("VPC %s deleted successfully.", vpcID)
 	}
 }
 
-func runDiagnostics(ctx context.Context, vpcID string) {
+func runDiagnostics(ctx context.Context, vpcID, region string) {
 	type diag struct {
 		title string
 		args  []string
@@ -969,7 +1025,8 @@ func runDiagnostics(ctx context.Context, vpcID string) {
 	}
 	for _, d := range diagnostics {
 		awsLogger.Infof("--- Diagnostics: %s ---", d.title)
-		if _, errOut, err := runCmd(ctx, "aws", d.args...); err != nil {
+		args := appendRegion(d.args, region)
+		if _, errOut, err := runCmd(ctx, "aws", args...); err != nil {
 			awsLogger.Warningf("Diagnostic %s failed: %v\nstderr: %s", d.title, err, errOut)
 		}
 	}
@@ -980,6 +1037,13 @@ func defaultString(value, fallback string) string {
 		return fallback
 	}
 	return value
+}
+
+func appendRegion(args []string, region string) []string {
+	if strings.TrimSpace(region) == "" {
+		return args
+	}
+	return append(args, "--region", region)
 }
 
 // execLookPath is separated for testability.
