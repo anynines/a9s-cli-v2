@@ -237,6 +237,7 @@ func init() {
 
 	// Service Bindings
 	cmdDeletePG.PersistentFlags().StringVar(&demo.A8sPGServiceBinding.Name, "name", "example-pg-1", "name of the PG service binding. NOT the name of the PG service instance.")
+	cmdDeletePGBinding.Flags().StringVarP(&demo.A8sPGServiceBinding.Namespace, "namespace", "n", "default", "namespace of the PG service binding.")
 
 	cmdDeletePG.AddCommand(cmdDeletePGBinding)
 

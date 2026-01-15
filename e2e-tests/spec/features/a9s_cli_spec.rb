@@ -3,6 +3,7 @@ require_relative '../support/minikube'
 require_relative '../support/kind'
 
 require 'fileutils'
+require 'tmpdir'
 
 RSpec.shared_context "a8s-pg", :shared_context => :metadata, order: :defined do
   before(:context) do
@@ -63,6 +64,9 @@ RSpec.shared_context "a8s-pg", :shared_context => :metadata, order: :defined do
       logger.info "\t" + output
 
       expect(output).to include("The service binding has been created successfully.")
+      
+      # Verify the service binding actually exists in Kubernetes
+      kubectl_verify_service_binding_exists(@service_binding_name, @workload_namespace)
     end
 
     it "deletes a given service binding" do
@@ -75,7 +79,8 @@ RSpec.shared_context "a8s-pg", :shared_context => :metadata, order: :defined do
 
       expect(output).to include("The service binding has been deleted successfully.")
 
-      #TODO Add a test that verifies whether the SB has actually been deleted
+      # Verify the service binding has actually been deleted from Kubernetes
+      kubectl_verify_service_binding_not_exists(@service_binding_name, @workload_namespace)
     end
   end
 
@@ -188,6 +193,24 @@ RSpec.describe "a9s-cli" do
       logger.info "\t" + ret.to_s
 
       expect(ret).to include(File.read(File.expand_path("../../../../VERSION", __FILE__)).chomp)
+    end
+  end
+
+  context "cluster pwd" do
+    it "prints the configured working directory from config" do
+      temp_home = Dir.mktmpdir("a9s-home")
+      workdir = File.join(temp_home, "workdir")
+      config_path = File.join(temp_home, ".a9s")
+      File.write(config_path, "WorkingDir: #{workdir}\nDemoSpace: a8s-demo\n")
+
+      cmd = "HOME=#{temp_home} a9s cluster pwd"
+      logger.info(cmd)
+      ret = `#{cmd}`
+      logger.info "\t" + ret.to_s
+
+      expect(ret).to eq(workdir)
+    ensure
+      FileUtils.remove_entry(temp_home) if temp_home && File.exist?(temp_home)
     end
   end
 
@@ -324,6 +347,15 @@ RSpec.describe "a9s-cli" do
         context "minikube with AWS S3", order: :defined, minikube: :true do
           context "use cluster" do
             before(:context) do
+              @aws_s3_bucket = ENV["AWS_S3_BUCKET_NAME"]
+              @aws_access_key = ENV["AWS_ACCESSKEYID"]
+              @aws_secret_key = ENV["AWS_SECRETKEY"]
+              missing = []
+              missing << "AWS_S3_BUCKET_NAME" if @aws_s3_bucket.to_s.empty?
+              missing << "AWS_ACCESSKEYID" if @aws_access_key.to_s.empty?
+              missing << "AWS_SECRETKEY" if @aws_secret_key.to_s.empty?
+              skip("Skipping AWS S3 minikube e2e tests. Missing env vars: #{missing.join(', ')}") unless missing.empty?
+
               @backup_name = "minikube-clustered-bu"
               if Minikube::does_demo_cluster_exist? then
                 logger.info "Found a minikube demo cluster."
@@ -338,13 +370,13 @@ RSpec.describe "a9s-cli" do
                   ' --backup-provider="AWS"' \
                   ' --backup-region="eu-central-1"'
               cmd += ' --backup-bucket="'
-              cmd += ENV.fetch('ASW_S3_BUCKET_NAME')
+              cmd += @aws_s3_bucket
               cmd += "\""
               cmd += ' --backup-store-accesskey="'
-              cmd += ENV.fetch('AWS_ACCESSKEYID')
+              cmd += @aws_access_key
               cmd += "\""
               cmd += ' --backup-store-secretkey="'
-              cmd += ENV.fetch('AWS_SECRETKEY')
+              cmd += @aws_secret_key
               cmd += "\""
 
               logger.info cmd
