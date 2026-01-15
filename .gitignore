@@ -49,3 +49,4 @@ a9s-cli-v2-aws-chuchu15.code-workspace
 warp.md
 test.log
 Gemfile.lock
+e2e-tests/vendor

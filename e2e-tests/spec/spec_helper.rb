@@ -127,6 +127,17 @@ def kubectl_create_namespace(namespace)
   raise "Can't create namespace" unless ret
 end
 
+def reuse_cluster?
+  ENV["A9S_E2E_REUSE_CLUSTER"] == "1"
+end
+
+def kubectl_ensure_namespace(namespace)
+  cmd = "kubectl get namespace #{namespace} >/dev/null 2>&1 || kubectl create namespace #{namespace}"
+  logger.info(cmd)
+  ret = system(cmd)
+  raise "Can't ensure namespace #{namespace}" unless ret
+end
+
 def a9s_backup_store_config_file
   File.expand_path("~/a9s/a8s-deployment/deploy/a8s/backup-config/backup-store-config.yaml")
 end
@@ -151,5 +162,18 @@ end
 def kubectl_verify_service_binding_not_exists(name, namespace)
   if kubectl_service_binding_exists?(name, namespace)
     raise "Service binding #{name} still exists in namespace #{namespace}"
+  end
+end
+
+def kubectl_pg_service_instance_exists?(name, namespace)
+  cmd = "kubectl get postgresqls #{name} -n #{namespace} --ignore-not-found -o name 2>/dev/null"
+  logger.info(cmd)
+  output = `#{cmd}`.strip
+  !output.empty?
+end
+
+def kubectl_verify_pg_service_instance_not_exists(name, namespace)
+  if kubectl_pg_service_instance_exists?(name, namespace)
+    raise "Service instance #{name} still exists in namespace #{namespace}"
   end
 end
