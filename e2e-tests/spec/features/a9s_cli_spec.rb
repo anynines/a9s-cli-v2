@@ -73,6 +73,39 @@ RSpec.shared_context "a8s-pg", :shared_context => :metadata, order: :defined do
       # Verify the service binding actually exists in Kubernetes
       kubectl_verify_service_binding_exists(@service_binding_name, @workload_namespace)
       kubectl_verify_service_binding_implemented(@service_binding_name, @workload_namespace)
+
+      secret_name = "#{@service_binding_name}-service-binding"
+      kubectl_verify_secret_exists(secret_name, @workload_namespace)
+
+      binding_database = kubectl_secret_data(secret_name, @workload_namespace, "database")
+      binding_instance_service = kubectl_secret_data(secret_name, @workload_namespace, "instance_service")
+      binding_username = kubectl_secret_data(secret_name, @workload_namespace, "username")
+      binding_password = kubectl_secret_data(secret_name, @workload_namespace, "password")
+
+      expect(binding_database).not_to be_empty
+      expect(binding_instance_service).not_to be_empty
+      expect(binding_username).not_to be_empty
+      expect(binding_password).not_to be_empty
+
+      service_name = binding_instance_service
+      service_namespace = @workload_namespace
+      if binding_instance_service.include?(".")
+        parts = binding_instance_service.split(".")
+        service_name = parts[0]
+        service_namespace = parts[1] unless parts[1].to_s.empty?
+      end
+      kubectl_verify_service_exists(service_name, service_namespace)
+
+      master_pod = kubectl_pg_master_pod_name(@service_instance_name, @workload_namespace)
+      psql_output = kubectl_psql_select_one(
+        master_pod,
+        @workload_namespace,
+        binding_instance_service,
+        binding_username,
+        binding_password,
+        binding_database
+      )
+      expect(psql_output).to match(/\b1\b/)
     end
 
     it "deletes a given service binding" do

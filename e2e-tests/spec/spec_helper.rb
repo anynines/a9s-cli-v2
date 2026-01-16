@@ -1,4 +1,6 @@
+require 'base64'
 require 'logger'
+require 'shellwords'
 
 repo_root = File.expand_path('../../..', __dir__)
 a9s_bin = File.join(repo_root, 'bin', 'a9s')
@@ -178,6 +180,42 @@ def kubectl_verify_service_binding_not_exists(name, namespace)
   end
 end
 
+def kubectl_secret_exists?(name, namespace)
+  cmd = "kubectl get secret #{name} -n #{namespace} --ignore-not-found -o name 2>/dev/null"
+  logger.info(cmd)
+  output = `#{cmd}`.strip
+  !output.empty?
+end
+
+def kubectl_verify_secret_exists(name, namespace)
+  unless kubectl_secret_exists?(name, namespace)
+    raise "Secret #{name} does not exist in namespace #{namespace}"
+  end
+end
+
+def kubectl_secret_data(name, namespace, key)
+  cmd = "kubectl get secret #{name} -n #{namespace} -o jsonpath='{.data.#{key}}' 2>/dev/null"
+  logger.info(cmd)
+  encoded = `#{cmd}`.strip
+  if encoded.empty?
+    raise "Secret #{name} in namespace #{namespace} does not contain key #{key}"
+  end
+  Base64.decode64(encoded).strip
+end
+
+def kubectl_service_exists?(name, namespace)
+  cmd = "kubectl get service #{name} -n #{namespace} --ignore-not-found -o name 2>/dev/null"
+  logger.info(cmd)
+  output = `#{cmd}`.strip
+  !output.empty?
+end
+
+def kubectl_verify_service_exists(name, namespace)
+  unless kubectl_service_exists?(name, namespace)
+    raise "Service #{name} does not exist in namespace #{namespace}"
+  end
+end
+
 def kubectl_pg_service_instance_exists?(name, namespace)
   cmd = "kubectl get postgresqls #{name} -n #{namespace} --ignore-not-found -o name 2>/dev/null"
   logger.info(cmd)
@@ -259,6 +297,31 @@ def kubectl_verify_pg_pods_running(name, namespace, replicas)
       raise "Pod #{pod_name} is not running (status=#{status})"
     end
   end
+end
+
+def kubectl_pg_master_pod_name(name, namespace)
+  label_selector = "a8s.a9s/replication-role=master,a8s.a9s/dsi-group=postgresql.anynines.com,a8s.a9s/dsi-name=#{name}"
+  cmd = "kubectl get pods -n #{namespace} -l #{label_selector} -o jsonpath='{.items[0].metadata.name}' 2>/dev/null"
+  logger.info(cmd)
+  pod = `#{cmd}`.strip
+  if pod.empty?
+    raise "No master pod found for service instance #{name} in namespace #{namespace}"
+  end
+  pod
+end
+
+def kubectl_psql_select_one(pod_name, namespace, host, username, password, database)
+  host_arg = Shellwords.escape(host)
+  user_arg = Shellwords.escape(username)
+  db_arg = Shellwords.escape(database)
+  password_env = Shellwords.escape(password)
+  cmd = "kubectl exec -n #{namespace} #{pod_name} -- env PGPASSWORD=#{password_env} psql -h #{host_arg} -U #{user_arg} -d #{db_arg} -tAc 'SELECT 1'"
+  logger.info(cmd)
+  output = `#{cmd}`.strip
+  unless $?.success?
+    raise "psql command failed: #{cmd}\n#{output}"
+  end
+  output
 end
 
 def kubectl_verify_pg_pods_not_exists(name, namespace, replicas, timeout_seconds: 120, sleep_seconds: 5)
