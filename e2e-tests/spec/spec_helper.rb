@@ -153,9 +153,22 @@ def kubectl_service_binding_exists?(name, namespace)
   !output.empty?
 end
 
+def kubectl_service_binding_implemented?(name, namespace)
+  cmd = "kubectl get servicebinding #{name} -n #{namespace} -o jsonpath='{.status.implemented}' 2>/dev/null"
+  logger.info(cmd)
+  output = `#{cmd}`.strip
+  output == "true"
+end
+
 def kubectl_verify_service_binding_exists(name, namespace)
   unless kubectl_service_binding_exists?(name, namespace)
     raise "Service binding #{name} does not exist in namespace #{namespace}"
+  end
+end
+
+def kubectl_verify_service_binding_implemented(name, namespace)
+  unless kubectl_service_binding_implemented?(name, namespace)
+    raise "Service binding #{name} is not implemented in namespace #{namespace}"
   end
 end
 
@@ -172,8 +185,112 @@ def kubectl_pg_service_instance_exists?(name, namespace)
   !output.empty?
 end
 
+def kubectl_verify_pg_service_instance_exists(name, namespace)
+  unless kubectl_pg_service_instance_exists?(name, namespace)
+    raise "Service instance #{name} does not exist in namespace #{namespace}"
+  end
+end
+
 def kubectl_verify_pg_service_instance_not_exists(name, namespace)
   if kubectl_pg_service_instance_exists?(name, namespace)
     raise "Service instance #{name} still exists in namespace #{namespace}"
+  end
+end
+
+def kubectl_pg_backup_exists?(name, namespace)
+  cmd = "kubectl get backups #{name} -n #{namespace} --ignore-not-found -o name 2>/dev/null"
+  logger.info(cmd)
+  output = `#{cmd}`.strip
+  !output.empty?
+end
+
+def kubectl_verify_pg_backup_exists(name, namespace)
+  unless kubectl_pg_backup_exists?(name, namespace)
+    raise "Backup #{name} does not exist in namespace #{namespace}"
+  end
+end
+
+def kubectl_pg_condition_status(resource, name, namespace, condition_type)
+  cmd = "kubectl get #{resource} #{name} -n #{namespace} -o jsonpath='{.status.conditions[?(@.type==\"#{condition_type}\")].status}' 2>/dev/null"
+  logger.info(cmd)
+  `#{cmd}`.strip
+end
+
+def kubectl_verify_pg_condition_true(resource, name, namespace, condition_type)
+  status = kubectl_pg_condition_status(resource, name, namespace, condition_type)
+  unless status.casecmp("True").zero?
+    raise "#{resource} #{name} in namespace #{namespace} does not have condition #{condition_type}=True (status=#{status})"
+  end
+end
+
+def kubectl_pg_restore_exists?(name, namespace)
+  cmd = "kubectl get restores #{name} -n #{namespace} --ignore-not-found -o name 2>/dev/null"
+  logger.info(cmd)
+  output = `#{cmd}`.strip
+  !output.empty?
+end
+
+def kubectl_verify_pg_restore_exists(name, namespace)
+  unless kubectl_pg_restore_exists?(name, namespace)
+    raise "Restore #{name} does not exist in namespace #{namespace}"
+  end
+end
+
+def kubectl_crd_exists?(name)
+  cmd = "kubectl get crd #{name} --ignore-not-found -o name 2>/dev/null"
+  logger.info(cmd)
+  output = `#{cmd}`.strip
+  !output.empty?
+end
+
+def kubectl_verify_crd_exists(name)
+  unless kubectl_crd_exists?(name)
+    raise "CRD #{name} does not exist in the cluster"
+  end
+end
+
+def kubectl_verify_pg_pods_running(name, namespace, replicas)
+  replicas.times do |i|
+    pod_name = "#{name}-#{i}"
+    cmd = "kubectl get pod #{pod_name} -n #{namespace} -o jsonpath='{.status.phase}' 2>/dev/null"
+    logger.info(cmd)
+    status = `#{cmd}`.strip
+    unless status == "Running"
+      raise "Pod #{pod_name} is not running (status=#{status})"
+    end
+  end
+end
+
+def kubectl_verify_pg_pods_not_exists(name, namespace, replicas, timeout_seconds: 120, sleep_seconds: 5)
+  deadline = Time.now + timeout_seconds
+
+  loop do
+    missing = true
+    replicas.times do |i|
+      pod_name = "#{name}-#{i}"
+      cmd = "kubectl get pod #{pod_name} -n #{namespace} --ignore-not-found -o name 2>/dev/null"
+      logger.info(cmd)
+      output = `#{cmd}`.strip
+      unless output.empty?
+        missing = false
+        break
+      end
+    end
+
+    return if missing
+
+    if Time.now >= deadline
+      raise "Pods for #{name} still exist in namespace #{namespace} after #{timeout_seconds}s"
+    end
+    sleep(sleep_seconds)
+  end
+end
+
+def kubectl_verify_pods_running_by_label(namespace, label_selector)
+  cmd = "kubectl get pods -n #{namespace} -l #{label_selector} -o jsonpath='{.items[*].status.phase}' 2>/dev/null"
+  logger.info(cmd)
+  phases = `#{cmd}`.strip
+  unless phases.split.any? { |p| p == "Running" }
+    raise "No running pods found in #{namespace} with label #{label_selector} (phases=#{phases})"
   end
 end

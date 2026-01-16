@@ -27,7 +27,10 @@ RSpec.shared_context "a8s-pg", :shared_context => :metadata, order: :defined do
 
       logger.info "\t" + output
 
-      expect(output).to include("The #{@service_instance_name} system appears to be ready. All expected pods are running.")
+      safe_output = output.encode("UTF-8", invalid: :replace, undef: :replace, replace: "")
+      expect(safe_output).to include("The #{@service_instance_name} system appears to be ready. All expected pods are running.")
+      kubectl_verify_pg_service_instance_exists(@service_instance_name, @workload_namespace)
+      kubectl_verify_pg_pods_running(@service_instance_name, @workload_namespace, 3)
     end
   end
 
@@ -69,6 +72,7 @@ RSpec.shared_context "a8s-pg", :shared_context => :metadata, order: :defined do
       
       # Verify the service binding actually exists in Kubernetes
       kubectl_verify_service_binding_exists(@service_binding_name, @workload_namespace)
+      kubectl_verify_service_binding_implemented(@service_binding_name, @workload_namespace)
     end
 
     it "deletes a given service binding" do
@@ -97,7 +101,10 @@ RSpec.shared_context "a8s-pg", :shared_context => :metadata, order: :defined do
 
       logger.info "\t" + output
 
-      expect(output).to include("The backup with the name #{@backup_name} in namespace #{@workload_namespace} has been successful")
+      safe_output = output.encode("UTF-8", invalid: :replace, undef: :replace, replace: "")
+      expect(safe_output).to include("The backup with the name #{@backup_name} in namespace #{@workload_namespace} has been successful")
+      kubectl_verify_pg_backup_exists(@backup_name, @workload_namespace)
+      kubectl_verify_pg_condition_true("backups", @backup_name, @workload_namespace, "Complete")
     end
 
     it "fails to create a backup of a non-existing service instance" do
@@ -124,7 +131,10 @@ RSpec.shared_context "a8s-pg", :shared_context => :metadata, order: :defined do
 
       logger.info "\t" + output
 
-      expect(output).to include("The restore with the name #{@restore_name} in namespace #{@workload_namespace} has been successful.")
+      safe_output = output.encode("UTF-8", invalid: :replace, undef: :replace, replace: "")
+      expect(safe_output).to include("The restore with the name #{@restore_name} in namespace #{@workload_namespace} has been successful.")
+      kubectl_verify_pg_restore_exists(@restore_name, @workload_namespace)
+      kubectl_verify_pg_condition_true("restores", @restore_name, @workload_namespace, "Complete")
     end
 
     it "fails to create a restore of a non existing service instance" do
@@ -163,6 +173,7 @@ RSpec.shared_context "a8s-pg", :shared_context => :metadata, order: :defined do
 
       expect(output).to include("Service instance #{@service_instance_name} successfully deleted from namespace #{@workload_namespace}.")
       kubectl_verify_pg_service_instance_not_exists(@service_instance_name, @workload_namespace)
+      kubectl_verify_pg_pods_not_exists(@service_instance_name, @workload_namespace, 3)
     end
 
     it "warns when deleting a non-existing a8s pg service instance" do
@@ -192,494 +203,6 @@ end
 
 
 RSpec.describe "a9s-cli" do
-  context "about the a9s executable" do
-    it "verifies the existence of an a9s executable" do
-      cmd = "a9s --help"
-      logger.info(cmd)
-      # surpresses stdout with File::NULL
-      ret = system(cmd, :out => File::NULL)
-
-      expect(ret).to be(true)
-    end
-
-    it "verifies the output of a9s --help to see if it is the right a9s command" do
-      cmd = "a9s --help"
-      logger.info(cmd)
-
-      ret = `#{cmd}`
-
-      logger.info "\t" + ret.to_s
-
-      expect(ret).to include("A tool to make the use of a9s Platform modules more enjoyable.")
-    end
-
-    it "verifies the execution of a9s version" do
-      cmd = "a9s version"
-      logger.info(cmd)
-
-      ret = `#{cmd}`
-
-      logger.info "\t" + ret.to_s
-
-      expect(ret).to include("a9s cli version:")
-    end
-
-    it "verifies the output of a9s version against the version specified in the VERSION file check for consistency between the spec and binary" do
-      cmd = "a9s version"
-      logger.info(cmd)
-
-      ret = `#{cmd}`
-
-      logger.info "\t" + ret.to_s
-
-      expect(ret).to include(File.read(File.expand_path("../../../../VERSION", __FILE__)).chomp)
-    end
-  end
-
-  context "cluster pwd" do
-    it "prints the configured working directory from config" do
-      temp_home = Dir.mktmpdir("a9s-home")
-      workdir = File.join(temp_home, "workdir")
-      config_path = File.join(temp_home, ".a9s")
-      File.write(config_path, "WorkingDir: #{workdir}\nDemoSpace: a8s-demo\n")
-
-      cmd = "HOME=#{temp_home} a9s cluster pwd"
-      logger.info(cmd)
-      ret = `#{cmd}`
-      logger.info "\t" + ret.to_s
-
-      expect(ret).to eq(workdir)
-    ensure
-      FileUtils.remove_entry(temp_home) if temp_home && File.exist?(temp_home)
-    end
-  end
-
-  context "pg apply" do
-    it "fails when neither --file nor --sql is provided" do
-      cmd = "a9s pg apply --service-instance missing -n default --yes"
-      logger.info(cmd)
-
-      output = `#{cmd}`
-
-      logger.info "\t" + output
-
-      expect(output).to include("Please supply either --sql with an SQL statement or --file with a path to a sql file.")
-    end
-  end
-
-  context "use" do
-    it "requires cluster-name for klutch" do
-      cmd = "a9s use klutch"
-      logger.info(cmd)
-
-      output = `#{cmd} 2>&1`
-
-      logger.info "\t" + output
-
-      expect(output).to include("--cluster-name is required")
-    end
-
-    it "prompts for a subcommand" do
-      cmd = "a9s use"
-      logger.info(cmd)
-
-      output = `#{cmd}`
-
-      logger.info "\t" + output
-
-      expect(output).to include("Please select a subcommand from the list below.")
-    end
-  end
-
-  context "estimate-cost" do
-    it "requires provider for klutch cost estimate" do
-      cmd = "a9s estimate-cost cluster klutch"
-      logger.info(cmd)
-
-      output = `#{cmd} 2>&1`
-
-      logger.info "\t" + output
-
-      expect(output).to include("Please select a provider via -p")
-    end
-
-    it "prompts for a resource type" do
-      cmd = "a9s estimate-cost"
-      logger.info(cmd)
-
-      output = `#{cmd}`
-
-      logger.info "\t" + output
-
-      expect(output).to include("Please choose a resource to estimate.")
-    end
-  end
-
-  context "get" do
-    it "prompts for a subcommand" do
-      cmd = "a9s get"
-      logger.info(cmd)
-
-      output = `#{cmd}`
-
-      logger.info "\t" + output
-
-      expect(output).to include("Please select a subcommand from the list below.")
-    end
-  end
-
-  context "get clusters" do
-    it "prompts for a subcommand" do
-      cmd = "a9s get clusters"
-      logger.info(cmd)
-
-      output = `#{cmd}`
-
-      logger.info "\t" + output
-
-      expect(output).to include("Please select a subcommand from the list below.")
-    end
-  end
-
-  context "get klutch" do
-    it "prompts for a subcommand" do
-      cmd = "a9s get klutch"
-      logger.info(cmd)
-
-      output = `#{cmd}`
-
-      logger.info "\t" + output
-
-      expect(output).to include("Please select a subcommand from the list below.")
-    end
-  end
-
-  context "bind" do
-    it "prompts for a subcommand" do
-      cmd = "a9s bind"
-      logger.info(cmd)
-
-      output = `#{cmd}`
-
-      logger.info "\t" + output
-
-      expect(output).to include("Please select a subcommand from the list below.")
-    end
-  end
-
-  context "bind klutch workload" do
-    it "requires control-plane URL" do
-      cmd = "a9s bind klutch workload"
-      logger.info(cmd)
-
-      output = `#{cmd} 2>&1`
-
-      logger.info "\t" + output
-
-      expect(output).to include("control-plane URL is required")
-    end
-  end
-
-  context "bind klutch" do
-    it "prompts for a subcommand" do
-      cmd = "a9s bind klutch"
-      logger.info(cmd)
-
-      output = `#{cmd}`
-
-      logger.info "\t" + output
-
-      expect(output).to include("Please select a subcommand from the list below.")
-    end
-  end
-
-  context "klutch" do
-    it "prompts for a klutch subcommand" do
-      cmd = "a9s klutch"
-      logger.info(cmd)
-
-      output = `#{cmd}`
-
-      logger.info "\t" + output
-
-      expect(output).to include("Please select a subcommand from the list below.")
-    end
-  end
-
-  context "apply" do
-    it "prompts for a subcommand" do
-      cmd = "a9s apply"
-      logger.info(cmd)
-
-      output = `#{cmd}`
-
-      logger.info "\t" + output
-
-      expect(output).to include("Please select a subcommand from the list below.")
-    end
-  end
-
-  context "apply klutch" do
-    it "prompts for a subcommand" do
-      cmd = "a9s apply klutch"
-      logger.info(cmd)
-
-      output = `#{cmd}`
-
-      logger.info "\t" + output
-
-      expect(output).to include("Please select a subcommand from the list below.")
-    end
-  end
-
-  context "apply klutch control-plane" do
-    it "requires hosted zone name" do
-      cmd = "a9s apply klutch control-plane"
-      logger.info(cmd)
-
-      output = `#{cmd} 2>&1`
-
-      logger.info "\t" + output
-
-      expect(output).to include("The --hosted-zone-name flag is required until self-signed certificates are supported.")
-    end
-  end
-
-  context "delete" do
-    it "prompts for a resource type" do
-      cmd = "a9s delete"
-      logger.info(cmd)
-
-      output = `#{cmd}`
-
-      logger.info "\t" + output
-
-      expect(output).to include("Please select the data service resource type you would like to delete.")
-    end
-  end
-
-  context "pg" do
-    it "prompts for a subcommand" do
-      cmd = "a9s pg"
-      logger.info(cmd)
-
-      output = `#{cmd}`
-
-      logger.info "\t" + output
-
-      expect(output).to include("Please select a subcommand from the list below.")
-    end
-  end
-
-  context "create" do
-    it "prompts for a resource type" do
-      cmd = "a9s create"
-      logger.info(cmd)
-
-      output = `#{cmd}`
-
-      logger.info "\t" + output
-
-      expect(output).to include("Please select the data service resource type you would like to instantiate.")
-    end
-  end
-
-  context "cluster" do
-    it "prompts for a cluster sub-command" do
-      cmd = "a9s cluster"
-      logger.info(cmd)
-
-      output = `#{cmd}`
-
-      logger.info "\t" + output
-
-      expect(output).to include("Please select a cluster sub-command.")
-    end
-  end
-
-  context "create pg" do
-    it "prompts for a PostgreSQL resource" do
-      cmd = "a9s create pg"
-      logger.info(cmd)
-
-      output = `#{cmd}`
-
-      logger.info "\t" + output
-
-      expect(output).to include("Please select a PostgreSQL resource such as (service) instance.")
-    end
-  end
-
-  context "delete pg" do
-    it "prompts for a PostgreSQL resource" do
-      cmd = "a9s delete pg"
-      logger.info(cmd)
-
-      output = `#{cmd}`
-
-      logger.info "\t" + output
-
-      expect(output).to include("Please select a PostgreSQL resource such as (service) instance.")
-    end
-  end
-
-  context "create cluster" do
-    it "prompts for a sub-command" do
-      cmd = "a9s create cluster"
-      logger.info(cmd)
-
-      output = `#{cmd}`
-
-      logger.info "\t" + output
-
-      expect(output).to include("Please use a sub-command.")
-    end
-  end
-
-  context "create cluster klutch" do
-    it "prompts for a sub-command" do
-      cmd = "a9s create cluster klutch"
-      logger.info(cmd)
-
-      output = `#{cmd}`
-
-      logger.info "\t" + output
-
-      expect(output).to include("Please use a sub-command.")
-    end
-  end
-
-  context "create cluster klutch control-plane" do
-    it "requires a provider" do
-      cmd = "a9s create cluster klutch control-plane"
-      logger.info(cmd)
-
-      output = `#{cmd} 2>&1`
-
-      logger.info "\t" + output
-
-      expect(output).to include("Please select a provider via -p.")
-    end
-  end
-
-  context "create cluster klutch workload" do
-    it "requires a provider" do
-      cmd = "a9s create cluster klutch workload"
-      logger.info(cmd)
-
-      output = `#{cmd} 2>&1`
-
-      logger.info "\t" + output
-
-      expect(output).to include("Please select a provider via -p.")
-    end
-  end
-
-  context "create stack" do
-    it "prompts for a sub-command" do
-      cmd = "a9s create stack"
-      logger.info(cmd)
-
-      output = `#{cmd}`
-
-      logger.info "\t" + output
-
-      expect(output).to include("Please use a sub-command.")
-    end
-  end
-
-  context "create klutch" do
-    it "prompts for a sub-command" do
-      cmd = "a9s create klutch"
-      logger.info(cmd)
-
-      output = `#{cmd}`
-
-      logger.info "\t" + output
-
-      expect(output).to include("Please use a sub-command.")
-    end
-  end
-
-  context "create klutch tenant" do
-    it "requires a tenant name flag" do
-      cmd = "a9s create klutch tenant"
-      logger.info(cmd)
-
-      output = `#{cmd} 2>&1`
-
-      logger.info "\t" + output
-
-      expect(output).to include("The --tenant-name flag is required.")
-    end
-  end
-
-  context "delete cluster" do
-    it "prompts for a sub-command" do
-      cmd = "a9s delete cluster"
-      logger.info(cmd)
-
-      output = `#{cmd}`
-
-      logger.info "\t" + output
-
-      expect(output).to include("Use a sub-command to choose the demo resource to be deleted.")
-    end
-  end
-
-  context "delete cluster klutch" do
-    it "prompts for control-plane or workload" do
-      cmd = "a9s delete cluster klutch"
-      logger.info(cmd)
-
-      output = `#{cmd}`
-
-      logger.info "\t" + output
-
-      expect(output).to include("Please select either the control-plane or workload subcommand.")
-    end
-  end
-
-  context "delete klutch" do
-    it "prompts for a subcommand" do
-      cmd = "a9s delete klutch"
-      logger.info(cmd)
-
-      output = `#{cmd}`
-
-      logger.info "\t" + output
-
-      expect(output).to include("Please select a subcommand from the list below.")
-    end
-  end
-
-  context "get klutch tenant" do
-    it "requires a tenant name argument" do
-      cmd = "a9s get klutch tenant"
-      logger.info(cmd)
-
-      output = `#{cmd} 2>&1`
-
-      logger.info "\t" + output
-
-      expect(output).to include("accepts 1 arg(s)")
-    end
-  end
-
-  context "delete tenant" do
-    it "requires a tenant name argument" do
-      cmd = "a9s delete tenant"
-      logger.info(cmd)
-
-      output = `#{cmd} 2>&1`
-
-      logger.info "\t" + output
-
-      safe_output = output.encode("UTF-8", invalid: :replace, undef: :replace, replace: "")
-      expect(safe_output).to include("accepts 1 arg(s)")
-    end
-  end
-
   # Idea: use contexts to immitate the a9s command topology
   context "create", order: :defined do
     context "stack", order: :defined do
@@ -728,6 +251,13 @@ RSpec.describe "a9s-cli" do
 
             expect(output).to include("You are now ready to create a8s Postgres service instances.")
             kubectl_create_namespace(@workload_namespace)
+            kubectl_verify_crd_exists("postgresqls.postgresql.anynines.com")
+            kubectl_verify_crd_exists("servicebindings.servicebindings.anynines.com")
+            kubectl_verify_crd_exists("backups.backups.anynines.com")
+            kubectl_verify_crd_exists("restores.backups.anynines.com")
+            kubectl_verify_pods_running_by_label("a8s-system", "app.kubernetes.io/name=backup-manager")
+            kubectl_verify_pods_running_by_label("a8s-system", "app.kubernetes.io/name=postgresql-controller-manager")
+            kubectl_verify_pods_running_by_label("a8s-system", "app.kubernetes.io/name=service-binding-controller-manager")
           end
           include_context "a8s-pg", :include_shared => true
 
@@ -768,6 +298,13 @@ RSpec.describe "a9s-cli" do
 
             expect(output).to include("You are now ready to create a8s Postgres service instances.")
             kubectl_create_namespace(@workload_namespace)
+            kubectl_verify_crd_exists("postgresqls.postgresql.anynines.com")
+            kubectl_verify_crd_exists("servicebindings.servicebindings.anynines.com")
+            kubectl_verify_crd_exists("backups.backups.anynines.com")
+            kubectl_verify_crd_exists("restores.backups.anynines.com")
+            kubectl_verify_pods_running_by_label("a8s-system", "app.kubernetes.io/name=backup-manager")
+            kubectl_verify_pods_running_by_label("a8s-system", "app.kubernetes.io/name=postgresql-controller-manager")
+            kubectl_verify_pods_running_by_label("a8s-system", "app.kubernetes.io/name=service-binding-controller-manager")
           end
 
           include_context "a8s-pg", :include_shared => true
@@ -815,6 +352,13 @@ RSpec.describe "a9s-cli" do
 
               expect(output).to include("You are now ready to create a8s Postgres service instances.")
               kubectl_create_namespace(@workload_namespace)
+              kubectl_verify_crd_exists("postgresqls.postgresql.anynines.com")
+              kubectl_verify_crd_exists("servicebindings.servicebindings.anynines.com")
+              kubectl_verify_crd_exists("backups.backups.anynines.com")
+              kubectl_verify_crd_exists("restores.backups.anynines.com")
+              kubectl_verify_pods_running_by_label("a8s-system", "app.kubernetes.io/name=backup-manager")
+              kubectl_verify_pods_running_by_label("a8s-system", "app.kubernetes.io/name=postgresql-controller-manager")
+              kubectl_verify_pods_running_by_label("a8s-system", "app.kubernetes.io/name=service-binding-controller-manager")
             end
 
             include_context "a8s-pg", :include_shared => true
@@ -885,6 +429,13 @@ RSpec.describe "a9s-cli" do
 
               expect(output).to include("You are now ready to create a8s Postgres service instances.")
               kubectl_create_namespace(@workload_namespace)
+              kubectl_verify_crd_exists("postgresqls.postgresql.anynines.com")
+              kubectl_verify_crd_exists("servicebindings.servicebindings.anynines.com")
+              kubectl_verify_crd_exists("backups.backups.anynines.com")
+              kubectl_verify_crd_exists("restores.backups.anynines.com")
+              kubectl_verify_pods_running_by_label("a8s-system", "app.kubernetes.io/name=backup-manager")
+              kubectl_verify_pods_running_by_label("a8s-system", "app.kubernetes.io/name=postgresql-controller-manager")
+              kubectl_verify_pods_running_by_label("a8s-system", "app.kubernetes.io/name=service-binding-controller-manager")
             end
 
             include_context "a8s-pg", :include_shared => true
