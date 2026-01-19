@@ -142,6 +142,19 @@ func ensureTrailingDot(name string) string {
 	return name + "."
 }
 
+func parentZoneCandidates(hostedZoneName string) []string {
+	name := strings.TrimSuffix(hostedZoneName, ".")
+	parts := strings.Split(name, ".")
+	if len(parts) < 2 {
+		return nil
+	}
+	candidates := make([]string, 0, len(parts)-1)
+	for i := 1; i < len(parts); i++ {
+		candidates = append(candidates, strings.Join(parts[i:], "."))
+	}
+	return candidates
+}
+
 func ensureDualstackALBDNS(albDNS string) string {
 	if albDNS == "" {
 		return albDNS
@@ -637,6 +650,7 @@ func (p *AWSProvisioner) EnsurePublicHostedZone(hostedZoneName string) ([]string
 		if err != nil {
 			return nil, err
 		}
+		p.ensureParentDelegation(ctx, hostedZoneName, ns)
 		return ns, nil
 	}
 
@@ -657,5 +671,91 @@ func (p *AWSProvisioner) EnsurePublicHostedZone(hostedZoneName string) ([]string
 
 	ns := created.DelegationSet.NameServers
 	makeup.PrintInfo(fmt.Sprintf("Created public hosted zone %s. Nameservers: %s", hostedZoneName, strings.Join(ns, ", ")))
+	p.ensureParentDelegation(ctx, hostedZoneName, ns)
 	return ns, nil
+}
+
+func (p *AWSProvisioner) ensureParentDelegation(ctx context.Context, hostedZoneName string, nameServers []string) {
+	if len(nameServers) == 0 {
+		return
+	}
+
+	var parentZoneID string
+	var parentZoneName string
+	for _, candidate := range parentZoneCandidates(hostedZoneName) {
+		id, err := p.findPublicZoneID(ctx, candidate)
+		if err == nil && id != "" {
+			parentZoneID = id
+			parentZoneName = candidate
+			break
+		}
+	}
+
+	if parentZoneID == "" {
+		makeup.PrintWarning(fmt.Sprintf("No parent public hosted zone found for %s; cannot auto-delegate NS records.", hostedZoneName))
+		return
+	}
+
+	records := make([]types.ResourceRecord, 0, len(nameServers))
+	for _, ns := range nameServers {
+		records = append(records, types.ResourceRecord{Value: aws.String(ensureTrailingDot(ns))})
+	}
+
+	change := &types.Change{
+		Action: types.ChangeActionUpsert,
+		ResourceRecordSet: &types.ResourceRecordSet{
+			Name:            aws.String(ensureTrailingDot(hostedZoneName)),
+			Type:            types.RRTypeNs,
+			TTL:             aws.Int64(300),
+			ResourceRecords: records,
+		},
+	}
+
+	changeResp, err := p.r53Client.ChangeResourceRecordSets(ctx, &route53.ChangeResourceRecordSetsInput{
+		HostedZoneId: aws.String(parentZoneID),
+		ChangeBatch: &types.ChangeBatch{
+			Changes: []types.Change{*change},
+		},
+	})
+	if err != nil {
+		makeup.PrintWarning(fmt.Sprintf("Failed to update NS delegation in parent zone %s for %s: %v", parentZoneName, hostedZoneName, err))
+		return
+	}
+
+	changeID := aws.ToString(changeResp.ChangeInfo.Id)
+	for i := 0; i < route53MaxRetries; i++ {
+		time.Sleep(route53PollDelay)
+		statusOut, err := p.r53Client.GetChange(ctx, &route53.GetChangeInput{Id: aws.String(changeID)})
+		if err != nil {
+			makeup.PrintWarning(fmt.Sprintf("Failed to check NS delegation change status for %s: %v", hostedZoneName, err))
+			return
+		}
+		if statusOut.ChangeInfo.Status == types.ChangeStatusInsync {
+			makeup.PrintInfo(fmt.Sprintf("Ensured NS delegation for %s in parent zone %s.", hostedZoneName, parentZoneName))
+			return
+		}
+	}
+	makeup.PrintWarning(fmt.Sprintf("NS delegation for %s in parent zone %s did not become INSYNC in time.", hostedZoneName, parentZoneName))
+}
+
+func (p *AWSProvisioner) findPublicZoneID(ctx context.Context, hostedZoneName string) (string, error) {
+	normalized := ensureTrailingDot(hostedZoneName)
+	out, err := p.r53Client.ListHostedZonesByName(ctx, &route53.ListHostedZonesByNameInput{
+		DNSName: aws.String(normalized),
+	})
+	if err != nil {
+		return "", fmt.Errorf("listing hosted zones: %w", err)
+	}
+
+	for _, zone := range out.HostedZones {
+		if aws.ToString(zone.Name) != normalized {
+			continue
+		}
+		if zone.Config != nil && zone.Config.PrivateZone {
+			continue
+		}
+		return strings.TrimPrefix(aws.ToString(zone.Id), "/hostedzone/"), nil
+	}
+
+	return "", fmt.Errorf("public hosted zone %s not found", hostedZoneName)
 }

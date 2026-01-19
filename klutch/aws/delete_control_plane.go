@@ -26,6 +26,7 @@ type DeleteOptions struct {
 	DryRun                  bool
 	ForceDNS                bool
 	CleanupOrphans          bool
+	SkipPrompt              bool
 }
 
 // DeleteControlPlaneCluster tears down the EKS control plane and AWS resources that were created by CreateControlPlaneCluster.
@@ -81,10 +82,14 @@ func deleteCluster(ctx context.Context, cfg Config, opts DeleteOptions) {
 	awsLogger.Printf("Force DNS:                        %t", opts.ForceDNS)
 
 	if !opts.DryRun {
-		prompt := fmt.Sprintf("This will delete the Klutch %s on AWS. Type 'yes' to continue: ", strings.ToLower(cfg.ClusterRole))
-		if !makeup.ConfirmYes(prompt) {
-			makeup.PrintInfo("Deletion aborted.")
-			return
+		if opts.SkipPrompt {
+			awsLogger.Infof("Skipping delete confirmation because --yes and --really were provided.")
+		} else {
+			prompt := fmt.Sprintf("This will delete the Klutch %s on AWS. Type 'yes' to continue: ", strings.ToLower(cfg.ClusterRole))
+			if !makeup.ConfirmYes(prompt) {
+				makeup.PrintInfo("Deletion aborted.")
+				return
+			}
 		}
 	}
 

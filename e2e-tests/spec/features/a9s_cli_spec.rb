@@ -31,6 +31,10 @@ RSpec.shared_context "a8s-pg", :shared_context => :metadata, order: :defined do
       expect(safe_output).to include("The #{@service_instance_name} system appears to be ready. All expected pods are running.")
       kubectl_verify_pg_service_instance_exists(@service_instance_name, @workload_namespace)
       kubectl_verify_pg_pods_running(@service_instance_name, @workload_namespace, 3)
+      master_service_name = "#{@service_instance_name}-master"
+      kubectl_verify_service_exists(master_service_name, @workload_namespace)
+      kubectl_verify_secret_exists("postgres.credentials.#{@service_instance_name}", @workload_namespace)
+      kubectl_verify_secret_exists("standby.credentials.#{@service_instance_name}", @workload_namespace)
     end
   end
 
@@ -121,6 +125,8 @@ RSpec.shared_context "a8s-pg", :shared_context => :metadata, order: :defined do
 
       # Verify the service binding has actually been deleted from Kubernetes
       kubectl_verify_service_binding_not_exists(@service_binding_name, @workload_namespace)
+      secret_name = "#{@service_binding_name}-service-binding"
+      kubectl_verify_secret_not_exists(secret_name, @workload_namespace)
     end
   end
 
@@ -207,6 +213,10 @@ RSpec.shared_context "a8s-pg", :shared_context => :metadata, order: :defined do
       expect(output).to include("Service instance #{@service_instance_name} successfully deleted from namespace #{@workload_namespace}.")
       kubectl_verify_pg_service_instance_not_exists(@service_instance_name, @workload_namespace)
       kubectl_verify_pg_pods_not_exists(@service_instance_name, @workload_namespace, 3)
+      master_service_name = "#{@service_instance_name}-master"
+      kubectl_verify_service_not_exists(master_service_name, @workload_namespace)
+      kubectl_verify_secret_not_exists("postgres.credentials.#{@service_instance_name}", @workload_namespace)
+      kubectl_verify_secret_not_exists("standby.credentials.#{@service_instance_name}", @workload_namespace)
     end
 
     it "warns when deleting a non-existing a8s pg service instance" do
@@ -488,6 +498,43 @@ RSpec.describe "a9s-cli" do
                 expect(Minikube::does_demo_cluster_exist?).to be(false)
               end
             end
+          end
+        end
+      end
+      context "klutch", order: :defined do
+        context "control-plane", :aws => true, :very_expensive => true do
+          before(:context) do
+            unless aws_cli_available?
+              skip("Skipping Klutch control-plane tests. Requires aws_cli.")
+            end
+            unless aws_credentials_available?
+              skip("Skipping Klutch control-plane tests. Requires logged-in aws_cli.")
+            end
+
+            @klutch_hosted_zone = ENV.fetch("A9S_E2E_KLUTCH_HOSTED_ZONE", "hub.test.a9s.io")
+          end
+
+          it "creates a Klutch control plane cluster (VERY EXPENSIVE; requires aws_cli)", :clusterop => true, :slow => true, :very_expensive => true do
+            cmd = "a9s create cluster klutch control-plane -p aws --verbose --yes"
+            cmd += " --hosted-zone-name #{@klutch_hosted_zone}"
+
+            logger.info cmd
+            output = `#{cmd}`
+            logger.info "\t" + output
+
+            expect($?.success?).to be(true)
+            expect(output).to include("Klutch control plane EKS cluster is ready.")
+          end
+
+          it "deletes the Klutch control plane cluster (VERY EXPENSIVE; requires aws_cli)", :clusterop => true, :slow => true, :very_expensive => true do
+            cmd = "a9s delete cluster klutch control-plane -p aws --verbose --yes --really"
+            logger.info cmd
+
+            output = `#{cmd}`
+            logger.info "\t" + output
+
+            expect($?.success?).to be(true)
+            expect(output).to include("Cluster deleted.")
           end
         end
       end

@@ -115,6 +115,35 @@ def log_file
   file
 end
 
+def aws_cli_available?
+  system("command -v aws >/dev/null 2>&1")
+end
+
+def aws_credentials_available?
+  system("aws sts get-caller-identity >/dev/null 2>&1")
+end
+
+def aws_region_available?
+  ENV["AWS_REGION"].to_s != "" || ENV["AWS_DEFAULT_REGION"].to_s != ""
+end
+
+def dns_ns_resolvable?(zone)
+  zone = zone.to_s.strip
+  return false if zone.empty?
+
+  if system("command -v dig >/dev/null 2>&1")
+    output = `dig +short NS #{Shellwords.escape(zone)} @8.8.8.8 2>/dev/null`.strip
+    return !output.empty?
+  end
+
+  if system("command -v nslookup >/dev/null 2>&1")
+    output = `nslookup -type=NS #{Shellwords.escape(zone)} 8.8.8.8 2>/dev/null`
+    return output.include?("nameserver")
+  end
+
+  false
+end
+
 def logger
   $logger ||= Logger.new log_file
   $logger.level = Logger::INFO
@@ -193,6 +222,17 @@ def kubectl_verify_secret_exists(name, namespace)
   end
 end
 
+def kubectl_verify_secret_not_exists(name, namespace, timeout_seconds: 60, sleep_seconds: 5)
+  deadline = Time.now + timeout_seconds
+  loop do
+    return unless kubectl_secret_exists?(name, namespace)
+    if Time.now >= deadline
+      raise "Secret #{name} still exists in namespace #{namespace} after #{timeout_seconds}s"
+    end
+    sleep(sleep_seconds)
+  end
+end
+
 def kubectl_secret_data(name, namespace, key)
   cmd = "kubectl get secret #{name} -n #{namespace} -o jsonpath='{.data.#{key}}' 2>/dev/null"
   logger.info(cmd)
@@ -213,6 +253,17 @@ end
 def kubectl_verify_service_exists(name, namespace)
   unless kubectl_service_exists?(name, namespace)
     raise "Service #{name} does not exist in namespace #{namespace}"
+  end
+end
+
+def kubectl_verify_service_not_exists(name, namespace, timeout_seconds: 60, sleep_seconds: 5)
+  deadline = Time.now + timeout_seconds
+  loop do
+    return unless kubectl_service_exists?(name, namespace)
+    if Time.now >= deadline
+      raise "Service #{name} still exists in namespace #{namespace} after #{timeout_seconds}s"
+    end
+    sleep(sleep_seconds)
   end
 end
 
