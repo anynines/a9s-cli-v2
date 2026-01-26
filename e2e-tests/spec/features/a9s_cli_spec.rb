@@ -524,9 +524,24 @@ RSpec.describe "a9s-cli" do
 
             expect($?.success?).to be(true)
             expect(output).to include("Klutch control plane EKS cluster is ready.")
+
+            region = klutch_control_plane_region
+            vpc_id = aws_verify_vpc_exists(
+              { "Klutch" => "ControlPlane", "Name" => "klutch-control-plane-vpc" },
+              region: region,
+              timeout_seconds: 900
+            )
+            expect(vpc_id).not_to eq("")
           end
 
           it "deletes the Klutch control plane cluster (VERY EXPENSIVE; requires aws_cli)", :clusterop => true, :slow => true, :very_expensive => true do
+            region = klutch_control_plane_region
+            vpc_id = aws_find_vpc_id_by_tags(
+              { "Klutch" => "ControlPlane", "Name" => "klutch-control-plane-vpc" },
+              region: region
+            )
+            expect(vpc_id).not_to eq("")
+
             cmd = "a9s delete cluster klutch control-plane -p aws --verbose --yes --really"
             logger.info cmd
 
@@ -535,6 +550,11 @@ RSpec.describe "a9s-cli" do
 
             expect($?.success?).to be(true)
             expect(output).to include("Cluster deleted.")
+
+            aws_verify_vpc_deleted(vpc_id, region: region, timeout_seconds: 900)
+            expect(
+              aws_find_vpc_id_by_tags({ "Klutch" => "ControlPlane", "Name" => "klutch-control-plane-vpc" }, region: region)
+            ).to eq("")
           end
         end
       end

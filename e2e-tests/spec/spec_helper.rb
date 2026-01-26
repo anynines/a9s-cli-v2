@@ -127,6 +127,54 @@ def aws_region_available?
   ENV["AWS_REGION"].to_s != "" || ENV["AWS_DEFAULT_REGION"].to_s != ""
 end
 
+def klutch_control_plane_region
+  ENV.fetch("A9S_E2E_KLUTCH_REGION", "eu-central-1").to_s.strip
+end
+
+def aws_find_vpc_id_by_tags(tags, region:)
+  filters = tags.map { |k, v| "Name=tag:#{k},Values=#{v}" }
+  args = ["aws", "ec2", "describe-vpcs", "--filters", *filters, "--query", "Vpcs[0].VpcId", "--output", "text"]
+  args += ["--region", region] unless region.to_s.strip.empty?
+  cmd = Shellwords.join(args)
+  logger.info(cmd)
+
+  vpc_id = `#{cmd}`.strip
+  return "" if vpc_id.empty? || vpc_id == "None" || vpc_id == "null"
+
+  vpc_id
+end
+
+def aws_vpc_exists?(vpc_id, region:)
+  args = ["aws", "ec2", "describe-vpcs", "--vpc-ids", vpc_id]
+  args += ["--region", region] unless region.to_s.strip.empty?
+  cmd = Shellwords.join(args) + " >/dev/null 2>&1"
+  logger.info(cmd)
+  system(cmd)
+end
+
+def aws_verify_vpc_deleted(vpc_id, region:, timeout_seconds: 600, sleep_seconds: 10)
+  deadline = Time.now + timeout_seconds
+  loop do
+    return unless aws_vpc_exists?(vpc_id, region: region)
+    if Time.now >= deadline
+      raise "VPC #{vpc_id} still exists in region #{region} after #{timeout_seconds}s"
+    end
+    sleep(sleep_seconds)
+  end
+end
+
+def aws_verify_vpc_exists(tags, region:, timeout_seconds: 600, sleep_seconds: 10)
+  deadline = Time.now + timeout_seconds
+  loop do
+    vpc_id = aws_find_vpc_id_by_tags(tags, region: region)
+    return vpc_id unless vpc_id.empty?
+    if Time.now >= deadline
+      raise "No VPC found with tags #{tags.inspect} in region #{region} after #{timeout_seconds}s"
+    end
+    sleep(sleep_seconds)
+  end
+end
+
 def dns_ns_resolvable?(zone)
   zone = zone.to_s.strip
   return false if zone.empty?
