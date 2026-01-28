@@ -534,6 +534,32 @@ RSpec.describe "a9s-cli" do
             expect(vpc_id).not_to eq("")
           end
 
+          it "creates a Klutch tenant (VERY EXPENSIVE; requires existing control plane)", :clusterop => true, :slow => true, :very_expensive => true do
+            tenant_name = ENV.fetch("A9S_E2E_KLUTCH_TENANT_NAME", "workload-test-01").to_s.strip
+            expect(tenant_name).not_to eq("")
+
+            tenant_namespace = "a9s-tenants-operator-system"
+            kubectl_verify_crd_exists("tenants.klutch.anynines.com")
+
+            cmd = "a9s create klutch tenant --tenant-name #{tenant_name} --yes"
+            logger.info cmd
+
+            output = `#{cmd}`
+            logger.info "\t" + output
+
+            expect($?.success?).to be(true)
+            expect(output).to include("Tenant #{tenant_name} created via tenant operator")
+
+            kubectl_wait_for_tenant_ready(tenant_name, namespace: tenant_namespace, timeout_seconds: 900)
+
+            region = klutch_control_plane_region
+            user_pool_id = aws_verify_cognito_user_pool_exists({ "Klutch" => "ControlPlane" }, region: region, timeout_seconds: 900)
+            expect(user_pool_id).not_to eq("")
+
+            secret_name = "klutch/#{tenant_name}/oidc-client"
+            aws_verify_secretsmanager_secret_exists(secret_name, region: region, timeout_seconds: 900)
+          end
+
           it "deletes the Klutch control plane cluster (VERY EXPENSIVE; requires aws_cli)", :clusterop => true, :slow => true, :very_expensive => true do
             region = klutch_control_plane_region
             vpc_id = aws_find_vpc_id_by_tags(

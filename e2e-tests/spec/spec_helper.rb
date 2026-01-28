@@ -1,4 +1,5 @@
 require 'base64'
+require 'json'
 require 'logger'
 require 'shellwords'
 
@@ -170,6 +171,80 @@ def aws_verify_vpc_exists(tags, region:, timeout_seconds: 600, sleep_seconds: 10
     return vpc_id unless vpc_id.empty?
     if Time.now >= deadline
       raise "No VPC found with tags #{tags.inspect} in region #{region} after #{timeout_seconds}s"
+    end
+    sleep(sleep_seconds)
+  end
+end
+
+def aws_cognito_user_pool_ids(region:)
+  args = ["aws", "cognito-idp", "list-user-pools", "--max-results", "50", "--query", "UserPools[].Id", "--output", "text"]
+  args += ["--region", region] unless region.to_s.strip.empty?
+  cmd = Shellwords.join(args)
+  logger.info(cmd)
+
+  out = `#{cmd}`.strip
+  return [] unless $?.success?
+  strings = out.split
+  strings.reject(&:empty?)
+end
+
+def aws_cognito_user_pool_tags(pool_id, region:)
+  arn_args = ["aws", "cognito-idp", "describe-user-pool", "--user-pool-id", pool_id, "--query", "UserPool.Arn", "--output", "text"]
+  arn_args += ["--region", region] unless region.to_s.strip.empty?
+  arn_cmd = Shellwords.join(arn_args)
+  logger.info(arn_cmd)
+
+  arn = `#{arn_cmd}`.strip
+  return {} unless $?.success? && !arn.empty? && arn != "None" && arn != "null"
+
+  args = ["aws", "cognito-idp", "list-tags-for-resource", "--resource-arn", arn, "--query", "Tags", "--output", "json"]
+  args += ["--region", region] unless region.to_s.strip.empty?
+  cmd = Shellwords.join(args)
+  logger.info(cmd)
+
+  out = `#{cmd}`.strip
+  return {} unless $?.success? && !out.empty? && out != "null" && out != "None"
+
+  JSON.parse(out)
+rescue JSON::ParserError
+  {}
+end
+
+def aws_find_cognito_user_pool_id_by_tags(tags, region:)
+  aws_cognito_user_pool_ids(region: region).each do |pid|
+    pool_tags = aws_cognito_user_pool_tags(pid, region: region)
+    next if pool_tags.empty?
+    return pid if tags.all? { |k, v| pool_tags[k] == v }
+  end
+  ""
+end
+
+def aws_verify_cognito_user_pool_exists(tags, region:, timeout_seconds: 600, sleep_seconds: 10)
+  deadline = Time.now + timeout_seconds
+  loop do
+    pool_id = aws_find_cognito_user_pool_id_by_tags(tags, region: region)
+    return pool_id unless pool_id.empty?
+    if Time.now >= deadline
+      raise "No Cognito user pool found with tags #{tags.inspect} in region #{region} after #{timeout_seconds}s"
+    end
+    sleep(sleep_seconds)
+  end
+end
+
+def aws_secretsmanager_secret_exists?(secret_name, region:)
+  args = ["aws", "secretsmanager", "describe-secret", "--secret-id", secret_name, "--query", "ARN", "--output", "text"]
+  args += ["--region", region] unless region.to_s.strip.empty?
+  cmd = Shellwords.join(args) + " >/dev/null 2>&1"
+  logger.info(cmd)
+  system(cmd)
+end
+
+def aws_verify_secretsmanager_secret_exists(secret_name, region:, timeout_seconds: 600, sleep_seconds: 10)
+  deadline = Time.now + timeout_seconds
+  loop do
+    return if aws_secretsmanager_secret_exists?(secret_name, region: region)
+    if Time.now >= deadline
+      raise "Secrets Manager secret #{secret_name} not found in region #{region} after #{timeout_seconds}s"
     end
     sleep(sleep_seconds)
   end
@@ -454,5 +529,50 @@ def kubectl_verify_pods_running_by_label(namespace, label_selector)
   phases = `#{cmd}`.strip
   unless phases.split.any? { |p| p == "Running" }
     raise "No running pods found in #{namespace} with label #{label_selector} (phases=#{phases})"
+  end
+end
+
+def kubectl_tenant_ready?(name, namespace:)
+  args = ["kubectl", "get", "tenants.klutch.anynines.com", name, "-n", namespace, "-o", "json"]
+  cmd = Shellwords.join(args)
+  logger.info(cmd)
+  out = `#{cmd}`.strip
+  return false unless $?.success? && !out.empty?
+
+  data = JSON.parse(out)
+  status = data["status"] || {}
+  phase = status["phase"].to_s.strip
+  return true if phase.casecmp("Ready").zero?
+
+  conditions = status["conditions"]
+  if conditions.is_a?(Array)
+    conditions.each do |cond|
+      next unless cond.is_a?(Hash)
+      next unless cond["status"].to_s.strip.casecmp("True").zero?
+      type = cond["type"].to_s.strip
+      return true if ["Ready", "CredentialsReady", "IdPReady"].any? { |t| t.casecmp(type).zero? }
+    end
+  end
+
+  oidc = status["oidc"]
+  if oidc.is_a?(Hash)
+    client_id = oidc["clientID"].to_s.strip
+    issuer = oidc["issuer"].to_s.strip
+    return true unless client_id.empty? || issuer.empty?
+  end
+
+  false
+rescue JSON::ParserError
+  false
+end
+
+def kubectl_wait_for_tenant_ready(name, namespace:, timeout_seconds: 600, sleep_seconds: 10)
+  deadline = Time.now + timeout_seconds
+  loop do
+    return if kubectl_tenant_ready?(name, namespace: namespace)
+    if Time.now >= deadline
+      raise "Tenant #{namespace}/#{name} did not become ready after #{timeout_seconds}s"
+    end
+    sleep(sleep_seconds)
   end
 end
