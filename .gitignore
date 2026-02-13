@@ -47,6 +47,9 @@ a9s-tenants-operator*
 a9s-cli-v2-aws-chuchu15.code-workspace
 .gocache/*
 warp.md
-test.log
 Gemfile.lock
 e2e-tests/vendor
+.ruby-version
+e2e-tests/rspec.log
+e2e-tests/test.log
+rspec.log

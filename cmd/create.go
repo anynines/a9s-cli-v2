@@ -467,6 +467,12 @@ var cmdCreateClusterKlutchWorkload = &cobra.Command{
 			if strings.TrimSpace(conn.BindURL) == "" {
 				makeup.ExitDueToFatalError(nil, "Tenant secret is missing bind_url. Provide a tenant with bind_url or recreate the tenant.")
 			}
+			if strings.TrimSpace(conn.TokenURL) == "" || strings.HasPrefix(strings.TrimSpace(conn.TokenURL), "https://.") {
+				makeup.ExitDueToFatalError(nil, "Tenant secret has an invalid token_url. Recreate the tenant and ensure Cognito domain provisioning succeeded.")
+			}
+			if strings.TrimSpace(conn.ClientID) == "" || strings.TrimSpace(conn.ClientSecret) == "" || strings.TrimSpace(conn.Scope) == "" {
+				makeup.ExitDueToFatalError(nil, "Tenant secret is missing required OIDC fields (client_id/client_secret/scope). Recreate the tenant.")
+			}
 			tenantConn = &conn
 
 			if strings.TrimSpace(createKlutchWorkloadBindRequestFile) != "" {

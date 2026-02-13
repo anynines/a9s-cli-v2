@@ -517,6 +517,7 @@ RSpec.describe "a9s-cli" do
           it "creates a Klutch control plane cluster (VERY EXPENSIVE; requires aws_cli)", :clusterop => true, :slow => true, :very_expensive => true do
             cmd = "a9s create cluster klutch control-plane -p aws --verbose --yes"
             cmd += " --hosted-zone-name #{@klutch_hosted_zone}"
+            cmd += " --tenant-operator-bind-url https://klutch-bind.#{@klutch_hosted_zone}/bind-noninteractive"
 
             logger.info cmd
             output = `#{cmd}`
@@ -535,7 +536,7 @@ RSpec.describe "a9s-cli" do
           end
 
           it "creates a Klutch tenant (VERY EXPENSIVE; requires existing control plane)", :clusterop => true, :slow => true, :very_expensive => true do
-            tenant_name = ENV.fetch("A9S_E2E_KLUTCH_TENANT_NAME", "workload-test-01").to_s.strip
+            tenant_name = klutch_e2e_tenant_name
             expect(tenant_name).not_to eq("")
 
             tenant_namespace = "a9s-tenants-operator-system"
@@ -558,9 +559,74 @@ RSpec.describe "a9s-cli" do
 
             secret_name = "klutch/#{tenant_name}/oidc-client"
             aws_verify_secretsmanager_secret_exists(secret_name, region: region, timeout_seconds: 900)
+            aws_verify_tenant_oidc_secret_valid(secret_name, region: region, timeout_seconds: 900)
+
+            secret_json = aws_secretsmanager_get_secret_json(secret_name, region: region)
+            expect(secret_json["bind_url"].to_s).to include("klutch-bind.#{@klutch_hosted_zone}")
           end
 
-          it "deletes the Klutch control plane cluster (VERY EXPENSIVE; requires aws_cli)", :clusterop => true, :slow => true, :very_expensive => true do
+          it "creates a Klutch workload cluster with 1 EKS node (VERY EXPENSIVE; requires existing control plane and tenant)", :clusterop => true, :slow => true, :very_expensive => true do
+            tenant_name = klutch_e2e_tenant_name
+            expect(tenant_name).not_to eq("")
+
+            region = klutch_control_plane_region
+            unless aws_eks_cluster_exists?("klutch-control-plane", region: region)
+              skip("Skipping Klutch workload test. Requires existing EKS cluster klutch-control-plane in region #{region}.")
+            end
+
+            secret_name = "klutch/#{tenant_name}/oidc-client"
+            unless aws_secretsmanager_secret_exists?(secret_name, region: region)
+              skip("Skipping Klutch workload test. Requires tenant secret #{secret_name} in Secrets Manager (region #{region}).")
+            end
+            begin
+              aws_verify_tenant_oidc_secret_valid(secret_name, region: region, timeout_seconds: 180)
+            rescue RuntimeError => e
+              skip("Skipping Klutch workload test. Tenant secret #{secret_name} is not ready: #{e.message}")
+            end
+
+            cmd = "a9s create cluster klutch workload -p aws --tenant-name #{tenant_name} --eks-nodes 1 --yes"
+            logger.info cmd
+
+            output = `#{cmd}`
+            logger.info "\t" + output
+
+            workload_cluster_name = extract_klutch_workload_cluster_name(output)
+            klutch_e2e_set_workload_cluster_name(workload_cluster_name) unless workload_cluster_name.to_s.strip == ""
+
+            expect($?.success?).to be(true)
+            expect(output).to include("Klutch workload EKS cluster is ready.")
+
+            expect(workload_cluster_name).not_to eq("")
+
+            nodegroup_name = "#{workload_cluster_name}-nodegroup"
+            scaling = aws_eks_nodegroup_scaling_config(workload_cluster_name, nodegroup_name, region: region)
+            expect(scaling["min"]).to eq(1)
+            expect(scaling["max"]).to eq(1)
+            expect(scaling["desired"]).to eq(1)
+          end
+
+          it "deletes the Klutch workload cluster (VERY EXPENSIVE; cleanup)", :clusterop => true, :slow => true, :very_expensive => true, :cleanup => true do
+            region = klutch_control_plane_region
+
+            workload_cluster_name = klutch_e2e_workload_cluster_name
+            if workload_cluster_name.to_s.strip == ""
+              skip("Skipping Klutch workload cleanup. No workload cluster name stored (run create first).")
+            end
+            unless aws_eks_cluster_exists?(workload_cluster_name, region: region)
+              skip("Skipping Klutch workload cleanup. EKS cluster #{workload_cluster_name} not found in region #{region}.")
+            end
+
+            cmd = "a9s delete cluster klutch workload -p aws --cluster-name #{workload_cluster_name} --yes --really"
+            logger.info cmd
+
+            output = `#{cmd}`
+            logger.info "\t" + output
+
+            expect($?.success?).to be(true)
+            expect(output).to include("Cluster deleted.")
+          end
+
+          it "deletes the Klutch control plane cluster (VERY EXPENSIVE; requires aws_cli)", :clusterop => true, :slow => true, :very_expensive => true, :destroy_control_plane => true do
             region = klutch_control_plane_region
             vpc_id = aws_find_vpc_id_by_tags(
               { "Klutch" => "ControlPlane", "Name" => "klutch-control-plane-vpc" },

@@ -2,6 +2,7 @@ require 'base64'
 require 'json'
 require 'logger'
 require 'shellwords'
+require 'fileutils'
 
 repo_root = File.expand_path('../../..', __dir__)
 a9s_bin = File.join(repo_root, 'bin', 'a9s')
@@ -54,6 +55,24 @@ RSpec.configure do |config|
   # inherited by the metadata hash of host groups and examples, rather than
   # triggering implicit auto-inclusion in groups with matching metadata.
   config.shared_context_metadata_behavior = :apply_to_host_groups
+
+  # Treat some tags as "switch-like" options (not inclusion filters):
+  # - `--tag keep_control_plane` (or `keep-control-plane`) skips control-plane teardown.
+  # - `--tag no_cleanup` (or `no-cleanup`) skips cleanup (incl. workload + control-plane teardown).
+  #
+  # Default run: includes cleanup and control-plane teardown.
+  keep_control_plane = config.inclusion_filter.delete(:keep_control_plane) ||
+                       config.inclusion_filter.delete(:"keep-control-plane")
+  no_cleanup = config.inclusion_filter.delete(:no_cleanup) ||
+               config.inclusion_filter.delete(:"no-cleanup")
+
+  if keep_control_plane
+    config.filter_run_excluding destroy_control_plane: true
+  end
+  if no_cleanup
+    config.filter_run_excluding cleanup: true
+    config.filter_run_excluding destroy_control_plane: true
+  end
 
 # The settings below are suggested to provide a good initial experience
 # with RSpec, but feel free to customize to your heart's content.
@@ -129,7 +148,158 @@ def aws_region_available?
 end
 
 def klutch_control_plane_region
-  ENV.fetch("A9S_E2E_KLUTCH_REGION", "eu-central-1").to_s.strip
+  region = ENV["AWS_REGION"].to_s.strip
+  region = ENV["AWS_DEFAULT_REGION"].to_s.strip if region.empty?
+  region = "eu-central-1" if region.empty?
+  region
+end
+
+def e2e_state_file_path
+  File.expand_path("../tmp/e2e_state.json", __dir__)
+end
+
+def e2e_state
+  @e2e_state ||= begin
+    path = e2e_state_file_path
+    if File.exist?(path)
+      JSON.parse(File.read(path))
+    else
+      {}
+    end
+  rescue JSON::ParserError
+    {}
+  end
+end
+
+def e2e_state_write!
+  path = e2e_state_file_path
+  FileUtils.mkdir_p(File.dirname(path))
+  File.write(path, JSON.pretty_generate(e2e_state))
+end
+
+def e2e_state_get(key)
+  e2e_state[key.to_s].to_s
+end
+
+def e2e_state_set(key, value)
+  e2e_state[key.to_s] = value.to_s
+  e2e_state_write!
+end
+
+def klutch_e2e_tenant_name
+  env = ENV["KLUCH_E2E_TENANT_NAME"].to_s.strip
+  env = ENV["KLUTCH_E2E_TENANT_NAME"].to_s.strip if env.empty?
+  return env unless env.empty?
+
+  # Keep tenant name stable for this process.
+  memoized = $klutch_e2e_tenant_name.to_s.strip
+  return memoized unless memoized.empty?
+
+  if ENV["A9S_E2E_REUSE_TENANT"] == "1"
+    cached = e2e_state_get("klutch_tenant_name")
+    unless cached.empty?
+      $klutch_e2e_tenant_name = cached
+      return cached
+    end
+  end
+
+  ts = Time.now.utc.strftime("%y%m%d%H%M%S")
+  suffix = rand(1000).to_s.rjust(3, "0")
+  name = "tenant-#{ts}-#{suffix}"
+  $klutch_e2e_tenant_name = name
+  e2e_state_set("klutch_tenant_name", name)
+  name
+end
+
+def klutch_e2e_workload_cluster_name
+  env = ENV["KLUCH_E2E_WORKLOAD_CLUSTER_NAME"].to_s.strip
+  env = ENV["KLUTCH_E2E_WORKLOAD_CLUSTER_NAME"].to_s.strip if env.empty?
+  return env unless env.empty?
+
+  memoized = $klutch_e2e_workload_cluster_name.to_s.strip
+  return memoized unless memoized.empty?
+
+  # Only reuse persisted workload name when explicitly requested.
+  if ENV["A9S_E2E_REUSE_WORKLOAD"] == "1" || ENV["A9S_E2E_REUSE_CLUSTER"] == "1"
+    cached = e2e_state_get("klutch_workload_cluster_name")
+    unless cached.empty?
+      $klutch_e2e_workload_cluster_name = cached
+      return cached
+    end
+  end
+
+  ""
+end
+
+def klutch_e2e_set_workload_cluster_name(name)
+  name = name.to_s.strip
+  raise "Empty workload cluster name" if name.empty?
+
+  $klutch_e2e_workload_cluster_name = name
+  e2e_state_set("klutch_workload_cluster_name", name)
+end
+
+def extract_klutch_workload_cluster_name(output)
+  out = output.to_s
+
+  # Newer output:
+  # "Generated workload cluster name: klutch-workload-cluster-<suffix>"
+  m = out.match(/Generated workload cluster name:\s+([A-Za-z0-9][A-Za-z0-9-]*)/)
+  return m[1] if m
+
+  # Summary output:
+  # "Cluster:   <name>"
+  m = out.match(/^\s*Cluster:\s+([A-Za-z0-9][A-Za-z0-9-]*)\s*$/m)
+  return m[1] if m
+
+  ""
+end
+
+def aws_secretsmanager_get_secret_string(secret_name, region:)
+  args = ["aws", "secretsmanager", "get-secret-value", "--secret-id", secret_name, "--query", "SecretString", "--output", "text"]
+  args += ["--region", region] unless region.to_s.strip.empty?
+  cmd = Shellwords.join(args)
+  logger.info(cmd)
+  out = `#{cmd}`.strip
+  return "" unless $?.success?
+  out
+end
+
+def aws_secretsmanager_get_secret_json(secret_name, region:)
+  raw = aws_secretsmanager_get_secret_string(secret_name, region: region)
+  return {} if raw.to_s.strip.empty?
+  JSON.parse(raw)
+rescue JSON::ParserError
+  {}
+end
+
+def aws_tenant_oidc_secret_valid?(secret_name, region:)
+  data = aws_secretsmanager_get_secret_json(secret_name, region: region)
+  token_url = data["token_url"].to_s.strip
+  client_id = data["client_id"].to_s.strip
+  client_secret = data["client_secret"].to_s.strip
+  issuer = data["issuer"].to_s.strip
+  scope = data["scope"].to_s.strip
+  bind_url = data["bind_url"].to_s.strip
+  bind_request = data["bind_request"].to_s.strip
+
+  return false if issuer.empty? || client_id.empty? || client_secret.empty? || scope.empty? || bind_url.empty? || bind_request.empty?
+  return false if token_url.empty?
+  return false if token_url.start_with?("https://.") # common broken token_url
+  true
+end
+
+def aws_verify_tenant_oidc_secret_valid(secret_name, region:, timeout_seconds: 600, sleep_seconds: 10)
+  deadline = Time.now + timeout_seconds
+  loop do
+    return if aws_tenant_oidc_secret_valid?(secret_name, region: region)
+    if Time.now >= deadline
+      data = aws_secretsmanager_get_secret_json(secret_name, region: region)
+      token_url = data["token_url"].to_s.strip
+      raise "Tenant OIDC secret #{secret_name} exists but is not valid after #{timeout_seconds}s (token_url=#{token_url.inspect})."
+    end
+    sleep(sleep_seconds)
+  end
 end
 
 def aws_find_vpc_id_by_tags(tags, region:)
@@ -248,6 +418,35 @@ def aws_verify_secretsmanager_secret_exists(secret_name, region:, timeout_second
     end
     sleep(sleep_seconds)
   end
+end
+
+def aws_eks_cluster_exists?(cluster_name, region:)
+  args = ["aws", "eks", "describe-cluster", "--name", cluster_name, "--query", "cluster.name", "--output", "text"]
+  args += ["--region", region] unless region.to_s.strip.empty?
+  cmd = Shellwords.join(args)
+  logger.info(cmd)
+  out = `#{cmd}`.strip
+  $?.success? && out == cluster_name
+end
+
+def aws_eks_nodegroup_scaling_config(cluster_name, nodegroup_name, region:)
+  args = ["aws", "eks", "describe-nodegroup", "--cluster-name", cluster_name, "--nodegroup-name", nodegroup_name, "--output", "json"]
+  args += ["--region", region] unless region.to_s.strip.empty?
+  cmd = Shellwords.join(args)
+  logger.info(cmd)
+
+  out = `#{cmd}`.strip
+  raise "Failed to describe nodegroup #{nodegroup_name} for cluster #{cluster_name} in region #{region}" unless $?.success? && !out.empty?
+
+  data = JSON.parse(out)
+  cfg = data.dig("nodegroup", "scalingConfig") || {}
+  {
+    "min" => cfg["minSize"],
+    "max" => cfg["maxSize"],
+    "desired" => cfg["desiredSize"]
+  }
+rescue JSON::ParserError => e
+  raise "Invalid JSON from aws eks describe-nodegroup for #{cluster_name}/#{nodegroup_name}: #{e.message}"
 end
 
 def dns_ns_resolvable?(zone)
