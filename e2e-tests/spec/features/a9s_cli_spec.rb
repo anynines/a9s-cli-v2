@@ -512,6 +512,10 @@ RSpec.describe "a9s-cli" do
             end
 
             @klutch_hosted_zone = ENV.fetch("A9S_E2E_KLUTCH_HOSTED_ZONE", "hub.test.a9s.io")
+            suffix = Time.now.utc.strftime("%H%M%S")
+            @workload_namespace = "a8s-workload"
+            @klutch_service_instance_name = "klutch-pg-#{suffix}"
+            @klutch_service_binding_name = "#{@klutch_service_instance_name}-sb"
           end
 
           it "creates a Klutch control plane cluster (VERY EXPENSIVE; requires aws_cli)", :clusterop => true, :slow => true, :very_expensive => true do
@@ -533,6 +537,7 @@ RSpec.describe "a9s-cli" do
               timeout_seconds: 900
             )
             expect(vpc_id).not_to eq("")
+            expect(aws_eks_cluster_exists?("klutch-control-plane", region: region)).to be(true)
           end
 
           it "creates a Klutch tenant (VERY EXPENSIVE; requires existing control plane)", :clusterop => true, :slow => true, :very_expensive => true do
@@ -595,14 +600,181 @@ RSpec.describe "a9s-cli" do
 
             expect($?.success?).to be(true)
             expect(output).to include("Klutch workload EKS cluster is ready.")
+            expect(output).to include("Workload cluster bound to control plane using tenant secret.")
 
             expect(workload_cluster_name).not_to eq("")
+            expect(aws_eks_cluster_exists?(workload_cluster_name, region: region)).to be(true)
 
             nodegroup_name = "#{workload_cluster_name}-nodegroup"
             scaling = aws_eks_nodegroup_scaling_config(workload_cluster_name, nodegroup_name, region: region)
             expect(scaling["min"]).to eq(1)
             expect(scaling["max"]).to eq(1)
             expect(scaling["desired"]).to eq(1)
+          end
+
+          it "creates a PostgreSQL service instance on the Klutch workload cluster", :clusterop => true, :slow => true, :very_expensive => true do
+            region = klutch_control_plane_region
+            workload_cluster_name = klutch_e2e_workload_cluster_name
+            if workload_cluster_name.to_s.strip == ""
+              skip("Skipping service instance test. No workload cluster name stored (run workload create first).")
+            end
+            unless aws_eks_cluster_exists?(workload_cluster_name, region: region)
+              skip("Skipping service instance test. EKS cluster #{workload_cluster_name} not found in region #{region}.")
+            end
+
+            aws_update_kubeconfig(workload_cluster_name, region: region)
+            kubectl_verify_context_contains(workload_cluster_name)
+            kubectl_ensure_namespace(@workload_namespace)
+            kubectl_wait_for_crd_exists("postgresqlinstances.anynines.com", timeout_seconds: 600)
+            kubectl_wait_for_crd_exists("servicebindings.anynines.com", timeout_seconds: 600)
+
+            cmd = "a9s create klutch pg instance --name #{@klutch_service_instance_name} -n #{@workload_namespace} --verbose --yes"
+            logger.info cmd
+            output = `#{cmd}`
+            logger.info "\t" + output
+
+            expect($?.success?).to be(true)
+            expect(output).to include("Klutch PostgreSQL instance #{@klutch_service_instance_name} created in namespace #{@workload_namespace}.")
+
+            kubectl_verify_klutch_pg_service_instance_exists(@klutch_service_instance_name, @workload_namespace)
+            kubectl_verify_pg_condition_true("postgresqlinstances.anynines.com", @klutch_service_instance_name, @workload_namespace, "Ready")
+
+            aws_update_kubeconfig("klutch-control-plane", region: region)
+            kubectl_verify_context_contains("klutch-control-plane")
+            provider_namespace = kubectl_find_resource_namespace("postgresqlinstances.anynines.com", @klutch_service_instance_name)
+            expect(provider_namespace).not_to eq("")
+            @klutch_provider_namespace = provider_namespace
+            kubectl_verify_pg_condition_true("postgresqlinstances.anynines.com", @klutch_service_instance_name, provider_namespace, "Ready")
+
+            aws_update_kubeconfig(workload_cluster_name, region: region)
+            kubectl_verify_context_contains(workload_cluster_name)
+          end
+
+          it "creates a PostgreSQL service binding on the Klutch workload cluster", :clusterop => true, :slow => true, :very_expensive => true do
+            region = klutch_control_plane_region
+            workload_cluster_name = klutch_e2e_workload_cluster_name
+            if workload_cluster_name.to_s.strip == ""
+              skip("Skipping service binding test. No workload cluster name stored (run workload create first).")
+            end
+            unless aws_eks_cluster_exists?(workload_cluster_name, region: region)
+              skip("Skipping service binding test. EKS cluster #{workload_cluster_name} not found in region #{region}.")
+            end
+
+            aws_update_kubeconfig(workload_cluster_name, region: region)
+            kubectl_verify_context_contains(workload_cluster_name)
+            kubectl_wait_for_crd_exists("servicebindings.anynines.com", timeout_seconds: 600)
+            unless kubectl_klutch_pg_service_instance_exists?(@klutch_service_instance_name, @workload_namespace)
+              skip("Skipping service binding test. Service instance #{@klutch_service_instance_name} not found in namespace #{@workload_namespace}.")
+            end
+
+            cmd = "a9s create klutch pg servicebinding --name #{@klutch_service_binding_name} --service-instance #{@klutch_service_instance_name} -n #{@workload_namespace} --verbose --yes"
+            logger.info cmd
+            output = `#{cmd}`
+            logger.info "\t" + output
+
+            expect($?.success?).to be(true)
+            expect(output).to include("Klutch PostgreSQL service binding #{@klutch_service_binding_name} created in namespace #{@workload_namespace}.")
+
+            kubectl_verify_klutch_service_binding_exists(@klutch_service_binding_name, @workload_namespace)
+            kubectl_verify_klutch_service_binding_implemented(@klutch_service_binding_name, @workload_namespace)
+            secret_name = "#{@klutch_service_binding_name}-service-binding"
+            kubectl_verify_secret_exists(secret_name, @workload_namespace)
+
+            binding_database = kubectl_secret_data(secret_name, @workload_namespace, "database")
+            binding_instance_service = kubectl_secret_data(secret_name, @workload_namespace, "instance_service")
+            binding_username = kubectl_secret_data(secret_name, @workload_namespace, "username")
+            binding_password = kubectl_secret_data(secret_name, @workload_namespace, "password")
+            expect(binding_database).not_to be_empty
+            expect(binding_instance_service).to include("#{@klutch_service_instance_name}-master")
+            expect(binding_username).not_to be_empty
+            expect(binding_password).not_to be_empty
+
+            aws_update_kubeconfig("klutch-control-plane", region: region)
+            kubectl_verify_context_contains("klutch-control-plane")
+            provider_namespace = @klutch_provider_namespace.to_s
+            if provider_namespace == ""
+              provider_namespace = kubectl_find_resource_namespace("servicebindings.anynines.com", @klutch_service_binding_name)
+              @klutch_provider_namespace = provider_namespace unless provider_namespace.to_s == ""
+            end
+            expect(provider_namespace).not_to eq("")
+            kubectl_verify_klutch_service_binding_exists(@klutch_service_binding_name, provider_namespace)
+            kubectl_verify_klutch_service_binding_implemented(@klutch_service_binding_name, provider_namespace)
+
+            aws_update_kubeconfig(workload_cluster_name, region: region)
+            kubectl_verify_context_contains(workload_cluster_name)
+          end
+
+          it "deletes the PostgreSQL service binding from the Klutch workload cluster", :clusterop => true, :slow => true, :very_expensive => true do
+            region = klutch_control_plane_region
+            workload_cluster_name = klutch_e2e_workload_cluster_name
+            if workload_cluster_name.to_s.strip == ""
+              skip("Skipping service binding deletion test. No workload cluster name stored (run workload create first).")
+            end
+            unless aws_eks_cluster_exists?(workload_cluster_name, region: region)
+              skip("Skipping service binding deletion test. EKS cluster #{workload_cluster_name} not found in region #{region}.")
+            end
+
+            aws_update_kubeconfig(workload_cluster_name, region: region)
+            kubectl_verify_context_contains(workload_cluster_name)
+            unless kubectl_klutch_service_binding_exists?(@klutch_service_binding_name, @workload_namespace)
+              skip("Skipping service binding deletion test. Service binding #{@klutch_service_binding_name} not found in namespace #{@workload_namespace}.")
+            end
+
+            cmd = "a9s delete klutch pg servicebinding --name #{@klutch_service_binding_name} -n #{@workload_namespace} --verbose --yes"
+            logger.info cmd
+            output = `#{cmd}`
+            logger.info "\t" + output
+
+            expect($?.success?).to be(true)
+            expect(output).to include("Klutch service binding #{@klutch_service_binding_name} successfully deleted from namespace #{@workload_namespace}.")
+
+            kubectl_verify_klutch_service_binding_not_exists(@klutch_service_binding_name, @workload_namespace)
+
+            provider_namespace = @klutch_provider_namespace.to_s
+            if provider_namespace != ""
+              aws_update_kubeconfig("klutch-control-plane", region: region)
+              kubectl_verify_context_contains("klutch-control-plane")
+              kubectl_verify_klutch_service_binding_not_exists(@klutch_service_binding_name, provider_namespace)
+              aws_update_kubeconfig(workload_cluster_name, region: region)
+              kubectl_verify_context_contains(workload_cluster_name)
+            end
+          end
+
+          it "deletes the PostgreSQL service instance from the Klutch workload cluster", :clusterop => true, :slow => true, :very_expensive => true do
+            region = klutch_control_plane_region
+            workload_cluster_name = klutch_e2e_workload_cluster_name
+            if workload_cluster_name.to_s.strip == ""
+              skip("Skipping service instance deletion test. No workload cluster name stored (run workload create first).")
+            end
+            unless aws_eks_cluster_exists?(workload_cluster_name, region: region)
+              skip("Skipping service instance deletion test. EKS cluster #{workload_cluster_name} not found in region #{region}.")
+            end
+
+            aws_update_kubeconfig(workload_cluster_name, region: region)
+            kubectl_verify_context_contains(workload_cluster_name)
+            unless kubectl_klutch_pg_service_instance_exists?(@klutch_service_instance_name, @workload_namespace)
+              skip("Skipping service instance deletion test. Service instance #{@klutch_service_instance_name} not found in namespace #{@workload_namespace}.")
+            end
+
+            cmd = "a9s delete klutch pg instance --name #{@klutch_service_instance_name} -n #{@workload_namespace} --verbose --yes"
+            logger.info cmd
+            output = `#{cmd}`
+            logger.info "\t" + output
+
+            expect($?.success?).to be(true)
+            expect(output).to include("Klutch service instance #{@klutch_service_instance_name} successfully deleted from namespace #{@workload_namespace}.")
+
+            kubectl_verify_klutch_pg_service_instance_not_exists(@klutch_service_instance_name, @workload_namespace)
+            kubectl_verify_secret_not_exists("#{@klutch_service_binding_name}-service-binding", @workload_namespace, timeout_seconds: 300)
+
+            provider_namespace = @klutch_provider_namespace.to_s
+            if provider_namespace != ""
+              aws_update_kubeconfig("klutch-control-plane", region: region)
+              kubectl_verify_context_contains("klutch-control-plane")
+              kubectl_verify_klutch_pg_service_instance_not_exists(@klutch_service_instance_name, provider_namespace)
+              aws_update_kubeconfig(workload_cluster_name, region: region)
+              kubectl_verify_context_contains(workload_cluster_name)
+            end
           end
 
           it "deletes the Klutch workload cluster (VERY EXPENSIVE; cleanup)", :clusterop => true, :slow => true, :very_expensive => true, :cleanup => true do
@@ -616,6 +788,12 @@ RSpec.describe "a9s-cli" do
               skip("Skipping Klutch workload cleanup. EKS cluster #{workload_cluster_name} not found in region #{region}.")
             end
 
+            vpc_id = aws_find_vpc_id_by_tags(
+              { "Klutch" => "Workload", "Name" => "#{workload_cluster_name}-vpc" },
+              region: region
+            )
+            expect(vpc_id).not_to eq("")
+
             cmd = "a9s delete cluster klutch workload -p aws --cluster-name #{workload_cluster_name} --yes --really"
             logger.info cmd
 
@@ -624,6 +802,12 @@ RSpec.describe "a9s-cli" do
 
             expect($?.success?).to be(true)
             expect(output).to include("Cluster deleted.")
+            aws_verify_eks_cluster_deleted(workload_cluster_name, region: region, timeout_seconds: 1200)
+            expect(aws_eks_cluster_exists?(workload_cluster_name, region: region)).to be(false)
+            aws_verify_vpc_deleted(vpc_id, region: region, timeout_seconds: 900)
+            expect(
+              aws_find_vpc_id_by_tags({ "Klutch" => "Workload", "Name" => "#{workload_cluster_name}-vpc" }, region: region)
+            ).to eq("")
           end
 
           it "deletes the Klutch control plane cluster (VERY EXPENSIVE; requires aws_cli)", :clusterop => true, :slow => true, :very_expensive => true, :destroy_control_plane => true do
@@ -643,6 +827,8 @@ RSpec.describe "a9s-cli" do
             expect($?.success?).to be(true)
             expect(output).to include("Cluster deleted.")
 
+            aws_verify_eks_cluster_deleted("klutch-control-plane", region: region, timeout_seconds: 1200)
+            expect(aws_eks_cluster_exists?("klutch-control-plane", region: region)).to be(false)
             aws_verify_vpc_deleted(vpc_id, region: region, timeout_seconds: 900)
             expect(
               aws_find_vpc_id_by_tags({ "Klutch" => "ControlPlane", "Name" => "klutch-control-plane-vpc" }, region: region)

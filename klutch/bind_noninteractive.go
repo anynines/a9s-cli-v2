@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -32,6 +33,11 @@ import (
 
 const DefaultControlPlaneClusterName = "klutch-control-plane"
 
+const (
+	nonInteractiveBindMaxAttempts   = 5
+	nonInteractiveBindRetryInterval = 10 * time.Second
+)
+
 // NonInteractiveBindOptions controls the non-interactive workload bind flow.
 type NonInteractiveBindOptions struct {
 	ControlPlaneURL         string
@@ -52,6 +58,16 @@ type NonInteractiveBindOptions struct {
 type bindRequest struct {
 	ClusterID string                 `json:"clusterID"`
 	Apis      []metav1.GroupResource `json:"apis"`
+}
+
+type backendBindError struct {
+	StatusCode int
+	Status     string
+	Body       string
+}
+
+func (e backendBindError) Error() string {
+	return fmt.Sprintf("backend returned %s: %s", e.Status, strings.TrimSpace(e.Body))
 }
 
 // ValidateBindRequest ensures the payload is valid JSON and has required fields.
@@ -117,27 +133,10 @@ func NonInteractiveBind(ctx context.Context, opts NonInteractiveBindOptions) err
 		return fmt.Errorf("failed to obtain token from %s: %w", tokenURL, err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, targetURL, bytes.NewReader(reqBytes))
-	if err != nil {
-		return fmt.Errorf("failed to build request: %w", err)
-	}
-	req.Header.Set("Authorization", "Bearer "+tkn.AccessToken)
-	req.Header.Set("Content-Type", "application/json")
-
 	httpClient := oauth2.NewClient(ctx, oauth2.StaticTokenSource(tkn))
-	resp, err := httpClient.Do(req)
+	body, err := callNonInteractiveBindWithRetry(ctx, httpClient, targetURL, reqBytes, tkn.AccessToken)
 	if err != nil {
-		return fmt.Errorf("failed to call backend: %w", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("backend returned %s: %s", resp.Status, strings.TrimSpace(string(body)))
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("failed to read backend response: %w", err)
+		return err
 	}
 	var bindingResp bindv1alpha1.BindingResponse
 	if err := json.Unmarshal(body, &bindingResp); err != nil {
@@ -179,6 +178,59 @@ func NonInteractiveBind(ctx context.Context, opts NonInteractiveBindOptions) err
 	makeup.PrintCheckmark("Submitted export requests to the control plane.")
 
 	return nil
+}
+
+func callNonInteractiveBindWithRetry(ctx context.Context, httpClient *http.Client, targetURL string, reqBytes []byte, accessToken string) ([]byte, error) {
+	var lastErr error
+
+	for attempt := 1; attempt <= nonInteractiveBindMaxAttempts; attempt++ {
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, targetURL, bytes.NewReader(reqBytes))
+		if err != nil {
+			return nil, fmt.Errorf("failed to build request: %w", err)
+		}
+		req.Header.Set("Authorization", "Bearer "+accessToken)
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := httpClient.Do(req)
+		if err != nil {
+			lastErr = fmt.Errorf("failed to call backend: %w", err)
+		} else {
+			body, readErr := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if readErr != nil {
+				lastErr = fmt.Errorf("failed to read backend response: %w", readErr)
+			} else if resp.StatusCode == http.StatusOK {
+				return body, nil
+			} else {
+				lastErr = backendBindError{
+					StatusCode: resp.StatusCode,
+					Status:     resp.Status,
+					Body:       string(body),
+				}
+			}
+		}
+
+		if !shouldRetryNonInteractiveBind(lastErr) || attempt == nonInteractiveBindMaxAttempts {
+			return nil, lastErr
+		}
+
+		makeup.PrintWarning(fmt.Sprintf("Bind backend request failed (attempt %d/%d): %v. Retrying in %s...", attempt, nonInteractiveBindMaxAttempts, lastErr, nonInteractiveBindRetryInterval))
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(nonInteractiveBindRetryInterval):
+		}
+	}
+
+	return nil, lastErr
+}
+
+func shouldRetryNonInteractiveBind(err error) bool {
+	var bindErr backendBindError
+	if errors.As(err, &bindErr) {
+		return bindErr.StatusCode >= http.StatusInternalServerError || bindErr.StatusCode == http.StatusTooManyRequests
+	}
+	return true
 }
 
 // ensureKubeconfigCA injects control-plane CA data to avoid TLS errors.

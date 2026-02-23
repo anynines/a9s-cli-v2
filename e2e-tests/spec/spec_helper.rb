@@ -429,6 +429,42 @@ def aws_eks_cluster_exists?(cluster_name, region:)
   $?.success? && out == cluster_name
 end
 
+def aws_update_kubeconfig(cluster_name, region:)
+  args = ["aws", "eks", "update-kubeconfig", "--name", cluster_name]
+  args += ["--region", region] unless region.to_s.strip.empty?
+  cmd = Shellwords.join(args)
+  logger.info(cmd)
+  output = `#{cmd}`
+  raise "Failed to update kubeconfig for EKS cluster #{cluster_name} in region #{region}" unless $?.success?
+  output
+end
+
+def kubectl_current_context
+  cmd = "kubectl config current-context"
+  logger.info(cmd)
+  out = `#{cmd}`.strip
+  raise "Failed to read current kubectl context" unless $?.success?
+  out
+end
+
+def kubectl_verify_context_contains(cluster_name)
+  ctx = kubectl_current_context
+  unless ctx.include?(cluster_name)
+    raise "Current kubectl context #{ctx.inspect} does not target cluster #{cluster_name}"
+  end
+end
+
+def aws_verify_eks_cluster_deleted(cluster_name, region:, timeout_seconds: 900, sleep_seconds: 15)
+  deadline = Time.now + timeout_seconds
+  loop do
+    return unless aws_eks_cluster_exists?(cluster_name, region: region)
+    if Time.now >= deadline
+      raise "EKS cluster #{cluster_name} still exists in region #{region} after #{timeout_seconds}s"
+    end
+    sleep(sleep_seconds)
+  end
+end
+
 def aws_eks_nodegroup_scaling_config(cluster_name, nodegroup_name, region:)
   args = ["aws", "eks", "describe-nodegroup", "--cluster-name", cluster_name, "--nodegroup-name", nodegroup_name, "--output", "json"]
   args += ["--region", region] unless region.to_s.strip.empty?
@@ -531,6 +567,43 @@ def kubectl_verify_service_binding_not_exists(name, namespace)
   end
 end
 
+def kubectl_klutch_service_binding_exists?(name, namespace)
+  cmd = "kubectl get servicebindings.anynines.com #{name} -n #{namespace} --ignore-not-found -o name 2>/dev/null"
+  logger.info(cmd)
+  output = `#{cmd}`.strip
+  !output.empty?
+end
+
+def kubectl_klutch_service_binding_implemented?(name, namespace)
+  cmd = "kubectl get servicebindings.anynines.com #{name} -n #{namespace} -o jsonpath='{.status.conditions[?(@.type==\"Ready\")].status}' 2>/dev/null"
+  logger.info(cmd)
+  output = `#{cmd}`.strip
+  output.casecmp("True").zero?
+end
+
+def kubectl_verify_klutch_service_binding_exists(name, namespace)
+  unless kubectl_klutch_service_binding_exists?(name, namespace)
+    raise "Klutch service binding #{name} does not exist in namespace #{namespace}"
+  end
+end
+
+def kubectl_verify_klutch_service_binding_implemented(name, namespace)
+  unless kubectl_klutch_service_binding_implemented?(name, namespace)
+    raise "Klutch service binding #{name} is not implemented in namespace #{namespace}"
+  end
+end
+
+def kubectl_verify_klutch_service_binding_not_exists(name, namespace, timeout_seconds: 120, sleep_seconds: 5)
+  deadline = Time.now + timeout_seconds
+  loop do
+    return unless kubectl_klutch_service_binding_exists?(name, namespace)
+    if Time.now >= deadline
+      raise "Klutch service binding #{name} still exists in namespace #{namespace} after #{timeout_seconds}s"
+    end
+    sleep(sleep_seconds)
+  end
+end
+
 def kubectl_secret_exists?(name, namespace)
   cmd = "kubectl get secret #{name} -n #{namespace} --ignore-not-found -o name 2>/dev/null"
   logger.info(cmd)
@@ -608,6 +681,36 @@ def kubectl_verify_pg_service_instance_not_exists(name, namespace)
   end
 end
 
+def kubectl_klutch_pg_service_instance_exists?(name, namespace)
+  cmd = "kubectl get postgresqlinstances.anynines.com #{name} -n #{namespace} --ignore-not-found -o name 2>/dev/null"
+  logger.info(cmd)
+  output = `#{cmd}`.strip
+  !output.empty?
+end
+
+def kubectl_verify_klutch_pg_service_instance_exists(name, namespace)
+  unless kubectl_klutch_pg_service_instance_exists?(name, namespace)
+    raise "Klutch service instance #{name} does not exist in namespace #{namespace}"
+  end
+end
+
+def kubectl_verify_klutch_pg_service_instance_not_exists(name, namespace, timeout_seconds: 180, sleep_seconds: 5)
+  deadline = Time.now + timeout_seconds
+  loop do
+    return unless kubectl_klutch_pg_service_instance_exists?(name, namespace)
+    if Time.now >= deadline
+      raise "Klutch service instance #{name} still exists in namespace #{namespace} after #{timeout_seconds}s"
+    end
+    sleep(sleep_seconds)
+  end
+end
+
+def kubectl_find_resource_namespace(resource, name)
+  cmd = "kubectl get #{resource} --all-namespaces --field-selector metadata.name=#{name} -o jsonpath='{.items[0].metadata.namespace}' 2>/dev/null"
+  logger.info(cmd)
+  `#{cmd}`.strip
+end
+
 def kubectl_pg_backup_exists?(name, namespace)
   cmd = "kubectl get backups #{name} -n #{namespace} --ignore-not-found -o name 2>/dev/null"
   logger.info(cmd)
@@ -657,6 +760,17 @@ end
 def kubectl_verify_crd_exists(name)
   unless kubectl_crd_exists?(name)
     raise "CRD #{name} does not exist in the cluster"
+  end
+end
+
+def kubectl_wait_for_crd_exists(name, timeout_seconds: 600, sleep_seconds: 10)
+  deadline = Time.now + timeout_seconds
+  loop do
+    return if kubectl_crd_exists?(name)
+    if Time.now >= deadline
+      raise "CRD #{name} does not exist in the cluster after #{timeout_seconds}s"
+    end
+    sleep(sleep_seconds)
   end
 end
 

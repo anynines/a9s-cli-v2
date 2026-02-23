@@ -116,10 +116,7 @@ func discoverUserPool(ctx context.Context, region, name string) string {
 		"--max-results", "50",
 		"--query", fmt.Sprintf("UserPools[?Name==`%s`].Id | [0]", name),
 		"--output", "text")
-	if out == "None" || out == "null" {
-		return ""
-	}
-	return strings.TrimSpace(out)
+	return firstAWSValue(out)
 }
 
 // findControlPlaneUserPool tries to find an existing pool to reuse for control-plane tenants.
@@ -129,10 +126,7 @@ func findControlPlaneUserPool(ctx context.Context, region string) string {
 		"--max-results", "50",
 		"--query", "UserPools[?contains(Name, `klutch`)].Id",
 		"--output", "text")
-	if strings.TrimSpace(out) == "" || strings.ToLower(strings.TrimSpace(out)) == "none" {
-		return ""
-	}
-	parts := strings.Fields(out)
+	parts := awsTextValues(out)
 	if len(parts) > 0 {
 		return parts[0]
 	}
@@ -146,7 +140,7 @@ func findTaggedControlPlaneUserPool(ctx context.Context, region string) string {
 		"--max-results", "50",
 		"--query", "UserPools[].Id",
 		"--output", "text")
-	pools := strings.Fields(out)
+	pools := awsTextValues(out)
 	for _, pid := range pools {
 		tags, _, _ := runCmd(ctx, "aws", "cognito-idp", "list-user-pool-tags",
 			"--region", region,
@@ -171,8 +165,8 @@ func discoverOrCreateClient(ctx context.Context, region, poolID, name, scope str
 		"--region", region,
 		"--user-pool-id", poolID,
 		"--query", fmt.Sprintf("UserPoolClients[?ClientName==`%s`].ClientId | [0]", name),
-		"--output", "text"); out != "" && out != "None" && out != "null" {
-		clientID = strings.TrimSpace(out)
+		"--output", "text"); out != "" {
+		clientID = firstAWSValue(out)
 	}
 
 	if clientID == "" {
@@ -227,10 +221,35 @@ func ensureUserPoolDomain(ctx context.Context, region, poolID, prefix string) st
 		"--user-pool-id", poolID,
 		"--query", "UserPool.Domain",
 		"--output", "text")
-	if out == "None" || out == "null" || strings.TrimSpace(out) == "" {
+	if firstAWSValue(out) == "" {
 		return fmt.Sprintf("%s-%s", prefix, randomHex(4))
 	}
-	return strings.TrimSpace(out)
+	return firstAWSValue(out)
+}
+
+func awsTextValues(out string) []string {
+	fields := strings.Fields(out)
+	values := make([]string, 0, len(fields))
+	for _, field := range fields {
+		value := strings.TrimSpace(field)
+		if value == "" {
+			continue
+		}
+		lower := strings.ToLower(value)
+		if lower == "none" || lower == "null" {
+			continue
+		}
+		values = append(values, value)
+	}
+	return values
+}
+
+func firstAWSValue(out string) string {
+	values := awsTextValues(out)
+	if len(values) == 0 {
+		return ""
+	}
+	return values[0]
 }
 
 // ensureResourceServerScope adds the scope to the resource server if missing.

@@ -358,7 +358,7 @@ func printResourceSuggestion(resource string) {
 	var file string
 
 	switch strings.ToLower(resource) {
-	case "postgresqlinstances":
+	case "postgresqlinstances", "postgresqls":
 		file = postgresqlExample
 	case "servicebindings":
 		file = servicebindingExample
