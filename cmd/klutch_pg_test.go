@@ -101,3 +101,99 @@ func TestBuildKlutchPGServiceBindingManifest(t *testing.T) {
 		t.Fatalf("expected spec.compositionRef.name a8s-servicebinding, got %#v", got)
 	}
 }
+
+func TestBuildKlutchPGBackupManifest(t *testing.T) {
+	manifest, err := buildKlutchPGBackupManifest(
+		"pg-backup",
+		"workloads",
+		"pg-claim",
+		"postgresql",
+		"a8s-backup",
+	)
+	if err != nil {
+		t.Fatalf("expected manifest generation to succeed, got error: %v", err)
+	}
+
+	var decoded map[string]interface{}
+	if err := yaml.Unmarshal(manifest, &decoded); err != nil {
+		t.Fatalf("expected valid YAML output, got error: %v", err)
+	}
+
+	if got := decoded["apiVersion"]; got != klutchPGAPIVersion {
+		t.Fatalf("expected apiVersion %q, got %#v", klutchPGAPIVersion, got)
+	}
+	if got := decoded["kind"]; got != klutchPGBackupKind {
+		t.Fatalf("expected kind %q, got %#v", klutchPGBackupKind, got)
+	}
+
+	metadata := decoded["metadata"].(map[string]interface{})
+	if got := metadata["name"]; got != "pg-backup" {
+		t.Fatalf("expected metadata.name pg-backup, got %#v", got)
+	}
+	if got := metadata["namespace"]; got != "workloads" {
+		t.Fatalf("expected metadata.namespace workloads, got %#v", got)
+	}
+
+	spec := decoded["spec"].(map[string]interface{})
+	if got := spec["instanceRef"]; got != "pg-claim" {
+		t.Fatalf("expected spec.instanceRef pg-claim, got %#v", got)
+	}
+	if got := spec["serviceInstanceType"]; got != "postgresql" {
+		t.Fatalf("expected spec.serviceInstanceType postgresql, got %#v", got)
+	}
+
+	composition := spec["compositionRef"].(map[string]interface{})
+	if got := composition["name"]; got != "a8s-backup" {
+		t.Fatalf("expected spec.compositionRef.name a8s-backup, got %#v", got)
+	}
+}
+
+func TestBuildKlutchPGRestoreManifest(t *testing.T) {
+	manifest, err := buildKlutchPGRestoreManifest(
+		"pg-restore",
+		"workloads",
+		"pg-backup",
+		"pg-claim",
+		"postgresql",
+		"a8s-restore",
+	)
+	if err != nil {
+		t.Fatalf("expected manifest generation to succeed, got error: %v", err)
+	}
+
+	var decoded map[string]interface{}
+	if err := yaml.Unmarshal(manifest, &decoded); err != nil {
+		t.Fatalf("expected valid YAML output, got error: %v", err)
+	}
+
+	if got := decoded["apiVersion"]; got != klutchPGAPIVersion {
+		t.Fatalf("expected apiVersion %q, got %#v", klutchPGAPIVersion, got)
+	}
+	if got := decoded["kind"]; got != klutchPGRestoreKind {
+		t.Fatalf("expected kind %q, got %#v", klutchPGRestoreKind, got)
+	}
+
+	metadata := decoded["metadata"].(map[string]interface{})
+	if got := metadata["name"]; got != "pg-restore" {
+		t.Fatalf("expected metadata.name pg-restore, got %#v", got)
+	}
+	if got := metadata["namespace"]; got != "workloads" {
+		t.Fatalf("expected metadata.namespace workloads, got %#v", got)
+	}
+
+	spec := decoded["spec"].(map[string]interface{})
+	if got := spec["backupRef"]; got != "pg-backup" {
+		t.Fatalf("expected spec.backupRef pg-backup, got %#v", got)
+	}
+	if got := spec["instanceRef"]; got != "pg-claim" {
+		t.Fatalf("expected spec.instanceRef pg-claim, got %#v", got)
+	}
+	if got := spec["serviceInstanceType"]; got != "postgresql" {
+		t.Fatalf("expected spec.serviceInstanceType postgresql, got %#v", got)
+	}
+
+	composition := spec["compositionRef"].(map[string]interface{})
+	if got := composition["name"]; got != "a8s-restore" {
+		t.Fatalf("expected spec.compositionRef.name a8s-restore, got %#v", got)
+	}
+}
