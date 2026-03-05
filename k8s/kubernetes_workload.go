@@ -669,9 +669,9 @@ func (k *KubeClient) WaitForServiceAccount(unattendedMode bool, namespace, servi
 			makeup.ExitDueToFatalError(err, "Can't get service account "+serviceAccountName+" in namespace "+namespace)
 		}
 
-		time.Sleep(2 * time.Second)
+	time.Sleep(2 * time.Second)
 	}
-	makeup.ExitDueToFatalError(nil, fmt.Sprintf("Timeout. Can't get service account "+serviceAccountName+" in namespace "+namespace))
+	makeup.ExitDueToFatalError(nil, fmt.Sprintf("Timeout. Can't get service account %s in namespace %s", serviceAccountName, namespace))
 }
 
 func (k *KubeClient) CreateNamespaceIfNotExists(unattendedMode bool, namespace string) {
