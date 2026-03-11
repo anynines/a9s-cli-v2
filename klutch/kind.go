@@ -21,8 +21,8 @@ type clusterConfigTemplateVars struct {
 }
 
 // DeployControlPlaneKindCluster creates a new kind cluster configured to act as a local Control Plane Cluster.
-// It enables the ingress feature for the provided port and configures the k8s API Server to listen on the provided IP.
-func DeployControlPlaneKindCluster(clusterName string, hostIP string, ingressPort string) {
+// It configures the k8s API Server to listen on the provided port of the provided IP.
+func DeployControlPlaneKindCluster(clusterName string, hostIP string, backendExposurePort string) {
 	exists, err := clusterExists(clusterName)
 	if err != nil {
 		makeup.ExitDueToFatalError(err, fmt.Sprintf("unexpected error while checking if cluster %s exists:", clusterName))
@@ -36,7 +36,7 @@ func DeployControlPlaneKindCluster(clusterName string, hostIP string, ingressPor
 
 	templateVars := clusterConfigTemplateVars{
 		Name:            clusterName,
-		BackendHostPort: ingressPort,
+		BackendHostPort: backendExposurePort,
 		HostLanIP:       hostIP,
 	}
 

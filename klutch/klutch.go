@@ -30,8 +30,8 @@ var (
 
 // ControlPlaneClusterInfo contains information about the created Control Plane Cluster.
 type ControlPlaneClusterInfo struct {
-	Host        string `yaml:"host"`
-	IngressPort string `yaml:"ingressPort"`
+	Host                string `yaml:"host"`
+	BackendExposurePort string `yaml:"backendExposurePort"`
 }
 
 type KlutchManager struct {
@@ -65,12 +65,12 @@ func DeployKlutchClusters() {
 	checkDeployPrerequisites()
 
 	klutch := NewKlutchManager()
-	klutch.deployControlPlaneCluster()
+	klutch.deployKindControlPlaneCluster()
 	klutch.deployAppCluster()
 	printSummary()
 }
 
-func (k *KlutchManager) deployControlPlaneCluster() {
+func (k *KlutchManager) deployKindControlPlaneCluster() {
 	hostIP, err := determineHostLocalIP()
 	if err != nil {
 		makeup.ExitDueToFatalError(err, "Couldn't obtain the host's local IP address. Aborting...")
@@ -83,8 +83,8 @@ func (k *KlutchManager) deployControlPlaneCluster() {
 	WaitForKindCluster(k.cpK8s)
 	writeControlPlaneClusterInfoToFile(demo.DemoConfig.WorkingDir, hostIP, port)
 
-	k.DeployIngressNginx()
-	k.WaitForIngressNginx()
+	k.DeployEnvoyGateway()
+	k.WaitForEnvoyGateway()
 
 	k.DeployDex(hostIP, port)
 	k.WaitForDex()
@@ -122,10 +122,10 @@ func printSummary() {
 }
 
 // Writes information about the Control Plane Cluster to a file, to give other commands such as `bind` the information they need.
-func writeControlPlaneClusterInfoToFile(workDir string, hostIP string, ingressPort string) {
+func writeControlPlaneClusterInfoToFile(workDir string, hostIP string, backendExposurePort string) {
 	info := &ControlPlaneClusterInfo{
-		Host:        hostIP,
-		IngressPort: ingressPort,
+		Host:                hostIP,
+		BackendExposurePort: backendExposurePort,
 	}
 
 	data, err := yaml.Marshal(info)

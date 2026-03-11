@@ -24,6 +24,7 @@
 !docs/*
 !docs/*/**
 bin/a9s
+bin/kubectl-a9s
 
 !klutch/manifests/*
 !klutch/manifests/examples/*
