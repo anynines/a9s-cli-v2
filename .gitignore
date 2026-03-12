@@ -53,3 +53,5 @@ e2e-tests/vendor
 e2e-tests/rspec.log
 e2e-tests/test.log
 rspec.log
+*.log
+*.out
