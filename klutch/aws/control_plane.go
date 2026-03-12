@@ -1037,7 +1037,6 @@ func ensureNetworking(ctx context.Context, cfg Config, vpcID string) {
 
 	publicRT := ensurePublicRouteTable(ctx, vpcID, igwID, []string{pubA, pubB, pubC})
 
-	ensureElasticIPQuota(ctx)
 	natA, natB, natC := ensureNATs(ctx, vpcID, pubA, pubB, pubC)
 
 	privRTA := ensurePrivateRT(ctx, vpcID, privA, natA, resourceName("private-route-table-a"))
@@ -1232,6 +1231,7 @@ func ensureNATs(ctx context.Context, vpcID, pubA, pubB, pubC string) (string, st
 			"--query", "NatGateways[0].NatGatewayId",
 			"--output", "text")
 		if natID == "" || natID == "None" || natID == "null" {
+			ensureElasticIPQuota(ctx)
 			awsLogger.Infof("Creating NAT Gateway in subnet %s...", subnet)
 			alloc := mustRun(ctx, "aws", "ec2", "allocate-address",
 				"--domain", "vpc",
