@@ -3,7 +3,7 @@ id: a9s-cli-klutch
 title: a9s CLI Klutch
 tags:
   - a9s cli
-  - a9s hub  
+  - a9s hub
   - a9s data services
   - a8s data services
   - a9s postgres
@@ -24,7 +24,7 @@ keywords:
   - a8s postgres
   - data service
   - introduction
-  - postgresql  
+  - postgresql
   - kubernetes
   - minikube
   - kind
@@ -62,7 +62,7 @@ sudo mv kubectl-bind /usr/local/bin
 
 To avoid issues with `Kind` on Linux, increase the `inotify` resource limits as described [here](https://kind.sigs.k8s.io/docs/user/known-issues/#pod-errors-due-to-too-many-open-files).
 
-## Commands 
+## Commands
 
 ### 1. `deploy`
 
@@ -75,7 +75,8 @@ a9s klutch deploy [options]
 |Flag|Description|Example|
 |----|-----------|-------|
 |`-y`, `--yes`| Skip confirmation prompts | `a9s klutch deploy --yes` |
-|`--port`| The port to expose the Control Plane Cluster on. Defaults to `8080`. | `a9s klutch deploy --port 8080` | 
+|`--port`| The port to expose the Control Plane Cluster on. Defaults to `8080`. | `a9s klutch deploy --port 8080` |
+|`-l`, `--loopback-mode`| By default the Control Plane and App Cluster are exposed on the host machine's LAN IP. Setting this flag exposes them via the host machine's loopback device (i.e. `localhost`) instead | `a9s klutch deploy --loopback-mode` |
 
 **Description**:
 

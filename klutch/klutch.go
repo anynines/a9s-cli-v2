@@ -1,6 +1,7 @@
 package klutch
 
 import (
+	"context"
 	_ "embed"
 	"fmt"
 	"os"
@@ -12,6 +13,7 @@ import (
 	"github.com/anynines/a9s-cli-v2/makeup"
 	prereq "github.com/anynines/a9s-cli-v2/prerequisites"
 	"gopkg.in/yaml.v2"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const (
@@ -25,7 +27,11 @@ const (
 )
 
 var (
-	PortFlag int = 8080
+	PortFlag     int  = 8080
+	LoopbackMode bool = false
+
+	//go:embed templates/proxySidecarPatch.tmpl
+	proxySidecarPatch string
 )
 
 // ControlPlaneClusterInfo contains information about the created Control Plane Cluster.
@@ -165,4 +171,34 @@ func checkDeployPrerequisites() {
 	prereq.CheckRequiredTools(requiredTools)
 
 	prereq.CheckDockerRunning()
+}
+
+func (k *KlutchManager) addLoopbackProxyToDeployment(k8sClient *k8s.KubeClient, deploymentNamespace, deploymentName, proxyName, port string) {
+	makeup.PrintWait(`Loopback Mode is active, checking for proxy "` + proxyName + `" for port ` + port + ` to Host Loopback Device to Deployment "` +
+		deploymentName + `" in namespace "` + deploymentNamespace + `"`)
+	templateVars := struct{ Name, Port, Operation, ContainerIndex string }{proxyName, port, "add", "-"}
+	deployment, err := k8sClient.GetKubernetesClientSet().AppsV1().Deployments(deploymentNamespace).Get(context.Background(), deploymentName, metav1.GetOptions{})
+	if err != nil {
+		makeup.ExitDueToFatalError(err, `Failed to retrieve Deployment "`+deploymentNamespace+"/"+deploymentName+`" to check for existing proxy`)
+	}
+
+	for i, container := range deployment.Spec.Template.Spec.Containers {
+		if container.Name == proxyName {
+			makeup.PrintWait("Proxy container already exists, switching patch operation to 'replace'")
+			templateVars.Operation = "replace"
+			templateVars.ContainerIndex = fmt.Sprintf("%d", i)
+			break
+		}
+	}
+
+	deploymentPatch, err := renderTemplate(proxySidecarPatch, templateVars)
+	if err != nil {
+		makeup.ExitDueToFatalError(err, `Failed to render the template for patching the Deployment "`+deploymentNamespace+"/"+deploymentName+`"`)
+	}
+	_, output, err := k8sClient.Kubectl(demo.UnattendedMode, "patch", "deployment", "-n", deploymentNamespace, deploymentName,
+		"--type=json", "-p="+deploymentPatch.String(),
+	)
+	if err != nil {
+		makeup.ExitDueToFatalError(err, `Failed to apply prox patch for Deployment "`+deploymentNamespace+"/"+deploymentName+`": `+string(output))
+	}
 }

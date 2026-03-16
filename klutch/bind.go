@@ -82,6 +82,10 @@ func (k *KlutchManager) bindResource() string {
 		makeup.ExitDueToFatalError(err, "Failed to determine which resource was bound")
 	}
 
+	if controlPlaneInfo.Host == "127.0.0.1" {
+		k.addLoopbackProxyToDeployment(k.appK8s, "klutch-bind", "konnector", "host-cluster-proxy", getClusterExternalPort(contextControlPlane))
+	}
+
 	k.appK8s.WaitForCRDCreationAndReady(resource + "." + group)
 
 	return resource

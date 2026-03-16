@@ -16,6 +16,10 @@ var (
 // TODO: listening on this IP implies that the kind cluster and bind backend will be reachable by anyone in the user's local network.
 // Find/review alternative solutions to avoid this security risk
 func determineHostLocalIP() (string, error) {
+	if LoopbackMode {
+		return "127.0.0.1", nil
+	}
+
 	ifAddrs, err := net.InterfaceAddrs()
 	if err != nil {
 		return "", err
