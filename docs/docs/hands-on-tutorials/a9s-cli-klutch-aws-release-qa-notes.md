@@ -129,10 +129,32 @@ being asked to confirm the deployment, which is *better* but not *good*
   command worked
   without a hitch, although the specific set of commands detailed in the
   tutorial needed to be adapted (more on that in the [Suggested Tweaks Section](#suggested-tweaks))
-- `a9s create klutch pg instance` worked without a hitch, although I'd still
-  suggest reducing the formatting of the commands
+- `a9s create klutch pg instance` worked
+  - I'd still suggest reducing the formatting of the commands
   - also, one of the commands that is printed is `/usr/local/bin/kubectl apply
-    -f -` which is obviously missing some piece in order to be useful information
+    -f -` which is obviously missing some piece in order to be useful
+    information
+  - claim became ready immediately regardless of the state of the MR which was
+    stuck in pending
+  - MR was stuck in pending because setup for Control Plane Cluster does not install the addon necessary for
+    provisioning persistent storages
+
+    => PG instance never becomes ready, yet the Claim was `ready`
+
+    - fix
+
+      ```bash
+      eksctl create iamserviceaccount \
+            --name ebs-csi-controller-sa \
+            --namespace kube-system \
+            --cluster klutch-control-plane \
+            --role-name AmazonEKS_EBS_CSI_DriverRole \
+            --role-only \
+            --attach-policy-arn arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy \
+            --approve
+      eksctl create addon --cluster klutch-control-plane --name aws-ebs-csi-driver
+      --version latest --force
+      ```
 - `a9s create klutch pg [servicebinding|backup|restore]` => same feedback as for `a9s create klutch pg instance`
 - `a9s delete klutch pg servicebinding` deleted the claim, but the secret was
   left behind when the instance could not get ready due to the missing eks addon
@@ -170,6 +192,8 @@ being asked to confirm the deployment, which is *better* but not *good*
     the credentials for putting it there seemed to work - I don't know why the
     ones for deletion don't
   - the admin credentials also don't work
+  - fix is in [open PR against a8s-backup-manager repo](https://github.com/anynines/a8s-backup-manager/pull/99)
+  - interim image is at `378836732719.dkr.ecr.eu-central-1.amazonaws.com/a8s-backup-manager:fix-minio-deletion-0`
 
 ## Feedback on the tutorial
 
@@ -179,25 +203,6 @@ being asked to confirm the deployment, which is *better* but not *good*
 - `eksctl`, `jq` and `rg` are all required but not part of the preflight checks
 - `rg` ([ripgrep](https://github.com/burntsushi/ripgrep)) is required for the
   process but not mentioned in the requirements
-- setup for Control Plane Cluster does not install the addon necessary for
-  provisioning persistent storages
-
-  => PG instance never becomes ready, yet the Claim was `ready`
-
-  - fix
-
-    ```bash
-    eksctl create iamserviceaccount \
-          --name ebs-csi-controller-sa \
-          --namespace kube-system \
-          --cluster klutch-control-plane \
-          --role-name AmazonEKS_EBS_CSI_DriverRole \
-          --role-only \
-          --attach-policy-arn arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy \
-          --approve
-    eksctl create addon --cluster klutch-control-plane --name aws-ebs-csi-driver
-    --version latest --force
-    ```
 
 ### Suggested tweaks
 
@@ -246,7 +251,7 @@ being asked to confirm the deployment, which is *better* but not *good*
     to
 
     ```bash
-    kubectl get postgresqlinstances.anynines.com "${PG}" -n "${NS}" -o json | jq '.status.conditions[] | select (.type == "Ready")'
+    kubectl get postgresqlinstances.anynines.com "${PG}" -n "${NS}" -o jsonpath='{.status.managed}'
     ```
 
 - ```bash
@@ -272,5 +277,5 @@ being asked to confirm the deployment, which is *better* but not *good*
   to
 
   ```bash
-  kubectl get backups.anynines.com "${BU}" -n "${NS}" -o json | jq '.status.conditions[] | select (.type == "Ready")'
+  kubectl get backups.anynines.com "${BU}" -n "${NS}" -o json | jq '.status.managed'
   ```

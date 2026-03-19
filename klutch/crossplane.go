@@ -13,7 +13,7 @@ import (
 const (
 	configPackageName = "anynines-dataservices"
 	// replace with kustomization so everything that is needed gets installed, even after minor version bump
-	configPackageManifestUrl = "https://raw.githubusercontent.com/anynines/klutchio/refs/tags/v1.3.0/crossplane-api/deploy/config-pkg-anynines.yaml"
+	configPackageManifestUrl = "https://raw.githubusercontent.com/anynines/klutchio/refs/tags/v1.4.0/crossplane-api/deploy/config-pkg-anynines.yaml"
 	helmChartUrl             = "https://charts.crossplane.io/stable/crossplane-1.19.0.tgz"
 )
 
