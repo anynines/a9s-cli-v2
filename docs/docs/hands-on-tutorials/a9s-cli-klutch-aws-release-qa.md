@@ -74,9 +74,13 @@ Use explicit variables to avoid command mistakes:
 
 ```bash
 export REGION="eu-central-1"
-export HOSTED_ZONE="hub.test.a9s.io"
+# export HOSTED_ZONE="hub.test.a9s.io"
+export HOSTED_ZONE="hub.jlu.a8s-dev.a9s.eu"
 export CP_CLUSTER="klutch-control-plane"
-export TENANT="tenant-$(date -u +%y%m%d%H%M%S)-$((RANDOM%900+100))"
+# export ACCOUNT_ID="032720848313"
+export ACCOUNT_ID="378836732719"
+# export TENANT="tenant-$(date -u +%y%m%d%H%M%S)-$((RANDOM%900+100))"
+export TENANT="tenant-260317105546-864"
 export WORKLOAD_CLUSTER=""
 export NS="a8s-workload"
 export PG="klutch-pg-$(date -u +%y%m%d%H%M%S)"

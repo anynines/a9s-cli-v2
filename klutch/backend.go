@@ -43,7 +43,8 @@ type backendTemplateVars struct {
 }
 
 const (
-	defaultBackendImageURL = "032720848313.dkr.ecr.eu-central-1.amazonaws.com/kube-bind-backend"
+	// defaultBackendImageURL = "032720848313.dkr.ecr.eu-central-1.amazonaws.com/kube-bind-backend"
+	defaultBackendImageURL = "public.ecr.aws/w5n9a2g2/anynines/kubebind-backend"
 	defaultBackendImageTag = "dev5"
 	externalCASecretName   = "klutch-bind-external-ca"
 )
