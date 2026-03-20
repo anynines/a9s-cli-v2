@@ -4,7 +4,7 @@
 
 ### First Impression: No Verbose Flag Set
 
-- `a9s create cluster klutch control-plane -p aws` is not idempotent - it
+<!-- - `a9s create cluster klutch control-plane -p aws` is not idempotent - it
   errored out while attempting to pull the helm charts and when I re-ran it it
   tried to allocate 3 additional EIPs even though it already allocated 3 EIPs in
   the first execution
@@ -13,8 +13,8 @@
   the case where new IPs need to be allocated
 - the CLI only checks for 1 Elastic IP per NAT Gateway but ends ob provisioning
   2 per Gateway - either we have to adapt the check in the code or look into
-  what causes the additional IP to be provisioned
-- being asked to confirm or abort without a proposed/planned action feels
+  what causes the additional IP to be provisioned -->
+<!-- - being asked to confirm or abort without a proposed/planned action feels
   bizarre, since I am not told what is about to happen - either give short
   description of the action being authorized or don't wait for confirmation
 
@@ -39,12 +39,12 @@
 
     I have no idea what I'm consenting to here
 
-- Sometimes when I press enter, **then** the manifests are printed to the terminal
+- Sometimes when I press enter, **then** the manifests are printed to the terminal -->
 
-- Sometimes pressing enter leads to the manifests being printed and then me
+<!-- - Sometimes pressing enter leads to the manifests being printed and then me
 being asked to confirm the deployment, which is *better* but not *good*
-
-- sometimes I get shown manifests and asked to confirm, then when I do confirm
+ -->
+<!-- - sometimes I get shown manifests and asked to confirm, then when I do confirm
   it applies the shown manifests, tells me a command is about
   to be executed **and** immediately executes that command. This is inconsistent and makes me wonder why the command is printed in the first place
 
@@ -91,24 +91,24 @@ being asked to confirm the deployment, which is *better* but not *good*
 
   </details>
 
-
-- it would be nice to have estimates for how long certain tasks approximately
+ -->
+<!-- - it would be nice to have estimates for how long certain tasks approximately
   take, e.g.
 
   ```bash
   ℹ️  No Cognito settings provided. Provisioning Cognito (region: eu-central-1, prefix: hub)...
   ℹ️  Estimated time: 20-25min
-  ```
+  ``` -->
 
-- is Cognito ever going to be done provisioning? AWS console tells me it was
+<!-- - is Cognito ever going to be done provisioning? AWS console tells me it was
   created 10 minutes ago, what are we waiting on? More information would be nice
   - also, if I didn't have access to the aws console I wouldn't even know the
     provisioning request was accepted
   - if this information is hidden behind the verbose flag then a concise version
     of it should be displayed by default
   - 21 minutes later, AWS dashboard shows no changes - now the CLI succeeds
-    - this took ~35 minutes, a warning would have definitely been appropriate
-- it is odd how even without the verbose flag after creating the Cognito User
+    - this took ~35 minutes, a warning would have definitely been appropriate -->
+<!-- - it is odd how even without the verbose flag after creating the Cognito User
   Pool the CLI starts showing full manifests and commands in this giant frame
 - maybe an alternative to printing the manifests all into the console
   unconditionally would be to have the following structure for approvals:
@@ -165,8 +165,8 @@ being asked to confirm the deployment, which is *better* but not *good*
     apply them, if you want to shift the responsibility from the CLI to a Cloud
     Component)
   - further investigation confirmed that the claims **and** the compositions
-    were immediately ready regardless of the state of the managed resources
-- the "nestedness" of the CLI does not feel great to use
+    were immediately ready regardless of the state of the managed resources -->
+<!-- - the "nestedness" of the CLI does not feel great to use
   - I understand that this is due to the desire to separate the "local flow" and
     the "remote flow", but it feels cumbersome to use when not copy-pasting
     commands outright
@@ -183,9 +183,9 @@ being asked to confirm the deployment, which is *better* but not *good*
       a9s create control-plane --target local
       a9s create pg-instance --target remote # maybe a default target can be put into a config file in the User's home directory
       a9s create pg-service-binding --target remote # I wonder if this even needs to be called in an instance-specific way or if it would be feasible for the CLI to auto-determine the service type based on the instance ref provided
-      ```
+      ``` -->
 
-- backup MR could not be deleted on the Control Plane Cluster, yet Backup Claim
+<!-- - backup MR could not be deleted on the Control Plane Cluster, yet Backup Claim
   got deleted
   - backup-manager logs say: `failed to extract stats for backup metadata file: Access Denied.`
   - manual inspection of the minio bucket showed a backup file was created, so
@@ -193,7 +193,7 @@ being asked to confirm the deployment, which is *better* but not *good*
     ones for deletion don't
   - the admin credentials also don't work
   - fix is in [open PR against a8s-backup-manager repo](https://github.com/anynines/a8s-backup-manager/pull/99)
-  - interim image is at `378836732719.dkr.ecr.eu-central-1.amazonaws.com/a8s-backup-manager:fix-minio-deletion-0`
+  - interim image is at `378836732719.dkr.ecr.eu-central-1.amazonaws.com/a8s-backup-manager:fix-minio-deletion-0` -->
 
 ## Feedback on the tutorial
 
