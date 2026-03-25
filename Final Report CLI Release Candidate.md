@@ -36,6 +36,9 @@ Interface-Design of the CLI (How does it feel to use it?) -->.
     - [the strict separation between local and remote path feels unjustified](#the-strict-separation-between-local-and-remote-path-feels-unjustified)
     - [having the service name in the command path for referencing resources feels unjustified](#having-the-service-name-in-the-command-path-for-referencing-resources-feels-unjustified)
   - [Correctness](#correctness)
+- [Appendix A: Bugs discovered during Fixing Phase](#appendix-a-bugs-discovered-during-fixing-phase)
+  - [Control Plane clusters share networking components](#control-plane-clusters-share-networking-components)
+  - [Deleting a Control Plane cluster breaks other Control Plane cluster in the same account](#deleting-a-control-plane-cluster-breaks-other-control-plane-cluster-in-the-same-account)
 
 ## Functional Correctness
 
@@ -54,7 +57,7 @@ Suggested Long-Term Fix | Build official images and upload them to a public repo
 Details | EKS add-on for provisioning AWS EBS Volumes was missing.
 --- | ---
 Consequence | a8s pg instances did not become ready because they were stuck waiting for their persistent volumes to be provisioned
-Short-Term Fix | Manually run eksctl command to create required IAM service account and install required add-on to cluster.
+Short-Term Fix | Manually run `eksctl` command to create required IAM service account and install required add-on to cluster.
 Suggested Long-Term Fix | Add steps to CLI for adding IAM service account and installing add-on during CP cluster creation.
 
 #### The command `a9s create cluster klutch` is not idempotent
@@ -77,8 +80,8 @@ Suggested Long-Term Fix | Either look into what makes the NATs provision 2 IPs p
 
 Details | The version deployed is `v1.3.0`, which was released in January last year. In December, we released version `v1.4.0`, which contains some changes to the way Compositions are generated.
 --- | ---
-Consequence | A user who sticks to a8s PG will not notice a difference, as the changes to the a8s PG Compositions are all under the hood and don't change the behaviour of the affected resources. A user who wants to use the `provider-anynines` for provisioning instances from an a9s DS Service Broker will however lose out on some features added to the compositions in the meantime (e.g. custom parameters for some data services, support for a9s KeyValue etc.).
-Short-Term Fix |Update `configPackageManifestUrl` from `v1.3.0` to `v1.4.0` on feature branch and manually deploy the `patch-and-transform` Crossplane function
+Consequence | A user who sticks to a8s PG will not notice a difference, as the changes to the a8s PG Compositions are all under the hood and don't change the behavior of the affected resources. A user who wants to use the `provider-anynines` for provisioning instances from an a9s DS Service Broker will however lose out on some features added to the compositions in the meantime (e.g. custom parameters for some data services, support for a9s KeyValue etc.).
+Short-Term Fix | Update `configPackageManifestUrl` from `v1.3.0` to `v1.4.0` on feature branch and manually deploy the `patch-and-transform` Crossplane function
 Suggested Long-Term Fix | Merge change to `configPackageManifestUrl` into main branch and extend `create cluster` command to also deploy the `patch-and-transform` Crossplane function
 
 #### The command `a9s delete cluster klutch` leaves resources behind
@@ -95,13 +98,13 @@ Suggested Long-Term Fix | decide, which of these resources are okay to be left b
 
 Details | As soon as the managed resources can be provisioned, the claim gets marked as "Ready", regardless of if the managed resources themselves become "Ready" or "Available". Updating to the newest version of the Configuration Package for the a8s Framework did not solve this issue.
 --- | ---
-Consequences | When using the "Ready" condition to wait for a provisioned instance, servicebinding, backup or restore to be usable (e.g. via `kubectl wait`) a user might get the impression, that their provisioned resource would be usable even when it is not. - When deleting a claim, Crossplane does not wait for the managed resources to be deleted, potentially leading to orphaned resources stuck in deletion, which are invisible to the Workload cluster.
-Short-Term Fix | Accepted the behaviour and worked around it by monitoring the `.status.managed` subresource as well as manually checking after deleting claims, that the managed resources are cleaned up as well.
+Consequences | When using the "Ready" condition to wait for a provisioned instance, service binding, backup or restore to be usable (e.g. via `kubectl wait`) a user might get the impression, that their provisioned resource would be usable even when it is not. - When deleting a claim, Crossplane does not wait for the managed resources to be deleted, potentially leading to orphaned resources stuck in deletion, which are invisible to the Workload cluster.
+Short-Term Fix | Accepted the behavior and worked around it by monitoring the `.status.managed` subresource as well as manually checking after deleting claims, that the managed resources are cleaned up as well.
 Suggested Long-Term Fix | Update a8s CompositeResourceDefinitions to dynamically update the "Ready" condition based on the state of the managed resources as is already done for the a9s CompositeResourceDefinitions.
 
 #### The command `a9s delete klutch pg backup` left orphaned resources behind
 
-Details | When executing the command, the Claim and the Composition were deleted, but the managed resource was unable to be removed. The cause is a bug in the `a8s-backup-manager`, caused by a hardcoded S3 Endpoint URL. Because of this the controller could not delete the backup file and therefore could not clear the backup MR for deletion.
+Details | When executing the command, the Claim and the Composition were deleted, but the managed resource was unable to be removed. The cause is a bug in the `a8s-backup-manager`, caused by a hard-coded S3 Endpoint URL. Because of this the controller could not delete the backup file and therefore could not clear the backup MR for deletion.
 --- | ---
 Consequence | Users who want to store their backups in MinIO or other Object Stores apart from AWS S3 will have to Manually clean out orphaned backups.
 Short-Term Fix | Opened [PR against a8s-backup-manager repo](https://github.com/anynines/a8s-backup-manager/pull/99), build interim image `378836732719.dkr.ecr.eu-central-1.amazonaws.com/a8s-backup-manager:fix-minio-deletion-0`, Manually paste interim image into deployment manifests in local copy of `a8s-deployment` repo.
@@ -115,10 +118,10 @@ Suggested Long-Term Fix | Verify that the code in the PR is up to our standards,
 
 ##### Problem
 
-It feels overwhelming and disorienting to get one or sometimes even multiple yaml manifests
+It feels overwhelming and disorienting to get one or sometimes even multiple YAML manifests
 thrown at you, even without setting the `--verbose` flag.
 
-##### Suggested Solution: On-demand paginated yaml
+##### Suggested Solution: On-demand paginated YAML
 
 - give user the option to ask for manifests before confirming
 - only print manifest(s) when user asks for them
@@ -146,7 +149,7 @@ manifests
 frames around the commands take up so much terminal space
 - copy-pasting multi-line-commands from the CLI output for terminal use is
   annoying because of elements inserted by the formatting (empty line,
-  side-borders of the frame, spaces for centring) which have to be deleted
+  side-borders of the frame, spaces for centering) which have to be deleted
 - Disclaimer: strictly my own opinion/taste
   - the formatting gives me the vibe of a hobby-project instead of looking
     professional, which is probably not something we want a product of ours to
@@ -154,7 +157,7 @@ frames around the commands take up so much terminal space
 
 ##### Suggested Solution: change formatting to take up less space and be copy-paste-friendly
 
-- print the command in reverse formatting or in colour
+- print the command in reverse formatting or in color
 - only leave one line above and below it empty
 - N2H: show the eye-catching, formatted version in a pager utility, print
   unformatted message like `executing <command>...` into regular terminal
@@ -344,3 +347,21 @@ things which work are done in the right way.
 For the things which don't work, either because the CLI misses a necessary
 operation or because it executes operations incorrectly, see the section
 [Problems with CLI logic](#problems-with-cli-logic).
+
+## Appendix A: Bugs discovered during Fixing Phase
+
+### Control Plane clusters share networking components
+
+Details | If two CP clusters are deployed in the same AWS account, the second cluster will reuse the VPCs (and therefore everything that depends on them, such as route tables, subnets etc.) from the first cluster
+--- | ---
+Consequences | Network segregation between the clusters is no longer a given, which may pose security risks in a low-trust/no-trust use case.
+Short-Term Fix | Accepted the behavior.
+Suggested Long-Term Fix | In addition to the current behavior of tagging the networking components with a cluster's role, the CLI should also tag the components with a cluster's name to make sure that a cluster can only reuse components that it provisioned itself in the first place.
+
+### Deleting a Control Plane cluster breaks other Control Plane cluster in the same account
+
+Details | If the CLI gets the instruction to delete a Control Plane cluster, it deletes its networking components as well without checking first, whether there is another cluster attached to them.
+--- | ---
+Consequences | Should a second Control Plane cluster be deployed in the same AWS account, then this behavior will break the functionality of the other cluster.
+Short-Term Fix | Accepted the behavior, worked around it by always re-running the `a9s create cluster control-plane` command after deleting a cluster for any clusters left behind.
+Suggested Long-Term Fix | If we go with preventing the re-use of another cluster's networking, then no additional work is needed here. If we want to accept re-using another cluster's networking, then the deletion should make sure that no other cluster is using a VPC before deleting it.
