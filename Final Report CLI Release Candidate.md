@@ -38,7 +38,9 @@ Interface-Design of the CLI (How does it feel to use it?) -->.
   - [Correctness](#correctness)
 - [Appendix A: Bugs discovered during Fixing Phase](#appendix-a-bugs-discovered-during-fixing-phase)
   - [Control Plane clusters share networking components](#control-plane-clusters-share-networking-components)
-  - [Deleting a Control Plane cluster breaks other Control Plane cluster in the same account](#deleting-a-control-plane-cluster-breaks-other-control-plane-cluster-in-the-same-account)
+  - [Deleting a Control Plane cluster breaks networking of other Control Plane cluster in the same account](#deleting-a-control-plane-cluster-breaks-networking-of-other-control-plane-cluster-in-the-same-account)
+  - [Deleting a Control Plane cluster breaks ALB setup of other Control Plane cluster in the same account](#deleting-a-control-plane-cluster-breaks-alb-setup-of-other-control-plane-cluster-in-the-same-account)
+  - [Control Plane cluster creation fails due to timing issue](#control-plane-cluster-creation-fails-due-to-timing-issue)
 
 ## Functional Correctness
 
@@ -358,10 +360,26 @@ Consequences | Network segregation between the clusters is no longer a given, wh
 Short-Term Fix | Accepted the behavior.
 Suggested Long-Term Fix | In addition to the current behavior of tagging the networking components with a cluster's role, the CLI should also tag the components with a cluster's name to make sure that a cluster can only reuse components that it provisioned itself in the first place.
 
-### Deleting a Control Plane cluster breaks other Control Plane cluster in the same account
+### Deleting a Control Plane cluster breaks networking of other Control Plane cluster in the same account
 
-Details | If the CLI gets the instruction to delete a Control Plane cluster, it deletes its networking components as well without checking first, whether there is another cluster attached to them.
+Details | The command `a9s delete cluster klutch control-plane` removes the networking components without checking first, whether there is another cluster attached to them.
 --- | ---
-Consequences | Should a second Control Plane cluster be deployed in the same AWS account, then this behavior will break the functionality of the other cluster.
-Short-Term Fix | Accepted the behavior, worked around it by always re-running the `a9s create cluster control-plane` command after deleting a cluster for any clusters left behind.
-Suggested Long-Term Fix | If we go with preventing the re-use of another cluster's networking, then no additional work is needed here. If we want to accept re-using another cluster's networking, then the deletion should make sure that no other cluster is using a VPC before deleting it.
+Consequences | Should a second Control Plane cluster be deployed in the same AWS account, then this behavior will break the networking of the other cluster.
+Short-Term Fix | Accepted the behavior, worked around it by always re-creating the networking using the `a9s create cluster control-plane` command for any control plane clusters left behind after deleting a control plane cluster.
+Suggested Long-Term Fix | If we go with preventing the re-use of another cluster's networking, then no additional work is needed here. If we want to accept re-using another cluster's networking, then the deletion should make sure that no other cluster is using a networking component before deleting it.
+
+### Deleting a Control Plane cluster breaks ALB setup of other Control Plane cluster in the same account
+
+Details | The command `a9s delete cluster klutch control-plane` removes the ALB resources (policy, service account etc.) used for provisioning ALBs without checking first, whether there is another cluster using it.
+--- | ---
+Consequences | Should a second Control Plane cluster be deployed in the same AWS account, then this behavior will break the load balancing of the other cluster.
+Short-Term Fix | Accepted the behavior, worked around it by always re-creating the service account using the `a9s create cluster control-plane` command for any control plane clusters left behind after deleting a control plane cluster.
+Suggested Long-Term Fix | If we go with preventing the re-use of another cluster's resources, then no additional work is needed here. If we want to accept re-using another cluster's resources, then the deletion should make sure that no other cluster is using ALB resources before deleting it.
+
+### Control Plane cluster creation fails due to timing issue
+
+Details | The command `a9s create cluster klutch control-plane` creates a service account for its ALB setup, but does not wait for that service-account to be done provisioning.
+--- | ---
+Consequences | Usually this behavior does not cause problems, as when creating a cluster from scratch the wait for the EKS cluster to become ready is more than enough for the service account to finish creation. It becomes an issue, however, if the service account is deleted (e.g. due to [this](#deleting-a-control-plane-cluster-breaks-alb-setup-of-other-control-plane-cluster-in-the-same-account) bug), as then the CLI expects the service account to be created immediately, tries to retrieve it metadata, gets an error response from AWS and fails.
+Short-Term Fix | Added the `--wait` flag to the `eksctl create service-account` call responsible for creating the load balancer account.
+Suggested Long-Term Fix | We can either merge the fix as-is (personal recommendation) or replace the immediate wait with checking for service account readiness after confirming that the EKS cluster is ready (slight time saver but more complex to implement, therefore not recommended).
