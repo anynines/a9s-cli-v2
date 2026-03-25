@@ -103,14 +103,17 @@ func (l *styledLogger) Fatalf(err error, format string, args ...interface{}) {
 var awsLogger = newStyledLogger()
 
 var (
-	klutchTagKey       = "Klutch"
-	klutchTagValue     = "ControlPlane"
-	klutchNamePrefix   = "klutch-control-plane"
-	klutchRoleLabel    = "control plane"
-	clusterNameTagKey  = "eks.cluster/name"
-	clusterIDTagKey    = "eks.cluster/id"
-	currentClusterName string
-	currentClusterArn  string
+	klutchTagKey                      = "Klutch"
+	klutchTagValue                    = "ControlPlane"
+	klutchNamePrefix                  = "klutch-control-plane"
+	klutchRoleLabel                   = "control plane"
+	clusterNameTagKey                 = "eks.cluster/name"
+	clusterIDTagKey                   = "eks.cluster/id"
+	currentClusterName                string
+	currentClusterArn                 string
+	defaultTenantOperatorImage        = "public.ecr.aws/h6x7g6i7/anynines/cli-resources/tenants-operator:0.1.0"
+	defaultTenantOperatorChartImage   = "oci://public.ecr.aws/h6x7g6i7/anynines/cli-resources/tenants-operator-chart"
+	defaultTenantOperatorChartVersion = "0.1.0"
 )
 
 func setKlutchContext(cfg Config) func() {
@@ -215,9 +218,9 @@ func defaultConfig() Config {
 		KlutchTagValue:             "ControlPlane",
 		ResourceNamePrefix:         "klutch-control-plane",
 		ClusterRole:                "Control Plane",
-		TenantOperatorImage:        "032720848313.dkr.ecr.eu-central-1.amazonaws.com/a9s-tenants-operator:0.17.0",
-		TenantOperatorChart:        "oci://032720848313.dkr.ecr.eu-central-1.amazonaws.com/a9s-tenants-operator-chart",
-		TenantOperatorChartVersion: "0.17.0",
+		TenantOperatorImage:        defaultTenantOperatorImage,
+		TenantOperatorChart:        defaultTenantOperatorChartImage,
+		TenantOperatorChartVersion: defaultTenantOperatorChartVersion,
 		HostedZoneName:             "",
 	}
 }
