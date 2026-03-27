@@ -513,7 +513,8 @@ func provisionCluster(ctx context.Context, cfg Config, opts CreateOptions) {
 	ensureClusterRole(ctx, cfg.ClusterIamRoleName)
 	ensureNodeRole(ctx, cfg.NodeRoleName)
 
-	keyArn := ensureKMSKey(cfg, ctx, cfg.Region, out, cfg.ClusterIamRoleName)
+	keyArn := ensureKmsKeyArn(ctx, cfg, cfg.Region, out)
+	ensureKMSKeyPolicy(ctx, cfg.ClusterIamRoleName, keyArn)
 
 	ensureNetworking(ctx, cfg, vpcID)
 
@@ -1056,29 +1057,7 @@ func ApplyControlPlaneAddons(ctx context.Context, opts CreateOptions) {
 	awsLogger.Successf("Klutch control-plane addons applied to cluster %s.", cfg.ClusterName)
 }
 
-func ensureKMSKey(cfg Config, ctx context.Context, region, accountID, clusterRole string) string {
-	keyID := os.Getenv("KEY_ID")
-	if keyID == "" {
-		awsLogger.Infof("Creating new KMS key for EKS secret encryption...")
-		tags := append([]string{
-			fmt.Sprintf("TagKey=%s,TagValue=%s", klutchTagKey, klutchTagValue),
-			fmt.Sprintf("TagKey=Name,TagValue=%s", resourceName(cfg, "kms-key")),
-		}, clusterTagPairsKMS()...)
-		args := []string{
-			"kms", "create-key",
-			"--description", fmt.Sprintf("Encrypts secret data stored by the Klutch %s EKS cluster", klutchRoleLabel),
-			"--query", "KeyMetadata.KeyId",
-			"--output", "text",
-			"--tags",
-		}
-		args = append(args, tags...)
-		keyID = mustRunWithPrompt(ctx, "aws", args...)
-	} else {
-		awsLogger.Infof("Using existing KMS KEY_ID: %s", keyID)
-	}
-	keyArn := fmt.Sprintf("arn:aws:kms:%s:%s:key/%s", region, accountID, keyID)
-	awsLogger.Infof("KMS KEY_ID: %s", keyID)
-	awsLogger.Infof("KMS KEY_ARN: %s", keyArn)
+func ensureKMSKeyPolicy(ctx context.Context, clusterRole, keyArn string) {
 
 	policy := fmt.Sprintf(`{
   "Version": "2012-10-17",
@@ -1104,7 +1083,50 @@ func ensureKMSKey(cfg Config, ctx context.Context, region, accountID, clusterRol
 		"--role-name", clusterRole,
 		"--policy-name", "EKSClusterKMSAccess",
 		"--policy-document", "file://"+tmp)
-	return keyArn
+}
+
+func ensureKmsKeyArn(ctx context.Context, cfg Config, region string, accountID string) string {
+	if os.Getenv("KEY_ID") != "" {
+		return os.Getenv("KEY_ID")
+	}
+	out, err := runCmd(ctx, "aws", "resourcegroupstaggingapi",
+		"get-resources", "--tag-filters",
+		"Key="+klutchTagKey+",Values="+klutchTagValue,
+		"Key=Name,Values="+resourceName(cfg, "kms-key"),
+		"--resource-type-filters", "kms",
+		"--region", region,
+		"--query", "ResourceTagMappingList[0].ResourceARN",
+		"--output", "text")
+	if err != nil {
+		awsLogger.Fatalf(err, "Could not check for existing KMS key:%s", out)
+	}
+
+	if strings.ToLower(strings.TrimSpace(out)) != "none" && strings.ToLower(strings.TrimSpace(out)) != "null" && strings.TrimSpace(out) != "" {
+		awsLogger.Infof("Using existing KMS KEY_ID: %s", out)
+		return out
+	}
+
+	awsLogger.Infof("Creating new KMS key for EKS secret encryption...")
+	tags := append([]string{
+		fmt.Sprintf("TagKey=%s,TagValue=%s", klutchTagKey, klutchTagValue),
+		fmt.Sprintf("TagKey=Name,TagValue=%s", resourceName(cfg, "kms-key")),
+	}, clusterTagPairsKMS()...)
+	args := []string{
+		"kms", "create-key",
+		"--description", fmt.Sprintf("Encrypts secret data stored by the Klutch %s EKS cluster", klutchRoleLabel),
+		"--query", "KeyMetadata.KeyId",
+		"--output", "text",
+		"--tags",
+	}
+	args = append(args, tags...)
+	keyID := mustRun(ctx, "aws", args...)
+
+	out = fmt.Sprintf("arn:aws:kms:%s:%s:key/%s", region, accountID, keyID)
+
+	awsLogger.Infof("KMS KEY_ID: %s", keyID)
+	awsLogger.Infof("KMS KEY_ARN: %s", out)
+
+	return out
 }
 
 func tagKMSKeyForCluster(ctx context.Context, keyArn, region, accountID, clusterName string) {
