@@ -536,6 +536,10 @@ func provisionCluster(ctx context.Context, cfg Config, opts CreateOptions) {
 		"--region", cfg.Region,
 		"--name", cfg.ClusterName)
 	waitForNodesReady(ctx)
+	if strings.EqualFold(cfg.ClusterRole, "Control Plane") {
+		ensureEBSCSIDriverAddon(ctx, cfg)
+		awsLogger.Successf("aws-ebs-csi-driver addon is installed.")
+	}
 
 	ensureGp3StorageClass(ctx)
 
@@ -681,6 +685,14 @@ func printCreatePlan(cfg Config) {
 			Commands: []string{
 				"aws ec2 get-ebs-encryption-by-default",
 				"aws ec2 enable-ebs-encryption-by-default",
+			},
+		},
+		{
+			Title:   "EBS CSI controller and addon",
+			Purpose: "Create the IAM service account role for the EBS CSI controller and install the aws-ebs-csi-driver addon.",
+			Commands: []string{
+				"eksctl create iamserviceaccount --name ebs-csi-controller-sa --namespace kube-system --cluster " + cfg.ClusterName + " --role-name AmazonEKS_EBS_CSI_DriverRole --role-only --attach-policy-arn arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy --approve",
+				"eksctl create addon --cluster " + cfg.ClusterName + " --name aws-ebs-csi-driver --version latest --force",
 			},
 		},
 		{
@@ -1614,6 +1626,48 @@ parameters:
 		awsLogger.Fatalf(err, "❌ Failed to apply gp3 StorageClass: %v", err)
 	}
 	awsLogger.Successf("gp3 StorageClass installed and set as default.")
+}
+
+func ensureEBSCSIDriverAddon(ctx context.Context, cfg Config) {
+	awsLogger.Section("AWS EBS CSI Driver")
+	awsLogger.Infof("Installing EBS CSI controller IAM role and aws-ebs-csi-driver addon...")
+
+	mustRun(ctx, "eksctl", "utils", "associate-iam-oidc-provider",
+		"--region", cfg.Region,
+		"--cluster", cfg.ClusterName,
+		"--approve")
+
+	mustRun(ctx, "eksctl", "create", "iamserviceaccount",
+		"--name", "ebs-csi-controller-sa",
+		"--namespace", "kube-system",
+		"--cluster", cfg.ClusterName,
+		"--role-name", "AmazonEKS_EBS_CSI_DriverRole",
+		"--role-only",
+		"--attach-policy-arn", "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy",
+		"--approve")
+
+	// we first optimistically assume that the addon exists and try to update it to the latest version
+	updateErrOut, updateErr := runCmd(ctx, "aws", "eks", "update-addon",
+		"--cluster-name", cfg.ClusterName,
+		"--addon-name", "aws-ebs-csi-driver",
+		"--region", cfg.Region,
+		"--resolve-conflicts", "OVERWRITE")
+
+	if updateErr == nil {
+		return
+	}
+
+	if !strings.Contains(updateErrOut, "ResourceNotFoundException") || !strings.Contains(updateErrOut, "No addon") {
+		awsLogger.Fatalf(updateErr, "Failed to update aws-ebs-csi-driver addon\nstderr: %s", updateErrOut)
+	}
+
+	awsLogger.Infof("aws-ebs-csi-driver addon not found. Creating...")
+	ensureNoStaleCloudFormationStacks("addon-aws-ebs-csi-driver", ctx, cfg)
+	mustRun(ctx, "eksctl", "create", "addon",
+		"--cluster", cfg.ClusterName,
+		"--name", "aws-ebs-csi-driver",
+		"--version", "latest",
+		"--force")
 }
 
 func ensureNoStaleCloudFormationStacks(stackIdentifier string, ctx context.Context, cfg Config) {
