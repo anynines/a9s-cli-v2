@@ -109,6 +109,13 @@ func (l *styledLogger) Fatalf(err error, format string, args ...interface{}) {
 
 var awsLogger = newStyledLogger()
 
+const (
+	// Namespace of the ServiceAccount for the ALB controller
+	albAccountNamespace = "kube-system"
+	// Name of the ServiceAccount for the ALB controller
+	albAccountName = "aws-load-balancer-controller"
+)
+
 var (
 	klutchTagKey                      = "Klutch"
 	klutchTagValue                    = "ControlPlane"
@@ -392,6 +399,7 @@ func provisionCluster(ctx context.Context, cfg Config, opts CreateOptions) {
 			}
 		}
 		checkAWSCLIVersion(ctx)
+		checkKubectlMinVersion(ctx, "v1.27.0")
 		awsLogger.Successf("All required commands (%s) are available.", strings.Join(requiredCmds, ", "))
 	}
 
@@ -683,15 +691,15 @@ func printCreatePlan(cfg Config) {
 			Purpose: "Install the ALB controller used for Klutch ingress and service routing.",
 			Commands: []string{
 				fmt.Sprintf("eksctl utils associate-iam-oidc-provider --region %s --cluster %s --approve", cfg.Region, cfg.ClusterName),
-				"curl -sSfL -o aws-load-balancer-controller-policy.json https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/main/docs/install/iam_policy.json",
-				fmt.Sprintf("aws iam create-policy --policy-name %s --policy-document file://aws-load-balancer-controller-policy.json --description \"Allows the Klutch %s to run the AWS Load Balancer Controller safely\" --tags Key=%s,Value=%s Key=Name,Value=%s", cfg.ALBControllerPolicyName, roleLabel, klutchTagKey, klutchTagValue, cfg.ALBControllerPolicyName),
-				fmt.Sprintf("aws iam create-policy-version --policy-arn arn:aws:iam::%s:policy/%s --policy-document file://aws-load-balancer-controller-policy.json --set-as-default", accountPlaceholder, cfg.ALBControllerPolicyName),
-				fmt.Sprintf("eksctl create iamserviceaccount --cluster %s --namespace kube-system --name aws-load-balancer-controller --attach-policy-arn arn:aws:iam::%s:policy/%s --region %s --approve --override-existing-serviceaccounts", cfg.ClusterName, accountPlaceholder, cfg.ALBControllerPolicyName, cfg.Region),
+				"curl -sSfL -o " + albAccountName + "-policy.json https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/main/docs/install/iam_policy.json",
+				fmt.Sprintf("aws iam create-policy --policy-name %s --policy-document file://"+albAccountName+"-policy.json --description \"Allows the Klutch %s to run the AWS Load Balancer Controller safely\" --tags Key=%s,Value=%s Key=Name,Value=%s", cfg.ALBControllerPolicyName, roleLabel, klutchTagKey, klutchTagValue, cfg.ALBControllerPolicyName),
+				fmt.Sprintf("aws iam create-policy-version --policy-arn arn:aws:iam::%s:policy/%s --policy-document file://"+albAccountName+"-policy.json --set-as-default", accountPlaceholder, cfg.ALBControllerPolicyName),
+				fmt.Sprintf("eksctl create iamserviceaccount --cluster %s --namespace %s --name %s --attach-policy-arn arn:aws:iam::%s:policy/%s --region %s --approve --override-existing-serviceaccounts", cfg.ClusterName, albAccountNamespace, albAccountName, accountPlaceholder, cfg.ALBControllerPolicyName, cfg.Region),
 				"helm repo add eks https://aws.github.io/eks-charts",
 				"helm repo update",
-				fmt.Sprintf("helm upgrade --install aws-load-balancer-controller eks/aws-load-balancer-controller -n kube-system --set clusterName=%s --set region=%s --set vpcId=%s --set serviceAccount.create=false --set serviceAccount.name=aws-load-balancer-controller", cfg.ClusterName, cfg.Region, vpcID),
+				fmt.Sprintf("helm upgrade --install "+albAccountName+" eks/aws-load-balancer-controller -n %s --set clusterName=%s --set region=%s --set vpcId=%s --set serviceAccount.create=false --set serviceAccount.name="+albAccountName, albAccountNamespace, cfg.ClusterName, cfg.Region, vpcID),
 				fmt.Sprintf("aws iam attach-role-policy --role-name <role-derived-from-sa> --policy-arn arn:aws:iam::%s:policy/%s", accountPlaceholder, cfg.ALBControllerPolicyName),
-				"kubectl rollout status deployment/aws-load-balancer-controller -n kube-system",
+				"kubectl rollout status deployment/" + albAccountName + " -n " + albAccountNamespace,
 			},
 		},
 	}
@@ -1476,7 +1484,7 @@ func ensureDefaultEBSEncryption(ctx context.Context) {
 		awsLogger.Warningf("get-ebs-encryption-by-default failed, skipping. Out=%s", out)
 		return
 	}
-	if out != "true" {
+	if strings.ToLower(out) != "true" {
 		awsLogger.Warningf("Default EBS encryption is currently disabled. Enabling now...")
 		mustRunWithPrompt(ctx, "aws", "ec2", "enable-ebs-encryption-by-default")
 		awsLogger.Successf("Default EBS encryption has been enabled.")
@@ -1604,6 +1612,31 @@ parameters:
 	awsLogger.Successf("gp3 StorageClass installed and set as default.")
 }
 
+func ensureNoStaleCloudFormationStacks(stackIdentifier string, ctx context.Context, cfg Config) {
+	stackName := fmt.Sprintf("eksctl-%s-%s", cfg.ClusterName, stackIdentifier)
+	awsLogger.Infof("Checking for leftover CloudFormation stack %s...", stackName)
+	disableProtectionErrOut, disableProtectionErr := runCmd(ctx, "aws", "cloudformation", "update-termination-protection",
+		"--stack-name", stackName,
+		"--no-enable-termination-protection")
+	if disableProtectionErr != nil {
+		if !strings.Contains(disableProtectionErrOut, "does not exist") {
+			awsLogger.Fatalf(disableProtectionErr, "Failed to disable TerminationProtection for CloudFormation stack %s\nstderr: %s", stackName, disableProtectionErrOut)
+		}
+		awsLogger.Infof("No leftover CloudFormation stack %s found, skipping deletion...", stackName)
+		return
+	}
+	deleteErrOut, deleteErr := runCmd(ctx, "aws", "cloudformation", "delete-stack",
+		"--stack-name", stackName,
+		"--region", cfg.Region)
+	if deleteErr != nil {
+		awsLogger.Fatalf(deleteErr, "Failed to delete CloudFormation stack %s\nstderr: %s", stackName, deleteErrOut)
+	}
+	awsLogger.Infof("Waiting for CloudFormation stack %s deletion to complete...", stackName)
+	mustRun(ctx, "aws", "cloudformation", "wait", "stack-delete-complete",
+		"--stack-name", stackName,
+		"--region", cfg.Region)
+}
+
 func ensureVpcDnsEnabled(ctx context.Context, vpcID string) {
 	awsLogger.Infof("Ensuring VPC %s has DNS support and hostnames enabled...", vpcID)
 
@@ -1642,7 +1675,7 @@ func ensureALBController(ctx context.Context, cfg Config, vpcID, accountID strin
 	awsLogger.Printf("Using AWS Load Balancer Controller version: %s", cfg.ALBControllerVersion)
 	awsLogger.Printf("IAM policy URL: %s", policyURL)
 
-	errOut, err := runCmd(ctx, "curl", "-sSfL", "-o", "aws-load-balancer-controller-policy.json", policyURL)
+	errOut, err := runCmd(ctx, "curl", "-sSfL", "-o", albAccountName+"-policy.json", policyURL)
 	if err != nil {
 		awsLogger.Fatalf(err, "curl failed\nstderr: %s", errOut)
 	}
@@ -1653,7 +1686,7 @@ func ensureALBController(ctx context.Context, cfg Config, vpcID, accountID strin
 		args := []string{
 			"iam", "create-policy",
 			"--policy-name", cfg.ALBControllerPolicyName,
-			"--policy-document", "file://aws-load-balancer-controller-policy.json",
+			"--policy-document", "file://" + albAccountName + "-policy.json",
 			"--description", fmt.Sprintf("Allows the Klutch %s to run the AWS Load Balancer Controller safely", klutchRoleLabel),
 			"--tags",
 		}
@@ -1665,18 +1698,11 @@ func ensureALBController(ctx context.Context, cfg Config, vpcID, accountID strin
 	} else {
 		awsLogger.Successf("IAM policy %s already exists.", cfg.ALBControllerPolicyName)
 		awsLogger.Infof("Updating IAM policy %s to latest version...", cfg.ALBControllerPolicyName)
-		ensurePolicyVersion(ctx, policyArn, "file://aws-load-balancer-controller-policy.json")
+		ensurePolicyVersion(ctx, policyArn, "file://"+albAccountName+"-policy.json")
 	}
 
-	awsLogger.Infof("Creating IAM service account for AWS Load Balancer Controller...")
-	mustRunWithPrompt(ctx, "eksctl", "create", "iamserviceaccount",
-		"--cluster", cfg.ClusterName,
-		"--namespace", "kube-system",
-		"--name", cfg.AlbServiceAccountName,
-		"--attach-policy-arn", policyArn,
-		"--region", cfg.Region,
-		"--approve",
-		"--override-existing-serviceaccounts")
+	ensureAlbServiceaccount(ctx, cfg, policyArn)
+	awsLogger.Successf("ServiceAccount %s/%s is available.", albAccountNamespace, albAccountName)
 
 	awsLogger.Infof("Installing AWS Load Balancer Controller via Helm...")
 	stdErr, err := runCmd(ctx, "helm", "repo", "add", "eks", "https://aws.github.io/eks-charts")
@@ -1704,7 +1730,7 @@ func ensureALBController(ctx context.Context, cfg Config, vpcID, accountID strin
 		if errOut, err := runCmdWithPrompt(ctx, "aws", "iam", "attach-role-policy",
 			"--role-name", roleName,
 			"--policy-arn", policyArn); err != nil {
-			awsLogger.Warningf("Failed to attach policy to role %s (continued): %v\nstderr: %s", roleName, err, errOut)
+			awsLogger.Fatalf(err, "Failed to attach policy to role %s (continued)\nstderr: %s", roleName, errOut)
 		} else {
 			awsLogger.Successf("Attached managed policy to role %s.", roleName)
 		}
@@ -1716,7 +1742,37 @@ func ensureALBController(ctx context.Context, cfg Config, vpcID, accountID strin
 	if errOut, err := k8sClient.RolloutStatus("deployment", cfg.AlbServiceAccountName, "kube-system", ""); err != nil {
 		awsLogger.Fatalf(err, "❌ ALB controller rollout failed\nstderr: %s", errOut)
 	}
-	awsLogger.Successf("aws-load-balancer-controller deployment is ready.")
+	awsLogger.Successf(albAccountName + " deployment is ready.")
+}
+
+func ensureAlbServiceaccount(ctx context.Context, cfg Config, policyArn string) {
+	errOut, err := runCmd(ctx, "kubectl", "get",
+		"serviceaccount", albAccountName,
+		"-n", albAccountNamespace)
+
+	if err != nil {
+		if !strings.Contains(errOut, "NotFound") && !strings.Contains(errOut, "serviceaccount") {
+			awsLogger.Fatalf(err, "Error while checking for ServiceAccount %s/%s\nstderr: %s", albAccountNamespace, albAccountName, errOut)
+		}
+		awsLogger.Infof("IAM service account for AWS Load Balancer Controller not found...")
+		ensureNoStaleCloudFormationStacks("addon-iamserviceaccount-"+albAccountNamespace+"-"+albAccountName, ctx, cfg)
+		awsLogger.Infof("Creating IAM service account for AWS Load Balancer Controller...")
+	}
+
+	mustRun(ctx, "eksctl", "create", "iamserviceaccount",
+		"--cluster", cfg.ClusterName,
+		"--namespace", albAccountNamespace,
+		"--name", albAccountName,
+		"--attach-policy-arn", policyArn,
+		"--region", cfg.Region,
+		"--approve",
+		"--override-existing-serviceaccounts")
+
+	awsLogger.Infof("Waiting for ServiceAccount %s/%s to be available...", albAccountNamespace, albAccountName)
+	if errOut, err := runCmd(ctx, "kubectl", "wait", "--for=create",
+		"serviceaccount/"+albAccountName, "-n", albAccountNamespace, "--timeout=120s"); err != nil {
+		awsLogger.Fatalf(err, "Timed out waiting for ServiceAccount %s/%s\nstderr: %s", albAccountNamespace, albAccountName, errOut)
+	}
 }
 
 func getALBControllerRoleName(ctx context.Context, cfg Config) string {
@@ -1748,6 +1804,33 @@ func getALBControllerRoleName(ctx context.Context, cfg Config) string {
 	parts := strings.Split(roleArn, "/")
 	roleName := parts[len(parts)-1]
 	return roleName
+}
+
+// checkKubectlMinVersion verifies that the kubectl client version meets the given minimum.
+// It runs `kubectl version --client`, finds the client line case-insensitively, extracts
+// the semver string (e.g. v1.29.2), and compares it using golang.org/x/mod/semver.
+func checkKubectlMinVersion(ctx context.Context, minVersion string) {
+	out, err := runCmd(ctx, "kubectl", "version", "--client")
+	if err != nil {
+		awsLogger.Fatalf(err, "Could not determine kubectl client version\nstderr: %s", out)
+	}
+	// Find the line mentioning "client" (case-insensitive) and extract the semver.
+	re := regexp.MustCompile(`(?i)client.*?(v1\.[0-9]+\.[0-9]+)`)
+	matches := re.FindStringSubmatch(out)
+	if len(matches) != 2 {
+		err := fmt.Errorf("Expected 2 matches from regEx (full line at index 0 and version at index 1), got %d matches", len(matches))
+		awsLogger.Fatalf(err, "Could not extract kubectl client version from output")
+	}
+	if !semver.IsValid(matches[1]) {
+		awsLogger.Fatalf(nil, "Extracted kubectl version %q is not a valid semver", matches[1])
+	}
+	if !semver.IsValid(minVersion) {
+		awsLogger.Fatalf(nil, "Invalid minimum version constraint %q", minVersion)
+	}
+	if semver.Compare(matches[1], minVersion) < 0 {
+		awsLogger.Fatalf(nil, "kubectl %s or newer is required (found %s). Please upgrade kubectl: https://kubernetes.io/docs/tasks/tools/", minVersion, matches[1])
+	}
+	awsLogger.Infof("kubectl %s satisfies the minimum requirement (%s).", matches[1], minVersion)
 }
 
 // ensureRouteTableAssociation makes sure the given subnet is associated with the desired route table.
