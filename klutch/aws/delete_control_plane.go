@@ -28,6 +28,7 @@ type DeleteOptions struct {
 	ForceDNS                bool
 	CleanupOrphans          bool
 	SkipPrompt              bool
+	ScheduleKmsDeletion     bool
 }
 
 // DeleteControlPlaneCluster tears down the EKS control plane and AWS resources that were created by CreateControlPlaneCluster.
@@ -135,11 +136,14 @@ func deleteCluster(ctx context.Context, cfg Config, opts DeleteOptions) {
 		awsLogger.Infof("Cluster does not exist. Skipping nodegroup/cluster deletion.")
 	}
 
+	klutchKmsKeyCleanup(cfg, ctx, opts)
+
 	// Always remove the ClusterName tags all Hosted Zones
 	// to free the zones for adoption by a new cluster.
 	removeClusterNameTagFromAllHostedZones(ctx, opts)
 
 	vpcID := findKlutchVPC(cfg, ctx, opts.Region)
+
 	if vpcID == "" {
 		awsLogger.Infof("No Klutch VPC found.")
 		dnsAndACMCleanup(ctx, nil, opts)
@@ -154,6 +158,7 @@ func deleteCluster(ctx context.Context, cfg Config, opts DeleteOptions) {
 	if opts.CleanupOrphans {
 		cleanupTaggedEIPs(cfg, ctx, opts)
 	}
+	klutchKmsKeyCleanup(cfg, ctx, opts)
 }
 
 func discoverCluster(ctx context.Context, cfg Config, opts DeleteOptions) (bool, bool) {
@@ -321,6 +326,108 @@ func deleteNodegroupsAndCluster(ctx context.Context, cfg Config, opts DeleteOpti
 			awsLogger.Successf("Cluster deleted.")
 		}
 	}
+}
+func klutchKmsKeyCleanup(cfg Config, ctx context.Context, opts DeleteOptions) {
+	awsLogger.Section("Disable Klutch KMS Keys")
+
+	args := []string{"resourcegroupstaggingapi", "get-resources",
+		"--tag-filters", fmt.Sprintf("Key=%s,Values=%s", klutchTagKey, klutchTagValue),
+		"--resource-type-filters", "kms",
+		"--query", "ResourceTagMappingList[].ResourceARN",
+		"--output", "text"}
+	args = appendRegion(args, opts.Region)
+
+	out, errOut, err := runCmd(ctx, "aws", args...)
+	if err != nil {
+		awsLogger.Warningf("Failed to list Klutch-tagged KMS keys: %v\nstderr: %s", err, errOut)
+		return
+	}
+
+	keyARNs := strings.Fields(out)
+	if len(keyARNs) == 0 {
+		awsLogger.Infof("No Klutch-tagged KMS keys found.")
+		return
+	}
+
+	awsLogger.Infof("Found %d Klutch-tagged KMS key(s).", len(keyARNs))
+	if opts.ScheduleKmsDeletion {
+		awsLogger.Infof(`"--schedule-kms-deletion" flag is active - will attempt to schedule the keys to be deleted in 7 days.`)
+	}
+
+	keysDisablingFailed := []string{}
+	keysDeletionSchedulingFailed := []string{}
+	keysRetaggingFailed := []string{}
+	for _, arn := range keyARNs {
+		awsLogger.Infof("Disabling KMS key %s...", arn)
+		if opts.DryRun {
+			awsLogger.Infof("Dry-run: would disable KMS key %s.", arn)
+			awsLogger.Infof("Dry-run: would retag KMS key %s.", arn)
+			if opts.ScheduleKmsDeletion {
+				awsLogger.Infof("Dry-run: would schedule deletion for KMS key %s.", arn)
+			}
+			continue
+		}
+		keysDisablingFailed = disableKmsKey(ctx, arn, opts, keysDisablingFailed)
+		keysRetaggingFailed = retagKmsKey(cfg, ctx, arn, opts, keysRetaggingFailed)
+		if opts.ScheduleKmsDeletion {
+			keysDeletionSchedulingFailed = scheduleDeletionForKmsKey(ctx, arn, opts, keysDeletionSchedulingFailed)
+		}
+	}
+	errMessages := []string{}
+	if len(keysDisablingFailed) > 0 {
+		errMessages = append(errMessages, logKmsCleanupFailure("Unable to disable all keys: failed to disable key", keysDisablingFailed))
+	}
+	if len(keysDeletionSchedulingFailed) > 0 {
+		errMessages = append(errMessages, logKmsCleanupFailure("Unable to delete all keys: failed to delete disabled key", keysDeletionSchedulingFailed))
+	}
+	if len(keysRetaggingFailed) > 0 {
+		errMessages = append(errMessages, logKmsCleanupFailure("Unable to retag all keys: failed to retag disabled key", keysRetaggingFailed))
+	}
+	if len(errMessages) > 0 {
+		awsLogger.Fatalf(nil, strings.Join(errMessages, "\n"))
+	}
+}
+
+func scheduleDeletionForKmsKey(ctx context.Context, arn string, opts DeleteOptions, keysDeletionSchedulingFailed []string) []string {
+	schedArgs := []string{"kms", "schedule-key-deletion", "--key-id", arn, "--pending-window-in-days", "7"}
+	schedArgs = appendRegion(schedArgs, opts.Region)
+	if _, errOut, err := runCmd(ctx, "aws", schedArgs...); err != nil {
+		awsLogger.Warningf("Failed to schedule deletion for KMS key %s: %v\nstderr: %s", arn, err, errOut)
+		return append(keysDeletionSchedulingFailed, arn)
+	}
+	awsLogger.Successf("Scheduled KMS key %s for deletion in 7 days.", arn)
+	return keysDeletionSchedulingFailed
+}
+
+func retagKmsKey(cfg Config, ctx context.Context, arn string, opts DeleteOptions, keysRetaggingFailed []string) []string {
+	retagArgs := appendRegion([]string{"kms", "tag-resource",
+		"--key-id", arn, "--tags",
+		"TagKey=Name,TagValue=" + resourceName(cfg, "kms-key-retired")}, opts.Region)
+	if _, errOut, err := runCmd(ctx, "aws", retagArgs...); err != nil {
+		awsLogger.Warningf("Failed to retag KMS key %s as retired: %v\nstderr: %s", arn, err, errOut)
+		return append(keysRetaggingFailed, arn)
+	}
+	awsLogger.Successf("Retagged KMS key %s as retired.", arn)
+	return keysRetaggingFailed
+}
+
+func disableKmsKey(ctx context.Context, arn string, opts DeleteOptions, keysDisablingFailed []string) []string {
+	disableArgs := appendRegion([]string{"kms", "disable-key",
+		"--key-id", arn},
+		opts.Region)
+	if _, errOut, err := runCmd(ctx, "aws", disableArgs...); err != nil {
+		awsLogger.Warningf("Failed to disable KMS key %s: %v\nstderr: %s", arn, err, errOut)
+		return append(keysDisablingFailed, arn)
+	}
+	awsLogger.Successf("Disabled KMS key %s.", arn)
+	return keysDisablingFailed
+}
+
+func logKmsCleanupFailure(message string, keys []string) string {
+	if len(keys) == 1 {
+		return fmt.Sprintf("%s %s\n", message, keys[0])
+	}
+	return fmt.Sprintf("%ss:\n- %s", message, strings.Join(keys, "\n- "))
 }
 
 func findKlutchVPC(cfg Config, ctx context.Context, region string) string {

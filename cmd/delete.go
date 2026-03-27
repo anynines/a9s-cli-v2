@@ -22,6 +22,7 @@ var deleteKlutchHostedZoneName string
 var deleteKlutchACMCertificateARN string
 var deleteKlutchCleanupOrphans bool
 var deleteKlutchReally bool
+var deleteKlutchScheduleKmsDeletion bool
 var deleteKlutchTenantRegion string
 var deleteKlutchTenantSecretName string
 
@@ -156,6 +157,7 @@ var cmdDeleteClusterKlutchControlPlane = &cobra.Command{
 			ACMCertificateARN:     deleteKlutchACMCertificateARN,
 			CleanupOrphans:        deleteKlutchCleanupOrphans,
 			SkipPrompt:            makeup.UnattendedMode && deleteKlutchReally,
+			ScheduleKmsDeletion:   deleteKlutchScheduleKmsDeletion,
 		}
 
 		if cmd.Flags().Changed("cluster-name") {
@@ -273,6 +275,7 @@ func addKlutchControlPlaneFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&deleteKlutchACMCertificateARN, "acm-certificate-arn", "", "ACM certificate ARN to delete (falls back to discovering a tagged Klutch certificate).")
 	cmd.Flags().BoolVar(&deleteKlutchCleanupOrphans, "cleanup-orphans", false, "Attempt to remove Klutch-tagged orphaned AWS resources (e.g., EIPs) after cluster deletion.")
 	cmd.Flags().BoolVar(&deleteKlutchReally, "really", false, "Confirm destructive Klutch cluster deletion (requires --yes to skip the prompt).")
+	cmd.Flags().BoolVar(&deleteKlutchScheduleKmsDeletion, "schedule-kms-deletion", false, "Attempt to schedule any Klutch-tagged KMS keys for deletion after 7 days.")
 }
 
 func addKlutchWorkloadFlags(cmd *cobra.Command) {
