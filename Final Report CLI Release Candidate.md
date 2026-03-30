@@ -41,6 +41,8 @@ Interface-Design of the CLI (How does it feel to use it?) -->.
   - [Deleting a Control Plane cluster breaks networking of other Control Plane cluster in the same account](#deleting-a-control-plane-cluster-breaks-networking-of-other-control-plane-cluster-in-the-same-account)
   - [Deleting a Control Plane cluster breaks ALB setup of other Control Plane cluster in the same account](#deleting-a-control-plane-cluster-breaks-alb-setup-of-other-control-plane-cluster-in-the-same-account)
   - [Control Plane cluster creation fails due to timing issue](#control-plane-cluster-creation-fails-due-to-timing-issue)
+  - [Control Plane cluster creation fails because of too many PolicyVersions](#control-plane-cluster-creation-fails-because-of-too-many-policyversions)
+- [Appendix B: State of Work Items](#appendix-b-state-of-work-items)
 
 ## Functional Correctness
 
@@ -354,7 +356,7 @@ operation or because it executes operations incorrectly, see the section
 
 ### Control Plane clusters share networking components
 
-Details | If two CP clusters are deployed in the same AWS account, the second cluster will reuse the VPCs (and therefore everything that depends on them, such as route tables, subnets etc.) from the first cluster
+Details | If two CP clusters with different names are deployed in the same AWS account, the second cluster will reuse the VPCs (and therefore everything that depends on them, such as route tables, subnets etc.) from the first cluster
 --- | ---
 Consequences | Network segregation between the clusters is no longer a given, which may pose security risks in a low-trust/no-trust use case.
 Short-Term Fix | Accepted the behavior.
@@ -383,3 +385,66 @@ Details | The command `a9s create cluster klutch control-plane` creates a servic
 Consequences | Usually this behavior does not cause problems, as when creating a cluster from scratch the wait for the EKS cluster to become ready is more than enough for the service account to finish creation. It becomes an issue, however, if the service account is deleted (e.g. due to [this](#deleting-a-control-plane-cluster-breaks-alb-setup-of-other-control-plane-cluster-in-the-same-account) bug), as then the CLI expects the service account to be created immediately, tries to retrieve it metadata, gets an error response from AWS and fails.
 Short-Term Fix | Added the `--wait` flag to the `eksctl create service-account` call responsible for creating the load balancer account.
 Suggested Long-Term Fix | We can either merge the fix as-is (personal recommendation) or replace the immediate wait with checking for service account readiness after confirming that the EKS cluster is ready (slight time saver but more complex to implement, therefore not recommended).
+
+### Control Plane cluster creation fails because of too many PolicyVersions
+
+Details | The command `a9s create cluster klutch` always unconditionally creates a new PolicyVersion of its `AWSLoadBalancerControllerIAMPolicy`.
+--- | ---
+Consequences | An IAM Policy can only have up to 5 versions, so this leads the CLI to fail if it is executed more than 5 times without failing early.
+Short-Term Fix | Added the `--wait` flag to the `eksctl create service-account` call responsible for creating the load balancer account.
+Suggested Long-Term Fix | We can either merge the fix as-is (personal recommendation) or replace the immediate wait with checking for service account readiness after confirming that the EKS cluster is ready (slight time saver but more complex to implement, therefore not recommended).
+
+## Appendix B: State of Work Items
+
+<table>
+    <tr>
+        <th>Backlog</th><th>Ready</th><th>Implementing</th><th>Pending Review</th><th>Done</th>
+    </tr>
+    <tr>
+        <td>Command structure rework (related to <a href="#the-strict-separation-between-local-and-remote-path-feels-unjustified">this</a>, <a href="#command-path-feels-overly-nested">this</a> and <a href="#having-the-service-name-in-the-command-path-for-referencing-resources-feels-unjustified">this</a> issue)</td>
+        <td><a href="#the-command-a9s-delete-cluster-klutch-leaves-resources-behind">resources left behind on cluster cleanup</a><td><a href="#always-printing-yaml-manifests">YAML manifests are always printed to the terminal</a></td>
+        <td><a href="#the-command-a9s-create-cluster-klutch-only-works-for-users-logged-into-jfs-personal-aws-account">Ressources not publicly accessible</a><td></td>
+    </tr>
+    <tr>
+        <td><a href="#the-command-a9s-create-cluster-klutch-deploys-an-old-dataservices-configuration-package">old Dataservices Configuration Package</a></td>
+        <td><a href="#the-formatting-of-shell-commands">the formatting of shell commands</a></td>
+        <td><a href="#asking-users-to-authorize-kubectl-apply--f---without-showing-the-manifests">asking users to authorize `kubectl apply -f -` without showing the manifests</a></td>
+        <td><a href="#the-command-a9s-create-cluster-klutch-did-not-set-the-control-plane-cluster-up-correctly">EBR EKS addon missing</a></td>
+        <td></td>
+    </tr>
+    <tr>
+        <td><a href="#the-conditions-on-a-claim-does-not-reflect-the-condition-of-the-managed-resources">The conditions on a claim does not reflect the condition of the managed resources</a></td>
+        <td><a href="#silence-during-cognito-provisioning">silence during Cognito provisioning</a></td>
+        <td></td>
+        <td><a href="#the-command-a9s-create-cluster-klutch-is-not-idempotent">always checks IP quota</a></td>
+        <td></td>
+    </tr>
+    <tr>
+        <td><a href="#control-plane-clusters-share-networking-components">resources only tagged with Cluster role, not cluster name</a> (also related to <a href="#deleting-a-control-plane-cluster-breaks-networking-of-other-control-plane-cluster-in-the-same-account">this</a> and <a href="#deleting-a-control-plane-cluster-breaks-alb-setup-of-other-control-plane-cluster-in-the-same-account">this</a> issue)</td>
+        <td><a href="#sometimes-not-enough-information-is-provided-before-asking-for-user-confirmation-to-proceed">lack of information before asking for user confirmation to proceed</a></td>
+        <td></td>
+        <td><a href="#the-command-a9s-create-cluster-klutch-does-not-check-the-quota-for-enough-elastic-ips">wrong number of EIPs on quota check</a></td>
+        <td></td>
+    </tr>
+    <tr>
+        <td><a href="#the-strict-separation-between-local-and-remote-path-feels-unjustified">get dataservice name from context</a></td>
+        <td><a href="#n2h-estimated-duration-of-step">N2H: estimated duration of step</a></td>
+        <td></td>
+        <td><a href="#the-command-a9s-delete-klutch-pg-backup-left-orphaned-resources-behind">backups can't be deleted from Minio</a></td>
+        <td></td>
+    </tr>
+    <tr>
+        <td></td>
+        <td></td>
+        <td></td>
+        <td>| <a href="#control-plane-cluster-creation-fails-due-to-timing-issue">ALB ServiceAccount Race Condition</a></td>
+        <td></td>
+    </tr>
+    <tr>
+        <td></td>
+        <td></td>
+        <td></td>
+        <td><a href="#control-plane-cluster-creation-fails-because-of-too-many-policyversions">Control Plane cluster creation fails because of too many PolicyVersions</a></td>
+        <td></td>
+    </tr>
+</table>
