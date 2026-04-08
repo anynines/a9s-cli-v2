@@ -13,6 +13,8 @@ import (
 
 var Verbose bool
 
+var UnattendedMode bool
+
 /*
 The makeup package contains helper methods to format output and print messages to the user.
 */

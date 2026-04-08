@@ -14,6 +14,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/goccy/go-yaml/lexer"
 	"github.com/goccy/go-yaml/printer"
+	"github.com/goccy/go-yaml/token"
 	"github.com/mattn/go-colorable"
 )
 
@@ -35,10 +36,16 @@ func PrintYAMLFile(yamlFilepath string) error {
 	return nil
 }
 
-func PrintYAML(bytes []byte, lineNumbers bool) {
-	tokens := lexer.Tokenize(string(bytes))
+func PrintYAML(content []byte, lineNumbers bool) {
+	tokens, p := GetColoredYAML(content)
+	writer := colorable.NewColorableStdout()
+	writer.Write([]byte(p.PrintTokens(tokens) + "\n"))
+}
+
+func GetColoredYAML(content []byte) (token.Tokens, printer.Printer) {
+	tokens := lexer.Tokenize(string(content))
 	var p printer.Printer
-	p.LineNumber = lineNumbers
+	p.LineNumber = false
 	p.LineNumberFormat = func(num int) string {
 		fn := color.New(color.Bold, color.FgHiWhite).SprintFunc()
 		return fn(fmt.Sprintf("%2d | ", num))
@@ -79,6 +86,5 @@ func PrintYAML(bytes []byte, lineNumbers bool) {
 			Suffix: format(color.Reset),
 		}
 	}
-	writer := colorable.NewColorableStdout()
-	writer.Write([]byte(p.PrintTokens(tokens) + "\n"))
+	return tokens, p
 }
