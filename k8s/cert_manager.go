@@ -14,8 +14,10 @@ func (k *KubeClient) ApplyCertManagerManifests(waitForUser bool) {
 		makeup.Print(fmt.Sprintf("Found %d pods in the %s namespace", count, CertManagerNamespace))
 	}
 
-	k.KubectlApplyF(CertManagerManifestUrl, waitForUser)
-
+	// Fetch and apply cert-manager manifests
+	if _, err := k.ApplyFromUrl(CertManagerManifestUrl, CertManagerManifestUrl); err != nil {
+		makeup.ExitDueToFatalError(err, "Failed to apply cert-manager manifests")
+	}
 	k.WaitForCertManagerToBecomeReady()
 }
 

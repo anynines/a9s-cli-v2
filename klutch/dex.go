@@ -63,11 +63,10 @@ func (k *KlutchManager) DeployDex(hostIP string, ingressPort string, ingressClas
 		makeup.ExitDueToFatalError(err, "Could not render the dex manifests.")
 	}
 
-	makeup.PrintH2("Applying the following manifests: ")
-	makeup.PrintYAML(manifests.Bytes(), false)
-	makeup.WaitForUser(demo.UnattendedMode)
-
-	k.cpK8s.KubectlApplyStdin(manifests)
+	// Note: Manifest display and waiting are handled by KubectlApplyWithPrompt
+	if _, err := k.cpK8s.ApplyWithPrompt(manifests.Bytes(), "dex manifests"); err != nil {
+		makeup.ExitDueToFatalError(err, "Failed to apply dex manifests")
+	}
 
 	makeup.Print("Done applying the dex manifests.")
 }

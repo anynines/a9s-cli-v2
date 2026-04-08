@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/anynines/a9s-cli-v2/k8s"
 	"github.com/anynines/a9s-cli-v2/makeup"
 	"k8s.io/apimachinery/pkg/util/json"
 )
@@ -864,19 +865,12 @@ func ensureTenantOperatorRole(ctx context.Context, cfg Config, accountID string)
 }
 
 func resolveKubectlContextForCluster(ctx context.Context, clusterName string) string {
-	out, _, err := runCmd(ctx, "kubectl", "config", "get-contexts", "-o", "name")
+	out, err := k8s.Contexts(clusterName)
 	if err != nil {
 		return clusterName
 	}
-	lines := strings.Split(strings.TrimSpace(out), "\n")
-	for _, l := range lines {
-		ln := strings.TrimSpace(l)
-		if ln == "" {
-			continue
-		}
-		if ln == clusterName || strings.HasSuffix(ln, "/"+clusterName) || strings.Contains(ln, ":"+clusterName) {
-			return ln
-		}
+	if len(out) > 0 {
+		return out[0]
 	}
 	return clusterName
 }
@@ -927,8 +921,8 @@ func ApplyControlPlaneAddons(ctx context.Context, opts CreateOptions) {
 	// Switch kubectl context to the control-plane cluster so subsequent apply steps hit the right cluster.
 	cpCtx := resolveKubectlContextForCluster(ctx, cfg.ClusterName)
 	if strings.TrimSpace(cpCtx) != "" {
-		if _, errOut, err := runCmd(ctx, "kubectl", "config", "use-context", cpCtx); err != nil {
-			awsLogger.Warningf("Failed to switch kubectl context to %s (continuing): %v\nstderr: %s", cpCtx, err, errOut)
+		if out, err := k8s.SwitchContext(cpCtx); err != nil {
+			makeup.ExitDueToFatalError(err, fmt.Sprintf("Failed to switch kubectl context to %s (continuing):\n: %s", cpCtx, out))
 		} else {
 			awsLogger.Infof("Using kubectl context %s for control-plane apply.", cpCtx)
 		}
@@ -1054,10 +1048,11 @@ func ensureNetworking(ctx context.Context, cfg Config, vpcID string) {
 
 // deriveBindURLFromCluster tries to read the control-plane info ConfigMap to build a bind URL.
 func deriveBindURLFromCluster(ctx context.Context) string {
-	host, _, _ := runCmd(ctx, "kubectl", "-n", "default", "get", "configmap", "klutch-control-plane-info", "-o", "jsonpath={.data.host}")
-	port, _, _ := runCmd(ctx, "kubectl", "-n", "default", "get", "configmap", "klutch-control-plane-info", "-o", "jsonpath={.data.ingressPort}")
-	host = strings.TrimSpace(host)
-	port = strings.TrimSpace(port)
+	k8sClient := k8s.NewKubeClient("")
+	hostByte, _ := k8sClient.Get("configmap", "klutch-control-plane-info", "-A", "jsonpath={.data.host}", false)
+	portByte, _ := k8sClient.Get("configmap", "klutch-control-plane-info", "-A", "jsonpath={.data.ingressPort}", false)
+	host := strings.TrimSpace(string(hostByte))
+	port := strings.TrimSpace(string(portByte))
 	if host == "" {
 		return ""
 	}
@@ -1474,8 +1469,10 @@ func ensureNodegroup(ctx context.Context, cfg Config, vpcID, accountID string) {
 func waitForNodesReady(ctx context.Context) {
 	awsLogger.Section("Cluster Nodes")
 	awsLogger.Infof("Waiting for at least one Ready node...")
+	k8sClient := k8s.NewKubeClient("")
 	for {
-		out, _, err := runCmd(ctx, "kubectl", "get", "nodes")
+		out, err := k8sClient.Get("nodes", "", "", "", true)
+		makeup.PrintInfo(fmt.Sprintf("out='%s', err='%s'", out, err))
 		if err == nil && strings.Contains(out, " Ready") {
 			awsLogger.Successf("Nodes are Ready:")
 			makeup.Print(out)
@@ -1501,13 +1498,11 @@ parameters:
   type: gp3
   encrypted: "true"
 `
-	cmd := exec.CommandContext(ctx, "kubectl", "apply", "-f", "-")
-	cmd.Stdin = bytes.NewBufferString(yaml)
-	var outBuf, errBuf bytes.Buffer
-	cmd.Stdout = &outBuf
-	cmd.Stderr = &errBuf
-	if err := cmd.Run(); err != nil {
-		awsLogger.Fatalf(err, "❌ kubectl apply gp3 SC failed\nstderr: %s", errBuf.String())
+
+	// Use the kubectl client to apply the manifest
+	k8sClient := k8s.NewKubeClient("")
+	if _, err := k8sClient.ApplyWithPrompt([]byte(yaml), "gp3 StorageClass"); err != nil {
+		awsLogger.Fatalf(err, "❌ Failed to apply gp3 StorageClass: %v", err)
 	}
 	awsLogger.Successf("gp3 StorageClass installed and set as default.")
 }
@@ -1587,7 +1582,10 @@ func ensureALBController(ctx context.Context, cfg Config, vpcID, accountID strin
 		"--override-existing-serviceaccounts")
 
 	awsLogger.Infof("Installing AWS Load Balancer Controller via Helm...")
-	_, _, _ = runCmd(ctx, "helm", "repo", "add", "eks", "https://aws.github.io/eks-charts")
+	_, stdErr, err := runCmd(ctx, "helm", "repo", "add", "eks", "https://aws.github.io/eks-charts")
+	if err != nil {
+		makeup.ExitDueToFatalError(err, fmt.Sprintf("Could not add EKS helm repo:\n%s", stdErr))
+	}
 	mustRun(ctx, "helm", "repo", "update")
 
 	args := []string{
@@ -1615,9 +1613,10 @@ func ensureALBController(ctx context.Context, cfg Config, vpcID, accountID strin
 		}
 	}
 
+	k8sClient := k8s.NewKubeClient("")
+
 	awsLogger.Infof("Waiting for aws-load-balancer-controller deployment rollout...")
-	if _, errOut, err := runCmd(ctx, "kubectl", "rollout", "status",
-		"deployment/aws-load-balancer-controller", "-n", "kube-system"); err != nil {
+	if errOut, err := k8sClient.RolloutStatus("deployment", "aws-load-balancer-controller", "kube-system", ""); err != nil {
 		awsLogger.Fatalf(err, "❌ ALB controller rollout failed\nstderr: %s", errOut)
 	}
 	awsLogger.Successf("aws-load-balancer-controller deployment is ready.")
@@ -1630,9 +1629,10 @@ func getALBControllerRoleName(ctx context.Context) string {
 		} `json:"metadata"`
 	}
 
-	out, errOut, err := runCmd(ctx, "kubectl", "get", "sa", "aws-load-balancer-controller", "-n", "kube-system", "-o", "json")
+	k8sClient := k8s.NewKubeClient("")
+	out, err := k8sClient.Get("sa", "aws-load-balancer-controller", "kube-system", "json", false)
 	if err != nil {
-		awsLogger.Warningf("Could not fetch service account to derive role name: %v\nstderr: %s", err, errOut)
+		awsLogger.Warningf("Could not fetch service account to derive role name: %v\nstderr: %s", err, out)
 		return ""
 	}
 

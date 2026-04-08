@@ -1,7 +1,6 @@
 package klutch
 
 import (
-	"bytes"
 	_ "embed"
 	"fmt"
 	"os/exec"
@@ -88,12 +87,10 @@ func (k *KlutchManager) WaitForCrossplaneHelmChart() {
 func (k *KlutchManager) DeployProviderKubernetes() {
 	makeup.PrintH1("Deploying the Kubernetes Crossplane provider...")
 
-	in := bytes.NewBufferString(providerKubernetesManifests)
-
-	makeup.PrintH2("Applying the following manifests: ")
-	makeup.PrintYAML(in.Bytes(), false)
-
-	k.cpK8s.KubectlApplyStdin(in)
+	// Note: Manifest display is handled by KubectlApplyWithPrompt
+	if _, err := k.cpK8s.ApplyWithPrompt([]byte(providerKubernetesManifests), "Kubernetes Crossplane provider"); err != nil {
+		makeup.ExitDueToFatalError(err, "Failed to apply Kubernetes Crossplane provider")
+	}
 
 	makeup.Print("Kubernetes Crossplane provider applied.")
 }
@@ -101,11 +98,11 @@ func (k *KlutchManager) DeployProviderKubernetes() {
 func (k *KlutchManager) WaitForProviderKubernetes() {
 	makeup.PrintH1("Waiting for the Kubernetes Crossplane provider to become ready...")
 
-	k.cpK8s.KubectlWaitForResourceCondition("healthy", "providers", "provider-kubernetes", "crossplane-system")
+	k.cpK8s.KubectlWaitForResourceCondition("healthy", "providers", "provider-kubernetes", "crossplane-system", "")
 	k.cpK8s.KubectlWaitForResourceConditionWithSelector("healthy", "providerrevision", "pkg.crossplane.io/package=provider-kubernetes", "crossplane-system")
 	k.cpK8s.KubectlWaitForRolloutWithSelector("deployment", "klutch-provider=provider-kubernetes", "crossplane-system")
 	k.cpK8s.KubectlWaitForResourceConditionWithSelector("ready", "pod", "pkg.crossplane.io/provider=provider-kubernetes", "crossplane-system")
-	k.cpK8s.KubectlWaitForResourceCondition("established", "crd", "configurations.pkg.crossplane.io", "crossplane-system")
+	k.cpK8s.KubectlWaitForResourceCondition("established", "crd", "configurations.pkg.crossplane.io", "crossplane-system", "")
 
 	makeup.PrintCheckmark("The Kubernetes Crossplane provider appears to be ready.")
 	makeup.WaitForUser(demo.UnattendedMode)
@@ -115,21 +112,31 @@ func (k *KlutchManager) WaitForProviderKubernetes() {
 func (k *KlutchManager) DeployProviderKubernetesConfig() {
 	makeup.PrintH1("Deploying the Kubernetes Crossplane provider config...")
 
-	in := bytes.NewBufferString(configInClusterManifests)
-	makeup.PrintH2("Applying the following manifests: ")
-	makeup.PrintYAML(in.Bytes(), false)
-	makeup.WaitForUser(demo.UnattendedMode)
-
-	k.cpK8s.KubectlApplyStdin(in)
+	// Note: Manifest display and waiting are handled by KubectlApplyWithPrompt
+	if _, err := k.cpK8s.ApplyWithPrompt([]byte(configInClusterManifests), "Kubernetes Crossplane provider config"); err != nil {
+		makeup.ExitDueToFatalError(err, "Failed to apply Kubernetes Crossplane provider config")
+	}
 
 	makeup.PrintCheckmark("Kubernetes Crossplane provider config applied.")
 }
 
 // Deploys the a8s APIs (CRDs and Compositions).
 func (k *KlutchManager) DeployKlutchCrossplaneConfigPkg() {
+	output, err := k.cpK8s.Get("configuration", configPackageName, "crossplane-system", "", true)
+	if err != nil {
+		makeup.ExitDueToFatalError(err, "Could not check for the existence of the Klutch Crossplane Configuration Package")
+	}
+	if output != "" {
+		makeup.PrintH1("Found the Klutch Crossplane configuration package already deployed, skipping...")
+		return
+	}
+
 	makeup.PrintH1("Deploying the Klutch Crossplane configuration package...")
 
-	k.cpK8s.KubectlApplyF(configPackageManifestUrl, true)
+	// Fetch and apply configuration package manifest
+	if _, err := k.cpK8s.ApplyFromUrl(configPackageManifestUrl, configPackageManifestUrl); err != nil {
+		makeup.ExitDueToFatalError(err, "Failed to apply Klutch Crossplane configuration package")
+	}
 
 	makeup.PrintCheckmark("Klutch Crossplane configuration package applied.")
 }
@@ -137,7 +144,7 @@ func (k *KlutchManager) DeployKlutchCrossplaneConfigPkg() {
 func (k *KlutchManager) WaitForKlutchCrossplaneConfigPkg() {
 	makeup.PrintH1("Waiting for the Klutch Crossplane configuration package to become ready...")
 
-	k.cpK8s.KubectlWaitForResourceCondition("healthy", "configuration", configPackageName, "crossplane-system")
+	k.cpK8s.KubectlWaitForResourceCondition("healthy", "configuration", configPackageName, "crossplane-system", "")
 
 	makeup.PrintCheckmark("The Klutch Crossplane configuration package appears to be ready.")
 	makeup.WaitForUser(demo.UnattendedMode)
@@ -147,13 +154,10 @@ func (k *KlutchManager) WaitForKlutchCrossplaneConfigPkg() {
 func (k *KlutchManager) DeployKlutchExportTemplates() {
 	makeup.PrintH1("Deploying the Klutch APIServiceExportTemplates...")
 
-	in := bytes.NewBufferString(exportTemplatesManifests)
-
-	makeup.PrintH2("Applying the following manifests: ")
-	makeup.PrintYAML(in.Bytes(), false)
-	makeup.WaitForUser(demo.UnattendedMode)
-
-	k.cpK8s.KubectlApplyStdin(in)
+	// Note: Manifest display and waiting are handled by KubectlApplyWithPrompt
+	if _, err := k.cpK8s.ApplyWithPrompt([]byte(exportTemplatesManifests), "Klutch APIServiceExportTemplates"); err != nil {
+		makeup.ExitDueToFatalError(err, "Failed to apply Klutch APIServiceExportTemplates")
+	}
 
 	makeup.PrintCheckmark("Klutch APIServiceExportTemplates applied.")
 }

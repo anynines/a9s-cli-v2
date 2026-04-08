@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/anynines/a9s-cli-v2/k8s"
 	"github.com/anynines/a9s-cli-v2/makeup"
 )
 
@@ -164,15 +165,13 @@ func getFirstNonEmptyString(arg string, args ...string) (string, error) {
 // waitForTenantOperator waits for the tenant operator deployment to become ready.
 func waitForTenantOperator(ctx context.Context, namespace string) {
 	makeup.PrintInfo("Waiting for tenant operator deployment to become ready...")
-	cmd := exec.CommandContext(ctx, "kubectl", "-n", namespace, "rollout", "status", "deployment/a9s-tenants-operator", "--timeout=2m")
-	var outBuf, errBuf bytes.Buffer
-	cmd.Stdout = &outBuf
-	cmd.Stderr = &errBuf
-	if err := cmd.Run(); err != nil {
-		makeup.ExitDueToFatalError(err, fmt.Sprintf("Tenant operator did not become ready.\nstderr: %s", strings.TrimSpace(errBuf.String())))
+	k8sClient := k8s.NewKubeClient("")
+	output, err := k8sClient.RolloutStatus("deployment", "a9s-tenants-operator", namespace, "--timeout=2m")
+	if err != nil {
+		makeup.ExitDueToFatalError(err, fmt.Sprintf("Tenant operator did not become ready.\nstderr: %s", strings.TrimSpace(output)))
 	}
 	if makeup.Verbose {
-		makeup.Print(outBuf.String())
+		makeup.Print(output)
 	}
 	makeup.PrintSuccess("Tenant operator is ready.")
 }

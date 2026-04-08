@@ -72,7 +72,7 @@ func DeployControlPlaneKindCluster(clusterName string, hostIP string, ingressPor
 func WaitForKindCluster(k8s *k8s.KubeClient) {
 	makeup.PrintH1("Waiting for the Kind cluster to become ready...")
 
-	k8s.KubectlWaitForNodes()
+	k8s.KubectlWaitForResourceCondition("ready", "node", "", "", "")
 
 	k8s.KubectlWaitForSystemToBecomeReady("kube-system", []string{
 		"k8s-app=kube-dns",

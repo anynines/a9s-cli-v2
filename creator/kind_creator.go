@@ -1,6 +1,7 @@
 package creator
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -8,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/anynines/a9s-cli-v2/k8s"
 	"github.com/anynines/a9s-cli-v2/makeup"
 	"gopkg.in/yaml.v2"
 )
@@ -155,9 +157,7 @@ func (c KindCreator) Running(clustername string) bool {
 		return false
 	}
 
-	cmd := exec.Command("kubectl", "cluster-info", "--context", "kind-"+clustername)
-
-	output, err := cmd.CombinedOutput()
+	output, err := k8s.ClusterInfo(context.TODO(), "kind-"+clustername)
 
 	if err != nil {
 		makeup.PrintFail("Failed to execute the command: " + err.Error())

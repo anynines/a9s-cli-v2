@@ -1,14 +1,12 @@
 package klutch
 
 import (
-	"bytes"
 	"context"
 	_ "embed"
 	"fmt"
 	"net"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -172,7 +170,11 @@ func ApplyKlutchControlPlane(host string, ingressPort int, acmCertificateARN str
 		makeup.PrintInfo(fmt.Sprintf("Using ACM certificate ARN: %s", acmCertificateARN))
 	}
 
-	cpCtx := currentKubectlContext()
+	cpCtx, err := k8s.CurrentContext()
+	if err != nil {
+		makeup.ExitDueToFatalError(err, "Can't retrieve the currently selected cluster:\n"+cpCtx)
+	}
+
 	manager := NewKlutchManagerWithContexts(cpCtx, "")
 	manager.applyControlPlaneToContext(baseDomain, dexHost, backendHost, hostedZoneName, provisioner, strconv.Itoa(ingressPort), acmCertificateARN)
 	printControlPlaneSummary(demo.DemoConfig.WorkingDir)
@@ -217,7 +219,7 @@ func (k *KlutchManager) deployAppCluster() {
 	DeployAppCluster(appClusterName)
 	WaitForKindCluster(k.appK8s)
 
-	switchContext(k.appContext) // in case the app cluster already existed, switch to it.
+	k8s.SwitchContext(k.appContext) // in case the app cluster already existed, switch to it.
 }
 
 func printSummary() {
@@ -442,8 +444,7 @@ func (k *KlutchManager) applyControlPlaneToContext(baseDomain string, dexHost st
 }
 
 func detectIngressClass(k8sClient *k8s.KubeClient) string {
-	cmd := k8sClient.KubectlWithContextCommand("get", "ingressclass", "-o", "jsonpath={.items[*].metadata.name}")
-	output, err := cmd.Output()
+	output, err := k8sClient.Get("ingressclass", "", "", "jsonpath={.items[*].metadata.name}", false)
 	if err != nil {
 		makeup.PrintWarning(fmt.Sprintf("Could not detect ingress classes (defaulting to nginx): %v", err))
 		return "nginx"
@@ -649,14 +650,13 @@ func waitForIngressHost(k8sClient *k8s.KubeClient, name, namespace string) strin
 	for {
 		select {
 		case <-timeout:
-			descCmd := k8sClient.KubectlWithContextCommand("describe", "ingress", name, "-n", namespace)
-			if out, err := descCmd.CombinedOutput(); err == nil {
+
+			if out, err := k8sClient.Describe("ingress", name, namespace); err == nil {
 				makeup.PrintWarning(fmt.Sprintf("Ingress %s/%s description:\n%s", namespace, name, string(out)))
 			}
 			makeup.ExitDueToFatalError(nil, fmt.Sprintf("Timed out waiting for ingress %s/%s to have a hostname/IP", namespace, name))
 		case <-tick:
-			cmd := k8sClient.KubectlWithContextCommand("get", "ingress", name, "-n", namespace, "-o", "jsonpath={.status.loadBalancer.ingress[0].hostname}")
-			output, err := cmd.Output()
+			output, err := k8sClient.Get("ingress", name, namespace, "jsonpath={.status.loadBalancer.ingress[0].hostname}", false)
 			if err != nil {
 				makeup.PrintWarning(fmt.Sprintf("Error while checking ingress %s/%s hostname: %v", namespace, name, err))
 				continue
@@ -667,8 +667,7 @@ func waitForIngressHost(k8sClient *k8s.KubeClient, name, namespace string) strin
 			}
 
 			// try IP as fallback
-			cmdIP := k8sClient.KubectlWithContextCommand("get", "ingress", name, "-n", namespace, "-o", "jsonpath={.status.loadBalancer.ingress[0].ip}")
-			ipOutput, err := cmdIP.Output()
+			ipOutput, err := k8sClient.Get("ingress", name, namespace, "jsonpath={.status.loadBalancer.ingress[0].ip}", false)
 			if err == nil {
 				ip := strings.TrimSpace(string(ipOutput))
 				if ip != "" {
@@ -687,14 +686,12 @@ func waitForServiceHost(k8sClient *k8s.KubeClient, name, namespace string) strin
 	for {
 		select {
 		case <-timeout:
-			descCmd := k8sClient.KubectlWithContextCommand("describe", "svc", name, "-n", namespace)
-			if out, err := descCmd.CombinedOutput(); err == nil {
+			if out, err := k8sClient.Describe("svc", name, namespace); err == nil {
 				makeup.PrintWarning(fmt.Sprintf("Service %s/%s description:\n%s", namespace, name, string(out)))
 			}
 			makeup.ExitDueToFatalError(nil, fmt.Sprintf("Timed out waiting for service %s/%s to have a hostname/IP", namespace, name))
 		case <-tick:
-			cmd := k8sClient.KubectlWithContextCommand("get", "svc", name, "-n", namespace, "-o", "jsonpath={.status.loadBalancer.ingress[0].hostname}")
-			output, err := cmd.Output()
+			output, err := k8sClient.Get("svc", name, namespace, "jsonpath={.status.loadBalancer.ingress[0].hostname}", false)
 			if err != nil {
 				makeup.PrintWarning(fmt.Sprintf("Error while checking service %s/%s hostname: %v", namespace, name, err))
 				continue
@@ -704,8 +701,7 @@ func waitForServiceHost(k8sClient *k8s.KubeClient, name, namespace string) strin
 				return host
 			}
 
-			cmdIP := k8sClient.KubectlWithContextCommand("get", "svc", name, "-n", namespace, "-o", "jsonpath={.status.loadBalancer.ingress[0].ip}")
-			ipOutput, err := cmdIP.Output()
+			ipOutput, err := k8sClient.Get("svc", name, namespace, "jsonpath={.status.loadBalancer.ingress[0].ip}", false)
 			if err == nil {
 				ip := strings.TrimSpace(string(ipOutput))
 				if ip != "" {
@@ -785,15 +781,6 @@ func nsSetsMatch(expected []string, live []string) bool {
 	return true
 }
 
-func currentKubectlContext() string {
-	cmd := exec.Command("kubectl", "config", "current-context")
-	out, err := cmd.Output()
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(string(out))
-}
-
 func applyControlPlaneCRDs(ctx context.Context, kubeContext string) error {
 	crds, err := crd.CRDs()
 	if err != nil {
@@ -808,19 +795,10 @@ func applyControlPlaneCRDs(ctx context.Context, kubeContext string) error {
 		docs = append(docs, string(y))
 	}
 	manifest := strings.Join(docs, "\n---\n")
-	args := []string{"kubectl", "apply", "-f", "-"}
-	if strings.TrimSpace(kubeContext) != "" {
-		args = append(args, "--context", kubeContext)
-	}
 	makeup.PrintInfo(fmt.Sprintf("Applying Klutch control-plane CRDs to context %q...", kubeContext))
-	cmd := exec.CommandContext(ctx, args[0], args[1:]...)
-	cmd.Stdin = bytes.NewBufferString(manifest)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("failed to apply Klutch control-plane CRDs: %w (output: %s)", err, strings.TrimSpace(string(out)))
-	}
-	if makeup.Verbose {
-		makeup.Print(string(out))
+	k8sClient := k8s.NewKubeClient(kubeContext)
+	if _, err := k8sClient.ApplyWithPrompt([]byte(manifest), "Klutch Control-Plane CRDs"); err != nil {
+		return fmt.Errorf("failed to apply Klutch control-plane CRDs: %w", err)
 	}
 	makeup.PrintCheckmark("Applied Klutch control-plane CRDs.")
 	return nil

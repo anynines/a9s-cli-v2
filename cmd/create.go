@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -9,7 +8,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"os/exec"
 	"strings"
 	"time"
 
@@ -231,7 +229,7 @@ var cmdPGRestore = &cobra.Command{
 var cmdCreateCluster = &cobra.Command{
 	Use:   "cluster",
 	Short: "Create a local development Kubernetes cluster with a given stack.",
-	Long: `Guides through the creation of a local development Kubernetes cluster, 
+	Long: `Guides through the creation of a local development Kubernetes cluster,
 	helps to install all necessary prerequisites and finally configures and installs
 	the chosen stack. Select a sub-command to create corresponding stack.`,
 	Run: func(cmd *cobra.Command, args []string) {
@@ -243,7 +241,7 @@ var cmdCreateCluster = &cobra.Command{
 var cmdCreateStack = &cobra.Command{
 	Use:   "stack",
 	Short: "Applies the specified stack to the currently selected Kubernetes cluster.",
-	Long: `Guides through the installation of the given anynines stack to the currently selected Kubernetes cluster, 
+	Long: `Guides through the installation of the given anynines stack to the currently selected Kubernetes cluster,
 	helps to install all necessary prerequisites and finally configures and installs
 	the chosen stack. Select a sub-command to create corresponding stack.`,
 	Run: func(cmd *cobra.Command, args []string) {
@@ -285,7 +283,7 @@ var cmdCreateKlutch = &cobra.Command{
 var cmdCreateClusterKlutchControlPlane = &cobra.Command{
 	Use:   "control-plane",
 	Short: "Create the Klutch control plane cluster (and install it).",
-	Long: `Creates the Klutch control plane cluster on the selected provider and installs the Klutch control plane components. 
+	Long: `Creates the Klutch control plane cluster on the selected provider and installs the Klutch control plane components.
 Use --no-apply to only provision the cluster. Currently only AWS is supported.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		options := klutchaws.CreateOptions{DryRun: createKlutchDryRun}
@@ -417,16 +415,11 @@ var cmdCreateClusterKlutchTenant = &cobra.Command{
 		}
 
 		makeup.PrintInfo(fmt.Sprintf("Applying Tenant %s to namespace %s...", createKlutchTenantName, ns))
-		applyCmd := exec.Command("kubectl", "apply", "-f", "-")
-		applyCmd.Stdin = strings.NewReader(string(yamlBytes))
-		var outBuf, errBuf bytes.Buffer
-		applyCmd.Stdout = &outBuf
-		applyCmd.Stderr = &errBuf
-		if err := applyCmd.Run(); err != nil {
-			makeup.ExitDueToFatalError(err, fmt.Sprintf("Failed to apply Tenant CR.\nstderr: %s", errBuf.String()))
-		}
-		if makeup.Verbose {
-			makeup.Print(outBuf.String())
+
+		// Use the kubectl client to apply the manifest
+		k8sClient := k8s.NewKubeClient("")
+		if _, err := k8sClient.ApplyWithPrompt(yamlBytes, fmt.Sprintf("Tenant %s", createKlutchTenantName)); err != nil {
+			makeup.ExitDueToFatalError(err, "Failed to apply Tenant CR")
 		}
 
 		makeup.PrintSuccessSummary(fmt.Sprintf("Tenant %s created via tenant operator. Wait for reconciliation to provision Cognito client and secret.", createKlutchTenantName))

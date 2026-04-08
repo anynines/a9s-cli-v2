@@ -1,12 +1,10 @@
 package cmd
 
 import (
-	"bytes"
 	"fmt"
-	"os/exec"
 	"strings"
 
-	"github.com/anynines/a9s-cli-v2/demo"
+	"github.com/anynines/a9s-cli-v2/k8s"
 	"github.com/anynines/a9s-cli-v2/makeup"
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/yaml"
@@ -119,21 +117,19 @@ var cmdCreateKlutchPGInstance = &cobra.Command{
 			return
 		}
 
-		if output, err := runKubectlWithInput(manifest, "apply", "-f", "-"); err != nil {
-			makeup.ExitDueToFatalError(err, fmt.Sprintf("Failed to create Klutch PostgreSQL instance.\n%s", strings.TrimSpace(output)))
+		k8sClient := k8s.NewKubeClient("")
+		if _, err := k8sClient.ApplyWithPrompt(manifest, "Klutch PostgreSQL instance"); err != nil {
+			makeup.ExitDueToFatalError(err, "Failed to create Klutch PostgreSQL instance.")
 		}
 
 		if createKlutchPGInstanceWait {
-			resourceName := fmt.Sprintf("%s/%s", klutchPGInstanceResource, createKlutchPGInstanceName)
-			if output, err := runKubectlWithInput(nil,
-				"wait",
-				resourceName,
-				"-n", createKlutchPGInstanceNamespace,
-				"--for=condition=Ready",
-				"--timeout", createKlutchPGInstanceWaitTimeout,
-			); err != nil {
-				makeup.ExitDueToFatalError(err, fmt.Sprintf("Klutch PostgreSQL instance did not become ready.\n%s", strings.TrimSpace(output)))
-			}
+			k8sClient.KubectlWaitForResourceCondition(
+				"Ready",
+				klutchPGInstanceResource,
+				createKlutchPGInstanceName,
+				createKlutchPGInstanceNamespace,
+				createKlutchPGInstanceWaitTimeout,
+			)
 		}
 
 		makeup.PrintSuccessSummary(fmt.Sprintf("Klutch PostgreSQL instance %s created in namespace %s.", createKlutchPGInstanceName, createKlutchPGInstanceNamespace))
@@ -152,7 +148,9 @@ var cmdCreateKlutchPGServiceBinding = &cobra.Command{
 			makeup.ExitDueToFatalError(nil, "The --service-instance flag is required.")
 		}
 
-		exists, err := klutchResourceExists(klutchPGInstanceResource, createKlutchPGServiceBindingInstanceRef, createKlutchPGServiceBindingNamespace)
+		k8sClient := k8s.NewKubeClient("")
+		output, err := k8sClient.Get(klutchPGInstanceResource, createKlutchPGServiceBindingInstanceRef, createKlutchPGServiceBindingNamespace, "name", true)
+		exists := strings.TrimSpace(string(output)) != ""
 		if err != nil {
 			makeup.ExitDueToFatalError(err, "Failed to verify Klutch PostgreSQL instance before creating service binding.")
 		}
@@ -177,21 +175,12 @@ var cmdCreateKlutchPGServiceBinding = &cobra.Command{
 			return
 		}
 
-		if output, err := runKubectlWithInput(manifest, "apply", "-f", "-"); err != nil {
-			makeup.ExitDueToFatalError(err, fmt.Sprintf("Failed to create Klutch PostgreSQL service binding.\n%s", strings.TrimSpace(output)))
+		if _, err := k8sClient.ApplyWithPrompt(manifest, "Klutch PostgreSQL service binding"); err != nil {
+			makeup.ExitDueToFatalError(err, "Failed to create Klutch PostgreSQL service binding.")
 		}
 
 		if createKlutchPGServiceBindingWait {
-			resourceName := fmt.Sprintf("%s/%s", klutchPGServiceBindingResource, createKlutchPGServiceBindingName)
-			if output, err := runKubectlWithInput(nil,
-				"wait",
-				resourceName,
-				"-n", createKlutchPGServiceBindingNamespace,
-				"--for=condition=Ready",
-				"--timeout", createKlutchPGServiceBindingWaitTimeout,
-			); err != nil {
-				makeup.ExitDueToFatalError(err, fmt.Sprintf("Klutch PostgreSQL service binding did not become ready.\n%s", strings.TrimSpace(output)))
-			}
+			k8sClient.KubectlWaitForResourceCondition("Ready", klutchPGServiceBindingResource, createKlutchPGServiceBindingName, createKlutchPGServiceBindingNamespace, createKlutchPGServiceBindingWaitTimeout)
 		}
 
 		makeup.PrintSuccessSummary(fmt.Sprintf("Klutch PostgreSQL service binding %s created in namespace %s.", createKlutchPGServiceBindingName, createKlutchPGServiceBindingNamespace))
@@ -210,7 +199,9 @@ var cmdCreateKlutchPGBackup = &cobra.Command{
 			makeup.ExitDueToFatalError(nil, "The --service-instance flag is required.")
 		}
 
-		exists, err := klutchResourceExists(klutchPGInstanceResource, createKlutchPGBackupInstanceRef, createKlutchPGBackupNamespace)
+		k8sClient := k8s.NewKubeClient("")
+		output, err := k8sClient.Get(klutchPGInstanceResource, createKlutchPGBackupInstanceRef, createKlutchPGBackupNamespace, "name", true)
+		exists := strings.TrimSpace(string(output)) != ""
 		if err != nil {
 			makeup.ExitDueToFatalError(err, "Failed to verify Klutch PostgreSQL instance before creating backup.")
 		}
@@ -235,21 +226,18 @@ var cmdCreateKlutchPGBackup = &cobra.Command{
 			return
 		}
 
-		if output, err := runKubectlWithInput(manifest, "apply", "-f", "-"); err != nil {
-			makeup.ExitDueToFatalError(err, fmt.Sprintf("Failed to create Klutch PostgreSQL backup.\n%s", strings.TrimSpace(output)))
+		if _, err := k8sClient.ApplyWithPrompt(manifest, "Klutch PostgreSQL backup"); err != nil {
+			makeup.ExitDueToFatalError(err, "Failed to create Klutch PostgreSQL backup.")
 		}
 
 		if createKlutchPGBackupWait {
-			resourceName := fmt.Sprintf("%s/%s", klutchPGBackupResource, createKlutchPGBackupName)
-			if output, err := runKubectlWithInput(nil,
-				"wait",
-				resourceName,
-				"-n", createKlutchPGBackupNamespace,
-				"--for=condition=Ready",
-				"--timeout", createKlutchPGBackupWaitTimeout,
-			); err != nil {
-				makeup.ExitDueToFatalError(err, fmt.Sprintf("Klutch PostgreSQL backup did not become ready.\n%s", strings.TrimSpace(output)))
-			}
+			k8sClient.KubectlWaitForResourceCondition(
+				"Ready",
+				klutchPGBackupResource,
+				createKlutchPGBackupName,
+				createKlutchPGBackupNamespace,
+				createKlutchPGBackupWaitTimeout,
+			)
 		}
 
 		makeup.PrintSuccessSummary(fmt.Sprintf("Klutch PostgreSQL backup %s created in namespace %s.", createKlutchPGBackupName, createKlutchPGBackupNamespace))
@@ -271,7 +259,9 @@ var cmdCreateKlutchPGRestore = &cobra.Command{
 			makeup.ExitDueToFatalError(nil, "The --service-instance flag is required.")
 		}
 
-		backupExists, err := klutchResourceExists(klutchPGBackupResource, createKlutchPGRestoreBackupRef, createKlutchPGRestoreNamespace)
+		k8sClient := k8s.NewKubeClient("")
+		output, err := k8sClient.Get(klutchPGBackupResource, createKlutchPGRestoreBackupRef, createKlutchPGRestoreNamespace, "name", true)
+		backupExists := strings.TrimSpace(string(output)) != ""
 		if err != nil {
 			makeup.ExitDueToFatalError(err, "Failed to verify Klutch PostgreSQL backup before creating restore.")
 		}
@@ -279,7 +269,8 @@ var cmdCreateKlutchPGRestore = &cobra.Command{
 			makeup.ExitDueToFatalError(nil, fmt.Sprintf("Can't create Klutch restore for non-existing backup %s in namespace %s", createKlutchPGRestoreBackupRef, createKlutchPGRestoreNamespace))
 		}
 
-		instanceExists, err := klutchResourceExists(klutchPGInstanceResource, createKlutchPGRestoreInstanceRef, createKlutchPGRestoreNamespace)
+		output, err = k8sClient.Get(klutchPGInstanceResource, createKlutchPGRestoreInstanceRef, createKlutchPGRestoreNamespace, "name", true)
+		instanceExists := strings.TrimSpace(string(output)) != ""
 		if err != nil {
 			makeup.ExitDueToFatalError(err, "Failed to verify Klutch PostgreSQL instance before creating restore.")
 		}
@@ -305,21 +296,18 @@ var cmdCreateKlutchPGRestore = &cobra.Command{
 			return
 		}
 
-		if output, err := runKubectlWithInput(manifest, "apply", "-f", "-"); err != nil {
-			makeup.ExitDueToFatalError(err, fmt.Sprintf("Failed to create Klutch PostgreSQL restore.\n%s", strings.TrimSpace(output)))
+		if _, err := k8sClient.ApplyWithPrompt(manifest, "Klutch PostgreSQL restore"); err != nil {
+			makeup.ExitDueToFatalError(err, "Failed to create Klutch PostgreSQL restore.")
 		}
 
 		if createKlutchPGRestoreWait {
-			resourceName := fmt.Sprintf("%s/%s", klutchPGRestoreResource, createKlutchPGRestoreName)
-			if output, err := runKubectlWithInput(nil,
-				"wait",
-				resourceName,
-				"-n", createKlutchPGRestoreNamespace,
-				"--for=condition=Ready",
-				"--timeout", createKlutchPGRestoreWaitTimeout,
-			); err != nil {
-				makeup.ExitDueToFatalError(err, fmt.Sprintf("Klutch PostgreSQL restore did not become ready.\n%s", strings.TrimSpace(output)))
-			}
+			k8sClient.KubectlWaitForResourceCondition(
+				"Ready",
+				klutchPGRestoreResource,
+				createKlutchPGRestoreName,
+				createKlutchPGRestoreNamespace,
+				createKlutchPGRestoreWaitTimeout,
+			)
 		}
 
 		makeup.PrintSuccessSummary(fmt.Sprintf("Klutch PostgreSQL restore %s created in namespace %s.", createKlutchPGRestoreName, createKlutchPGRestoreNamespace))
@@ -345,7 +333,9 @@ var cmdDeleteKlutchPGInstance = &cobra.Command{
 			makeup.ExitDueToFatalError(nil, "The --name flag is required.")
 		}
 
-		exists, err := klutchResourceExists(klutchPGInstanceResource, deleteKlutchPGInstanceName, deleteKlutchPGInstanceNamespace)
+		k8sClient := k8s.NewKubeClient("")
+		output, err := k8sClient.Get(klutchPGInstanceResource, deleteKlutchPGInstanceName, deleteKlutchPGInstanceNamespace, "name", true)
+		exists := strings.TrimSpace(string(output)) != ""
 		if err != nil {
 			makeup.ExitDueToFatalError(err, "Failed to verify Klutch PostgreSQL instance before deletion.")
 		}
@@ -354,21 +344,21 @@ var cmdDeleteKlutchPGInstance = &cobra.Command{
 			return
 		}
 
-		resourceName := fmt.Sprintf("%s/%s", klutchPGInstanceResource, deleteKlutchPGInstanceName)
-		if output, err := runKubectlWithInput(nil, "delete", resourceName, "-n", deleteKlutchPGInstanceNamespace); err != nil {
-			makeup.ExitDueToFatalError(err, fmt.Sprintf("Couldn't delete Klutch service instance.\n%s", strings.TrimSpace(output)))
+		if _, err := k8sClient.Delete(
+			klutchPGInstanceResource,
+			deleteKlutchPGInstanceName,
+			deleteKlutchPGInstanceNamespace,
+			"Klutch PG instance",
+			false); err != nil {
+			makeup.ExitDueToFatalError(err, "Couldn't delete Klutch service instance.")
 		}
 
 		if deleteKlutchPGInstanceWait {
-			if output, err := runKubectlWithInput(nil,
-				"wait",
-				resourceName,
-				"-n", deleteKlutchPGInstanceNamespace,
-				"--for=delete",
-				"--timeout", deleteKlutchPGInstanceWaitTimeout,
-			); err != nil {
-				makeup.ExitDueToFatalError(err, fmt.Sprintf("Klutch service instance deletion did not complete.\n%s", strings.TrimSpace(output)))
-			}
+			k8sClient.KubectlWaitForResourceDeletion(
+				klutchPGInstanceResource,
+				deleteKlutchPGInstanceName,
+				deleteKlutchPGInstanceNamespace,
+				deleteKlutchPGInstanceWaitTimeout)
 		}
 
 		makeup.PrintCheckmark(fmt.Sprintf("Klutch service instance %s successfully deleted from namespace %s.", deleteKlutchPGInstanceName, deleteKlutchPGInstanceNamespace))
@@ -384,7 +374,9 @@ var cmdDeleteKlutchPGServiceBinding = &cobra.Command{
 			makeup.ExitDueToFatalError(nil, "The --name flag is required.")
 		}
 
-		exists, err := klutchResourceExists(klutchPGServiceBindingResource, deleteKlutchPGServiceBindingName, deleteKlutchPGServiceBindingNamespace)
+		k8sClient := k8s.NewKubeClient("")
+		output, err := k8sClient.Get(klutchPGServiceBindingResource, deleteKlutchPGServiceBindingName, deleteKlutchPGServiceBindingNamespace, "name", true)
+		exists := strings.TrimSpace(string(output)) != ""
 		if err != nil {
 			makeup.ExitDueToFatalError(err, "Failed to verify Klutch PostgreSQL service binding before deletion.")
 		}
@@ -393,21 +385,22 @@ var cmdDeleteKlutchPGServiceBinding = &cobra.Command{
 			return
 		}
 
-		resourceName := fmt.Sprintf("%s/%s", klutchPGServiceBindingResource, deleteKlutchPGServiceBindingName)
-		if output, err := runKubectlWithInput(nil, "delete", resourceName, "-n", deleteKlutchPGServiceBindingNamespace); err != nil {
-			makeup.ExitDueToFatalError(err, fmt.Sprintf("Couldn't delete Klutch service binding.\n%s", strings.TrimSpace(output)))
+		if _, err := k8sClient.Delete(
+			klutchPGServiceBindingResource,
+			deleteKlutchPGServiceBindingName,
+			deleteKlutchPGServiceBindingNamespace,
+			"Klutch PG service binding",
+			false); err != nil {
+			makeup.ExitDueToFatalError(err, "Couldn't delete Klutch service binding.")
 		}
 
 		if deleteKlutchPGServiceBindingWait {
-			if output, err := runKubectlWithInput(nil,
-				"wait",
-				resourceName,
-				"-n", deleteKlutchPGServiceBindingNamespace,
-				"--for=delete",
-				"--timeout", deleteKlutchPGServiceBindingWaitTimeout,
-			); err != nil {
-				makeup.ExitDueToFatalError(err, fmt.Sprintf("Klutch service binding deletion did not complete.\n%s", strings.TrimSpace(output)))
-			}
+			k8sClient.KubectlWaitForResourceDeletion(
+				klutchPGServiceBindingResource,
+				deleteKlutchPGServiceBindingName,
+				deleteKlutchPGServiceBindingNamespace,
+				deleteKlutchPGServiceBindingWaitTimeout,
+			)
 		}
 
 		makeup.PrintCheckmark(fmt.Sprintf("Klutch service binding %s successfully deleted from namespace %s.", deleteKlutchPGServiceBindingName, deleteKlutchPGServiceBindingNamespace))
@@ -423,7 +416,9 @@ var cmdDeleteKlutchPGBackup = &cobra.Command{
 			makeup.ExitDueToFatalError(nil, "The --name flag is required.")
 		}
 
-		exists, err := klutchResourceExists(klutchPGBackupResource, deleteKlutchPGBackupName, deleteKlutchPGBackupNamespace)
+		k8sClient := k8s.NewKubeClient("")
+		output, err := k8sClient.Get(klutchPGBackupResource, deleteKlutchPGBackupName, deleteKlutchPGBackupNamespace, "name", true)
+		exists := strings.TrimSpace(string(output)) != ""
 		if err != nil {
 			makeup.ExitDueToFatalError(err, "Failed to verify Klutch PostgreSQL backup before deletion.")
 		}
@@ -432,21 +427,22 @@ var cmdDeleteKlutchPGBackup = &cobra.Command{
 			return
 		}
 
-		resourceName := fmt.Sprintf("%s/%s", klutchPGBackupResource, deleteKlutchPGBackupName)
-		if output, err := runKubectlWithInput(nil, "delete", resourceName, "-n", deleteKlutchPGBackupNamespace); err != nil {
-			makeup.ExitDueToFatalError(err, fmt.Sprintf("Couldn't delete Klutch backup.\n%s", strings.TrimSpace(output)))
+		if _, err := k8sClient.Delete(
+			klutchPGBackupResource,
+			deleteKlutchPGBackupName,
+			deleteKlutchPGBackupNamespace,
+			"Klutch PG Backup",
+			false); err != nil {
+			makeup.ExitDueToFatalError(err, "Couldn't delete Klutch backup.")
 		}
 
 		if deleteKlutchPGBackupWait {
-			if output, err := runKubectlWithInput(nil,
-				"wait",
-				resourceName,
-				"-n", deleteKlutchPGBackupNamespace,
-				"--for=delete",
-				"--timeout", deleteKlutchPGBackupWaitTimeout,
-			); err != nil {
-				makeup.ExitDueToFatalError(err, fmt.Sprintf("Klutch backup deletion did not complete.\n%s", strings.TrimSpace(output)))
-			}
+			k8sClient.KubectlWaitForResourceDeletion(
+				klutchPGBackupResource,
+				deleteKlutchPGBackupName,
+				deleteKlutchPGBackupNamespace,
+				deleteKlutchPGBackupWaitTimeout,
+			)
 		}
 
 		makeup.PrintCheckmark(fmt.Sprintf("Klutch backup %s successfully deleted from namespace %s.", deleteKlutchPGBackupName, deleteKlutchPGBackupNamespace))
@@ -462,7 +458,9 @@ var cmdDeleteKlutchPGRestore = &cobra.Command{
 			makeup.ExitDueToFatalError(nil, "The --name flag is required.")
 		}
 
-		exists, err := klutchResourceExists(klutchPGRestoreResource, deleteKlutchPGRestoreName, deleteKlutchPGRestoreNamespace)
+		k8sClient := k8s.NewKubeClient("")
+		output, err := k8sClient.Get(klutchPGRestoreResource, deleteKlutchPGRestoreName, deleteKlutchPGRestoreNamespace, "name", true)
+		exists := strings.TrimSpace(string(output)) != ""
 		if err != nil {
 			makeup.ExitDueToFatalError(err, "Failed to verify Klutch PostgreSQL restore before deletion.")
 		}
@@ -471,21 +469,22 @@ var cmdDeleteKlutchPGRestore = &cobra.Command{
 			return
 		}
 
-		resourceName := fmt.Sprintf("%s/%s", klutchPGRestoreResource, deleteKlutchPGRestoreName)
-		if output, err := runKubectlWithInput(nil, "delete", resourceName, "-n", deleteKlutchPGRestoreNamespace); err != nil {
-			makeup.ExitDueToFatalError(err, fmt.Sprintf("Couldn't delete Klutch restore.\n%s", strings.TrimSpace(output)))
+		if _, err := k8sClient.Delete(
+			klutchPGRestoreResource,
+			deleteKlutchPGRestoreName,
+			deleteKlutchPGRestoreNamespace,
+			"Klutch PG Restore",
+			false); err != nil {
+			makeup.ExitDueToFatalError(err, "Couldn't delete Klutch restore.")
 		}
 
 		if deleteKlutchPGRestoreWait {
-			if output, err := runKubectlWithInput(nil,
-				"wait",
-				resourceName,
-				"-n", deleteKlutchPGRestoreNamespace,
-				"--for=delete",
-				"--timeout", deleteKlutchPGRestoreWaitTimeout,
-			); err != nil {
-				makeup.ExitDueToFatalError(err, fmt.Sprintf("Klutch restore deletion did not complete.\n%s", strings.TrimSpace(output)))
-			}
+			k8sClient.KubectlWaitForResourceDeletion(
+				klutchPGRestoreResource,
+				deleteKlutchPGRestoreName,
+				deleteKlutchPGRestoreNamespace,
+				deleteKlutchPGRestoreWaitTimeout,
+			)
 		}
 
 		makeup.PrintCheckmark(fmt.Sprintf("Klutch restore %s successfully deleted from namespace %s.", deleteKlutchPGRestoreName, deleteKlutchPGRestoreNamespace))
@@ -572,35 +571,6 @@ func buildKlutchPGRestoreManifest(name, namespace, backupRef, instanceRef, insta
 	}
 
 	return yaml.Marshal(manifest)
-}
-
-func runKubectlWithInput(input []byte, args ...string) (string, error) {
-	cmd := exec.Command("kubectl", args...)
-	if len(input) > 0 {
-		cmd.Stdin = bytes.NewBuffer(input)
-	}
-
-	makeup.PrintCommandBox(cmd.String())
-	makeup.WaitForUser(demo.UnattendedMode)
-
-	output, err := cmd.CombinedOutput()
-	if makeup.Verbose {
-		trimmed := strings.TrimSpace(string(output))
-		if trimmed != "" {
-			makeup.Print(trimmed)
-		}
-	}
-
-	return string(output), err
-}
-
-func klutchResourceExists(resource, name, namespace string) (bool, error) {
-	resourceName := fmt.Sprintf("%s/%s", strings.TrimSpace(resource), strings.TrimSpace(name))
-	output, err := runKubectlWithInput(nil, "get", resourceName, "-n", strings.TrimSpace(namespace), "--ignore-not-found", "-o", "name")
-	if err != nil {
-		return false, err
-	}
-	return strings.TrimSpace(output) != "", nil
 }
 
 func init() {

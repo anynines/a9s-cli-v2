@@ -59,9 +59,9 @@ func CheckK8sCluster(createClusterIfNotExists bool) {
 /*
 Builds a cluster manager without params by using shared package variables.
 */
-func BuildKubernetesClusterManager() k8s.ClusterManager {
+func BuildKubernetesClusterManager() ClusterManager {
 
-	clusterManager := k8s.BuildClusterManager(
+	clusterManager := BuildClusterManager(
 		DemoConfig.WorkingDir,
 		DemoClusterName,
 		KubernetesTool,

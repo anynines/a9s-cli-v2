@@ -30,15 +30,19 @@ func DeleteControlPlaneInstall() {
 	manager := NewKlutchManagerWithContexts("", "")
 
 	// Namespaced Klutch resources
-	deleteKubectlResource(manager, "delete", "ingress", "dex-ingress", "-n", "default", "--ignore-not-found")
-	deleteKubectlResource(manager, "delete", "ingress", "anynines-backend", "-n", "default", "--ignore-not-found")
-	deleteKubectlResource(manager, "delete", "service", "dex", "anynines-backend", "-n", "default", "--ignore-not-found")
-	deleteKubectlResource(manager, "delete", "deployment", "dex", "anynines-backend", "-n", "default", "--ignore-not-found")
-	deleteKubectlResource(manager, "delete", "secret", "oidc-config", "cookie-config", "k8sca", "-n", "default", "--ignore-not-found")
-	deleteKubectlResource(manager, "delete", "configmap", "dex-config", "-n", "default", "--ignore-not-found")
+	manager.deleteKubectlResource("ingress", "dex-ingress", "default")
+	manager.deleteKubectlResource("ingress", "anynines-backend", "default")
+	manager.deleteKubectlResource("service", "dex", "default")
+	manager.deleteKubectlResource("service", "anynines-backend", "default")
+	manager.deleteKubectlResource("deployment", "dex", "default")
+	manager.deleteKubectlResource("deployment", "anynines-backend", "default")
+	manager.deleteKubectlResource("secret", "oidc-config", "default")
+	manager.deleteKubectlResource("secret", "cookie-config", "default")
+	manager.deleteKubectlResource("secret", "k8sca", "default")
+	manager.deleteKubectlResource("configmap", "dex-config", "default")
 
 	// Ingress-nginx (only deletes namespace; harmless if it doesn't exist)
-	deleteKubectlResource(manager, "delete", "ns", "ingress-nginx", "--ignore-not-found")
+	manager.deleteKubectlResource("ns", "ingress-nginx", "")
 
 	// Crossplane helm release
 	cmd := exec.Command("helm", "uninstall", "crossplane", "-n", "crossplane-system")
@@ -49,7 +53,7 @@ func DeleteControlPlaneInstall() {
 	}
 
 	// Delete crossplane namespace (best-effort)
-	deleteKubectlResource(manager, "delete", "ns", "crossplane-system", "--ignore-not-found")
+	manager.deleteKubectlResource("ns", "crossplane-system", "")
 
 	// Tenant operator helm release
 	cmd = exec.Command("helm", "uninstall", "a9s-tenants-operator", "-n", "a9s-tenants-operator-system")
@@ -60,19 +64,19 @@ func DeleteControlPlaneInstall() {
 	}
 
 	// Delete tenant operator namespace (best-effort)
-	deleteKubectlResource(manager, "delete", "ns", "a9s-tenants-operator-system", "--ignore-not-found")
+	manager.deleteKubectlResource("ns", "a9s-tenants-operator-system", "")
 
 	makeup.PrintSuccessSummary("Klutch control plane resources removed from the current cluster.")
 }
 
-func deleteKubectlResource(manager *KlutchManager, args ...string) {
-	cmd := manager.cpK8s.KubectlWithContextCommand(args...)
-	output, err := cmd.CombinedOutput()
+func (m *KlutchManager) deleteKubectlResource(resourceType, name, namespace string) {
+
+	output, err := m.cpK8s.Delete(resourceType, name, namespace, "", true)
 	if err != nil {
 		makeup.PrintWarning(fmt.Sprintf("Could not delete resource (%v): %s", err, string(output)))
 		return
 	}
-	makeup.PrintCheckmark(fmt.Sprintf("Deleted resource via kubectl %v", args))
+	makeup.PrintCheckmark(fmt.Sprintf("Deleted resource %s/%s.%s via kubectl", namespace, name, resourceType))
 }
 
 func currentContextAndServer() (string, string) {

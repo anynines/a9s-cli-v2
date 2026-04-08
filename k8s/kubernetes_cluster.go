@@ -6,15 +6,12 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/anynines/a9s-cli-v2/creator"
 	"github.com/anynines/a9s-cli-v2/makeup"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/homedir"
 )
-
-var Creator creator.KubernetesCreator
 
 func CheckIfDockerIsRunning() bool {
 	cmd := exec.Command("docker", "info")

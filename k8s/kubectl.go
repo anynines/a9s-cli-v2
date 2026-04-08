@@ -25,82 +25,13 @@ import (
 
 var ErrNotFound = errors.New("resource was not found")
 
-// KubectlWithContextCommand returns a kubectl command using the specified kubeconfig context. If the context is empty, it is not used.
-func (k *KubeClient) KubectlWithContextCommand(args ...string) *exec.Cmd {
-	if k.KubeContext != "" {
-		args = append(args, "--context", k.KubeContext)
-	}
-
-	return exec.Command("kubectl", args...)
-}
-
-/*
-Variadic function to use kubectl.
-If kubeContext is not empty, it is added as the --context parameter.
-
-Returns: cmd, output, err
-*/
-func (k *KubeClient) Kubectl(unattendedMode bool, kubectlArg ...string) (*exec.Cmd, []byte, error) {
-	cmd := k.KubectlWithContextCommand(kubectlArg...)
-
-	makeup.PrintCommandBox(cmd.String())
-	makeup.WaitForUser(unattendedMode)
-
-	output, err := cmd.CombinedOutput()
-
-	if makeup.Verbose {
-		fmt.Println(string(output))
-	}
-
-	return cmd, output, err
-}
-
-/*
-Examples:
-delete postgresql {name}
-apply -f {path}
-delete -f {path}
-*/
-func (k *KubeClient) KubectlAct(verb, flag, filepath string, waitForUser bool) {
-	// cmd := exec.Command("kubectl", verb, flag, filepath)
-
-	cmd, _, err := k.Kubectl(waitForUser, verb, flag, filepath)
-
-	if err != nil {
-		makeup.ExitDueToFatalError(err, "Can't kubectl "+verb+" with using the command: "+cmd.String())
-	}
-}
-
-func (k *KubeClient) KubectlApplyF(yamlFilepath string, waitForUser bool) {
-	k.KubectlAct("apply", "-f", yamlFilepath, waitForUser)
-}
-
-func (k *KubeClient) KubectlDeleteF(yamlFilepath string, waitForUser bool) {
-	k.KubectlAct("delete", "-f", yamlFilepath, waitForUser)
-}
-
-func (k *KubeClient) KubectlApplyKustomize(kustomizeFilepath string, waitForUser bool) {
-	k.KubectlAct("apply", "--kustomize", kustomizeFilepath, waitForUser)
-}
-
-// KubectlApplyStdin Calls "kubectl apply -f -" with the given bytes buffer as input.
-func (k *KubeClient) KubectlApplyStdin(in *bytes.Buffer) {
-	cmd := k.KubectlWithContextCommand("apply", "-f", "-")
-	cmd.Stdin = in
-
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		makeup.ExitDueToFatalError(err, fmt.Sprintf("Could not apply resources: %v ", string(output)))
-	}
-}
-
 /*
 Uploads the given file to the given container in the given pod to the given
 remote target folder.
 
 Example kubectl command: kubectl cp demo_data.sql default/clustered-0:/home/postgres -c postgres
 */
-func (k *KubeClient) KubectlUploadFileToPod(unattendedMode bool, namespace, podName, containerName, fileToUpload, remoteTargetFolder string) error {
+func (k *KubeClient) KubectlUploadFileToPod(namespace, podName, containerName, fileToUpload, remoteTargetFolder string) error {
 	opts := KubectlOpts{
 		Command:        "cp",
 		Kind:           fileToUpload,
@@ -117,7 +48,7 @@ func (k *KubeClient) KubectlUploadFileToPod(unattendedMode bool, namespace, podN
 Deletes a file in the remote pod/container.
 Executes command similar to: kubectl exec solo-0 -n default -c postgres -- rm /tmp/demo.sql
 */
-func (k *KubeClient) KubectlDeleteFileFromPod(unattendedMode bool, namespace, podName, containerName, remoteFilename string) error {
+func (k *KubeClient) KubectlDeleteFileFromPod(namespace, podName, containerName, remoteFilename string) error {
 	opts := KubectlOpts{
 		Command:   "exec",
 		Kind:      podName,
@@ -514,13 +445,6 @@ func (k *KubeClient) DeleteFromManifest(manifest string) {
 		makeup.ExitDueToFatalError(err, fmt.Sprintf("failed to delete resource %s/%s in namespace %s (manifest: %s):\n ", obj.GetKind(), obj.GetName(), obj.GetNamespace(), manifest))
 	}
 }
-
-/*
-Uploads the given file to the given container in the given pod to the given
-remote target folder.
-
-Example kubectl command: kubectl cp demo_data.sql default/clustered-0:/home/postgres -c postgres
-*/
 
 func (k *KubeClient) Exec(serviceInstanceName, namespace, RemoteUploadContainerName, command string, args ...string) (string, error) {
 	opts := KubectlOpts{

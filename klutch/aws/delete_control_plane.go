@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/anynines/a9s-cli-v2/k8s"
 	"github.com/anynines/a9s-cli-v2/makeup"
 )
 
@@ -158,7 +159,7 @@ func discoverCluster(ctx context.Context, cfg Config, opts DeleteOptions) (bool,
 					"--name", cfg.ClusterName,
 					"--region", cfg.Region); err != nil {
 					awsLogger.Warningf("Could not update kubeconfig: %v\nstderr: %s", err, errOut)
-				} else if _, _, err := runCmd(ctx, "kubectl", "version", "--request-timeout=5s"); err == nil {
+				} else if _, err := k8s.Version(false, "5s"); err == nil {
 					clusterReachable = true
 				}
 			}
@@ -175,7 +176,8 @@ func kubernetesCleanup(ctx context.Context, opts DeleteOptions) {
 	if opts.DryRun {
 		awsLogger.Infof("Dry-run: would delete storageclass gp3 (if present).")
 	} else {
-		if _, errOut, err := runCmd(ctx, "kubectl", "delete", "storageclass", "gp3", "--ignore-not-found"); err != nil {
+		k8sClient := k8s.NewKubeClient("")
+		if errOut, err := k8sClient.Delete("storageclass", "gp3", "", "", true); err != nil {
 			awsLogger.Warningf("Failed to delete storageclass gp3: %v\nstderr: %s", err, errOut)
 		} else {
 			awsLogger.Successf("Deleted storageclass gp3 (if present).")
@@ -643,9 +645,10 @@ func deleteTenants(ctx context.Context, clusterReachable bool) {
 		return
 	}
 	awsLogger.Section("Tenant Cleanup")
-	out, errOut, err := runCmd(ctx, "kubectl", "get", "tenants.klutch.anynines.com", "-A", "-o", "jsonpath={range .items[*]}{.metadata.namespace}/{.metadata.name}{\"\\n\"}{end}")
+	k8sClient := k8s.NewKubeClient("")
+	out, err := k8sClient.Get("tenants.klutch.anynines.com", "-A", "", "jsonpath={range .items[*]}{.metadata.namespace}/{.metadata.name}{\"\\n\"}{end}", true)
 	if err != nil {
-		awsLogger.Warningf("Failed to list tenants: %v\nstderr: %s", err, errOut)
+		awsLogger.Warningf("Failed to list tenants: %v\nstderr: %s", err, out)
 		return
 	}
 	tenants := strings.Fields(out)
@@ -657,7 +660,8 @@ func deleteTenants(ctx context.Context, clusterReachable bool) {
 		parts := strings.SplitN(t, "/", 2)
 		ns, name := parts[0], parts[1]
 		awsLogger.Infof("Deleting Tenant %s/%s...", ns, name)
-		if _, errOut, err := runCmd(ctx, "kubectl", "-n", ns, "delete", "tenant", name, "--ignore-not-found"); err != nil {
+		k8sClient := k8s.NewKubeClient("")
+		if errOut, err := k8sClient.Delete("tenant", name, ns, "", true); err != nil {
 			awsLogger.Warningf("Failed to delete Tenant %s/%s: %v\nstderr: %s", ns, name, err, errOut)
 		}
 	}

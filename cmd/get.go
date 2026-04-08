@@ -3,12 +3,12 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"os/exec"
 	"strings"
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/anynines/a9s-cli-v2/k8s"
 	klutchaws "github.com/anynines/a9s-cli-v2/klutch/aws"
 	"github.com/anynines/a9s-cli-v2/makeup"
 	"github.com/spf13/cobra"
@@ -131,45 +131,19 @@ func init() {
 	rootCmd.AddCommand(getCmd)
 }
 
-// listKubectlNames runs a kubectl subcommand and returns non-empty lines from stdout.
-func listKubectlNames(args ...string) ([]string, error) {
-	out, err := exec.Command("kubectl", args...).Output()
-	if err != nil {
-		return nil, err
-	}
-	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
-	var res []string
-	for _, l := range lines {
-		if s := strings.TrimSpace(l); s != "" {
-			res = append(res, s)
-		}
-	}
-	return res, nil
-}
-
 func printKlutchClusters() error {
 	makeup.PrintInfo("Detecting Klutch clusters...")
 
-	contexts, err := listKubectlNames("config", "get-contexts", "-o", "name")
+	contexts, err := k8s.Contexts("klutch")
 	if err != nil {
 		return fmt.Errorf("failed to list kubectl contexts: %w", err)
 	}
-	clusters, err := listKubectlNames("config", "get-clusters")
+	clusters, err := k8s.Clusters("klutch")
 	if err != nil {
 		return fmt.Errorf("failed to list kubectl clusters: %w", err)
 	}
 
-	seen := map[string]struct{}{}
-	var matches []string
-	for _, n := range append(contexts, clusters...) {
-		if strings.Contains(strings.ToLower(n), "klutch") {
-			if _, ok := seen[n]; !ok {
-				seen[n] = struct{}{}
-				matches = append(matches, n)
-			}
-		}
-	}
-
+	matches := append(contexts, clusters...)
 	if len(matches) == 0 {
 		makeup.PrintInfo("No Klutch-related kubectl contexts or clusters found.")
 		return nil
@@ -181,8 +155,7 @@ func printKlutchClusters() error {
 		status := "inactive"
 		// Quick existence check with low timeout.
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		cmd := exec.CommandContext(ctx, "kubectl", "cluster-info", "--context", m)
-		if err := cmd.Run(); err == nil {
+		if _, err := k8s.ClusterInfo(ctx, m); err == nil {
 			status = "active"
 		}
 		cancel()
