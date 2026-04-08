@@ -50,7 +50,7 @@ type NonInteractiveBindOptions struct {
 	OIDCScope               string
 	KonnectorImage          string
 	WriteKubeconfigTo       string
-	WorkloadKubeconfig      string
+	WorkloadKubeconfigPath  string
 	WorkloadContext         string
 	ControlPlaneClusterName string
 }
@@ -173,7 +173,7 @@ func NonInteractiveBind(ctx context.Context, opts NonInteractiveBindOptions) err
 		if _, err := k8sClient.ApplyWithPrompt([]byte(crdManifests), "Binding CRDs"); err != nil {
 			return err
 		}
-		if err := waitForAPIServiceBinding(ctx, opts.WorkloadKubeconfig, opts.WorkloadContext); err != nil {
+		if err := waitForAPIServiceBinding(ctx, opts.WorkloadKubeconfigPath, opts.WorkloadContext); err != nil {
 			return err
 		}
 	}

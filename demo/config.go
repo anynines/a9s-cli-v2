@@ -227,7 +227,7 @@ func saveStringToFile(filePath, content string) {
 
 	defer f.Close()
 
-	f.WriteString(content)
+	_, err = f.WriteString(content)
 
 	if err != nil {
 		makeup.ExitDueToFatalError(err, "Couldn't write password to file to store encryption password for backup config to filepath: "+filePath)

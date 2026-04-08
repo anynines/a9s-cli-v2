@@ -495,7 +495,7 @@ var cmdCreateClusterKlutchWorkload = &cobra.Command{
 				OIDCScope:               tenantConn.Scope,
 				KonnectorImage:          "",
 				WriteKubeconfigTo:       "",
-				WorkloadKubeconfig:      "",
+				WorkloadKubeconfigPath:  "",
 				WorkloadContext:         "",
 				BindRequestData:         tenantBindRequest,
 				ControlPlaneClusterName: klutch.DefaultControlPlaneClusterName,

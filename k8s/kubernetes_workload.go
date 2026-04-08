@@ -45,14 +45,11 @@ Wait for a set of Pods known by name to enter the status "Running".
 func (k *KubeClient) WaitForSystemToBecomeReady(namespace, systemName string, expectedPods []PodExpectationState) {
 	makeup.PrintH1("Waiting for " + systemName + " to become ready...")
 
-	allGood := true
-
 	makeup.Print(fmt.Sprintf("Checking the existence of the following %d Pods: ", len(expectedPods)))
 
-out:
 	for {
 		// We start optimistically that all pods are running
-		allGood = true
+		allGood := true
 		for _, expectedPodPrefix := range expectedPods {
 			makeup.Print("Checking the " + expectedPodPrefix.Name + "...")
 			if k.checkIfPodHasStatusRunningInNamespace(expectedPodPrefix, namespace, systemName) {
@@ -66,7 +63,7 @@ out:
 		}
 		if allGood {
 			makeup.PrintSuccessSummary("The " + systemName + " system appears to be ready. All expected pods are running.")
-			break out
+			break
 		} else {
 			time.Sleep(2 * time.Second)
 		}

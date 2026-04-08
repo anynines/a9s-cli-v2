@@ -7,7 +7,15 @@ import (
 )
 
 func (k *KubeClient) ApplyCertManagerManifests(waitForUser bool) {
-	makeup.PrintH1("Installing the cert-manager")
+	makeup.PrintH1("Ensuring running cert-manager")
+	output, err := k.Get("deployment", "cert-manager", "cert-manager", "", true)
+	if err != nil {
+		makeup.ExitDueToFatalError(err, "could not get cert-manager deployment")
+	}
+	if output != "" {
+		makeup.PrintCheckmark("Deployment cert-manager already exists, skipping")
+		return
+	}
 	count := k.CountPodsInNamespace(CertManagerNamespace)
 
 	if count > 0 {

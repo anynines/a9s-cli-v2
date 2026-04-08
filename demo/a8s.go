@@ -153,7 +153,7 @@ func (m *A8sDemoManager) DeployA8sStack() {
 	}
 
 	m.K8s.ApplyCertManagerManifests(UnattendedMode)
-
+	m.K8s.WaitForCertManagerToBecomeReady()
 	m.ApplyA8sManifests()
 
 	m.WaitForA8sSystemToBecomeReady()

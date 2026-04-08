@@ -403,7 +403,7 @@ func checkBackendEndpoint(info ControlPlaneClusterInfo) {
 
 	resp, err := http.Get(url)
 	if err != nil {
-		makeup.ExitDueToFatalError(err, "Got unexpected error trying to reach the backend. Please verify or wait for the Control Plane Cluster to be fully ready.")
+		makeup.ExitDueToFatalError(err, fmt.Sprintf("Got unexpected error trying to reach the backend at %s. Please verify or wait for the Control Plane Cluster to be fully ready:\n%s", url, resp.Body))
 	}
 	defer resp.Body.Close()
 
