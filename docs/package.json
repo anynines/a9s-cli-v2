@@ -17,34 +17,34 @@
     "@algolia/client-search": "^4.9.1",
     "@babel/plugin-proposal-private-property-in-object": "^7.21.11",
     "@cmfcmf/docusaurus-search-local": "^1.2.0",
-    "@docusaurus/core": "^3.6.3",
-    "@docusaurus/preset-classic": "^3.6.3",
+    "@docusaurus/core": "^3.10.0",
+    "@docusaurus/preset-classic": "^3.10.0",
     "@mdx-js/react": "^3.0.0",
     "@svgr/webpack": "^8.1.0",
     "acorn": "^8",
-    "body-parser": "1.20.3",
+    "body-parser": "^2.2.2",
     "clsx": "^2.0.0",
     "cookie": "1.0.2",
     "cross-spawn": "7.0.6",
-    "express": "4.21.1",
+    "express": "^5.2.1",
     "file-loader": "^6.2.0",
     "http-proxy-middleware": "3.0.5",
     "micromatch": "4.0.8",
-    "path-to-regexp": "0.1.12",
+    "path-to-regexp": "^8.4.2",
     "prism-react-renderer": "^2.1.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-loadable": "^5.5.0",
     "search-insights": "^2",
-    "send": "1.1.0",
-    "serve-static": "1.16.2",
+    "send": "^1.2.1",
+    "serve-static": "^2.2.1",
     "typescript": "^5.8.3",
     "url-loader": "^4.1.1",
-    "webpack": "5.97.1"
+    "webpack": "^5.105.4"
   },
   "devDependencies": {
     "@babel/core": "^7.0.0",
-    "@docusaurus/types": "^3.6.3",
+    "@docusaurus/types": "^3.10.0",
     "@types/react": "18"
   },
   "engines": {
@@ -63,6 +63,6 @@
     ]
   },
   "resolutions": {
-    "cheerio": "1.0.0-rc.12"
+    "serialize-javascript": "7.0.5"
   }
 }
