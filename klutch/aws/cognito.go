@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/anynines/a9s-cli-v2/makeup"
 )
 
 // OIDCConnection holds the issuer and client credentials for Cognito.
@@ -204,7 +206,20 @@ func discoverOrCreateClient(ctx context.Context, region, poolID, name, scope str
 }
 
 func ensureUserPoolDomain(ctx context.Context, region, poolID, prefix string) string {
-	for i := 0; i < 5; i++ {
+	out, _, err := runCmd(ctx, "aws", "cognito-idp", "describe-user-pool",
+		"--region", region,
+		"--user-pool-id", poolID,
+		"--query", "UserPool.Domain",
+		"--output", "text")
+	if err != nil {
+		makeup.ExitDueToFatalError(err, "Could not check for existing Cognito UserPool Domain")
+	}
+	if strings.ToLower(out) != "null" && strings.ToLower(out) != "none" {
+		makeup.PrintSuccess("Reusing existing Domain with the ID " + out + " for the UserPool " + poolID)
+		return out
+	}
+
+	for range 5 {
 		suffix := randomHex(3)
 		domain := fmt.Sprintf("%s-%s", prefix, suffix)
 		if _, _, err := runCmd(ctx, "aws", "cognito-idp", "create-user-pool-domain",
@@ -216,7 +231,8 @@ func ensureUserPoolDomain(ctx context.Context, region, poolID, prefix string) st
 		// If domain exists, try another suffix; ignore other errors for now.
 	}
 	// Fallback: describe any existing domain for the pool.
-	out, _, _ := runCmd(ctx, "aws", "cognito-idp", "describe-user-pool",
+	out, _, _ = runCmd(ctx, "aws", "cognito-idp", "describe-user-pool",
+		// out, _, _ := runCmd(ctx, "aws", "cognito-idp", "describe-user-pool",
 		"--region", region,
 		"--user-pool-id", poolID,
 		"--query", "UserPool.Domain",
