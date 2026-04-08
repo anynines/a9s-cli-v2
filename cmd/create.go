@@ -683,7 +683,7 @@ func init() {
 	cmdCreate.AddCommand(cmdCreateCluster)
 	cmdCreate.AddCommand(cmdCreateKlutch)
 	cmdCreate.AddCommand(cmdCreateStack)
-	rootCmd.PersistentFlags().BoolVarP(&demo.UnattendedMode, "yes", "y", false, "skip yes-no questions by answering with \"yes\".")
+	rootCmd.PersistentFlags().BoolVarP(&makeup.UnattendedMode, "yes", "y", false, "skip yes-no questions by answering with \"yes\".")
 	rootCmd.PersistentFlags().BoolVarP(&makeup.Verbose, "verbose", "v", false, "enable verbose output?")
 	rootCmd.AddCommand(cmdCreate)
 }

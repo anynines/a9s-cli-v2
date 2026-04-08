@@ -7,7 +7,6 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"github.com/anynines/a9s-cli-v2/demo"
 	"github.com/anynines/a9s-cli-v2/makeup"
 	"k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -85,7 +84,7 @@ func (k *KlutchManager) WaitForDex() {
 	k.cpK8s.KubectlWaitForRollout("deployment", "dex", "default")
 
 	makeup.PrintCheckmark("Dex appears to be ready.")
-	makeup.WaitForUser(demo.UnattendedMode)
+	makeup.WaitForUser(makeup.UnattendedMode)
 }
 
 // getOIDCIssuerClientSecret checks if the dex oidc-config secret exists and returns the oidc-issuer-client-secret if set.

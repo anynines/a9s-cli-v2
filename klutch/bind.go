@@ -53,7 +53,7 @@ type serviceExportRequest struct {
 
 func Bind() {
 	makeup.PrintWelcomeScreen(
-		demo.UnattendedMode,
+		makeup.UnattendedMode,
 		demoTitle,
 		"Let's bind an API from the App Cluster to the Control Plane Cluster...")
 

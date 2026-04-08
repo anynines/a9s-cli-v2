@@ -79,7 +79,7 @@ func NewKlutchManagerWithContexts(controlPlaneContext, appContext string) *Klutc
 // app cluster.
 func DeployKlutchClusters() {
 	makeup.PrintWelcomeScreen(
-		demo.UnattendedMode,
+		makeup.UnattendedMode,
 		demoTitle,
 		"Let's deploy a Klutch setup with Kind...")
 
@@ -99,7 +99,7 @@ func DeployKlutchClusters() {
 // ApplyKlutchControlPlane installs the Klutch control plane components into the current kube context.
 func ApplyKlutchControlPlane(host string, ingressPort int, acmCertificateARN string, hostedZoneName string) {
 	makeup.PrintWelcomeScreen(
-		demo.UnattendedMode,
+		makeup.UnattendedMode,
 		applyControlPlaneTitle,
 		"Let's install the Klutch control plane into your current Kubernetes cluster...")
 
@@ -159,7 +159,7 @@ func ApplyKlutchControlPlane(host string, ingressPort int, acmCertificateARN str
 		}
 
 		makeup.PrintInfo(fmt.Sprintf("Planned action: request or reuse ACM certificate for %s (SANs: %v) in hosted zone %s with DNS validation and tagging.", primary, altNames, hostedZoneName))
-		makeup.WaitForUser(demo.UnattendedMode)
+		makeup.WaitForUser(makeup.UnattendedMode)
 
 		makeup.PrintInfo(fmt.Sprintf("Requesting ACM certificate for %s (SANs: %v) in hosted zone %s.", primary, altNames, hostedZoneName))
 		arn, err := provisioner.EnsureCertificate(primary, altNames, hostedZoneName)
@@ -209,7 +209,7 @@ func (k *KlutchManager) deployControlPlaneCluster() {
 	k.DeployCrossplaneComponents()
 
 	makeup.H1("Klutch components are deployed. Deploying the a8s stack...")
-	makeup.WaitForUser(demo.UnattendedMode)
+	makeup.WaitForUser(makeup.UnattendedMode)
 	a8s := demo.NewA8sDemoManager(k.cpContext)
 	a8s.DeployA8sStack()
 }
@@ -397,7 +397,7 @@ func (k *KlutchManager) applyControlPlaneToContext(baseDomain string, dexHost st
 
 			if len(aliasHosts) > 0 {
 				makeup.PrintInfo(fmt.Sprintf("Planned action: create/update ALIAS %v -> %s in hosted zone %s for ingress.", aliasHosts, defaultIngressTarget, hostedZoneName))
-				makeup.WaitForUser(demo.UnattendedMode)
+				makeup.WaitForUser(makeup.UnattendedMode)
 				for _, h := range aliasHosts {
 					target := defaultIngressTarget
 					if h == backendHost && backendIngressHost != "" {
@@ -415,7 +415,7 @@ func (k *KlutchManager) applyControlPlaneToContext(baseDomain string, dexHost st
 
 			if len(records) > 0 {
 				makeup.PrintInfo(fmt.Sprintf("Planned action: create/update CNAMEs %v -> ingress hosts in hosted zone %s.", keys(records), hostedZoneName))
-				makeup.WaitForUser(demo.UnattendedMode)
+				makeup.WaitForUser(makeup.UnattendedMode)
 
 				makeup.PrintInfo("Waiting for DNS CNAME propagation; this can take several minutes depending on your registrar (up to 30m).")
 				if err := provisioner.EnsureCNAMERecords(hostedZoneName, records); err != nil {
@@ -438,7 +438,7 @@ func (k *KlutchManager) applyControlPlaneToContext(baseDomain string, dexHost st
 	k.DeployCrossplaneComponents()
 
 	makeup.H1("Klutch components are deployed. Deploying the a8s stack...")
-	makeup.WaitForUser(demo.UnattendedMode)
+	makeup.WaitForUser(makeup.UnattendedMode)
 	a8s := demo.NewA8sDemoManager(k.cpContext)
 	a8s.DeployA8sStack()
 }
@@ -588,7 +588,7 @@ func verifyHostedZoneRequirements(provisioner CertificateProvisioner, hostedZone
 	if err != nil {
 		makeup.PrintWarning(fmt.Sprintf("Hosted zone %s not found in Route53. It may have been deleted.", zone))
 		makeup.PrintInfo(fmt.Sprintf("Creating public hosted zone %s and retrieving its NS records...", zone))
-		makeup.WaitForUser(demo.UnattendedMode)
+		makeup.WaitForUser(makeup.UnattendedMode)
 		expectedNS, err = provisioner.EnsurePublicHostedZone(zone)
 		if err != nil {
 			makeup.ExitDueToFatalError(err, fmt.Sprintf("Could not create or fetch NS records for hosted zone %s from Route53.", zone))

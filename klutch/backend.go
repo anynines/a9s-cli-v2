@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/anynines/a9s-cli-v2/demo"
 	"github.com/anynines/a9s-cli-v2/k8s"
 	"github.com/anynines/a9s-cli-v2/makeup"
 )
@@ -201,7 +200,7 @@ func (k *KlutchManager) WaitForBindBackend(host string, port string, scheme stri
 	verifyBindEndpoint(host, port, scheme, 10*time.Minute)
 
 	makeup.PrintCheckmark("The klutch-bind backend appears to be ready.")
-	makeup.WaitForUser(demo.UnattendedMode)
+	makeup.WaitForUser(makeup.UnattendedMode)
 }
 
 // verifyBindEndpoint checks that /export returns a non-empty payload.

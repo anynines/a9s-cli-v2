@@ -110,7 +110,7 @@ func PrintInfo(s string) {
 }
 
 func WaitForUser(unattendedMode bool) {
-	if !unattendedMode {
+	if !UnattendedMode {
 		msg := "Press <ENTER> key to continue or <CTRL>+C to abort."
 		style := lipgloss.NewStyle().
 			MarginTop(1).
