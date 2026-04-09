@@ -49,7 +49,7 @@ func CheckoutGitRepository(repositoryURL, localDirectory string, tag string) err
 	}
 
 	makeup.PrintCommandBox(cmd.String())
-	makeup.WaitForUser(UnattendedMode)
+	makeup.WaitForUser()
 
 	output, err := cmd.CombinedOutput()
 

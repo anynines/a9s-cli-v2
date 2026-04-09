@@ -200,7 +200,7 @@ func (k *KlutchManager) WaitForBindBackend(host string, port string, scheme stri
 	verifyBindEndpoint(host, port, scheme, 10*time.Minute)
 
 	makeup.PrintCheckmark("The klutch-bind backend appears to be ready.")
-	makeup.WaitForUser(makeup.UnattendedMode)
+	makeup.WaitForUser()
 }
 
 // verifyBindEndpoint checks that /export returns a non-empty payload.

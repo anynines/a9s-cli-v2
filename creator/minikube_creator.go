@@ -119,7 +119,7 @@ func (c MinikubeCreator) Create(spec KubernetesClusterSpec, unattended bool) {
 	cmd := exec.Command("minikube", "start", "--nodes", strconv.Itoa(spec.NrOfNodes), "--memory", spec.NodeMemory, "--profile", spec.Name)
 
 	makeup.PrintCommandBox(cmd.String())
-	makeup.WaitForUser(unattended)
+	makeup.WaitForUser()
 
 	output, err := cmd.CombinedOutput()
 
@@ -143,7 +143,7 @@ func (c MinikubeCreator) Delete(name string, unattended bool) {
 	cmd := exec.Command("minikube", "delete", "--profile", name)
 
 	makeup.PrintCommandBox(cmd.String())
-	makeup.WaitForUser(unattended)
+	makeup.WaitForUser()
 
 	output, err := cmd.CombinedOutput()
 

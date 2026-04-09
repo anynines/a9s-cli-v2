@@ -61,7 +61,7 @@ func (k *KlutchManager) DeployCrossplaneHelmChart() {
 	cmd := exec.Command("helm", args...)
 
 	makeup.PrintCommandBox(cmd.String())
-	makeup.WaitForUser(makeup.UnattendedMode)
+	makeup.WaitForUser()
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -80,7 +80,7 @@ func (k *KlutchManager) WaitForCrossplaneHelmChart() {
 	})
 
 	makeup.PrintCheckmark("The Crossplane components appear to be ready.")
-	makeup.WaitForUser(makeup.UnattendedMode)
+	makeup.WaitForUser()
 }
 
 func (k *KlutchManager) DeployProviderKubernetes() {
@@ -104,7 +104,7 @@ func (k *KlutchManager) WaitForProviderKubernetes() {
 	k.cpK8s.KubectlWaitForResourceCondition("established", "crd", "configurations.pkg.crossplane.io", "crossplane-system", "")
 
 	makeup.PrintCheckmark("The Kubernetes Crossplane provider appears to be ready.")
-	makeup.WaitForUser(makeup.UnattendedMode)
+	makeup.WaitForUser()
 }
 
 // Deploys the Kubernetes Provider Config
@@ -146,7 +146,7 @@ func (k *KlutchManager) WaitForKlutchCrossplaneConfigPkg() {
 	k.cpK8s.KubectlWaitForResourceCondition("healthy", "configuration", configPackageName, "crossplane-system", "")
 
 	makeup.PrintCheckmark("The Klutch Crossplane configuration package appears to be ready.")
-	makeup.WaitForUser(makeup.UnattendedMode)
+	makeup.WaitForUser()
 }
 
 // Applies APIServiceExportTemplates for the a8s crossplane APIs.

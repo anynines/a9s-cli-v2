@@ -102,7 +102,7 @@ func (k *KlutchManager) startInteractiveBind(info ControlPlaneClusterInfo) (Name
 	stdout, stderr, Start, Wait := k.appK8s.Bind(url, konnectorImage)
 
 	makeup.PrintBright("This process will open a browser window for you. Authenticate with \"admin@example.com\" and \"password\", then select the API you wish to bind.")
-	makeup.WaitForUser(makeup.UnattendedMode)
+	makeup.WaitForUser()
 
 	secretChan := make(chan NamespacedName, 1)
 	stderrErrChan := make(chan error, 1)

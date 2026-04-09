@@ -41,7 +41,7 @@ func PrintWelcomeScreen(unattendedMode bool, title, subtitle string) {
 
 	PrintH2(subtitle)
 
-	WaitForUser(unattendedMode)
+	WaitForUser()
 }
 
 func PrintCommandBox(s string) {
@@ -109,7 +109,7 @@ func PrintInfo(s string) {
 	PrintEmoji(" "+s, emoji.Information)
 }
 
-func WaitForUser(unattendedMode bool) {
+func WaitForUser() {
 	if !UnattendedMode {
 		msg := "Press <ENTER> key to continue or <CTRL>+C to abort."
 		style := lipgloss.NewStyle().

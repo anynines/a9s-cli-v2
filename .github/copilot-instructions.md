@@ -67,7 +67,7 @@ NewA8sDemoManager(kubeContext string) // Empty string uses current context
 ```
 
 #### Unattended Mode
-Global `UnattendedMode` flag (`-y`/`--yes`) skips interactive prompts. Use `makeup.WaitForUser(UnattendedMode)` before destructive operations.
+Global `UnattendedMode` flag (`-y`/`--yes`) skips interactive prompts. Use `makeup.WaitForUser()` before destructive operations.
 
 #### Configuration Persistence
 - `~/.a9s` stores working directory and demo namespace

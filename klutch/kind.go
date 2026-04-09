@@ -29,7 +29,7 @@ func DeployControlPlaneKindCluster(clusterName string, hostIP string, ingressPor
 
 	if exists {
 		makeup.PrintWarning(fmt.Sprintf("Cluster %s already exists. Skipping creation. If the existing cluster is not correctly configured, Klutch will not work. In that case, delete the cluster and start again.", clusterName))
-		makeup.WaitForUser(makeup.UnattendedMode)
+		makeup.WaitForUser()
 		return
 	}
 
@@ -46,7 +46,7 @@ func DeployControlPlaneKindCluster(clusterName string, hostIP string, ingressPor
 
 	makeup.PrintH2("Creating a kind cluster with following config: ")
 	makeup.PrintYAML(renderedTemplate.Bytes(), false)
-	makeup.WaitForUser(makeup.UnattendedMode)
+	makeup.WaitForUser()
 
 	cmd := exec.Command("kind", "create", "cluster", "--config", "-")
 	cmd.Stdin = renderedTemplate
@@ -93,14 +93,14 @@ func DeployAppCluster(clusterName string) {
 
 	if exists {
 		makeup.PrintWarning(fmt.Sprintf("Cluster %s already exists. Skipping creation.", clusterName))
-		makeup.WaitForUser(makeup.UnattendedMode)
+		makeup.WaitForUser()
 		return
 	}
 
 	cmd := exec.Command("kind", "create", "cluster", "--name", clusterName)
 
 	makeup.PrintCommandBox(cmd.String())
-	makeup.WaitForUser(makeup.UnattendedMode)
+	makeup.WaitForUser()
 
 	stderr, err := cmd.StderrPipe()
 	if err != nil {

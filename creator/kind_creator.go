@@ -103,7 +103,7 @@ func (c KindCreator) Create(spec KubernetesClusterSpec, unattendedMode bool) {
 	cmd := exec.Command("kind", "create", "cluster", "--name", spec.Name, "--config", filepath)
 
 	makeup.PrintCommandBox(cmd.String())
-	makeup.WaitForUser(unattendedMode)
+	makeup.WaitForUser()
 
 	output, err := cmd.CombinedOutput()
 
@@ -175,7 +175,7 @@ func (c KindCreator) Delete(name string, unattendedMode bool) {
 	cmd := exec.Command("kind", "delete", "cluster", "-n", name)
 
 	makeup.PrintCommandBox(cmd.String())
-	makeup.WaitForUser(unattendedMode)
+	makeup.WaitForUser()
 
 	output, err := cmd.CombinedOutput()
 

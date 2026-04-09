@@ -84,7 +84,7 @@ func (k *KlutchManager) WaitForDex() {
 	k.cpK8s.KubectlWaitForRollout("deployment", "dex", "default")
 
 	makeup.PrintCheckmark("Dex appears to be ready.")
-	makeup.WaitForUser(makeup.UnattendedMode)
+	makeup.WaitForUser()
 }
 
 // getOIDCIssuerClientSecret checks if the dex oidc-config secret exists and returns the oidc-issuer-client-secret if set.
