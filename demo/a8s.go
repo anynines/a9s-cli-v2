@@ -168,7 +168,7 @@ func (m *A8sDemoManager) ApplyA8sManifests() {
 
 	kustomizePath := filepath.Join(DemoConfig.WorkingDir, demoA8sDeploymentLocalDir, "deploy", "a8s", "manifests")
 
-	m.K8s.KubectlApplyKustomize(kustomizePath, UnattendedMode)
+	m.K8s.KubectlApplyKustomizeIdempotent(kustomizePath, UnattendedMode)
 
 	makeup.PrintCheckmark("Done applying a8s manifests.")
 }
