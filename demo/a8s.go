@@ -48,7 +48,7 @@ var A8sPGRestore pg.Restore
 
 var A8sPGServiceBinding pg.ServiceBinding
 
-const DefaultDeploymentVersion = "v1.2.0" // e.g. v0.3.0
+const DefaultDeploymentVersion = "v1.3.0" // e.g. v0.3.0
 var DeploymentVersion string              // e.g. v0.3.0
 var NoPreCheck bool                       // e.g. false -> Perform prechecks
 var DoNotApply bool                       // e.g. yes --> do not execute kubectl apply -f ...

@@ -50,7 +50,7 @@ anynines provides a command line tool called `a9s` to facilitate application dev
 In order to install the `a9s` CLI execute the following shell script:
 
 ```bash
-OS=$(go env GOOS); ARCH=$(go env GOARCH); curl -sSL https://github.com/anynines/a9s-cli-v2/releases/download/v0.14.1/a9s-cli-v2_${OS}_${ARCH}.tar.gz | tar -xzf - a9s
+OS=$(go env GOOS); ARCH=$(go env GOARCH); curl -sSL https://github.com/anynines/a9s-cli-v2/releases/download/v0.15.0/a9s-cli-v2_${OS}_${ARCH}.tar.gz | tar -xzf - a9s
 
 sudo chmod 755 a9s
 sudo mv a9s /usr/local/bin

@@ -106,7 +106,7 @@ The deployment version refers to the version of manifests used for installing so
 Select a particular release by providing the `--deployment-version` parameter:
 
 ```bash
-a9s create cluster a8s --deployment-version v1.2.0
+a9s create cluster a8s --deployment-version v1.3.0
 ```
 
 Use:
