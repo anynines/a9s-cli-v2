@@ -1,0 +1,6 @@
+[
+{"op":"{{.Operation}}","path":"/spec/template/spec/containers/{{.ContainerIndex}}","value":{
+"name":"{{.Name}}","image":"alpine/socat:1.8.0.0",
+"args":["TCP-LISTEN:{{.Port}},bind=127.0.0.1,reuseaddr,fork","TCP:host.docker.internal:{{.Port}}"],
+"resources":{"requests":{"cpu":"10m","memory":"32Mi"},"limits":{"cpu":"50m","memory":"65Mi"}}}}
+]

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"text/template"
@@ -61,7 +62,9 @@ func getClusterCert(k8s *k8s.KubeClient) []byte {
 // TODO: unit test. abstract the config loading so it can be mocked.
 func getClusterExternalPort(kubeContext string) string {
 	var kubeconfig string
-	if home := homedir.HomeDir(); home != "" {
+	if _, err := os.Stat(os.Getenv("KUBECONFIG")); err == nil {
+		kubeconfig = os.Getenv("KUBECONFIG")
+	} else if home := homedir.HomeDir(); home != "" {
 		kubeconfig = filepath.Join(home, ".kube", "config")
 	}
 

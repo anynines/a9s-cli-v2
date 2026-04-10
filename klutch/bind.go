@@ -82,6 +82,10 @@ func (k *KlutchManager) bindResource() string {
 		makeup.ExitDueToFatalError(err, "Failed to determine which resource was bound")
 	}
 
+	if controlPlaneInfo.Host == "127.0.0.1" {
+		k.addLoopbackProxyToDeployment(k.appK8s, "klutch-bind", "konnector", "host-cluster-proxy", getClusterExternalPort(contextControlPlane))
+	}
+
 	k.appK8s.WaitForCRDCreationAndReady(resource + "." + group)
 
 	return resource
@@ -175,7 +179,7 @@ func scanInteractiveBindStderr(stderr io.ReadCloser, info ControlPlaneClusterInf
 	secret := NamespacedName{}
 
 	// The following patterns can break if the backend/konnector change their output format. Review them if changing image versions.
-	urlPattern := regexp.MustCompile(fmt.Sprintf(`http://%s:%s/authorize\?.*`, info.Host, info.IngressPort))
+	urlPattern := regexp.MustCompile(fmt.Sprintf(`http://%s:%s/authorize\?.*`, info.Host, info.BackendExposurePort))
 	// We are looking for <namespace>/<name> where namespace and name are k8s compliant.
 	secretPattern := regexp.MustCompile(`secret ([a-z0-9][-a-z0-9]*[a-z0-9]?)/([a-z0-9][-a-z0-9]*[a-z0-9]?) for host`)
 
@@ -416,7 +420,7 @@ func getControlPlaneClusterInfoFromFile(workDir string) ControlPlaneClusterInfo 
 		makeup.ExitDueToFatalError(err, fmt.Sprintf("Unexpected error while reading from Control Plane Cluster info to file %s", path))
 	}
 
-	if controlPlaneClusterInfo.IngressPort == "" || controlPlaneClusterInfo.Host == "" {
+	if controlPlaneClusterInfo.BackendExposurePort == "" || controlPlaneClusterInfo.Host == "" {
 		makeup.ExitDueToFatalError(err, "The Control Plane Cluster info file is incomplete. Please try deploying the Control Plane Cluster again with `deploy`")
 	}
 
@@ -463,7 +467,7 @@ func checkBackendEndpoint(info ControlPlaneClusterInfo) {
 func getExportUrl(info ControlPlaneClusterInfo) string {
 	url := (&url.URL{
 		Scheme: "http",
-		Host:   fmt.Sprintf("%s:%s", info.Host, info.IngressPort),
+		Host:   fmt.Sprintf("%s:%s", info.Host, info.BackendExposurePort),
 		Path:   "export",
 	})
 

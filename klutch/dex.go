@@ -15,12 +15,12 @@ import (
 var dexManifestsTemplate string
 
 type dexTemplateVars struct {
-	Host            string
-	IngressPort     string
-	DexClientSecret string
+	Host                string
+	BackendExposurePort string
+	DexClientSecret     string
 }
 
-func (k *KlutchManager) DeployDex(hostIP string, ingressPort string) {
+func (k *KlutchManager) DeployDex(hostIP string, backendExposurePort string) {
 	makeup.PrintH1("Deploying Dex Idp...")
 
 	client := k.cpK8s.GetKubernetesClientSet()
@@ -28,9 +28,9 @@ func (k *KlutchManager) DeployDex(hostIP string, ingressPort string) {
 	dexClientSecret := k.getOIDCIssuerClientSecret(client, bg)
 
 	templateVars := &dexTemplateVars{
-		Host:            hostIP,
-		IngressPort:     ingressPort,
-		DexClientSecret: dexClientSecret,
+		Host:                hostIP,
+		BackendExposurePort: backendExposurePort,
+		DexClientSecret:     dexClientSecret,
 	}
 
 	manifests, err := renderTemplate(dexManifestsTemplate, templateVars)

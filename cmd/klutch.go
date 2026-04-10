@@ -3,6 +3,7 @@ package cmd
 import (
 	"os"
 
+	"github.com/anynines/a9s-cli-v2/demo"
 	"github.com/anynines/a9s-cli-v2/klutch"
 	"github.com/anynines/a9s-cli-v2/makeup"
 	"github.com/spf13/cobra"
@@ -55,6 +56,8 @@ var deleteKlutchCmd = &cobra.Command{
 
 func init() {
 	deployKlutchCmd.Flags().IntVar(&klutch.PortFlag, "port", 8080, "Port the Control Plane Cluster backend should listen on")
+	deployKlutchCmd.Flags().BoolVarP(&klutch.LoopbackMode, "loopback-mode", "l", false, "Makes the CLI expose the clusters it creates via loopback device instead of LAN IP")
+	deployKlutchCmd.Flags().StringVar(&demo.DeploymentVersion, "deployment-version", demo.DefaultDeploymentVersion, "specify the version corresponding to the a8s-deployment git version tag. Use \"latest\" to get the untagged version.")
 	klutchCmd.AddCommand(deployKlutchCmd)
 
 	klutchCmd.AddCommand(bindKlutchCmd)

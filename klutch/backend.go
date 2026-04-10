@@ -3,6 +3,7 @@ package klutch
 import (
 	_ "embed"
 	"encoding/base64"
+	"strconv"
 
 	"github.com/anynines/a9s-cli-v2/demo"
 	"github.com/anynines/a9s-cli-v2/makeup"
@@ -57,11 +58,16 @@ func (k *KlutchManager) DeployBindBackend(hostIP string) {
 		makeup.ExitDueToFatalError(err, "Could not render the klutch-bind backend manifests.")
 	}
 
-	makeup.PrintH2("Creating a kind cluster with following config: ")
+	makeup.PrintH2("Creating the backend with the following config: ")
 	makeup.PrintYAML(manifests.Bytes(), false)
 	makeup.WaitForUser(demo.UnattendedMode)
 
 	k.cpK8s.KubectlApplyStdin(manifests)
+
+	if LoopbackMode {
+		k.addLoopbackProxyToDeployment(k.cpK8s, "default", "anynines-backend", "external-exposure-proxy", strconv.Itoa(PortFlag))
+		k.addLoopbackProxyToDeployment(k.cpK8s, "default", "anynines-backend", "k8s-api-proxy", clusterPort)
+	}
 
 	makeup.Print("klutch-bind backend applied.")
 }

@@ -1,39 +1,32 @@
 package klutch
 
 import (
-	"bytes"
 	_ "embed"
 
+	"github.com/anynines/a9s-cli-v2/demo"
 	"github.com/anynines/a9s-cli-v2/makeup"
 )
 
 const (
-	ingressManifestsUrl = "https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.12.1/deploy/static/provider/kind/deploy.yaml"
+	gatewayManifestsUrl = "https://github.com/envoyproxy/gateway/releases/download/v1.7.1/install.yaml"
 )
 
-//go:embed manifests/nginx-ingress-config.yaml
-var ingressConfigMap string
-
-// DeployIngressNginx applies the ingress-nginx manifests and an additional configMap to configure it.
+// DeployEnvoyGateway applies the Envoy Gateway manifests and an additional configMap to configure it.
 // The config increases the request header size limit to cope with bind's header sizes becoming very large.
-func (k *KlutchManager) DeployIngressNginx() {
-	makeup.PrintH1("Applying ingress-nginx manifests...")
+func (k *KlutchManager) DeployEnvoyGateway() {
+	makeup.PrintH1("Applying Envoy Gateway manifests...")
 
-	k.cpK8s.KubectlApplyF(ingressManifestsUrl, true)
+	if _, _, err := k.cpK8s.Kubectl(demo.UnattendedMode, "apply", "-f", gatewayManifestsUrl, "--server-side", "--force-conflicts"); err != nil {
+		makeup.ExitDueToFatalError(err, "could not apply Envoy Gateway Manifests")
+	}
 
-	// Apply configmap
-	in := bytes.NewBufferString(ingressConfigMap)
-	k.cpK8s.KubectlApplyStdin(in)
-
-	makeup.Print("Done applying ingress-nginx manifests.")
+	makeup.Print("Done applying Envoy Gateway manifests.")
 }
 
-func (k *KlutchManager) WaitForIngressNginx() {
-	makeup.PrintH1("Waiting for ingress-nginx to become ready...")
+func (k *KlutchManager) WaitForEnvoyGateway() {
+	makeup.PrintH1("Waiting for Envoy Gateway to become ready...")
 
-	k.cpK8s.KubectlWaitForRollout("deployment", "ingress-nginx-controller", "ingress-nginx")
-	k.cpK8s.KubectlWaitForResourceCondition("complete", "job", "ingress-nginx-admission-create", "ingress-nginx")
-	k.cpK8s.KubectlWaitForResourceCondition("complete", "job", "ingress-nginx-admission-patch", "ingress-nginx")
+	k.cpK8s.KubectlWaitForRollout("deployment", "envoy-gateway", "envoy-gateway-system")
 
-	makeup.PrintCheckmark("ingress-nginx appears to be ready.")
+	makeup.PrintCheckmark("Envoy Gateway appears to be ready.")
 }
