@@ -35,6 +35,7 @@ The attribute "Running" is meant to be updated by a control loop.
 */
 type PodExpectationState struct {
 	Name    string
+	Labels  map[string]string
 	Running bool
 }
 
@@ -54,7 +55,7 @@ out:
 		allGood = true
 		for _, expectedPodPrefix := range expectedPods {
 			makeup.Print("Checking the " + expectedPodPrefix.Name + "...")
-			if k.checkIfPodHasStatusRunningInNamespace(expectedPodPrefix.Name, namespace) {
+			if k.checkIfPodHasStatusRunningInNamespace(expectedPodPrefix, namespace, systemName) {
 				makeup.PrintCheckmark("The " + expectedPodPrefix.Name + " pod appears to be running.")
 				expectedPodPrefix.Running = true
 			} else {
@@ -349,7 +350,7 @@ func (k *KubeClient) WaitForCRDCreationAndReady(crd string) {
 /*
 TODO This method did not work when the backup-manager went into a CrashLoopBackOff. There is likely a bug here.
 */
-func (k *KubeClient) checkIfPodHasStatusRunningInNamespace(podNameStartsWith string, namespace string) bool {
+func (k *KubeClient) checkIfPodHasStatusRunningInNamespace(expectedPod PodExpectationState, namespace, systemName string) bool {
 	clientset := k.GetKubernetesClientSet()
 
 	//for {
@@ -359,35 +360,49 @@ func (k *KubeClient) checkIfPodHasStatusRunningInNamespace(podNameStartsWith str
 	}
 
 	for _, pod := range pods.Items {
-		if strings.HasPrefix(pod.Name, podNameStartsWith) {
-			makeup.Print("Found pod with prefix " + podNameStartsWith)
+		if !strings.HasPrefix(pod.Name, expectedPod.Name) {
+			continue
+		}
 
-			// if debug {
-			// 	//pod.Status.Phase
-			// 	makeup.Print("Pod has status: " + pod.Status.String())
-			// }
+		message := "Found pod with prefix " + expectedPod.Name
 
-			switch phase := pod.Status.Phase; phase {
-			case v1.PodRunning:
-				makeup.PrintCheckmark("The Pod " + pod.Name + " is running as expected.")
-				return true
-			case v1.PodFailed:
-				makeup.PrintFail("The Pod " + pod.Name + "h has failed but should be running.")
-				// makeup.PrintFail("The " + A8sSystemName + " has not been installed successfully.")
-				os.Exit(1)
-
-			case v1.PodPending:
-				makeup.Print("The Pod " + pod.Name + " is pending but should be running.")
-				return false
-			case v1.PodSucceeded:
-				makeup.Print("The Pod " + pod.Name + " has succeeded but should be running.")
-				return false
-			case v1.PodUnknown:
-				makeup.Print("The Pod " + pod.Name + " has an unknown status but should be running.")
-				return false
-			default:
-				return false
+		if expectedPod.Labels != nil {
+			if pod.ObjectMeta.Labels == nil {
+				continue
 			}
+			allKeysMatched := true
+			keyValues := []string{}
+			for key, value := range expectedPod.Labels {
+				allKeysMatched = allKeysMatched && pod.ObjectMeta.Labels[key] == value
+				keyValues = append(keyValues, key+"="+value)
+			}
+			if !allKeysMatched {
+				continue
+			}
+			message += " and matching labels (" + strings.Join(keyValues, ",") + ")"
+		}
+
+		makeup.Print(message)
+
+		switch phase := pod.Status.Phase; phase {
+		case v1.PodRunning:
+			makeup.PrintCheckmark("The Pod " + pod.Name + " is running as expected.")
+			return true
+		case v1.PodFailed:
+			err := fmt.Errorf("The Pod %s has failed but should be running.", pod.Name)
+			makeup.ExitDueToFatalError(err, "The "+systemName+" system has not been installed successfully.")
+
+		case v1.PodPending:
+			makeup.Print("The Pod " + pod.Name + " is pending but should be running.")
+			return false
+		case v1.PodSucceeded:
+			makeup.Print("The Pod " + pod.Name + " has succeeded but should be running.")
+			return false
+		case v1.PodUnknown:
+			makeup.Print("The Pod " + pod.Name + " has an unknown status but should be running.")
+			return false
+		default:
+			return false
 		}
 	}
 	return false
@@ -669,7 +684,7 @@ func (k *KubeClient) WaitForServiceAccount(unattendedMode bool, namespace, servi
 			makeup.ExitDueToFatalError(err, "Can't get service account "+serviceAccountName+" in namespace "+namespace)
 		}
 
-	time.Sleep(2 * time.Second)
+		time.Sleep(2 * time.Second)
 	}
 	makeup.ExitDueToFatalError(nil, fmt.Sprintf("Timeout. Can't get service account %s in namespace %s", serviceAccountName, namespace))
 }

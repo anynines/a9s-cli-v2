@@ -42,7 +42,7 @@ func (m *MinioManager) ApplyMinioManifests(workingDir string) {
 
 func (m *MinioManager) WaitForMinioToBecomeReady() {
 	expectedPods := []k8s.PodExpectationState{
-		{Name: "minio", Running: false},
+		{Name: "minio", Running: false, Labels: map[string]string{"app": "minio"}},
 	}
 
 	m.K8s.WaitForSystemToBecomeReady(MinioNamespace, MinioSystemName, expectedPods)
