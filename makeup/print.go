@@ -48,6 +48,10 @@ func PrintCommandBox(s string) {
 	fmt.Println(CommandBox(s))
 }
 
+func PrintSmallCommand(s string) {
+	fmt.Println(CommandBoxSmall(s))
+}
+
 func PrintH1(s string) {
 	fmt.Println(H1(s))
 }
@@ -111,16 +115,15 @@ func PrintInfo(s string) {
 
 func WaitForUser() {
 	if !UnattendedMode {
-		msg := "Press <ENTER> key to continue or <CTRL>+C to abort."
+		msg := "Press <ENTER> key to continue or <CTRL>+C to abort:"
 		style := lipgloss.NewStyle().
 			MarginTop(1).
-			MarginBottom(1).
 			MarginLeft(1).
 			Foreground(highlight).
 			Underline(true).
 			Render(msg)
 
-		fmt.Println(style)
+		fmt.Print(style + " ")
 
 		reader := bufio.NewReader(os.Stdin)
 		reader.ReadString('\n')
