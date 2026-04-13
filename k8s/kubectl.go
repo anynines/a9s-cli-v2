@@ -74,6 +74,26 @@ func (k *KubeClient) KubectlApplyKustomize(kustomizeFilepath string, waitForUser
 	k.KubectlAct("apply", "--kustomize", kustomizeFilepath, waitForUser)
 }
 
+// KubectlApplyKustomizeIdempotent applies a kustomization idempotently.
+// If the initial apply fails for any reason (e.g. immutable fields changed),
+// it deletes the existing resources and re-applies.
+func (k *KubeClient) KubectlApplyKustomizeIdempotent(kustomizeFilepath string, waitForUser bool) {
+	_, out, err := k.Kubectl(waitForUser, "apply", "--kustomize", kustomizeFilepath)
+	if err == nil {
+		return
+	}
+
+	makeup.PrintWarning(fmt.Sprintf("Apply failed, attempting delete and re-apply: %s", string(out)))
+
+	// Best-effort delete; ignore errors (resources may not exist yet on first run)
+	k.Kubectl(true, "delete", "--ignore-not-found", "--kustomize", kustomizeFilepath)
+
+	cmd, out, err := k.Kubectl(waitForUser, "apply", "--kustomize", kustomizeFilepath)
+	if err != nil {
+		makeup.ExitDueToFatalError(err, "Can't apply kustomize after delete using the command: "+cmd.String()+" and the output: "+string(out))
+	}
+}
+
 // KubectlApplyStdin Calls "kubectl apply -f -" with the given bytes buffer as input.
 func (k *KubeClient) KubectlApplyStdin(in *bytes.Buffer) {
 	cmd := k.KubectlWithContextCommand("apply", "-f", "-")

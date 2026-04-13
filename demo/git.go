@@ -20,17 +20,13 @@ func CheckoutDeploymentGitRepository() {
 }
 
 func CheckoutGitRepository(repositoryURL, localDirectory string, tag string) error {
-	// Check if the local directory already exists
-	/*
-		If the target directory already exists and is non-empty, git clone will fail with: "already exists and is not an empty directory."
-		However, assuming that a non-existing directory is healthy would be naive as the directory may be incomplete,
-		e.g. due to a cancellation of a previous run.
-	*/
-
+	// Check if the local directory already exists and remove it to ensure we have the correct version
 	if _, err := os.Stat(localDirectory); !os.IsNotExist(err) {
-		makeup.PrintInfo("The a8s-deployment directory already exists. Please verify that the directory is up to date and contents are healthy. If you are unsure, delete it. It'll will be cloned from the remote repository, again.")
-		return nil
-		//return fmt.Errorf("local directory already exists")
+		makeup.PrintInfo("Removing existing a8s-deployment directory to ensure correct version is checked out...")
+		err := os.RemoveAll(localDirectory)
+		if err != nil {
+			return fmt.Errorf("failed to remove existing directory: %w", err)
+		}
 	}
 
 	var cmd *exec.Cmd
