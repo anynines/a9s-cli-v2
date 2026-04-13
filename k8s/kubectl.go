@@ -6,7 +6,6 @@ Functions interacting with the kubectl command.
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -147,11 +146,7 @@ func showManifestInPager(content []byte) {
 		pager = "less -R"
 	}
 	parts := strings.Fields(pager)
-	cmd := exec.Command(parts[0], parts[1:]...)
-	cmd.Stdin = bytes.NewReader(content)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
+	if _, err := makeup.Command(parts[0], parts[1:]...).Stdin(content).Quiet().Interactive().Run(); err != nil {
 		fmt.Println(string(content))
 	}
 }
@@ -161,11 +156,11 @@ func showManifestInPager(content []byte) {
 func promptUserForExecution(manifestBytes []byte, command string) bool {
 	reader := bufio.NewReader(os.Stdin)
 
-	fmt.Println("\n" + makeup.Bright("What would you like to do?"))
-	fmt.Println("  [v] View manifest")
-	fmt.Println("  [e] Execute kubectl " + command)
-	fmt.Println("  [c] Cancel/abort")
-	fmt.Print("\nYour choice (v/e/c) or press Enter to execute: ")
+	fmt.Println("\n  " + makeup.Bright("What would you like to do?"))
+	fmt.Println("    [v]iew:      View manifest")
+	fmt.Println("    [e]xecute:   Execute kubectl " + command)
+	fmt.Println("    [c]ancel:    Cancel/abort")
+	fmt.Print("\n Your choice (v/e/c) or press Enter to execute: ")
 
 	for {
 		input, err := reader.ReadString('\n')
@@ -188,7 +183,7 @@ func promptUserForExecution(manifestBytes []byte, command string) bool {
 		}
 		// After returning from the pager, erase the current line and reprint
 		// the prompt so the user has a clean input line.
-		fmt.Print("\r\033[2KYour choice (v/e/c) or press Enter to execute: ")
+		fmt.Print("\r\033[2K Your choice (v/e/c) or press Enter to execute: ")
 	}
 }
 
@@ -217,6 +212,14 @@ func (k *KubeClient) Delete(resource, name, namespace, description string, ignor
 	manifest, err := k.Get(resource, name, namespace, "yaml", ignoreNotFound)
 	if err != nil {
 		return "", fmt.Errorf("could not check resource to delete: %w", err)
+	}
+	if len(manifest) == 0 {
+		message := ""
+		if namespace != "" {
+			message = fmt.Sprintf(" in namespace %s is already gone.", namespace)
+		}
+		makeup.PrintCheckmark(fmt.Sprintf("Resource %s/%s%s is already gone.", resource, name, message))
+		return "", nil
 	}
 	return k.kubectlCommandWithPrompt("delete", []byte(manifest), description)
 }
@@ -648,13 +651,7 @@ func runKubeCtlCommand(opts KubectlOpts) (string, []byte, error) {
 		args = append(args, opts.AdditionalArgs...)
 	}
 
-	cmd := execCommand("kubectl", args...)
-
-	if opts.StdIn != nil {
-		cmd.Stdin = bytes.NewBuffer(opts.StdIn)
-	}
-
-	output, err := cmd.CombinedOutput()
+	output, err := makeup.Command("kubectl", args...).Stdin(opts.StdIn).Quiet().Run()
 
 	if makeup.Verbose || err != nil {
 		fmt.Println(string(output))

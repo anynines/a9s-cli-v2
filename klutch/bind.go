@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -347,7 +346,9 @@ func openURL(url string) error {
 	}
 
 	args = append(args, url)
-	return exec.Command(cmd, args...).Run()
+
+	_, err := makeup.Command(cmd, args...).NoPrompt().Run()
+	return err
 }
 
 // Loads the Control Plane Cluster information from the workspace. If it doesn't exists, prints a suggestion to the user to run the

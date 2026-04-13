@@ -1,9 +1,7 @@
 package demo
 
 import (
-	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 
 	"github.com/anynines/a9s-cli-v2/makeup"
@@ -19,7 +17,7 @@ func CheckoutDeploymentGitRepository() {
 	CheckoutGitRepository(demoGitRepo, demoA8sDeploymentLocalFilepath, DeploymentVersion)
 }
 
-func CheckoutGitRepository(repositoryURL, localDirectory string, tag string) error {
+func CheckoutGitRepository(repositoryURL, localDirectory string, tag string) {
 	// Check if the local directory already exists
 	/*
 		If the target directory already exists and is non-empty, git clone will fail with: "already exists and is not an empty directory."
@@ -29,11 +27,10 @@ func CheckoutGitRepository(repositoryURL, localDirectory string, tag string) err
 
 	if _, err := os.Stat(localDirectory); !os.IsNotExist(err) {
 		makeup.PrintInfo("The a8s-deployment directory already exists. Please verify that the directory is up to date and contents are healthy. If you are unsure, delete it. It'll will be cloned from the remote repository, again.")
-		return nil
-		//return fmt.Errorf("local directory already exists")
+		return
 	}
 
-	var cmd *exec.Cmd
+	args := []string{}
 
 	err := os.MkdirAll(localDirectory, os.ModePerm)
 
@@ -43,25 +40,13 @@ func CheckoutGitRepository(repositoryURL, localDirectory string, tag string) err
 
 	// Run the git clone command to checkout the repository
 	if tag == "latest" {
-		cmd = exec.Command("git", "clone", repositoryURL, localDirectory)
+		args = append(args, "clone", repositoryURL, localDirectory)
 	} else {
-		cmd = exec.Command("git", "clone", "--branch", tag, repositoryURL, localDirectory)
+		args = append(args, "clone", "--branch", tag, repositoryURL, localDirectory)
 	}
 
-	makeup.PrintCommandBox(cmd.String())
-	makeup.WaitForUser()
-
-	output, err := cmd.CombinedOutput()
-
+	output, err := makeup.Command("git", args...).WithPrompt().Run()
 	if err != nil {
-		makeup.PrintFail("Failed to checkout the git repository: " + err.Error())
-		fmt.Println(string(output))
-		os.Exit(1)
-		return err
-	} else {
-
-		fmt.Println(string(output))
-
-		return nil
+		makeup.ExitDueToFatalError(err, "Failed to checkout the git repository:\n"+string(output))
 	}
 }

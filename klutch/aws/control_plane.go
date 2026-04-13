@@ -1,14 +1,12 @@
 package aws
 
 import (
-	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
 	"maps"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -23,6 +21,7 @@ import (
 )
 
 type Config struct {
+	AwsAccountId                    string
 	Region                          string
 	ClusterName                     string
 	NodegroupName                   string
@@ -200,7 +199,7 @@ func tagEC2Resource(ctx context.Context, resourceID, name string) {
 		"--tags",
 	}
 	args = append(args, tags...)
-	mustRun(ctx, "aws", args...)
+	mustRunWithPrompt(ctx, "aws", args...)
 }
 
 func getenv(key, def string) string {
@@ -265,21 +264,26 @@ func workloadConfig(clusterName string) Config {
 
 // runCmd is assignable for tests; default implementation is defaultRunCmd.
 var runCmd = defaultRunCmd
+var runCmdWithPrompt = defaultRunCmdWithPrompt
 
-func defaultRunCmd(ctx context.Context, name string, args ...string) (string, string, error) {
-	cmd := exec.CommandContext(ctx, name, args...)
-	var outBuf, errBuf bytes.Buffer
-	cmd.Stdout = &outBuf
-	cmd.Stderr = &errBuf
-	err := cmd.Run()
-	stdout := strings.TrimSpace(outBuf.String())
-	stderr := strings.TrimSpace(errBuf.String())
+func defaultRunCmdWithPrompt(ctx context.Context, name string, args ...string) (string, error) {
+	output, err := makeup.Command(name, args...).Ctx(ctx).WithPrompt().Run()
 
-	if err != nil && isAWSCLI(name) && isAuthError(stderr) {
-		awsLogger.Fatalf(err, "AWS authentication failed while running %s %s. Refresh credentials (e.g., aws sso login) and rerun.\nstderr: %s", name, strings.Join(args, " "), stderr)
+	if err != nil && isAWSCLI(name) && isAuthError(string(output)) {
+		awsLogger.Fatalf(err, "AWS authentication failed while running %s %s. Refresh credentials (e.g., aws sso login) and rerun.\nstderr: %s", name, strings.Join(args, " "), output)
 	}
 
-	return stdout, stderr, err
+	return strings.TrimSpace(string(output)), err
+}
+
+func defaultRunCmd(ctx context.Context, name string, args ...string) (string, error) {
+	output, err := makeup.Command(name, args...).Ctx(ctx).NoPrompt().Run()
+
+	if err != nil && isAWSCLI(name) && isAuthError(string(output)) {
+		awsLogger.Fatalf(err, "AWS authentication failed while running %s %s. Refresh credentials (e.g., aws sso login) and rerun.\nstderr: %s", name, strings.Join(args, " "), output)
+	}
+
+	return strings.TrimSpace(string(output)), err
 }
 
 func isAWSCLI(name string) bool {
@@ -301,10 +305,18 @@ func isAuthError(errOut string) bool {
 		strings.Contains(lower, "no credential providers")
 }
 
-func mustRun(ctx context.Context, name string, args ...string) string {
-	out, errOut, err := runCmd(ctx, name, args...)
+func mustRunWithPrompt(ctx context.Context, name string, args ...string) string {
+	out, err := runCmdWithPrompt(ctx, name, args...)
 	if err != nil {
-		awsLogger.Fatalf(err, "❌ %s %v failed: %v\nstderr: %s", name, args, err, errOut)
+		awsLogger.Fatalf(err, "❌ %s %v failed: %v\nstderr: %s", name, args, err, out)
+	}
+	return out
+}
+
+func mustRun(ctx context.Context, name string, args ...string) string {
+	out, err := runCmd(ctx, name, args...)
+	if err != nil {
+		awsLogger.Fatalf(err, "❌ %s %v failed: %v\nstderr: %s", name, args, err, out)
 	}
 	return out
 }
@@ -425,24 +437,25 @@ func provisionCluster(ctx context.Context, cfg Config, opts CreateOptions) {
 	}
 
 	awsLogger.Infof("Detecting AWS Account ID...")
-	accountID, errOut, err := runCmd(ctx, "aws", "sts", "get-caller-identity", "--query", "Account", "--output", "text")
-	if err != nil || accountID == "" || accountID == "None" || accountID == "null" {
-		awsLogger.Fatalf(err, "Unable to determine AWS Account ID. Run 'aws configure'. stderr: %s", errOut)
+	out, err := runCmd(ctx, "aws", "sts", "get-caller-identity", "--query", "Account", "--output", "text")
+	if err != nil || out == "" || out == "None" || out == "null" {
+		awsLogger.Fatalf(err, "Unable to determine AWS Account ID. Run 'aws configure'. stderr: %s", out)
 	}
-	awsLogger.Infof("ACCOUNT_ID: %s", accountID)
-	clusterArn := fmt.Sprintf("arn:aws:eks:%s:%s:cluster/%s", cfg.Region, accountID, cfg.ClusterName)
+	awsLogger.Infof("ACCOUNT_ID: %s", out)
+	cfg.AwsAccountId = out
+	clusterArn := fmt.Sprintf("arn:aws:eks:%s:%s:cluster/%s", cfg.Region, out, cfg.ClusterName)
 	setClusterTagContext(cfg.ClusterName, clusterArn)
 
 	awsLogger.Infof("Checking if cluster '%s' already exists...", cfg.ClusterName)
 	clusterStatus := "NONE"
-	if out, errOut, err := runCmd(ctx, "aws", "eks", "describe-cluster",
+	if out, err := runCmd(ctx, "aws", "eks", "describe-cluster",
 		"--name", cfg.ClusterName,
 		"--region", cfg.Region,
 		"--query", "cluster.status",
 		"--output", "text"); err == nil {
-		clusterStatus = out
-	} else if !strings.Contains(errOut, "ResourceNotFoundException") {
-		awsLogger.Fatalf(err, "aws eks describe-cluster failed\nstderr: %s", errOut)
+		clusterStatus = strings.TrimSpace(out)
+	} else if !strings.Contains(out, "ResourceNotFoundException") {
+		awsLogger.Fatalf(err, "aws eks describe-cluster failed\nstderr: %s", out)
 	}
 	clusterExists := false
 	switch clusterStatus {
@@ -453,8 +466,10 @@ func provisionCluster(ctx context.Context, cfg Config, opts CreateOptions) {
 		clusterExists = true
 	case "CREATING":
 		awsLogger.Warningf("Cluster exists and is in CREATING state. Waiting until ACTIVE...")
-		mustRun(ctx, "aws", "eks", "wait", "cluster-active",
-			"--name", cfg.ClusterName, "--region", cfg.Region)
+		out, err := makeup.Command("aws", "eks", "wait", "cluster-active", "--name", cfg.ClusterName, "--region", cfg.Region).Ctx(ctx).NoPrompt().Run()
+		if err != nil {
+			makeup.ExitDueToFatalError(err, "Failed while waiting for cluster to become ready:\n"+string(out))
+		}
 		awsLogger.Successf("Cluster is now ACTIVE.")
 		clusterExists = true
 	default:
@@ -463,7 +478,7 @@ func provisionCluster(ctx context.Context, cfg Config, opts CreateOptions) {
 
 	awsLogger.Infof("Checking for existing Klutch %s VPC...", klutchRoleLabel)
 	vpcID := ""
-	if out, _, err := runCmd(ctx, "aws", "ec2", "describe-vpcs",
+	if out, err := runCmd(ctx, "aws", "ec2", "describe-vpcs",
 		"--filters", fmt.Sprintf("Name=tag:%s,Values=%s", klutchTagKey, klutchTagValue),
 		fmt.Sprintf("Name=tag:Name,Values=%s", resourceName(cfg, "vpc")),
 		"--query", "Vpcs[0].VpcId",
@@ -476,7 +491,7 @@ func provisionCluster(ctx context.Context, cfg Config, opts CreateOptions) {
 
 	if vpcID == "" {
 		awsLogger.Infof("Creating VPC...")
-		vpcID = mustRun(ctx, "aws", "ec2", "create-vpc",
+		vpcID = mustRunWithPrompt(ctx, "aws", "ec2", "create-vpc",
 			"--cidr-block", cfg.BaseCIDR,
 			"--query", "Vpc.VpcId", "--output", "text")
 		tagEC2Resource(ctx, vpcID, resourceName(cfg, "vpc"))
@@ -486,12 +501,12 @@ func provisionCluster(ctx context.Context, cfg Config, opts CreateOptions) {
 	ensureClusterRole(ctx, cfg.ClusterRoleName)
 	ensureNodeRole(ctx, cfg.NodeRoleName)
 
-	keyArn := ensureKMSKey(cfg, ctx, cfg.Region, accountID, cfg.ClusterRoleName)
+	keyArn := ensureKMSKey(cfg, ctx, cfg.Region, out, cfg.ClusterRoleName)
 
 	ensureNetworking(ctx, cfg, vpcID)
 
 	if !clusterExists {
-		createEKSCluster(ctx, cfg, vpcID, keyArn, accountID, clusterArn)
+		createEKSCluster(ctx, cfg, vpcID, keyArn, out, clusterArn)
 	} else {
 		awsLogger.Infof("EKS cluster already exists. Skipping creation.")
 	}
@@ -499,29 +514,29 @@ func provisionCluster(ctx context.Context, cfg Config, opts CreateOptions) {
 		"--name", cfg.ClusterName,
 		"--region", cfg.Region,
 		"--query", "cluster.status")
-	tagKMSKeyForCluster(ctx, keyArn, cfg.Region, accountID, cfg.ClusterName)
+	tagKMSKeyForCluster(ctx, keyArn, cfg.Region, out, cfg.ClusterName)
 
 	ensureDefaultEBSEncryption(ctx)
 
-	ensureNodegroup(ctx, cfg, vpcID, accountID)
+	ensureNodegroup(ctx, cfg, vpcID, out)
 
-	mustRun(ctx, "aws", "eks", "update-kubeconfig",
+	mustRunWithPrompt(ctx, "aws", "eks", "update-kubeconfig",
 		"--region", cfg.Region,
 		"--name", cfg.ClusterName)
 	waitForNodesReady(ctx)
 
 	ensureGp3StorageClass(ctx)
 
-	ensureALBController(ctx, cfg, vpcID, accountID)
+	ensureALBController(ctx, cfg, vpcID, out)
 
 	if strings.EqualFold(cfg.ClusterRole, "Control Plane") {
 		populateTenantOperatorDefaults(ctx, &cfg)
 		if cfg.TenantOperatorRoleARN == "" {
-			cfg.TenantOperatorRoleARN = ensureTenantOperatorRole(ctx, cfg, accountID)
+			cfg.TenantOperatorRoleARN = ensureTenantOperatorRole(ctx, cfg, out)
 		} else {
 			awsLogger.Infof("Using provided tenant operator IAM role: %s", cfg.TenantOperatorRoleARN)
 		}
-		deployTenantOperator(ctx, cfg, accountID)
+		deployTenantOperator(ctx, cfg, out)
 	} else {
 		awsLogger.Infof("Skipping tenant operator IAM role and deployment for %s cluster.", cfg.ClusterRole)
 	}
@@ -534,14 +549,14 @@ func provisionCluster(ctx context.Context, cfg Config, opts CreateOptions) {
 }
 
 func checkAWSCLIVersion(ctx context.Context) {
-	out, errOut, err := runCmd(ctx, "aws", "--version")
+	out, err := runCmd(ctx, "aws", "--version")
 	if err != nil {
-		awsLogger.Fatalf(err, "Could not check for aws CLI version:\n %s", errOut)
+		awsLogger.Fatalf(err, "Could not check for aws CLI version:\n %s", out)
 	}
 	pattern := regexp.MustCompile(`aws-cli/([0-9]+\.[0-9]+\.[0-9]+)`)
 	match := pattern.FindStringSubmatch(out)
 	if len(match) < 2 {
-		awsLogger.Fatalf(err, "Could not extract aws CLI version:\n %s", errOut)
+		awsLogger.Fatalf(err, "Could not extract aws CLI version:\n %s", out)
 	}
 	version := "v" + match[1]
 	if cmp := semver.Compare(version, awsCliMinimumVersion); cmp < 0 {
@@ -693,7 +708,7 @@ func printCreatePlan(cfg Config) {
 
 func ensureClusterRole(ctx context.Context, roleName string) {
 	awsLogger.Infof("Ensuring IAM role '%s' exists...", roleName)
-	if _, _, err := runCmd(ctx, "aws", "iam", "get-role", "--role-name", roleName); err == nil {
+	if _, err := runCmd(ctx, "aws", "iam", "get-role", "--role-name", roleName); err == nil {
 		awsLogger.Successf("EKS cluster role '%s' already exists.", roleName)
 		return
 	}
@@ -724,8 +739,8 @@ func ensureClusterRole(ctx context.Context, roleName string) {
 		fmt.Sprintf("Key=%s,Value=%s", klutchTagKey, klutchTagValue),
 		fmt.Sprintf("Key=Name,Value=%s", roleName),
 	}, clusterTagPairsKV()...)...)
-	mustRun(ctx, "aws", args...)
-	mustRun(ctx, "aws", "iam", "attach-role-policy",
+	mustRunWithPrompt(ctx, "aws", args...)
+	mustRunWithPrompt(ctx, "aws", "iam", "attach-role-policy",
 		"--role-name", roleName,
 		"--policy-arn", "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy")
 	awsLogger.Successf("Created EKS cluster role '%s'.", roleName)
@@ -733,7 +748,7 @@ func ensureClusterRole(ctx context.Context, roleName string) {
 
 func ensureNodeRole(ctx context.Context, roleName string) {
 	awsLogger.Infof("Ensuring IAM role '%s' exists...", roleName)
-	if _, _, err := runCmd(ctx, "aws", "iam", "get-role", "--role-name", roleName); err == nil {
+	if _, err := runCmd(ctx, "aws", "iam", "get-role", "--role-name", roleName); err == nil {
 		awsLogger.Successf("EKS node role '%s' already exists.", roleName)
 		return
 	}
@@ -764,14 +779,14 @@ func ensureNodeRole(ctx context.Context, roleName string) {
 		fmt.Sprintf("Key=%s,Value=%s", klutchTagKey, klutchTagValue),
 		fmt.Sprintf("Key=Name,Value=%s", roleName),
 	}, clusterTagPairsKV()...)...)
-	mustRun(ctx, "aws", args...)
-	mustRun(ctx, "aws", "iam", "attach-role-policy",
+	mustRunWithPrompt(ctx, "aws", args...)
+	mustRunWithPrompt(ctx, "aws", "iam", "attach-role-policy",
 		"--role-name", roleName,
 		"--policy-arn", "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy")
-	mustRun(ctx, "aws", "iam", "attach-role-policy",
+	mustRunWithPrompt(ctx, "aws", "iam", "attach-role-policy",
 		"--role-name", roleName,
 		"--policy-arn", "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy")
-	mustRun(ctx, "aws", "iam", "attach-role-policy",
+	mustRunWithPrompt(ctx, "aws", "iam", "attach-role-policy",
 		"--role-name", roleName,
 		"--policy-arn", "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly")
 	awsLogger.Successf("Created EKS node role '%s'.", roleName)
@@ -785,21 +800,21 @@ func ensureTenantOperatorRole(ctx context.Context, cfg Config, accountID string)
 	awsLogger.Infof("Ensuring IAM role for tenant operator exists (role=%s)...", roleName)
 
 	// Ensure OIDC provider associated for IRSA.
-	mustRun(ctx, "eksctl", "utils", "associate-iam-oidc-provider",
+	mustRunWithPrompt(ctx, "eksctl", "utils", "associate-iam-oidc-provider",
 		"--region", cfg.Region,
 		"--cluster", cfg.ClusterName,
 		"--approve")
 
-	issuer, errOut, err := runCmd(ctx, "aws", "eks", "describe-cluster",
+	out, err := runCmd(ctx, "aws", "eks", "describe-cluster",
 		"--name", cfg.ClusterName,
 		"--region", cfg.Region,
 		"--query", "cluster.identity.oidc.issuer",
 		"--output", "text")
-	if err != nil || strings.TrimSpace(issuer) == "" {
-		awsLogger.Fatalf(err, "Failed to discover OIDC issuer for cluster %s\nstderr: %s", cfg.ClusterName, errOut)
+	if err != nil || strings.TrimSpace(out) == "" {
+		awsLogger.Fatalf(err, "Failed to discover OIDC issuer for cluster %s\nstderr: %s", cfg.ClusterName, out)
 	}
-	issuer = strings.TrimSpace(issuer)
-	providerHost := strings.TrimPrefix(issuer, "https://")
+	out = strings.TrimSpace(out)
+	providerHost := strings.TrimPrefix(out, "https://")
 	providerArn := fmt.Sprintf("arn:aws:iam::%s:oidc-provider/%s", accountID, providerHost)
 
 	trust := fmt.Sprintf(`{
@@ -826,10 +841,10 @@ func ensureTenantOperatorRole(ctx context.Context, cfg Config, accountID string)
 	}
 
 	roleExists := false
-	if _, _, err := runCmd(ctx, "aws", "iam", "get-role", "--role-name", roleName); err == nil {
+	if _, err := runCmd(ctx, "aws", "iam", "get-role", "--role-name", roleName); err == nil {
 		roleExists = true
 		// Update trust to match current cluster issuer/subject.
-		if _, errOut, err := runCmd(ctx, "aws", "iam", "update-assume-role-policy",
+		if errOut, err := runCmdWithPrompt(ctx, "aws", "iam", "update-assume-role-policy",
 			"--role-name", roleName,
 			"--policy-document", "file://"+trustFile); err != nil {
 			awsLogger.Warningf("Failed to update tenant operator role trust policy: %v\nstderr: %s", err, errOut)
@@ -848,7 +863,7 @@ func ensureTenantOperatorRole(ctx context.Context, cfg Config, accountID string)
 			fmt.Sprintf("Key=%s,Value=%s", klutchTagKey, klutchTagValue),
 			fmt.Sprintf("Key=Name,Value=%s", roleName),
 		}, clusterTagPairsKV()...)...)
-		mustRun(ctx, "aws", args...)
+		mustRunWithPrompt(ctx, "aws", args...)
 	}
 
 	secretArn := fmt.Sprintf("arn:aws:secretsmanager:%s:%s:secret:klutch/*", cfg.Region, accountID)
@@ -902,7 +917,7 @@ func ensureTenantOperatorRole(ctx context.Context, cfg Config, accountID string)
 		awsLogger.Fatalf(err, "writing tenant operator policy failed")
 	}
 
-	mustRun(ctx, "aws", "iam", "put-role-policy",
+	mustRunWithPrompt(ctx, "aws", "iam", "put-role-policy",
 		"--role-name", roleName,
 		"--policy-name", "TenantOperatorInline",
 		"--policy-document", "file://"+policyFile)
@@ -981,15 +996,15 @@ func ApplyControlPlaneAddons(ctx context.Context, opts CreateOptions) {
 
 	awsLogger.Successf("Applying Klutch control-plane addons to existing cluster %s", cfg.ClusterName)
 
-	accountID, errOut, err := runCmd(ctx, "aws", "sts", "get-caller-identity", "--query", "Account", "--output", "text")
-	if err != nil || strings.TrimSpace(accountID) == "" {
-		awsLogger.Fatalf(err, "Unable to determine AWS Account ID. stderr: %s", errOut)
+	out, err := runCmd(ctx, "aws", "sts", "get-caller-identity", "--query", "Account", "--output", "text")
+	if err != nil || strings.TrimSpace(out) == "" {
+		awsLogger.Fatalf(err, "Unable to determine AWS Account ID. stderr: %s", out)
 	}
-	clusterArn := fmt.Sprintf("arn:aws:eks:%s:%s:cluster/%s", cfg.Region, accountID, cfg.ClusterName)
+	clusterArn := fmt.Sprintf("arn:aws:eks:%s:%s:cluster/%s", cfg.Region, out, cfg.ClusterName)
 	setClusterTagContext(cfg.ClusterName, clusterArn)
 
 	// Ensure kubeconfig points to the cluster.
-	mustRun(ctx, "aws", "eks", "update-kubeconfig", "--region", cfg.Region, "--name", cfg.ClusterName)
+	mustRunWithPrompt(ctx, "aws", "eks", "update-kubeconfig", "--region", cfg.Region, "--name", cfg.ClusterName)
 	// Switch kubectl context to the control-plane cluster so subsequent apply steps hit the right cluster.
 	cpCtx := resolveKubectlContextForCluster(ctx, cfg)
 	if strings.TrimSpace(cpCtx) != "" {
@@ -1001,18 +1016,18 @@ func ApplyControlPlaneAddons(ctx context.Context, opts CreateOptions) {
 	}
 
 	// Ensure OIDC provider associated for IRSA.
-	mustRun(ctx, "eksctl", "utils", "associate-iam-oidc-provider",
+	mustRunWithPrompt(ctx, "eksctl", "utils", "associate-iam-oidc-provider",
 		"--region", cfg.Region,
 		"--cluster", cfg.ClusterName,
 		"--approve")
 
 	// Ensure IAM role for tenant operator and deploy it.
-	cfg.TenantOperatorRoleARN = ensureTenantOperatorRole(ctx, cfg, accountID)
+	cfg.TenantOperatorRoleARN = ensureTenantOperatorRole(ctx, cfg, out)
 
 	// Derive defaults for bind URL/request if missing.
 	populateTenantOperatorDefaults(ctx, &cfg)
 
-	deployTenantOperator(ctx, cfg, accountID)
+	deployTenantOperator(ctx, cfg, out)
 
 	awsLogger.Successf("Klutch control-plane addons applied to cluster %s.", cfg.ClusterName)
 }
@@ -1033,7 +1048,7 @@ func ensureKMSKey(cfg Config, ctx context.Context, region, accountID, clusterRol
 			"--tags",
 		}
 		args = append(args, tags...)
-		keyID = mustRun(ctx, "aws", args...)
+		keyID = mustRunWithPrompt(ctx, "aws", args...)
 	} else {
 		awsLogger.Infof("Using existing KMS KEY_ID: %s", keyID)
 	}
@@ -1061,7 +1076,7 @@ func ensureKMSKey(cfg Config, ctx context.Context, region, accountID, clusterRol
 	if err := os.WriteFile(tmp, []byte(policy), 0600); err != nil {
 		awsLogger.Fatalf(err, "writing kms role policy failed")
 	}
-	mustRun(ctx, "aws", "iam", "put-role-policy",
+	mustRunWithPrompt(ctx, "aws", "iam", "put-role-policy",
 		"--role-name", clusterRole,
 		"--policy-name", "EKSClusterKMSAccess",
 		"--policy-document", "file://"+tmp)
@@ -1070,7 +1085,7 @@ func ensureKMSKey(cfg Config, ctx context.Context, region, accountID, clusterRol
 
 func tagKMSKeyForCluster(ctx context.Context, keyArn, region, accountID, clusterName string) {
 	clusterArn := fmt.Sprintf("arn:aws:eks:%s:%s:cluster/%s", region, accountID, clusterName)
-	if _, errOut, err := runCmd(ctx, "aws", "kms", "tag-resource",
+	if errOut, err := runCmdWithPrompt(ctx, "aws", "kms", "tag-resource",
 		"--key-id", keyArn,
 		"--tags",
 		fmt.Sprintf("TagKey=%s,TagValue=%s", "eks.cluster/name", clusterName),
@@ -1085,10 +1100,10 @@ func ensureNetworking(ctx context.Context, cfg Config, vpcID string) {
 	awsLogger.Section("Networking")
 	awsLogger.Infof("Ensuring networking components (VPC attributes, IGW, subnets, routes, NAT, SG)...")
 
-	mustRun(ctx, "aws", "ec2", "modify-vpc-attribute",
+	mustRunWithPrompt(ctx, "aws", "ec2", "modify-vpc-attribute",
 		"--vpc-id", vpcID,
 		"--enable-dns-support", "{\"Value\":true}")
-	mustRun(ctx, "aws", "ec2", "modify-vpc-attribute",
+	mustRunWithPrompt(ctx, "aws", "ec2", "modify-vpc-attribute",
 		"--vpc-id", vpcID,
 		"--enable-dns-hostnames", "{\"Value\":true}")
 
@@ -1186,17 +1201,17 @@ func populateTenantOperatorDefaults(ctx context.Context, cfg *Config) {
 
 func ensureIGW(cfg Config, ctx context.Context, vpcID string) string {
 	awsLogger.Infof("Checking for existing Internet Gateway attached to VPC %s...", vpcID)
-	igwID, _, _ := runCmd(ctx, "aws", "ec2", "describe-internet-gateways",
+	igwID, _ := runCmd(ctx, "aws", "ec2", "describe-internet-gateways",
 		"--filters", "Name=attachment.vpc-id,Values="+vpcID,
 		"--query", "InternetGateways[0].InternetGatewayId",
 		"--output", "text")
 	if igwID == "" || igwID == "None" || igwID == "null" {
 		awsLogger.Infof("No Internet Gateway found. Creating and attaching a new one...")
-		igwID = mustRun(ctx, "aws", "ec2", "create-internet-gateway",
+		igwID = mustRunWithPrompt(ctx, "aws", "ec2", "create-internet-gateway",
 			"--query", "InternetGateway.InternetGatewayId",
 			"--output", "text")
 		tagEC2Resource(ctx, igwID, resourceName(cfg, "internet-gateway"))
-		mustRun(ctx, "aws", "ec2", "attach-internet-gateway",
+		mustRunWithPrompt(ctx, "aws", "ec2", "attach-internet-gateway",
 			"--internet-gateway-id", igwID,
 			"--vpc-id", vpcID)
 	} else {
@@ -1207,13 +1222,13 @@ func ensureIGW(cfg Config, ctx context.Context, vpcID string) string {
 }
 
 func ensureSubnet(ctx context.Context, vpcID, cidr, az, name string) string {
-	out, _, _ := runCmd(ctx, "aws", "ec2", "describe-subnets",
+	out, _ := runCmd(ctx, "aws", "ec2", "describe-subnets",
 		"--filters", "Name=vpc-id,Values="+vpcID, "Name=cidr-block,Values="+cidr,
 		"--query", "Subnets[0].SubnetId",
 		"--output", "text")
 	if out == "" || out == "None" || out == "null" {
 		awsLogger.Infof("Creating subnet %s in AZ %s...", cidr, az)
-		out = mustRun(ctx, "aws", "ec2", "create-subnet",
+		out = mustRunWithPrompt(ctx, "aws", "ec2", "create-subnet",
 			"--vpc-id", vpcID,
 			"--cidr-block", cidr,
 			"--availability-zone", az,
@@ -1228,18 +1243,18 @@ func ensureSubnet(ctx context.Context, vpcID, cidr, az, name string) string {
 
 func ensurePublicRouteTable(cfg Config, ctx context.Context, vpcID, igwID string, pubSubnets []string) string {
 	awsLogger.Infof("Checking for existing public route table...")
-	rtID, _, _ := runCmd(ctx, "aws", "ec2", "describe-route-tables",
+	rtID, _ := runCmd(ctx, "aws", "ec2", "describe-route-tables",
 		"--filters", "Name=vpc-id,Values="+vpcID,
 		"--query", "RouteTables[?Routes[?GatewayId=='"+igwID+"' && DestinationCidrBlock=='0.0.0.0/0']].RouteTableId | [0]",
 		"--output", "text")
 	if rtID == "" || rtID == "None" || rtID == "null" {
 		awsLogger.Infof("Creating public route table...")
-		rtID = mustRun(ctx, "aws", "ec2", "create-route-table",
+		rtID = mustRunWithPrompt(ctx, "aws", "ec2", "create-route-table",
 			"--vpc-id", vpcID,
 			"--query", "RouteTable.RouteTableId",
 			"--output", "text")
 		tagEC2Resource(ctx, rtID, resourceName(cfg, "public-route-table"))
-		mustRun(ctx, "aws", "ec2", "create-route",
+		mustRunWithPrompt(ctx, "aws", "ec2", "create-route",
 			"--route-table-id", rtID,
 			"--destination-cidr-block", "0.0.0.0/0",
 			"--gateway-id", igwID)
@@ -1254,31 +1269,31 @@ func ensurePublicRouteTable(cfg Config, ctx context.Context, vpcID, igwID string
 
 func ensureElasticIPQuota(ctx context.Context, required int) {
 	awsLogger.Infof("Checking Elastic IP quota (need %d new EIPs)...", required)
-	out, errOut, err := runCmd(ctx, "aws", "ec2", "describe-addresses",
+	out, err := runCmd(ctx, "aws", "ec2", "describe-addresses",
 		"--query", "Addresses[?!ServiceManaged].AllocationId",
 		"--output", "text")
 	currentCount := 0
 	if err == nil && strings.TrimSpace(out) != "" {
 		parts := strings.Fields(out)
 		currentCount = len(parts)
-	} else if err != nil && !strings.Contains(errOut, "AuthFailure") {
-		awsLogger.Warningf("describe-addresses failed: %v, stderr: %s", err, errOut)
+	} else if err != nil && !strings.Contains(out, "AuthFailure") {
+		awsLogger.Warningf("describe-addresses failed: %v, stderr: %s", err, out)
 	}
-	quotaRaw, errOutQ, errQ := runCmd(ctx, "aws", "service-quotas", "get-service-quota",
+	outQ, errQ := runCmd(ctx, "aws", "service-quotas", "get-service-quota",
 		"--service-code", "ec2",
 		"--quota-code", "L-0263D0A3",
 		"--query", "Quota.Value",
 		"--output", "text")
 	if errQ != nil {
-		awsLogger.Warningf("service-quotas not available or failed: %v, stderr: %s", errQ, errOutQ)
+		awsLogger.Warningf("service-quotas not available or failed: %v, stderr: %s", errQ, outQ)
 		awsLogger.Warningf("Skipping Elastic IP quota enforcement.")
 		return
 	}
 	awsLogger.Printf("Current EIPs allocated: %d", currentCount)
 	awsLogger.Printf("Required EIPs for install: %d", required)
-	awsLogger.Printf("Elastic IP quota: %s", quotaRaw)
-	if quotaRaw != "Unknown" && quotaRaw != "" {
-		qFloat, _ := strconv.ParseFloat(quotaRaw, 64)
+	awsLogger.Printf("Elastic IP quota: %s", outQ)
+	if outQ != "Unknown" && outQ != "" {
+		qFloat, _ := strconv.ParseFloat(outQ, 64)
 		qInt := int(qFloat)
 		if currentCount+required > qInt {
 			awsLogger.Fatalf(nil, "Not enough Elastic IP quota. Have %d, quota %d, need %d.",
@@ -1295,7 +1310,7 @@ func ensureNATs(cfg Config, ctx context.Context, vpcID, pubA, pubB, pubC string)
 	natIDs := map[string]string{}
 	// First, check which NATs need to be created
 	for zone, subnet := range natSubnets {
-		natID, _, _ := runCmd(ctx, "aws", "ec2", "describe-nat-gateways",
+		natID, _ := runCmd(ctx, "aws", "ec2", "describe-nat-gateways",
 			"--filter",
 			"Name=vpc-id,Values="+vpcID,
 			"Name=subnet-id,Values="+subnet,
@@ -1317,12 +1332,12 @@ func ensureNATs(cfg Config, ctx context.Context, vpcID, pubA, pubB, pubC string)
 			continue
 		}
 		awsLogger.Infof("Creating NAT Gateway in subnet %s...", subnet)
-		alloc := mustRun(ctx, "aws", "ec2", "allocate-address",
+		alloc := mustRunWithPrompt(ctx, "aws", "ec2", "allocate-address",
 			"--domain", "vpc",
 			"--query", "AllocationId",
 			"--output", "text")
 		tagEC2Resource(ctx, alloc, resourceName(cfg, "nat-eip", zone))
-		natID := mustRun(ctx, "aws", "ec2", "create-nat-gateway",
+		natID := mustRunWithPrompt(ctx, "aws", "ec2", "create-nat-gateway",
 			"--subnet-id", subnet,
 			"--allocation-id", alloc,
 			"--query", "NatGateway.NatGatewayId",
@@ -1344,25 +1359,25 @@ func ensureNATs(cfg Config, ctx context.Context, vpcID, pubA, pubB, pubC string)
 
 func tagExistingNatResources(cfg Config, ctx context.Context, natID, label string) {
 	tagEC2Resource(ctx, natID, resourceName(cfg, "nat-gateway", label))
-	allocs, errOut, err := runCmd(ctx, "aws", "ec2", "describe-nat-gateways",
+	out, err := runCmd(ctx, "aws", "ec2", "describe-nat-gateways",
 		"--nat-gateway-ids", natID,
 		"--query", "NatGateways[].NatGatewayAddresses[].AllocationId",
 		"--output", "text")
 	if err != nil {
-		awsLogger.Warningf("Failed to describe NAT Gateway %s for tagging: %v\nstderr: %s", natID, err, errOut)
+		awsLogger.Warningf("Failed to describe NAT Gateway %s for tagging: %v\nstderr: %s", natID, err, out)
 		return
 	}
-	allocs = strings.TrimSpace(allocs)
-	if allocs == "" || allocs == "None" || allocs == "null" {
+	out = strings.TrimSpace(out)
+	if out == "" || out == "None" || out == "null" {
 		return
 	}
-	for _, alloc := range strings.Fields(allocs) {
+	for _, alloc := range strings.Fields(out) {
 		tagEC2Resource(ctx, alloc, resourceName(cfg, "nat-eip", label))
 	}
 }
 
 func ensurePrivateRT(ctx context.Context, vpcID, privSubnet, natID, name string) string {
-	rtID, _, _ := runCmd(ctx, "aws", "ec2", "describe-route-tables",
+	rtID, _ := runCmd(ctx, "aws", "ec2", "describe-route-tables",
 		"--filters",
 		"Name=vpc-id,Values="+vpcID,
 		"Name=association.subnet-id,Values="+privSubnet,
@@ -1370,12 +1385,12 @@ func ensurePrivateRT(ctx context.Context, vpcID, privSubnet, natID, name string)
 		"--output", "text")
 	if rtID == "" || rtID == "None" || rtID == "null" {
 		awsLogger.Infof("Creating private route table for subnet %s...", privSubnet)
-		rtID = mustRun(ctx, "aws", "ec2", "create-route-table",
+		rtID = mustRunWithPrompt(ctx, "aws", "ec2", "create-route-table",
 			"--vpc-id", vpcID,
 			"--query", "RouteTable.RouteTableId",
 			"--output", "text")
 		tagEC2Resource(ctx, rtID, name)
-		mustRun(ctx, "aws", "ec2", "create-route",
+		mustRunWithPrompt(ctx, "aws", "ec2", "create-route",
 			"--route-table-id", rtID,
 			"--destination-cidr-block", "0.0.0.0/0",
 			"--nat-gateway-id", natID)
@@ -1388,14 +1403,14 @@ func ensurePrivateRT(ctx context.Context, vpcID, privSubnet, natID, name string)
 
 func ensureSecurityGroup(cfg Config, ctx context.Context, vpcID, sgName string) string {
 	awsLogger.Infof("Ensuring security group exists...")
-	sgID, _, _ := runCmd(ctx, "aws", "ec2", "describe-security-groups",
+	sgID, _ := runCmd(ctx, "aws", "ec2", "describe-security-groups",
 		"--filters",
 		"Name=vpc-id,Values="+vpcID,
 		"Name=group-name,Values="+sgName,
 		"--query", "SecurityGroups[0].GroupId",
 		"--output", "text")
 	if sgID == "" || sgID == "None" || sgID == "null" {
-		sgID = mustRun(ctx, "aws", "ec2", "create-security-group",
+		sgID = mustRunWithPrompt(ctx, "aws", "ec2", "create-security-group",
 			"--group-name", sgName,
 			"--description", fmt.Sprintf("Restricts traffic for Klutch %s components and worker nodes", klutchRoleLabel),
 			"--vpc-id", vpcID,
@@ -1406,11 +1421,11 @@ func ensureSecurityGroup(cfg Config, ctx context.Context, vpcID, sgName string) 
 	} else {
 		awsLogger.Successf("Reusing security group: %s", sgID)
 	}
-	_, _, _ = runCmd(ctx, "aws", "ec2", "authorize-security-group-ingress",
+	_, _ = runCmdWithPrompt(ctx, "aws", "ec2", "authorize-security-group-ingress",
 		"--group-id", sgID,
 		"--protocol", "-1",
 		"--source-group", sgID)
-	_, _, _ = runCmd(ctx, "aws", "ec2", "authorize-security-group-egress",
+	_, _ = runCmdWithPrompt(ctx, "aws", "ec2", "authorize-security-group-egress",
 		"--group-id", sgID,
 		"--protocol", "-1",
 		"--cidr", "0.0.0.0/0")
@@ -1438,7 +1453,7 @@ func createEKSCluster(ctx context.Context, cfg Config, vpcID, keyArn, accountID,
 
 	subnets := strings.Join([]string{privA, privB, privC}, ",")
 	awsLogger.Infof("Creating EKS cluster '%s'...", cfg.ClusterName)
-	mustRun(ctx, "aws", "eks", "create-cluster",
+	mustRunWithPrompt(ctx, "aws", "eks", "create-cluster",
 		"--name", cfg.ClusterName,
 		"--region", cfg.Region,
 		"--role-arn", fmt.Sprintf("arn:aws:iam::%s:role/%s", accountID, cfg.ClusterRoleName),
@@ -1455,7 +1470,7 @@ func createEKSCluster(ctx context.Context, cfg Config, vpcID, keyArn, accountID,
 
 func ensureDefaultEBSEncryption(ctx context.Context) {
 	awsLogger.Infof("Ensuring AWS account default EBS encryption is enabled...")
-	out, _, err := runCmd(ctx, "aws", "ec2", "get-ebs-encryption-by-default",
+	out, err := runCmd(ctx, "aws", "ec2", "get-ebs-encryption-by-default",
 		"--query", "EbsEncryptionByDefault", "--output", "text")
 	if err != nil {
 		awsLogger.Warningf("get-ebs-encryption-by-default failed, skipping. Out=%s", out)
@@ -1463,7 +1478,7 @@ func ensureDefaultEBSEncryption(ctx context.Context) {
 	}
 	if out != "true" {
 		awsLogger.Warningf("Default EBS encryption is currently disabled. Enabling now...")
-		mustRun(ctx, "aws", "ec2", "enable-ebs-encryption-by-default")
+		mustRunWithPrompt(ctx, "aws", "ec2", "enable-ebs-encryption-by-default")
 		awsLogger.Successf("Default EBS encryption has been enabled.")
 	} else {
 		awsLogger.Successf("Default EBS encryption is already enabled.")
@@ -1472,17 +1487,20 @@ func ensureDefaultEBSEncryption(ctx context.Context) {
 
 func ensureNodegroup(ctx context.Context, cfg Config, vpcID, accountID string) {
 	awsLogger.Infof("Checking nodegroup '%s'...", cfg.NodegroupName)
-	status, errOut, err := runCmd(ctx, "aws", "eks", "describe-nodegroup",
+	out, err := runCmd(ctx, "aws", "eks", "describe-nodegroup",
 		"--cluster-name", cfg.ClusterName,
 		"--nodegroup-name", cfg.NodegroupName,
 		"--region", cfg.Region,
 		"--query", "nodegroup.status",
 		"--output", "text")
-	if err != nil && !strings.Contains(errOut, "ResourceNotFoundException") {
-		awsLogger.Fatalf(err, "describe-nodegroup failed\nstderr: %s", errOut)
+	if err != nil {
+		if !strings.Contains(out, "ResourceNotFoundException") {
+			awsLogger.Fatalf(err, "describe-nodegroup failed\nstderr: %s", out)
+		}
+		out = "NONE"
 	}
-	if status == "" {
-		status = "NONE"
+	if strings.TrimSpace(out) == "" {
+		out = "NONE"
 	}
 
 	privA := mustRun(ctx, "aws", "ec2", "describe-subnets",
@@ -1497,7 +1515,7 @@ func ensureNodegroup(ctx context.Context, cfg Config, vpcID, accountID string) {
 
 	create := func() {
 		awsLogger.Infof("Creating nodegroup '%s'...", cfg.NodegroupName)
-		mustRun(ctx, "aws", "eks", "create-nodegroup",
+		mustRunWithPrompt(ctx, "aws", "eks", "create-nodegroup",
 			"--cluster-name", cfg.ClusterName,
 			"--nodegroup-name", cfg.NodegroupName,
 			"--scaling-config", cfg.NodeScalingConfig,
@@ -1515,7 +1533,7 @@ func ensureNodegroup(ctx context.Context, cfg Config, vpcID, accountID string) {
 		awsLogger.Successf("Nodegroup is ACTIVE.")
 	}
 
-	switch status {
+	switch out {
 	case "NONE":
 		awsLogger.Infof("Nodegroup does not exist. Creating...")
 		create()
@@ -1531,8 +1549,8 @@ func ensureNodegroup(ctx context.Context, cfg Config, vpcID, accountID string) {
 	case "DELETING":
 		awsLogger.Fatalf(nil, "Nodegroup is currently DELETING. Wait for it to finish and re-run the installer.")
 	default:
-		awsLogger.Warningf("Nodegroup is in bad state: %s. Deleting and recreating...", status)
-		mustRun(ctx, "aws", "eks", "delete-nodegroup",
+		awsLogger.Warningf("Nodegroup is in bad state: %s. Deleting and recreating...", out)
+		mustRunWithPrompt(ctx, "aws", "eks", "delete-nodegroup",
 			"--cluster-name", cfg.ClusterName,
 			"--nodegroup-name", cfg.NodegroupName,
 			"--region", cfg.Region)
@@ -1590,7 +1608,7 @@ func ensureVpcDnsEnabled(ctx context.Context, vpcID string) {
 	awsLogger.Infof("Ensuring VPC %s has DNS support and hostnames enabled...", vpcID)
 
 	// Enable DNS support
-	if _, errOut, err := runCmd(ctx, "aws", "ec2", "modify-vpc-attribute",
+	if errOut, err := runCmdWithPrompt(ctx, "aws", "ec2", "modify-vpc-attribute",
 		"--vpc-id", vpcID,
 		"--enable-dns-support", "{\"Value\":true}"); err != nil {
 		awsLogger.Warningf("Failed to enable DNS support on VPC %s (continued): %v\nstderr: %s", vpcID, err, errOut)
@@ -1599,7 +1617,7 @@ func ensureVpcDnsEnabled(ctx context.Context, vpcID string) {
 	}
 
 	// Enable DNS hostnames
-	if _, errOut, err := runCmd(ctx, "aws", "ec2", "modify-vpc-attribute",
+	if errOut, err := runCmdWithPrompt(ctx, "aws", "ec2", "modify-vpc-attribute",
 		"--vpc-id", vpcID,
 		"--enable-dns-hostnames", "{\"Value\":true}"); err != nil {
 		awsLogger.Warningf("Failed to enable DNS hostnames on VPC %s (continued): %v\nstderr: %s", vpcID, err, errOut)
@@ -1614,7 +1632,7 @@ func ensureALBController(ctx context.Context, cfg Config, vpcID, accountID strin
 
 	ensureVpcDnsEnabled(ctx, vpcID)
 
-	mustRun(ctx, "eksctl", "utils", "associate-iam-oidc-provider",
+	mustRunWithPrompt(ctx, "eksctl", "utils", "associate-iam-oidc-provider",
 		"--region", cfg.Region,
 		"--cluster", cfg.ClusterName,
 		"--approve")
@@ -1624,13 +1642,13 @@ func ensureALBController(ctx context.Context, cfg Config, vpcID, accountID strin
 	awsLogger.Printf("Using AWS Load Balancer Controller version: %s", cfg.ALBControllerVersion)
 	awsLogger.Printf("IAM policy URL: %s", policyURL)
 
-	_, errOut, err := runCmd(ctx, "curl", "-sSfL", "-o", "aws-load-balancer-controller-policy.json", policyURL)
+	errOut, err := runCmd(ctx, "curl", "-sSfL", "-o", "aws-load-balancer-controller-policy.json", policyURL)
 	if err != nil {
 		awsLogger.Fatalf(err, "curl failed\nstderr: %s", errOut)
 	}
 
 	policyArn := fmt.Sprintf("arn:aws:iam::%s:policy/%s", accountID, cfg.ALBControllerPolicyName)
-	if _, _, err := runCmd(ctx, "aws", "iam", "get-policy", "--policy-arn", policyArn); err != nil {
+	if _, err := runCmd(ctx, "aws", "iam", "get-policy", "--policy-arn", policyArn); err != nil {
 		awsLogger.Infof("Creating IAM policy %s", cfg.ALBControllerPolicyName)
 		args := []string{
 			"iam", "create-policy",
@@ -1643,7 +1661,7 @@ func ensureALBController(ctx context.Context, cfg Config, vpcID, accountID strin
 			fmt.Sprintf("Key=%s,Value=%s", klutchTagKey, klutchTagValue),
 			fmt.Sprintf("Key=Name,Value=%s", cfg.ALBControllerPolicyName),
 		}, clusterTagPairsKV()...)...)
-		mustRun(ctx, "aws", args...)
+		mustRunWithPrompt(ctx, "aws", args...)
 	} else {
 		awsLogger.Successf("IAM policy %s already exists.", cfg.ALBControllerPolicyName)
 		awsLogger.Infof("Updating IAM policy %s to latest version...", cfg.ALBControllerPolicyName)
@@ -1651,7 +1669,7 @@ func ensureALBController(ctx context.Context, cfg Config, vpcID, accountID strin
 	}
 
 	awsLogger.Infof("Creating IAM service account for AWS Load Balancer Controller...")
-	mustRun(ctx, "eksctl", "create", "iamserviceaccount",
+	mustRunWithPrompt(ctx, "eksctl", "create", "iamserviceaccount",
 		"--cluster", cfg.ClusterName,
 		"--namespace", "kube-system",
 		"--name", cfg.AlbServiceAccountName,
@@ -1661,7 +1679,7 @@ func ensureALBController(ctx context.Context, cfg Config, vpcID, accountID strin
 		"--override-existing-serviceaccounts")
 
 	awsLogger.Infof("Installing AWS Load Balancer Controller via Helm...")
-	_, stdErr, err := runCmd(ctx, "helm", "repo", "add", "eks", "https://aws.github.io/eks-charts")
+	stdErr, err := runCmd(ctx, "helm", "repo", "add", "eks", "https://aws.github.io/eks-charts")
 	if err != nil {
 		makeup.ExitDueToFatalError(err, fmt.Sprintf("Could not add EKS helm repo:\n%s", stdErr))
 	}
@@ -1676,14 +1694,14 @@ func ensureALBController(ctx context.Context, cfg Config, vpcID, accountID strin
 		"--set", "serviceAccount.create=false",
 		"--set", "serviceAccount.name=" + cfg.AlbServiceAccountName,
 	}
-	mustRun(ctx, "helm", args...)
+	mustRunWithPrompt(ctx, "helm", args...)
 
 	// Re-attach the managed policy to the role derived from the service account annotation
 	// to ensure the controller has the updated permissions.
 	roleName := getALBControllerRoleName(ctx, cfg)
 	if roleName != "" {
 		awsLogger.Infof("Attaching managed policy %s to role %s to ensure ALB controller permissions are present...", cfg.ALBControllerPolicyName, roleName)
-		if _, errOut, err := runCmd(ctx, "aws", "iam", "attach-role-policy",
+		if errOut, err := runCmdWithPrompt(ctx, "aws", "iam", "attach-role-policy",
 			"--role-name", roleName,
 			"--policy-arn", policyArn); err != nil {
 			awsLogger.Warningf("Failed to attach policy to role %s (continued): %v\nstderr: %s", roleName, err, errOut)
@@ -1747,7 +1765,7 @@ func ensureRouteTableAssociation(ctx context.Context, rtID, subnetID string) {
 		RouteTables []rt `json:"RouteTables"`
 	}
 
-	out, _, err := runCmd(ctx, "aws", "ec2", "describe-route-tables",
+	out, err := runCmd(ctx, "aws", "ec2", "describe-route-tables",
 		"--filters", "Name=association.subnet-id,Values="+subnetID,
 		"--query", "RouteTables[*].Associations[]",
 		"--output", "json")
@@ -1762,7 +1780,7 @@ func ensureRouteTableAssociation(ctx context.Context, rtID, subnetID string) {
 				// Replace existing association
 				if a.Main {
 					awsLogger.Infof("Replacing main route table association %s for subnet %s with %s...", a.AssociationId, subnetID, rtID)
-					_, errOut, err := runCmd(ctx, "aws", "ec2", "replace-route-table-association",
+					errOut, err := runCmdWithPrompt(ctx, "aws", "ec2", "replace-route-table-association",
 						"--association-id", a.AssociationId,
 						"--route-table-id", rtID)
 					if err != nil {
@@ -1771,7 +1789,7 @@ func ensureRouteTableAssociation(ctx context.Context, rtID, subnetID string) {
 					return
 				}
 				awsLogger.Infof("Disassociating subnet %s from route table %s and associating with %s...", subnetID, a.RouteTableId, rtID)
-				_, errOut, err := runCmd(ctx, "aws", "ec2", "disassociate-route-table",
+				errOut, err := runCmdWithPrompt(ctx, "aws", "ec2", "disassociate-route-table",
 					"--association-id", a.AssociationId)
 				if err != nil {
 					awsLogger.Warningf("Failed to disassociate subnet %s: %v\nstderr: %s", subnetID, err, errOut)
@@ -1782,7 +1800,7 @@ func ensureRouteTableAssociation(ctx context.Context, rtID, subnetID string) {
 	}
 
 	awsLogger.Infof("Associating subnet %s with route table %s...", subnetID, rtID)
-	_, errOut, err := runCmd(ctx, "aws", "ec2", "associate-route-table",
+	errOut, err := runCmdWithPrompt(ctx, "aws", "ec2", "associate-route-table",
 		"--route-table-id", rtID,
 		"--subnet-id", subnetID)
 	if err != nil {
@@ -1795,7 +1813,7 @@ func ensureRouteTableAssociation(ctx context.Context, rtID, subnetID string) {
 // ensurePolicyVersion sets a new default policy version from the given document,
 // pruning an old non-default version if necessary to stay within the 5-version limit.
 func ensurePolicyVersion(ctx context.Context, policyArn, policyDocument string) {
-	versionsOut, _, err := runCmd(ctx, "aws", "iam", "list-policy-versions", "--policy-arn", policyArn)
+	versionsOut, err := runCmd(ctx, "aws", "iam", "list-policy-versions", "--policy-arn", policyArn)
 	if err == nil {
 		type version struct {
 			VersionId        string `json:"VersionId"`
@@ -1810,7 +1828,7 @@ func ensurePolicyVersion(ctx context.Context, policyArn, policyDocument string) 
 				for _, v := range lv.Versions {
 					if !v.IsDefaultVersion {
 						awsLogger.Infof("Deleting old policy version %s to make room for an updated ALB controller policy...", v.VersionId)
-						_, errOut, err := runCmd(ctx, "aws", "iam", "delete-policy-version", "--policy-arn", policyArn, "--version-id", v.VersionId)
+						errOut, err := runCmdWithPrompt(ctx, "aws", "iam", "delete-policy-version", "--policy-arn", policyArn, "--version-id", v.VersionId)
 						if err != nil {
 							awsLogger.Warningf("Failed to delete policy version %s (continued): %v\nstderr: %s", v.VersionId, err, errOut)
 						}
@@ -1821,7 +1839,7 @@ func ensurePolicyVersion(ctx context.Context, policyArn, policyDocument string) 
 		}
 	}
 
-	if _, errOut, err := runCmd(ctx, "aws", "iam", "create-policy-version",
+	if errOut, err := runCmdWithPrompt(ctx, "aws", "iam", "create-policy-version",
 		"--policy-arn", policyArn,
 		"--policy-document", policyDocument,
 		"--set-as-default"); err != nil {

@@ -61,11 +61,11 @@ func EnsureCognitoOIDC(ctx context.Context, region string, namePrefix string, us
 				"--user-pool-tags", tagArg[0],
 			}
 			args = append(args, "--query", "UserPool.Id", "--output", "text")
-			poolID = mustRun(ctx, "aws", args...)
+			poolID = mustRunWithPrompt(ctx, "aws", args...)
 		}
 	} else {
 		// Validate provided pool ID
-		if _, errOut, err := runCmd(ctx, "aws", "cognito-idp", "describe-user-pool",
+		if errOut, err := runCmd(ctx, "aws", "cognito-idp", "describe-user-pool",
 			"--region", region,
 			"--user-pool-id", poolID,
 			"--query", "UserPool.Id",
@@ -80,7 +80,7 @@ func EnsureCognitoOIDC(ctx context.Context, region string, namePrefix string, us
 	}
 
 	// Create resource server + per-tenant scope (best effort).
-	_, _, _ = runCmd(ctx, "aws", "cognito-idp", "create-resource-server",
+	_, _ = runCmdWithPrompt(ctx, "aws", "cognito-idp", "create-resource-server",
 		"--region", region,
 		"--user-pool-id", poolID,
 		"--identifier", resourceServerID,
@@ -113,7 +113,7 @@ func EnsureCognitoOIDC(ctx context.Context, region string, namePrefix string, us
 }
 
 func discoverUserPool(ctx context.Context, region, name string) string {
-	out, _, _ := runCmd(ctx, "aws", "cognito-idp", "list-user-pools",
+	out, _ := runCmd(ctx, "aws", "cognito-idp", "list-user-pools",
 		"--region", region,
 		"--max-results", "50",
 		"--query", fmt.Sprintf("UserPools[?Name==`%s`].Id | [0]", name),
@@ -123,7 +123,7 @@ func discoverUserPool(ctx context.Context, region, name string) string {
 
 // findControlPlaneUserPool tries to find an existing pool to reuse for control-plane tenants.
 func findControlPlaneUserPool(ctx context.Context, region string) string {
-	out, _, _ := runCmd(ctx, "aws", "cognito-idp", "list-user-pools",
+	out, _ := runCmd(ctx, "aws", "cognito-idp", "list-user-pools",
 		"--region", region,
 		"--max-results", "50",
 		"--query", "UserPools[?contains(Name, `klutch`)].Id",
@@ -137,16 +137,20 @@ func findControlPlaneUserPool(ctx context.Context, region string) string {
 
 // findTaggedControlPlaneUserPool looks for a pool tagged Klutch=ControlPlane.
 func findTaggedControlPlaneUserPool(ctx context.Context, region string) string {
-	out, _, _ := runCmd(ctx, "aws", "cognito-idp", "list-user-pools",
+	out, _ := runCmd(ctx, "aws", "cognito-idp", "list-user-pools",
 		"--region", region,
 		"--max-results", "50",
 		"--query", "UserPools[].Id",
 		"--output", "text")
+	accountID, err := getAccountID(ctx)
+	if err != nil {
+		makeup.ExitDueToFatalError(err, "Failed to retrieve the ID of the AWS Account to use for Cognito")
+	}
 	pools := awsTextValues(out)
 	for _, pid := range pools {
-		tags, _, _ := runCmd(ctx, "aws", "cognito-idp", "list-user-pool-tags",
-			"--region", region,
-			"--user-pool-id", pid,
+		arn := fmt.Sprintf("arn:aws:cognito-idp:%s:%s:userpool/%s", region, accountID, pid)
+		tags, _ := runCmd(ctx, "aws", "cognito-idp", "list-tags-for-resource",
+			"--resource-arn", arn,
 			"--query", "Tags",
 			"--output", "text")
 		if strings.Contains(tags, "Klutch") && strings.Contains(tags, "ControlPlane") {
@@ -163,7 +167,7 @@ type oidcClient struct {
 
 func discoverOrCreateClient(ctx context.Context, region, poolID, name, scope string) (oidcClient, error) {
 	clientID := ""
-	if out, _, _ := runCmd(ctx, "aws", "cognito-idp", "list-user-pool-clients",
+	if out, _ := runCmd(ctx, "aws", "cognito-idp", "list-user-pool-clients",
 		"--region", region,
 		"--user-pool-id", poolID,
 		"--query", fmt.Sprintf("UserPoolClients[?ClientName==`%s`].ClientId | [0]", name),
@@ -172,7 +176,7 @@ func discoverOrCreateClient(ctx context.Context, region, poolID, name, scope str
 	}
 
 	if clientID == "" {
-		out, errOut, err := runCmd(ctx, "aws", "cognito-idp", "create-user-pool-client",
+		out, err := runCmdWithPrompt(ctx, "aws", "cognito-idp", "create-user-pool-client",
 			"--region", region,
 			"--user-pool-id", poolID,
 			"--client-name", name,
@@ -184,10 +188,10 @@ func discoverOrCreateClient(ctx context.Context, region, poolID, name, scope str
 			"--query", "UserPoolClient.{ClientId:ClientId,ClientSecret:ClientSecret}",
 			"--output", "json")
 		if err != nil {
-			if strings.Contains(errOut, "Unknown options") || strings.Contains(errOut, "unknown option") {
-				return oidcClient{}, fmt.Errorf("your AWS CLI does not support Cognito OAuth flags. Please upgrade awscli v2 (or newer) or provide OIDC values via flags (issuer/client id/secret). stderr: %s", errOut)
+			if strings.Contains(out, "Unknown options") || strings.Contains(out, "unknown option") {
+				return oidcClient{}, fmt.Errorf("your AWS CLI does not support Cognito OAuth flags. Please upgrade awscli v2 (or newer) or provide OIDC values via flags (issuer/client id/secret). stderr: %s", out)
 			}
-			return oidcClient{}, fmt.Errorf("create-user-pool-client failed: %w (stderr: %s)", err, errOut)
+			return oidcClient{}, fmt.Errorf("create-user-pool-client failed: %w (stderr: %s)", err, out)
 		}
 		var c oidcClient
 		_ = json.Unmarshal([]byte(out), &c)
@@ -206,7 +210,7 @@ func discoverOrCreateClient(ctx context.Context, region, poolID, name, scope str
 }
 
 func ensureUserPoolDomain(ctx context.Context, region, poolID, prefix string) string {
-	out, _, err := runCmd(ctx, "aws", "cognito-idp", "describe-user-pool",
+	out, err := runCmd(ctx, "aws", "cognito-idp", "describe-user-pool",
 		"--region", region,
 		"--user-pool-id", poolID,
 		"--query", "UserPool.Domain",
@@ -222,7 +226,7 @@ func ensureUserPoolDomain(ctx context.Context, region, poolID, prefix string) st
 	for range 5 {
 		suffix := randomHex(3)
 		domain := fmt.Sprintf("%s-%s", prefix, suffix)
-		if _, _, err := runCmd(ctx, "aws", "cognito-idp", "create-user-pool-domain",
+		if _, err := runCmdWithPrompt(ctx, "aws", "cognito-idp", "create-user-pool-domain",
 			"--region", region,
 			"--domain", domain,
 			"--user-pool-id", poolID); err == nil {
@@ -231,7 +235,7 @@ func ensureUserPoolDomain(ctx context.Context, region, poolID, prefix string) st
 		// If domain exists, try another suffix; ignore other errors for now.
 	}
 	// Fallback: describe any existing domain for the pool.
-	out, _, _ = runCmd(ctx, "aws", "cognito-idp", "describe-user-pool",
+	out, _ = runCmd(ctx, "aws", "cognito-idp", "describe-user-pool",
 		// out, _, _ := runCmd(ctx, "aws", "cognito-idp", "describe-user-pool",
 		"--region", region,
 		"--user-pool-id", poolID,
@@ -270,7 +274,7 @@ func firstAWSValue(out string) string {
 
 // ensureResourceServerScope adds the scope to the resource server if missing.
 func ensureResourceServerScope(ctx context.Context, region, poolID, identifier, scopeName string) {
-	out, _, _ := runCmd(ctx, "aws", "cognito-idp", "describe-resource-server",
+	out, _ := runCmd(ctx, "aws", "cognito-idp", "describe-resource-server",
 		"--region", region,
 		"--user-pool-id", poolID,
 		"--identifier", identifier,
@@ -297,7 +301,7 @@ func ensureResourceServerScope(ctx context.Context, region, poolID, identifier, 
 		"--scopes",
 	}
 	args = append(args, scopesArgs...)
-	_, _, _ = runCmd(ctx, "aws", args...)
+	_, _ = runCmdWithPrompt(ctx, "aws", args...)
 }
 
 func randomHex(n int) string {
@@ -310,11 +314,11 @@ func randomHex(n int) string {
 
 // ensureCognitoOAuthSupport checks that the AWS CLI supports the OAuth flags needed for client_credentials.
 func ensureCognitoOAuthSupport(ctx context.Context) error {
-	out, errOut, err := runCmd(ctx, "aws", "cognito-idp", "create-user-pool-client", "help")
+	out, err := runCmdWithPrompt(ctx, "aws", "cognito-idp", "create-user-pool-client", "help")
 	if err != nil {
-		return fmt.Errorf("aws cli help failed: %w (stderr: %s)", err, errOut)
+		return fmt.Errorf("aws cli help failed: %w (stderr: %s)", err, out)
 	}
-	if !strings.Contains(out+errOut, "allowed-o-auth-flows-user-pool-client") {
+	if !strings.Contains(out, "allowed-o-auth-flows-user-pool-client") {
 		return fmt.Errorf("installed aws cli does not support Cognito OAuth flags (allowed-o-auth-flows-user-pool-client). Please upgrade awscli v2 or provide OIDC issuer/client credentials via flags.")
 	}
 	return nil
@@ -339,24 +343,24 @@ func buildTenantUserPoolTags(ctx context.Context, region, tenantUUID, tenantName
 }
 
 func tagUserPool(ctx context.Context, region, poolID string, tags []string) error {
-	arn, errOut, err := runCmd(ctx, "aws", "cognito-idp", "describe-user-pool",
+	out, err := runCmd(ctx, "aws", "cognito-idp", "describe-user-pool",
 		"--region", region,
 		"--user-pool-id", poolID,
 		"--query", "UserPool.Arn",
 		"--output", "text")
 	if err != nil {
-		return fmt.Errorf("could not describe user pool %s: %w (stderr: %s)", poolID, err, errOut)
+		return fmt.Errorf("could not describe user pool %s: %w (stderr: %s)", poolID, err, out)
 	}
-	if strings.TrimSpace(arn) == "" || strings.Contains(strings.ToLower(arn), "none") {
+	if strings.TrimSpace(out) == "" || strings.Contains(strings.ToLower(out), "none") {
 		return fmt.Errorf("could not determine ARN for user pool %s", poolID)
 	}
 	tagArg := ""
 	if len(tags) > 0 {
 		tagArg = tags[0]
 	}
-	if _, errOut, err := runCmd(ctx, "aws", "cognito-idp", "tag-resource",
+	if errOut, err := runCmdWithPrompt(ctx, "aws", "cognito-idp", "tag-resource",
 		"--region", region,
-		"--resource-arn", strings.TrimSpace(arn),
+		"--resource-arn", strings.TrimSpace(out),
 		"--tags", tagArg); err != nil {
 		return fmt.Errorf("failed to tag user pool %s: %w (stderr: %s)", poolID, err, errOut)
 	}
@@ -364,9 +368,9 @@ func tagUserPool(ctx context.Context, region, poolID string, tags []string) erro
 }
 
 func getAccountID(ctx context.Context) (string, error) {
-	out, errOut, err := runCmd(ctx, "aws", "sts", "get-caller-identity", "--query", "Account", "--output", "text")
+	out, err := runCmd(ctx, "aws", "sts", "get-caller-identity", "--query", "Account", "--output", "text")
 	if err != nil {
-		return "", fmt.Errorf("aws sts get-caller-identity failed: %w (stderr: %s)", err, errOut)
+		return "", fmt.Errorf("aws sts get-caller-identity failed: %w (stderr: %s)", err, out)
 	}
 	return strings.TrimSpace(out), nil
 }
@@ -399,9 +403,9 @@ func StoreCognitoCredentialsSecret(ctx context.Context, region, secretName strin
 		"--tags",
 	}
 	createArgs = append(createArgs, tagArgs...)
-	if _, errOut, err := runCmd(ctx, "aws", createArgs...); err != nil {
+	if errOut, err := runCmdWithPrompt(ctx, "aws", createArgs...); err != nil {
 		if strings.Contains(strings.ToLower(errOut), "resourceexistsexception") {
-			if _, errOut2, err2 := runCmd(ctx, "aws", "secretsmanager", "put-secret-value",
+			if errOut2, err2 := runCmdWithPrompt(ctx, "aws", "secretsmanager", "put-secret-value",
 				"--region", region,
 				"--secret-id", secretName,
 				"--secret-string", payload); err2 != nil {
@@ -414,7 +418,7 @@ func StoreCognitoCredentialsSecret(ctx context.Context, region, secretName strin
 				"--tags",
 			}
 			tagArgsExisting = append(tagArgsExisting, tagArgs...)
-			if _, errOut3, err3 := runCmd(ctx, "aws", tagArgsExisting...); err3 != nil {
+			if errOut3, err3 := runCmdWithPrompt(ctx, "aws", tagArgsExisting...); err3 != nil {
 				return fmt.Errorf("updated secret but failed to tag %s: %w (stderr: %s)", secretName, err3, errOut3)
 			}
 			return nil

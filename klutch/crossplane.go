@@ -3,7 +3,6 @@ package klutch
 import (
 	_ "embed"
 	"fmt"
-	"os/exec"
 
 	"github.com/anynines/a9s-cli-v2/makeup"
 )
@@ -58,12 +57,7 @@ func (k *KlutchManager) DeployCrossplaneHelmChart() {
 		"--set", `args={"--enable-ssa-claims"}`,
 	)
 
-	cmd := exec.Command("helm", args...)
-
-	makeup.PrintCommandBox(cmd.String())
-	makeup.WaitForUser()
-
-	output, err := cmd.CombinedOutput()
+	output, err := makeup.Command("helm", args...).WithPrompt().Run()
 	if err != nil {
 		makeup.ExitDueToFatalError(err, fmt.Sprintf("error while deploying helm chart: %s", string(output)))
 	}

@@ -12,9 +12,9 @@ func TestFindKlutchVPCUsesRegion(t *testing.T) {
 	}()
 
 	var gotArgs []string
-	runCmd = func(ctx context.Context, name string, args ...string) (string, string, error) {
+	runCmd = func(ctx context.Context, name string, args ...string) (string, error) {
 		gotArgs = append([]string(nil), args...)
-		return "vpc-123", "", nil
+		return "vpc-123", nil
 	}
 
 	vpcID := findKlutchVPC(Config{}, context.Background(), "eu-central-1")
@@ -34,9 +34,9 @@ func TestDeleteVPCUsesRegion(t *testing.T) {
 	}()
 
 	var gotArgs []string
-	runCmd = func(ctx context.Context, name string, args ...string) (string, string, error) {
+	runCmd = func(ctx context.Context, name string, args ...string) (string, error) {
 		gotArgs = append([]string(nil), args...)
-		return "", "", nil
+		return "", nil
 	}
 
 	deleteVPC(context.Background(), "vpc-123", DeleteOptions{Region: "eu-central-1"})
