@@ -55,7 +55,7 @@ out:
 		allGood = true
 		for _, expectedPodPrefix := range expectedPods {
 			makeup.Print("Checking the " + expectedPodPrefix.Name + "...")
-			if k.checkIfPodHasStatusRunningInNamespace(expectedPodPrefix, namespace) {
+			if k.checkIfPodHasStatusRunningInNamespace(expectedPodPrefix, namespace, systemName) {
 				makeup.PrintCheckmark("The " + expectedPodPrefix.Name + " pod appears to be running.")
 				expectedPodPrefix.Running = true
 			} else {
@@ -350,7 +350,7 @@ func (k *KubeClient) WaitForCRDCreationAndReady(crd string) {
 /*
 TODO This method did not work when the backup-manager went into a CrashLoopBackOff. There is likely a bug here.
 */
-func (k *KubeClient) checkIfPodHasStatusRunningInNamespace(expectedPod PodExpectationState, namespace string) bool {
+func (k *KubeClient) checkIfPodHasStatusRunningInNamespace(expectedPod PodExpectationState, namespace, systemName string) bool {
 	clientset := k.GetKubernetesClientSet()
 
 	//for {
@@ -389,8 +389,8 @@ func (k *KubeClient) checkIfPodHasStatusRunningInNamespace(expectedPod PodExpect
 			makeup.PrintCheckmark("The Pod " + pod.Name + " is running as expected.")
 			return true
 		case v1.PodFailed:
-			makeup.PrintFail("The Pod " + pod.Name + " has failed but should be running.")
-			os.Exit(1)
+			err := fmt.Errorf("The Pod %s has failed but should be running.", pod.Name)
+			makeup.ExitDueToFatalError(err, "The "+systemName+" system has not been installed successfully.")
 
 		case v1.PodPending:
 			makeup.Print("The Pod " + pod.Name + " is pending but should be running.")
