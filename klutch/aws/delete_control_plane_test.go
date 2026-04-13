@@ -28,13 +28,13 @@ func TestFindKlutchVPCUsesRegion(t *testing.T) {
 }
 
 func TestDeleteVPCUsesRegion(t *testing.T) {
-	origRunCmd := runCmd
+	origRunCmdWithPrompt := runCmdWithPrompt
 	defer func() {
-		runCmd = origRunCmd
+		runCmdWithPrompt = origRunCmdWithPrompt
 	}()
 
 	var gotArgs []string
-	runCmd = func(ctx context.Context, name string, args ...string) (string, error) {
+	runCmdWithPrompt = func(ctx context.Context, name string, args ...string) (string, error) {
 		gotArgs = append([]string(nil), args...)
 		return "", nil
 	}
