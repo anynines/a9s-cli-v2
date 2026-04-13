@@ -1,6 +1,11 @@
 # Develop
 
-* Chore: Update to latest versions of the following components: nginx-ingress, Dex, Crossplane, anynines-backend and its CRDs, kubectl-bind and konnector.
+# v0.15.0
+
+* Chore: Updated versions of the following components: Dex, Crossplane, a8s-deployment, anynines-backend (including its CRDs), kubectl-bind, and konnector.
+* Feature: Add --loopback-mode flag to the Klutch local demo to enable localhost-based networking.
+* Change: Replace Ingress and nginx-ingress with Gateway and Envoy Proxy in the Klutch local demo.
+* Change: a8s-deployment directory is re-cloned on subsequent deploy runs to ensure the desired --deployment-version version is used.
 
 # v0.14.2
 * Change: Updated release process using Goreleaser
