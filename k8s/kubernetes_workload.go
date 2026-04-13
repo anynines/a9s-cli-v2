@@ -360,39 +360,36 @@ func (k *KubeClient) checkIfPodHasStatusRunningInNamespace(expectedPod PodExpect
 	}
 
 	for _, pod := range pods.Items {
-		if strings.HasPrefix(pod.Name, expectedPod.Name) {
-			if expectedPod.Labels != nil {
-				if pod.ObjectMeta.Labels == nil {
-					continue
-				}
-				allKeysMatched := true
-				keyValues := []string{}
-				for key, value := range expectedPod.Labels {
-					allKeysMatched = allKeysMatched && pod.ObjectMeta.Labels[key] == value
-					keyValues = append(keyValues, key+"="+value)
-				}
-				if !allKeysMatched {
-					continue
-				}
-				makeup.Print("Found pod with prefix " + expectedPod.Name +
-					" and matching labels (" + strings.Join(keyValues, ",") + ")")
-			}
-		} else {
-			makeup.Print("Found pod with prefix " + expectedPod.Name)
+		if !strings.HasPrefix(pod.Name, expectedPod.Name) {
+			continue
 		}
 
-		// if debug {
-		// 	//pod.Status.Phase
-		// 	makeup.Print("Pod has status: " + pod.Status.String())
-		// }
+		message := "Found pod with prefix " + expectedPod.Name
+
+		if expectedPod.Labels != nil {
+			if pod.ObjectMeta.Labels == nil {
+				continue
+			}
+			allKeysMatched := true
+			keyValues := []string{}
+			for key, value := range expectedPod.Labels {
+				allKeysMatched = allKeysMatched && pod.ObjectMeta.Labels[key] == value
+				keyValues = append(keyValues, key+"="+value)
+			}
+			if !allKeysMatched {
+				continue
+			}
+			message += " and matching labels (" + strings.Join(keyValues, ",") + ")"
+		}
+
+		makeup.Print(message)
 
 		switch phase := pod.Status.Phase; phase {
 		case v1.PodRunning:
 			makeup.PrintCheckmark("The Pod " + pod.Name + " is running as expected.")
 			return true
 		case v1.PodFailed:
-			makeup.PrintFail("The Pod " + pod.Name + "h has failed but should be running.")
-			// makeup.PrintFail("The " + A8sSystemName + " has not been installed successfully.")
+			makeup.PrintFail("The Pod " + pod.Name + " has failed but should be running.")
 			os.Exit(1)
 
 		case v1.PodPending:
