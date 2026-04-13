@@ -1087,7 +1087,7 @@ func ensureKMSKeyPolicy(ctx context.Context, clusterRole, keyArn string) {
 
 func ensureKmsKeyArn(ctx context.Context, cfg Config, region string, accountID string) string {
 	if os.Getenv("KEY_ID") != "" {
-		return os.Getenv("KEY_ID")
+		return fmt.Sprintf("arn:aws:kms:%s:%s:key/%s", region, accountID, os.Getenv("KEY_ID"))
 	}
 	out, err := runCmd(ctx, "aws", "resourcegroupstaggingapi",
 		"get-resources", "--tag-filters",
@@ -1101,8 +1101,10 @@ func ensureKmsKeyArn(ctx context.Context, cfg Config, region string, accountID s
 		awsLogger.Fatalf(err, "Could not check for existing KMS key:%s", out)
 	}
 
-	if strings.ToLower(strings.TrimSpace(out)) != "none" && strings.ToLower(strings.TrimSpace(out)) != "null" && strings.TrimSpace(out) != "" {
-		awsLogger.Infof("Using existing KMS KEY_ID: %s", out)
+	keyArn := strings.ToLower(strings.TrimSpace(out))
+
+	if keyArn != "none" && out != "null" && out != "" {
+		awsLogger.Infof("Using existing KMS KEY %s", out)
 		return out
 	}
 
