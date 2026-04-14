@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"net/url"
-	"os/exec"
 	"path/filepath"
 	"text/template"
 
@@ -17,15 +16,6 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/homedir"
 )
-
-// switchContext changes the current kubeconfig context.
-func switchContext(context string) {
-	cmd := exec.Command("kubectl", "config", "use-context", context)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		makeup.ExitDueToFatalError(err, fmt.Sprintf("Could not switch context: %s", string(output)))
-	}
-}
 
 // ByteGenerator is an interface for a basic random byte generator.
 type ByteGenerator interface {
@@ -48,12 +38,11 @@ func (RandomByteGenerator) GenerateRandom32BytesBase64() string {
 
 // getClusterCert extracts the kube API's CA certificate.
 func getClusterCert(k8s *k8s.KubeClient) []byte {
-	cmd := k8s.KubectlWithContextCommand("get", "configmap", "--namespace", "kube-system", "kube-root-ca.crt", "-o", "jsonpath={.data.ca\\.crt}")
-	output, err := cmd.Output()
+	output, err := k8s.Get("configmap", "kube-root-ca.crt", "kube-system", "jsonpath={.data.ca\\.crt}", false)
 	if err != nil {
 		makeup.ExitDueToFatalError(err, "Error getting cluster cert")
 	}
-	return output
+	return []byte(output)
 }
 
 // getClusterURLFromKubeconfig returns the parsed server URL for the given context.

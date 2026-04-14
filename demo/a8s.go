@@ -153,7 +153,7 @@ func (m *A8sDemoManager) DeployA8sStack() {
 	}
 
 	m.K8s.ApplyCertManagerManifests(UnattendedMode)
-
+	m.K8s.WaitForCertManagerToBecomeReady()
 	m.ApplyA8sManifests()
 
 	m.WaitForA8sSystemToBecomeReady()
@@ -167,7 +167,9 @@ func (m *A8sDemoManager) ApplyA8sManifests() {
 
 	kustomizePath := filepath.Join(DemoConfig.WorkingDir, demoA8sDeploymentLocalDir, "deploy", "a8s", "manifests")
 
-	m.K8s.KubectlApplyKustomize(kustomizePath, UnattendedMode)
+	if _, err := m.K8s.ApplyKustomize(kustomizePath); err != nil {
+		makeup.ExitDueToFatalError(err, fmt.Sprintf("Failed to apply kustomize from: %s", kustomizePath))
+	}
 
 	makeup.PrintCheckmark("Done applying a8s manifests.")
 }
@@ -189,7 +191,7 @@ func (m *A8sDemoManager) WaitForA8sSystemToBecomeReady() {
 func (m *A8sDemoManager) WaitForServiceInstanceToBecomeReady(namespace, serviceInstanceName string, nrOfInstances int) {
 	expectedPods := make([]k8s.PodExpectationState, nrOfInstances)
 
-	for i := 0; i < nrOfInstances; i++ {
+	for i := range nrOfInstances {
 		expectedPods[i] = k8s.PodExpectationState{
 			Name:    fmt.Sprintf("%s-%d", serviceInstanceName, i),
 			Running: false,
@@ -215,7 +217,9 @@ func (m *A8sDemoManager) CreatePGServiceInstance() {
 	WriteYAMLToFile(instanceYAML, instanceManifestPath)
 
 	if !DoNotApply {
-		m.K8s.KubectlApplyF(instanceManifestPath, UnattendedMode)
+		if _, err := m.K8s.ApplyFromFile(instanceManifestPath); err != nil {
+			makeup.ExitDueToFatalError(err, "Failed to apply service instance manifest")
+		}
 	}
 }
 
@@ -237,7 +241,7 @@ func (m *A8sDemoManager) DeletePGServiceInstance(namespace, serviceInstanceName 
 	}
 
 	// TODO Make "postgresqls" a constant
-	_, _, err := m.K8s.Kubectl(UnattendedMode, "delete", "postgresqls", serviceInstanceName, "-n", namespace)
+	_, err := m.K8s.Delete("postgresqls", serviceInstanceName, namespace, "", false)
 
 	if err != nil {
 		makeup.ExitDueToFatalError(err, "Couldn't delete service instance.")
@@ -276,7 +280,9 @@ func (m *A8sDemoManager) CreatePGServiceInstanceBackup() {
 	WriteYAMLToFile(yaml, getBackupManifestPath(A8sPGBackup.Name))
 
 	if !DoNotApply {
-		m.K8s.KubectlApplyF(getBackupManifestPath(A8sPGBackup.Name), UnattendedMode)
+		if _, err := m.K8s.ApplyFromFile(getBackupManifestPath(A8sPGBackup.Name)); err != nil {
+			makeup.ExitDueToFatalError(err, "Failed to apply backup manifest")
+		}
 	}
 
 	m.Pg.WaitForPGBackupToBecomeReady(A8sPGBackup.Namespace, A8sPGBackup.Name)
@@ -301,7 +307,9 @@ func (m *A8sDemoManager) CreatePGServiceInstanceRestore() {
 	WriteYAMLToFile(yaml, getRestoreManifestPath(A8sPGRestore.Name))
 
 	if !DoNotApply {
-		m.K8s.KubectlApplyF(getRestoreManifestPath(A8sPGRestore.Name), UnattendedMode)
+		if _, err := m.K8s.ApplyFromFile(getRestoreManifestPath(A8sPGRestore.Name)); err != nil {
+			makeup.ExitDueToFatalError(err, "Failed to apply restore manifest")
+		}
 	}
 
 	m.Pg.WaitForPGRestoreToBecomeReady(A8sPGRestore.Namespace, A8sPGRestore.Name)
@@ -328,7 +336,9 @@ func (m *A8sDemoManager) CreatePGServiceBinding() {
 	WriteYAMLToFile(yaml, getServiceBindingManifestPath(A8sPGServiceBinding))
 
 	if !DoNotApply {
-		m.K8s.KubectlApplyF(getServiceBindingManifestPath(A8sPGServiceBinding), UnattendedMode)
+		if _, err := m.K8s.ApplyFromFile(getServiceBindingManifestPath(A8sPGServiceBinding)); err != nil {
+			makeup.ExitDueToFatalError(err, "Failed to apply service binding manifest")
+		}
 	}
 
 	err := m.Pg.WaitForPGServiceBindingToBecomeReady(A8sPGServiceBinding)
@@ -344,7 +354,7 @@ func (m *A8sDemoManager) DeletePGServiceBinding() {
 	makeup.PrintH1("Deleting a a8s Postgres Service Binding...")
 	EnsureConfigIsLoaded()
 
-	_, _, err := m.K8s.Kubectl(UnattendedMode, "delete", "servicebinding", A8sPGServiceBinding.Name, "-n", A8sPGServiceBinding.Namespace)
+	_, err := m.K8s.Delete("servicebinding", A8sPGServiceBinding.Name, A8sPGServiceBinding.Namespace, "", false)
 
 	if err != nil {
 		makeup.ExitDueToFatalError(err, "A problem occurred deleting the service binding.")

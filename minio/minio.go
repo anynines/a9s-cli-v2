@@ -35,7 +35,9 @@ func (m *MinioManager) ApplyMinioManifests(workingDir string) {
 	makeup.PrintH1("Applying Minio manifest...")
 
 	minioManifestPath := filepath.Join(workingDir, "minio")
-	m.K8s.KubectlApplyF(minioManifestPath, m.UnattendedMode)
+	if _, err := m.K8s.ApplyFromFile(minioManifestPath); err != nil {
+		makeup.ExitDueToFatalError(err, "Failed to apply MinIO manifests")
+	}
 
 	makeup.PrintCheckmark("Done applying Minio manifest.")
 }

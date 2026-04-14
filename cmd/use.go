@@ -2,9 +2,9 @@ package cmd
 
 import (
 	"fmt"
-	"os/exec"
 	"strings"
 
+	"github.com/anynines/a9s-cli-v2/k8s"
 	"github.com/anynines/a9s-cli-v2/makeup"
 	"github.com/spf13/cobra"
 )
@@ -30,7 +30,7 @@ var useKlutchCmd = &cobra.Command{
 			return fmt.Errorf("--cluster-name is required")
 		}
 
-		contexts, err := listKubectlContexts()
+		contexts, err := k8s.Contexts("")
 		if err != nil {
 			return err
 		}
@@ -44,27 +44,12 @@ var useKlutchCmd = &cobra.Command{
 		}
 
 		makeup.PrintInfo(fmt.Sprintf("Switching kubectl context to %s ...", target))
-		if err := exec.Command("kubectl", "config", "use-context", target).Run(); err != nil {
-			return fmt.Errorf("failed to switch kubectl context to %s: %w", target, err)
+		if out, err := k8s.SwitchContext(target); err != nil {
+			makeup.ExitDueToFatalError(err, fmt.Sprintf("failed to switch kubectl context to %s: %s", target, out))
 		}
 		makeup.PrintSuccessSummary(fmt.Sprintf("kubectl context switched to %s", target))
 		return nil
 	},
-}
-
-func listKubectlContexts() ([]string, error) {
-	out, err := exec.Command("kubectl", "config", "get-contexts", "-o", "name").Output()
-	if err != nil {
-		return nil, fmt.Errorf("kubectl config get-contexts failed: %w", err)
-	}
-	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
-	var contexts []string
-	for _, l := range lines {
-		if strings.TrimSpace(l) != "" {
-			contexts = append(contexts, strings.TrimSpace(l))
-		}
-	}
-	return contexts, nil
 }
 
 // selectContext picks the best-matching context for a cluster name.

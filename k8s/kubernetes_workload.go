@@ -45,14 +45,11 @@ Wait for a set of Pods known by name to enter the status "Running".
 func (k *KubeClient) WaitForSystemToBecomeReady(namespace, systemName string, expectedPods []PodExpectationState) {
 	makeup.PrintH1("Waiting for " + systemName + " to become ready...")
 
-	allGood := true
-
 	makeup.Print(fmt.Sprintf("Checking the existence of the following %d Pods: ", len(expectedPods)))
 
-out:
 	for {
 		// We start optimistically that all pods are running
-		allGood = true
+		allGood := true
 		for _, expectedPodPrefix := range expectedPods {
 			makeup.Print("Checking the " + expectedPodPrefix.Name + "...")
 			if k.checkIfPodHasStatusRunningInNamespace(expectedPodPrefix, namespace, systemName) {
@@ -66,7 +63,7 @@ out:
 		}
 		if allGood {
 			makeup.PrintSuccessSummary("The " + systemName + " system appears to be ready. All expected pods are running.")
-			break out
+			break
 		} else {
 			time.Sleep(2 * time.Second)
 		}
@@ -79,61 +76,48 @@ Pods are identified by label and namespace.
 */
 func (k *KubeClient) KubectlWaitForSystemToBecomeReady(namespace string, expectedPodsByLabels []string) {
 	for _, podLabel := range expectedPodsByLabels {
-		k.KubectlWaitForPod(namespace, podLabel)
+		k.KubectlWaitForResourceConditionWithSelector("Ready", "pod", podLabel, namespace)
 	}
 }
 
-func (k *KubeClient) KubectlWaitForPod(namespace, podLabel string) {
-
-	// kubectl wait --for=condition=Ready pod -l "app.kubernetes.io/name=backup-manager" -n a8s-system
-	// Outcome 1: error: timed out waiting for the condition on pods/a8s-backup-controller-manager-788fcd578d-kzb4f
-	// Outcome 2: pod/postgresql-controller-manager-7f8c7758d-28lc2 condition met
-	cmd := k.KubectlWithContextCommand("wait", "--for=condition=Ready", "pod", "-l", podLabel, "-n", namespace, kubectlWaitTimeoutOption)
-
-	output, err := cmd.CombinedOutput()
-
-	strOutput := string(output)
-
-	if err != nil {
-		makeup.ExitDueToFatalError(err, fmt.Sprintf("Pod with label %s in namespace %s has not become ready on time", podLabel, namespace))
-	}
-
-	// This case shouldn't ever happen. Kubectl wait returns 0 only if the condition has been met.
-	if !strings.Contains(strOutput, "condition met") {
-		makeup.ExitDueToFatalError(nil, fmt.Sprintf("Pod with label %s in namespace %s has not become ready but conditions haven't been met. Got: %s", podLabel, namespace, strOutput))
+func (k *KubeClient) KubectlWaitForResourceCondition(condition, kind, name, namespace, timeout string) {
+	if output, err := k.kubectlWaitFor("condition="+condition, kind, name, namespace, timeout, ""); err != nil {
+		makeup.ExitDueToFatalError(err, fmt.Sprintf("Resource %s/%s in namespace %s did not reach the condition %s: %s", kind, name, namespace, condition, output))
 	}
 }
 
-// KubectlWaitForResourceCondition waits for a resource identified by kind and name to reach a given condition, or a timeout to be reached.
-func (k *KubeClient) KubectlWaitForResourceCondition(condition string, kind string, name string, namespace string) {
-	cmd := k.KubectlWithContextCommand(
-		"wait",
-		fmt.Sprintf("--for=condition=%s", condition),
-		kind,
-		name,
-		"--namespace",
-		namespace,
-		kubectlWaitTimeoutOption)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		makeup.ExitDueToFatalError(err, fmt.Sprintf("Resource %s/%s in namespace %s has not reached the condition %s: %s", kind, name, namespace, condition, string(output)))
+func (k *KubeClient) KubectlWaitForResourceDeletion(resourceType, name, namespace, timeout string) {
+	if output, err := k.kubectlWaitFor("delete", resourceType, name, namespace, timeout, ""); err != nil {
+		makeup.ExitDueToFatalError(err, fmt.Sprintf("Resource %s/%s in namespace %s was not deleted: %s", resourceType, name, namespace, output))
 	}
+}
+
+func (k *KubeClient) kubectlWaitFor(condition, kind, name, namespace, timeout, selector string) (string, error) {
+	if timeout == "" {
+		timeout = kubectlWaitTimeoutOption
+	}
+
+	opts := KubectlOpts{
+		Command:        "wait",
+		Kind:           kind,
+		Name:           name,
+		Namespace:      namespace,
+		Selector:       selector,
+		Timeout:        timeout,
+		AdditionalArgs: []string{"--for=" + condition},
+	}
+	if name == "" && selector == "" {
+		opts.AdditionalArgs = append(opts.AdditionalArgs, "--all")
+	}
+
+	_, output, err := runKubeCtlCommand(opts.withContextFrom(k))
+	return string(output), err
 }
 
 // KubectlWaitForResourceConditionWithSelector waits for a resource identified by kind and label selector to reach a given condition, or a timeout to be reached.
 func (k *KubeClient) KubectlWaitForResourceConditionWithSelector(condition string, kind string, selector string, namespace string) {
-	cmd := k.KubectlWithContextCommand(
-		"wait",
-		fmt.Sprintf("--for=condition=%s", condition),
-		kind,
-		"--selector",
-		selector,
-		"--namespace",
-		namespace,
-		kubectlWaitTimeoutOption)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		makeup.ExitDueToFatalError(err, fmt.Sprintf("Resource %s/%s in namespace %s has not reached the condition %s: %s", kind, selector, namespace, condition, string(output)))
+	if output, err := k.kubectlWaitFor("condition="+condition, kind, "", namespace, kubectlWaitTimeoutOption, selector); err != nil {
+		makeup.ExitDueToFatalError(err, fmt.Sprintf("Resource %s with selector %s in namespace %s did not reach the condition %s: %s", kind, selector, namespace, condition, output))
 	}
 }
 
@@ -142,15 +126,15 @@ func (k *KubeClient) KubectlWaitForResourceConditionWithSelector(condition strin
 func (k *KubeClient) KubectlWaitForRollout(kind string, name string, namespace string) {
 	// Fallback to kubectl for non-deployments.
 	if strings.ToLower(kind) != "deployment" {
-		cmd := k.KubectlWithContextCommand(
-			"rollout",
-			"status",
-			kind,
-			name,
-			"--namespace",
-			namespace,
-			kubectlWaitTimeoutOption)
-		output, err := cmd.CombinedOutput()
+		opts := KubectlOpts{
+			Command:   "rollout",
+			Kind:      "status",
+			Name:      kind + "/" + name,
+			Namespace: namespace,
+			Timeout:   kubectlWaitTimeoutOption,
+		}
+
+		_, output, err := runKubeCtlCommand(opts.withContextFrom(k))
 		if err != nil {
 			makeup.ExitDueToFatalError(err, fmt.Sprintf("Rollout for %s/%s in namespace %s did not succeed: %s", kind, name, namespace, string(output)))
 		}
@@ -283,16 +267,15 @@ func summarizeDeploymentPods(ctx context.Context, clientset *kubernetes.Clientse
 // KubectlWaitForRollout waits for a resources with rollout capabilities (e.g. deployment, statefulset)
 // identified by kind and label to become ready, or a timeout to be reached.
 func (k *KubeClient) KubectlWaitForRolloutWithSelector(kind string, selector string, namespace string) {
-	cmd := k.KubectlWithContextCommand(
-		"rollout",
-		"status",
-		kind,
-		"--selector",
-		selector,
-		"--namespace",
-		namespace,
-		kubectlWaitTimeoutOption)
-	output, err := cmd.CombinedOutput()
+	opts := KubectlOpts{
+		Command:   "rollout",
+		Kind:      "status",
+		Name:      kind,
+		Selector:  selector,
+		Namespace: namespace,
+		Timeout:   kubectlWaitTimeoutOption,
+	}
+	_, output, err := runKubeCtlCommand(opts.withContextFrom(k))
 	if err != nil {
 		makeup.ExitDueToFatalError(err, fmt.Sprintf("Rollout for %s %s in namespace %s did not succeed: %s", kind, selector, namespace, string(output)))
 	}
@@ -300,10 +283,8 @@ func (k *KubeClient) KubectlWaitForRolloutWithSelector(kind string, selector str
 
 // WaitForNodes waits for all nodes in the cluster to become ready, or a timeout to be reached.
 func (k *KubeClient) KubectlWaitForNodes() {
-	cmd := k.KubectlWithContextCommand("wait", "--for=condition=ready", "node", "--all", kubectlWaitTimeoutOption)
-	err := cmd.Run()
-	if err != nil {
-		makeup.ExitDueToFatalError(err, "Kind nodes have not become ready on time")
+	if output, err := k.kubectlWaitFor("condition=ready", "node", "", "", kubectlWaitTimeoutOption, ""); err != nil {
+		makeup.ExitDueToFatalError(err, fmt.Sprintf("Kind nodes have not become ready on time: %s", output))
 	}
 }
 
@@ -344,7 +325,7 @@ func (k *KubeClient) WaitForCRDCreationAndReady(crd string) {
 	}
 
 	// CRD is created, now wait until it is established.
-	k.KubectlWaitForResourceCondition("established", "crd", crd, "")
+	k.KubectlWaitForResourceCondition("established", "crd", crd, "", "")
 }
 
 /*
@@ -662,11 +643,12 @@ Wait for the given service account in the given namespace to become ready.
 Blocks during wait.
 */
 func (k *KubeClient) WaitForServiceAccount(unattendedMode bool, namespace, serviceAccountName string) {
+	k8sClient := NewKubeClient("")
 
 	for nrAttempts := 0; nrAttempts <= 600; nrAttempts++ {
 
 		// Wait x s for the the serviceAccountToShowUp
-		_, output, err := k.Kubectl(unattendedMode, "get", "serviceaccount", "-n", namespace, serviceAccountName)
+		output, err := k8sClient.Get("serviceaccount", serviceAccountName, namespace, "", false)
 
 		if err == nil {
 
@@ -705,7 +687,8 @@ func (k *KubeClient) CreateNamespaceIfNotExists(unattendedMode bool, namespace s
 		makeup.ExitDueToFatalError(err, fmt.Sprintf("Unexpected error while checking if namespace %s exists.", namespace))
 	}
 
-	_, output, err := k.Kubectl(unattendedMode, "create", "namespace", namespace)
+	k8sClient := NewKubeClient("")
+	output, err := k8sClient.Create("namespace", namespace, "")
 
 	if err != nil {
 		makeup.ExitDueToFatalError(err, fmt.Sprintf("Couldn't create namespace %s. Output was: %s", namespace, string(output)))

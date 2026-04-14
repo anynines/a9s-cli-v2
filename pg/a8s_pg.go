@@ -264,56 +264,38 @@ func (pgm *PgManager) WaitForPGRestoreToBecomeReady(namespace, name string) {
 }
 
 func (pgm *PgManager) DoesServiceInstanceExist(namespace, name string) bool {
-	// Ignore the Don't Execute flag
-	unattendedMode := true
-
-	commandElements := make([]string, 0)
-	commandElements = append(commandElements, "get")
-	commandElements = append(commandElements, A8sPGServiceInstanceKindPlural)
-
-	// Namespace
-	commandElements = append(commandElements, "-n")
-	commandElements = append(commandElements, namespace)
-
-	// Output jsonpath
-	commandElements = append(commandElements, "-o=jsonpath={.items[*].metadata.name}")
-
-	cmd, output, err := pgm.K8s.Kubectl(unattendedMode, commandElements...)
+	output, err := pgm.K8s.Get(
+		A8sPGServiceInstanceKindPlural,
+		"",
+		namespace,
+		"jsonpath={.items[*].metadata.name}",
+		true,
+	)
 
 	if err != nil {
-		makeup.ExitDueToFatalError(err, "Can't kubectl using the command: "+cmd.String())
+		makeup.ExitDueToFatalError(err, "Error getting service instances")
 	}
 
-	outputString := string(output)
-
-	if outputString == "" {
+	if string(output) == "" {
 		return false
 	}
 
-	instanceNames := strings.Fields(outputString)
+	instanceNames := strings.Fields(string(output))
 
 	return slices.Contains(instanceNames, name)
 }
 
 func (pgm *PgManager) DoesBackupExist(namespace, backupName string) bool {
-	// Ignore the Don't Execute flag
-	unattendedMode := true
-
-	commandElements := make([]string, 0)
-	commandElements = append(commandElements, "get")
-	commandElements = append(commandElements, A8sPGBackupKindPlural)
-
-	// Namespace
-	commandElements = append(commandElements, "-n")
-	commandElements = append(commandElements, namespace)
-
-	// Output jsonpath
-	commandElements = append(commandElements, "-o=jsonpath={.items[*].metadata.name}")
-
-	cmd, output, err := pgm.K8s.Kubectl(unattendedMode, commandElements...)
+	output, err := pgm.K8s.Get(
+		A8sPGBackupKindPlural,
+		"",
+		namespace,
+		"jsonpath={.items[*].metadata.name}",
+		true,
+	)
 
 	if err != nil {
-		makeup.ExitDueToFatalError(err, "Can't kubectl using the command: "+cmd.String())
+		makeup.ExitDueToFatalError(err, "Error getting Backups")
 	}
 
 	outputString := string(output)

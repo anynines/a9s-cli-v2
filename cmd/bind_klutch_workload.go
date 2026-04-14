@@ -107,7 +107,7 @@ var bindKlutchWorkloadCmd = &cobra.Command{
 			OIDCScope:               bindKlutchWorkloadOIDCScope,
 			KonnectorImage:          bindKlutchWorkloadKonnectorImage,
 			WriteKubeconfigTo:       bindKlutchWorkloadWriteKubeconfig,
-			WorkloadKubeconfig:      bindKlutchWorkloadKubeconfig,
+			WorkloadKubeconfigPath:  bindKlutchWorkloadKubeconfig,
 			WorkloadContext:         bindKlutchWorkloadContext,
 			ControlPlaneClusterName: strings.TrimSpace(bindKlutchWorkloadControlPlaneCluster),
 		}

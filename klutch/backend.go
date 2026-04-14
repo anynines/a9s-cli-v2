@@ -1,7 +1,6 @@
 package klutch
 
 import (
-	"bytes"
 	"crypto/tls"
 	_ "embed"
 	"encoding/base64"
@@ -13,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/anynines/a9s-cli-v2/demo"
 	"github.com/anynines/a9s-cli-v2/k8s"
 	"github.com/anynines/a9s-cli-v2/makeup"
 )
@@ -104,7 +102,9 @@ stringData:
 %s
 `, externalCASecretName, indent(pem, "    "))
 
-	k.KubectlApplyStdin(bytes.NewBufferString(manifest))
+	if _, err = k.ApplyWithPrompt([]byte(manifest), "external CA secret"); err != nil {
+		makeup.ExitDueToFatalError(err, "Failed to apply external CA secret")
+	}
 	return externalCASecretName, nil
 }
 
@@ -122,7 +122,9 @@ func (k *KlutchManager) DeployBindBackend(host string, ingressPort string, ingre
 
 	makeup.PrintH2("Applying the klutch-bind backend CRDs...")
 
-	k.cpK8s.KubectlApplyF(backendCRDManifestsURL, true)
+	if _, err := k.cpK8s.ApplyFromUrl(backendCRDManifestsURL, backendCRDManifestsURL); err != nil {
+		makeup.ExitDueToFatalError(err, "Failed to apply klutch-bind backend CRDs")
+	}
 
 	makeup.PrintCheckmark("klutch-bind backend CRDs applied.")
 	makeup.PrintH2("Applying the klutch-bind backend manifests...")
@@ -176,11 +178,10 @@ func (k *KlutchManager) DeployBindBackend(host string, ingressPort string, ingre
 		makeup.ExitDueToFatalError(err, "Could not render the klutch-bind backend manifests.")
 	}
 
-	makeup.PrintH2("Creating a kind cluster with following config: ")
-	makeup.PrintYAML(manifests.Bytes(), false)
-	makeup.WaitForUser(demo.UnattendedMode)
-
-	k.cpK8s.KubectlApplyStdin(manifests)
+	// Note: Manifest display and waiting are handled by KubectlApplyWithPrompt
+	if _, err = k.cpK8s.ApplyWithPrompt(manifests.Bytes(), "klutch-bind backend"); err != nil {
+		makeup.ExitDueToFatalError(err, "Failed to apply klutch-bind backend manifests")
+	}
 
 	makeup.Print("klutch-bind backend applied.")
 }
@@ -199,7 +200,7 @@ func (k *KlutchManager) WaitForBindBackend(host string, port string, scheme stri
 	verifyBindEndpoint(host, port, scheme, 10*time.Minute)
 
 	makeup.PrintCheckmark("The klutch-bind backend appears to be ready.")
-	makeup.WaitForUser(demo.UnattendedMode)
+	makeup.WaitForUser(makeup.UnattendedMode)
 }
 
 // verifyBindEndpoint checks that /export returns a non-empty payload.
