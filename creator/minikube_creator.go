@@ -91,17 +91,16 @@ func (c MinikubeCreator) Running(name string) bool {
 
 	var clusterStatus minikubeClusterStatus
 
-	desired_a8sDemoClusterStatus := minikubeClusterStatusItem{
-		Name:   name,
-		Status: "Running",
-	}
-
 	json.Unmarshal(output, &clusterStatus)
 	// fmt.Printf("Status: %+v", clusterStatus.Valid)
 
 	makeup.PrintListFromMultilineString("Minikube Clusters:", clusterStatus.String())
 
-	if slices.Contains(clusterStatus.Valid, desired_a8sDemoClusterStatus) {
+	contains := slices.ContainsFunc(clusterStatus.Valid, func(n minikubeClusterStatusItem) bool {
+		return n.Name == name && (n.Status == "Running" || n.Status == "OK")
+	})
+
+	if contains {
 		ret = true
 		makeup.PrintCheckmark("There is a suitable Minikube cluster with the name " + name + " running.")
 	} else {
