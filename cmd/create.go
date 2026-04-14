@@ -303,10 +303,6 @@ Use --no-apply to only provision the cluster. Currently only AWS is supported.`,
 		options.TenantOperatorBindRequest = strings.TrimSpace(createKlutchTenantOperatorBindRequest)
 		options.HostedZoneName = strings.TrimSpace(createKlutchApplyHostedZone)
 
-		if err := runKlutchClusterCreation(demo.KubernetesTool, options); err != nil {
-			makeup.ExitDueToFatalError(nil, err.Error())
-		}
-
 		if createKlutchDryRun {
 			makeup.PrintInfo("Skipping Klutch control plane install because --dry-run was provided.")
 			return
@@ -323,6 +319,10 @@ Use --no-apply to only provision the cluster. Currently only AWS is supported.`,
 
 		if createKlutchApplyIngressPort < 1 || createKlutchApplyIngressPort > 65535 {
 			makeup.ExitDueToFatalError(nil, "Invalid ingress port. Must be between 1 and 65535.")
+		}
+
+		if err := runKlutchClusterCreation(demo.KubernetesTool, options); err != nil {
+			makeup.ExitDueToFatalError(nil, err.Error())
 		}
 
 		imgURL, imgTag := resolveBackendImageRef(createKlutchBackendImageRef, createKlutchBackendImageURL, createKlutchBackendImageTag)
