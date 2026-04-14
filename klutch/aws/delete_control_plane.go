@@ -136,8 +136,6 @@ func deleteCluster(ctx context.Context, cfg Config, opts DeleteOptions) {
 		awsLogger.Infof("Cluster does not exist. Skipping nodegroup/cluster deletion.")
 	}
 
-	klutchKmsKeyCleanup(cfg, ctx, opts)
-
 	// Always remove the ClusterName tags all Hosted Zones
 	// to free the zones for adoption by a new cluster.
 	removeClusterNameTagFromAllHostedZones(ctx, opts)
@@ -384,7 +382,7 @@ func klutchKmsKeyCleanup(cfg Config, ctx context.Context, opts DeleteOptions) {
 		errMessages = append(errMessages, logKmsCleanupFailure("Unable to retag all keys: failed to retag disabled key", keysRetaggingFailed))
 	}
 	if len(errMessages) > 0 {
-		awsLogger.Fatalf(nil, strings.Join(errMessages, "\n"))
+		awsLogger.Fatalf(nil, "KMS Cleanup failed:\n%s", strings.Join(errMessages, "\n"))
 	}
 }
 
@@ -404,6 +402,11 @@ func retagKmsKey(cfg Config, ctx context.Context, arn string, opts DeleteOptions
 		"--key-id", arn, "--tags",
 		"TagKey=Name,TagValue=" + resourceName(cfg, "kms-key-retired")}, opts.Region)
 	if _, errOut, err := runCmd(ctx, "aws", retagArgs...); err != nil {
+		// If the key is already pending deletion, we can ignore this error
+		if strings.Contains(errOut, "KMSInvalidStateException") && strings.HasSuffix(errOut, "is pending deletion.") {
+			awsLogger.Infof("KMS key %s is already pending deletion. Skipping retagging.", arn)
+			return keysRetaggingFailed
+		}
 		awsLogger.Warningf("Failed to retag KMS key %s as retired: %v\nstderr: %s", arn, err, errOut)
 		return append(keysRetaggingFailed, arn)
 	}
@@ -416,6 +419,12 @@ func disableKmsKey(ctx context.Context, arn string, opts DeleteOptions, keysDisa
 		"--key-id", arn},
 		opts.Region)
 	if _, errOut, err := runCmd(ctx, "aws", disableArgs...); err != nil {
+		// If the key is already pending deletion, we can ignore this error
+		if strings.Contains(errOut, "KMSInvalidStateException") && strings.HasSuffix(errOut, "is pending deletion.") {
+			awsLogger.Infof("KMS key %s is already pending deletion. Skipping disabling.", arn)
+			return keysDisablingFailed
+		}
+
 		awsLogger.Warningf("Failed to disable KMS key %s: %v\nstderr: %s", arn, err, errOut)
 		return append(keysDisablingFailed, arn)
 	}
