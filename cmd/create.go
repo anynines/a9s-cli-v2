@@ -334,7 +334,7 @@ Use --no-apply to only provision the cluster. Currently only AWS is supported.`,
 			CallbackURL:  createKlutchOIDCCallbackURL,
 		})
 
-		klutch.ApplyKlutchControlPlane(createKlutchApplyHost, createKlutchApplyIngressPort, createKlutchApplyACMCertificateARN, createKlutchApplyHostedZone)
+		klutch.ApplyKlutchControlPlane(createKlutchApplyHost, createKlutchApplyIngressPort, createKlutchApplyACMCertificateARN, createKlutchApplyHostedZone, options.ClusterName)
 	},
 }
 

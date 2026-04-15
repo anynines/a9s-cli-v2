@@ -40,6 +40,7 @@ type Config struct {
 	KlutchTagValue                  string
 	ResourceNamePrefix              string
 	ClusterRole                     string
+	AlbServiceAccountName           string
 
 	TenantOperatorImage        string
 	TenantOperatorChart        string
@@ -231,6 +232,7 @@ func defaultConfig() Config {
 		TenantOperatorChart:        defaultTenantOperatorChartImage,
 		TenantOperatorChartVersion: defaultTenantOperatorChartVersion,
 		HostedZoneName:             "",
+		AlbServiceAccountName:      "aws-load-balancer-controller",
 	}
 }
 
@@ -249,6 +251,10 @@ func workloadConfig(clusterName string) Config {
 	}
 	cfg.ClusterName = clusterName
 
+	cfg.ClusterRoleName += "-" + cfg.ClusterName
+	cfg.NodeRoleName += "-" + cfg.ClusterName
+	cfg.ALBControllerPolicyName += "-" + cfg.ClusterName
+	cfg.AlbServiceAccountName += "-" + cfg.ClusterName
 	cfg.NodegroupName = fmt.Sprintf("%s-nodegroup", clusterName)
 	cfg.ControlPlaneSGName = fmt.Sprintf("%s-sg", clusterName)
 	cfg.ResourceNamePrefix = clusterName
@@ -307,6 +313,13 @@ func CreateControlPlaneCluster(ctx context.Context, opts CreateOptions) {
 	if opts.ClusterName != "" {
 		cfg.ClusterName = opts.ClusterName
 	}
+	cfg.NodegroupName = fmt.Sprintf("%s-nodegroup", cfg.ClusterName)
+	cfg.ClusterRoleName += "-" + cfg.ClusterName
+	cfg.NodeRoleName += "-" + cfg.ClusterName
+	cfg.ALBControllerPolicyName += "-" + cfg.ClusterName
+	cfg.ControlPlaneSGName = fmt.Sprintf("%s-sg", cfg.ClusterName)
+	cfg.ResourceNamePrefix = cfg.ClusterName
+	cfg.AlbServiceAccountName += "-" + cfg.ClusterName
 	if opts.NodeInstanceTypes != "" {
 		cfg.NodeInstanceTypes = opts.NodeInstanceTypes
 	}
@@ -440,6 +453,7 @@ func provisionCluster(ctx context.Context, cfg Config, opts CreateOptions) {
 	vpcID := ""
 	if out, _, err := runCmd(ctx, "aws", "ec2", "describe-vpcs",
 		"--filters", fmt.Sprintf("Name=tag:%s,Values=%s", klutchTagKey, klutchTagValue),
+		fmt.Sprintf("Name=tag:Name,Values=%s", resourceName("vpc")),
 		"--query", "Vpcs[0].VpcId",
 		"--output", "text"); err == nil && out != "None" && out != "null" {
 		vpcID = out
@@ -1607,7 +1621,7 @@ func ensureALBController(ctx context.Context, cfg Config, vpcID, accountID strin
 	mustRun(ctx, "eksctl", "create", "iamserviceaccount",
 		"--cluster", cfg.ClusterName,
 		"--namespace", "kube-system",
-		"--name", "aws-load-balancer-controller",
+		"--name", cfg.AlbServiceAccountName,
 		"--attach-policy-arn", policyArn,
 		"--region", cfg.Region,
 		"--approve",
@@ -1621,19 +1635,19 @@ func ensureALBController(ctx context.Context, cfg Config, vpcID, accountID strin
 	mustRun(ctx, "helm", "repo", "update")
 
 	args := []string{
-		"upgrade", "--install", "aws-load-balancer-controller", "eks/aws-load-balancer-controller",
+		"upgrade", "--install", cfg.AlbServiceAccountName, "eks/aws-load-balancer-controller",
 		"-n", "kube-system",
 		"--set", "clusterName=" + cfg.ClusterName,
 		"--set", "region=" + cfg.Region,
 		"--set", "vpcId=" + vpcID,
 		"--set", "serviceAccount.create=false",
-		"--set", "serviceAccount.name=aws-load-balancer-controller",
+		"--set", "serviceAccount.name=" + cfg.AlbServiceAccountName,
 	}
 	mustRun(ctx, "helm", args...)
 
 	// Re-attach the managed policy to the role derived from the service account annotation
 	// to ensure the controller has the updated permissions.
-	roleName := getALBControllerRoleName(ctx)
+	roleName := getALBControllerRoleName(ctx, cfg)
 	if roleName != "" {
 		awsLogger.Infof("Attaching managed policy %s to role %s to ensure ALB controller permissions are present...", cfg.ALBControllerPolicyName, roleName)
 		if _, errOut, err := runCmd(ctx, "aws", "iam", "attach-role-policy",
@@ -1648,13 +1662,13 @@ func ensureALBController(ctx context.Context, cfg Config, vpcID, accountID strin
 	k8sClient := k8s.NewKubeClient("")
 
 	awsLogger.Infof("Waiting for aws-load-balancer-controller deployment rollout...")
-	if errOut, err := k8sClient.RolloutStatus("deployment", "aws-load-balancer-controller", "kube-system", ""); err != nil {
+	if errOut, err := k8sClient.RolloutStatus("deployment", cfg.AlbServiceAccountName, "kube-system", ""); err != nil {
 		awsLogger.Fatalf(err, "❌ ALB controller rollout failed\nstderr: %s", errOut)
 	}
 	awsLogger.Successf("aws-load-balancer-controller deployment is ready.")
 }
 
-func getALBControllerRoleName(ctx context.Context) string {
+func getALBControllerRoleName(ctx context.Context, cfg Config) string {
 	type sa struct {
 		Metadata struct {
 			Annotations map[string]string `json:"annotations"`
@@ -1662,7 +1676,7 @@ func getALBControllerRoleName(ctx context.Context) string {
 	}
 
 	k8sClient := k8s.NewKubeClient("")
-	out, err := k8sClient.Get("sa", "aws-load-balancer-controller", "kube-system", "json", false)
+	out, err := k8sClient.Get("sa", cfg.AlbServiceAccountName, "kube-system", "json", false)
 	if err != nil {
 		awsLogger.Warningf("Could not fetch service account to derive role name: %v\nstderr: %s", err, out)
 		return ""
