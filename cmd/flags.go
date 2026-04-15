@@ -54,6 +54,10 @@ func initRequiredStringFlagP(cmd *cobra.Command, p *string, name, shorthand, val
 
 func initRequiredStringFlagWithDependency[T any](otherFlagValue *T, otherFlagName string, otherFlagExpectedValue T, cmd *cobra.Command, p *string, name string, value, usage string) {
 	cmd.Flags().StringVar(p, name, value, usage)
+	setStringFlagDependency(otherFlagValue, otherFlagName, otherFlagExpectedValue, cmd, p, name)
+}
+
+func setStringFlagDependency[T any](otherFlagValue *T, otherFlagName string, otherFlagExpectedValue T, cmd *cobra.Command, p *string, name string) {
 	prependToRun(cmd, func(*cobra.Command, []string) error {
 		if otherFlagValue != nil {
 			if cmp.Equal(*otherFlagValue, otherFlagExpectedValue) {

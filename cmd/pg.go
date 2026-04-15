@@ -48,14 +48,12 @@ func init() {
 	cmdPG.PersistentFlags().StringVarP(&demo.A8sPGServiceInstance.Namespace, "namespace", "n", "default", "namespace of the pg service instance.")
 	cmdPG.PersistentFlags().BoolVar(&NoDeleteSQLFile, "no-delete", false, "if set the uploaded SQL file won't be deleted after applying it.")
 
-	cmdPG.PersistentFlags().StringVarP(&demo.A8sPGServiceInstance.Name, "service-instance", "i", "", "name of the pg service instance.")
-	cmdPG.MarkFlagRequired("service-instance")
+	initRequiredStringFlagP(cmdPG, &demo.A8sPGServiceInstance.Name, "service-instance", "i", "", "name of the pg service instance.")
 
-	cmdPGApply.PersistentFlags().StringVarP(&pg.SQLFilename, "file", "f", "", "path to the SQL file to be applied to the given pg service instance.")
 	cmdPGApply.PersistentFlags().StringVar(&ApplySQLStatement, "sql", "", "applies the given SQL statement to the given pg service instance.")
-
+	cmdPGApply.PersistentFlags().StringVarP(&pg.SQLFilename, "file", "f", "", "path to the SQL file to be applied to the given pg service instance.")
 	// It's either --file or --sql but never both
-	cmdPGApply.MarkFlagsMutuallyExclusive("file", "sql")
+	markFlagsOneRequiredButMutuallyExclusive(cmdPGApply, &ApplySQLStatement, "sql", &pg.SQLFilename, "file")
 
 	cmdPG.PersistentFlags().BoolVarP(&UnattendedMode, "yes", "y", false, "skip yes-no questions by answering with \"yes\".")
 
