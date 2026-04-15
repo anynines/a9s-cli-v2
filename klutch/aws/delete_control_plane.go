@@ -365,7 +365,11 @@ func klutchKmsKeyCleanup(cfg Config, ctx context.Context, opts DeleteOptions) {
 			}
 			continue
 		}
-		keysDisablingFailed = disableKmsKey(ctx, arn, opts, keysDisablingFailed)
+		var alreadyDeleted bool
+		keysDisablingFailed, alreadyDeleted = disableKmsKey(ctx, arn, opts, keysDisablingFailed)
+		if alreadyDeleted {
+			continue
+		}
 		keysRetaggingFailed = retagKmsKey(cfg, ctx, arn, opts, keysRetaggingFailed)
 		if opts.ScheduleKmsDeletion {
 			keysDeletionSchedulingFailed = scheduleDeletionForKmsKey(ctx, arn, opts, keysDeletionSchedulingFailed)
@@ -384,12 +388,18 @@ func klutchKmsKeyCleanup(cfg Config, ctx context.Context, opts DeleteOptions) {
 	if len(errMessages) > 0 {
 		awsLogger.Fatalf(nil, "KMS Cleanup failed:\n%s", strings.Join(errMessages, "\n"))
 	}
+
+	makeup.PrintCheckmark("KMS Cleanup Successful")
 }
 
 func scheduleDeletionForKmsKey(ctx context.Context, arn string, opts DeleteOptions, keysDeletionSchedulingFailed []string) []string {
 	schedArgs := []string{"kms", "schedule-key-deletion", "--key-id", arn, "--pending-window-in-days", "7"}
 	schedArgs = appendRegion(schedArgs, opts.Region)
 	if _, errOut, err := runCmd(ctx, "aws", schedArgs...); err != nil {
+		if strings.Contains(errOut, "KMSInvalidStateException") && strings.Contains(errOut, "is pending deletion.") {
+			awsLogger.Infof("KMS key %s is already pending deletion. Skipping retagging.", arn)
+			return keysDeletionSchedulingFailed
+		}
 		awsLogger.Warningf("Failed to schedule deletion for KMS key %s: %v\nstderr: %s", arn, err, errOut)
 		return append(keysDeletionSchedulingFailed, arn)
 	}
@@ -403,7 +413,7 @@ func retagKmsKey(cfg Config, ctx context.Context, arn string, opts DeleteOptions
 		"TagKey=Name,TagValue=" + resourceName(cfg, "kms-key-retired")}, opts.Region)
 	if _, errOut, err := runCmd(ctx, "aws", retagArgs...); err != nil {
 		// If the key is already pending deletion, we can ignore this error
-		if strings.Contains(errOut, "KMSInvalidStateException") && strings.HasSuffix(errOut, "is pending deletion.") {
+		if strings.Contains(errOut, "KMSInvalidStateException") && strings.Contains(errOut, "is pending deletion.") {
 			awsLogger.Infof("KMS key %s is already pending deletion. Skipping retagging.", arn)
 			return keysRetaggingFailed
 		}
@@ -414,22 +424,22 @@ func retagKmsKey(cfg Config, ctx context.Context, arn string, opts DeleteOptions
 	return keysRetaggingFailed
 }
 
-func disableKmsKey(ctx context.Context, arn string, opts DeleteOptions, keysDisablingFailed []string) []string {
+func disableKmsKey(ctx context.Context, arn string, opts DeleteOptions, keysDisablingFailed []string) ([]string, bool) {
 	disableArgs := appendRegion([]string{"kms", "disable-key",
 		"--key-id", arn},
 		opts.Region)
 	if _, errOut, err := runCmd(ctx, "aws", disableArgs...); err != nil {
 		// If the key is already pending deletion, we can ignore this error
-		if strings.Contains(errOut, "KMSInvalidStateException") && strings.HasSuffix(errOut, "is pending deletion.") {
+		if strings.Contains(errOut, "KMSInvalidStateException") && strings.Contains(errOut, "is pending deletion.") {
 			awsLogger.Infof("KMS key %s is already pending deletion. Skipping disabling.", arn)
-			return keysDisablingFailed
+			return keysDisablingFailed, true
 		}
 
 		awsLogger.Warningf("Failed to disable KMS key %s: %v\nstderr: %s", arn, err, errOut)
-		return append(keysDisablingFailed, arn)
+		return append(keysDisablingFailed, arn), false
 	}
 	awsLogger.Successf("Disabled KMS key %s.", arn)
-	return keysDisablingFailed
+	return keysDisablingFailed, false
 }
 
 func logKmsCleanupFailure(message string, keys []string) string {
