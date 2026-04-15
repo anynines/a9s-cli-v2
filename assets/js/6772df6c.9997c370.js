@@ -1,0 +1,1 @@
+"use strict";(globalThis.webpackChunkanynines_docs=globalThis.webpackChunkanynines_docs||[]).push([[1818],{6786(a){a.exports=JSON.parse('{"tags":[{"label":"a9s","permalink":"/changelog/tags/a-9-s","count":1},{"label":"changelog","permalink":"/changelog/tags/changelog","count":1},{"label":"release","permalink":"/changelog/tags/release","count":1}]}')}}]);
