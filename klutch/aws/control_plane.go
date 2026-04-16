@@ -6,15 +6,19 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/anynines/a9s-cli-v2/k8s"
 	"github.com/anynines/a9s-cli-v2/makeup"
+	"golang.org/x/mod/semver"
 	"k8s.io/apimachinery/pkg/util/json"
 )
 
@@ -115,6 +119,10 @@ var (
 	defaultTenantOperatorImage        = "public.ecr.aws/h6x7g6i7/anynines/cli-resources/tenants-operator:0.1.0"
 	defaultTenantOperatorChartImage   = "oci://public.ecr.aws/h6x7g6i7/anynines/cli-resources/tenants-operator-chart"
 	defaultTenantOperatorChartVersion = "0.1.0"
+	// date of pinning: 16.04.26;
+	// reason for pinning: serviceManaged field in DescribeAddresses API
+	// response is required
+	awsCliMinimumVersion = "v2.24.20"
 )
 
 func setKlutchContext(cfg Config) func() {
@@ -358,6 +366,7 @@ func provisionCluster(ctx context.Context, cfg Config, opts CreateOptions) {
 				awsLogger.Fatalf(err, "Required command %q is not installed or not in PATH", cmd)
 			}
 		}
+		checkAWSCLIVersion(ctx)
 		awsLogger.Successf("All required commands (%s) are available.", strings.Join(requiredCmds, ", "))
 	}
 
@@ -496,6 +505,22 @@ func provisionCluster(ctx context.Context, cfg Config, opts CreateOptions) {
 	awsLogger.Printf("   Region:    %s", cfg.Region)
 	awsLogger.Printf("   VPC:       %s", vpcID)
 	awsLogger.Printf("   KMS Key:   %s", keyArn)
+}
+
+func checkAWSCLIVersion(ctx context.Context) {
+	out, errOut, err := runCmd(ctx, "aws", "--version")
+	if err != nil {
+		awsLogger.Fatalf(err, "Could not check for aws CLI version:\n %s", errOut)
+	}
+	pattern := regexp.MustCompile(`aws-cli/([0-9]+\.[0-9]+\.[0-9]+)`)
+	match := pattern.FindStringSubmatch(out)
+	if len(match) < 2 {
+		awsLogger.Fatalf(err, "Could not extract aws CLI version:\n %s", errOut)
+	}
+	version := "v" + match[1]
+	if cmp := semver.Compare(version, awsCliMinimumVersion); cmp < 0 {
+		awsLogger.Fatalf(nil, "AWS CLI version %s is not supported, minimum required version is %s", version, awsCliMinimumVersion)
+	}
 }
 
 func printCreatePlan(cfg Config) {
@@ -1034,7 +1059,6 @@ func ensureNetworking(ctx context.Context, cfg Config, vpcID string) {
 
 	publicRT := ensurePublicRouteTable(ctx, vpcID, igwID, []string{pubA, pubB, pubC})
 
-	ensureElasticIPQuota(ctx)
 	natA, natB, natC := ensureNATs(ctx, vpcID, pubA, pubB, pubC)
 
 	privRTA := ensurePrivateRT(ctx, vpcID, privA, natA, resourceName("private-route-table-a"))
@@ -1181,10 +1205,10 @@ func ensurePublicRouteTable(ctx context.Context, vpcID, igwID string, pubSubnets
 	return rtID
 }
 
-func ensureElasticIPQuota(ctx context.Context) {
-	awsLogger.Infof("Checking Elastic IP quota...")
+func ensureElasticIPQuota(ctx context.Context, required int) {
+	awsLogger.Infof("Checking Elastic IP quota (need %d new EIPs)...", required)
 	out, errOut, err := runCmd(ctx, "aws", "ec2", "describe-addresses",
-		"--query", "Addresses[].AllocationId",
+		"--query", "Addresses[?!ServiceManaged].AllocationId",
 		"--output", "text")
 	currentCount := 0
 	if err == nil && strings.TrimSpace(out) != "" {
@@ -1193,7 +1217,6 @@ func ensureElasticIPQuota(ctx context.Context) {
 	} else if err != nil && !strings.Contains(errOut, "AuthFailure") {
 		awsLogger.Warningf("describe-addresses failed: %v, stderr: %s", err, errOut)
 	}
-	required := 3
 	quotaRaw, errOutQ, errQ := runCmd(ctx, "aws", "service-quotas", "get-service-quota",
 		"--service-code", "ec2",
 		"--quota-code", "L-0263D0A3",
@@ -1220,8 +1243,11 @@ func ensureElasticIPQuota(ctx context.Context) {
 
 func ensureNATs(ctx context.Context, vpcID, pubA, pubB, pubC string) (string, string, string) {
 	awsLogger.Infof("Ensuring NAT Gateways exist...")
-	var newNATs []string
-	ensure := func(subnet, label string) string {
+	createdNewNats := false
+	natSubnets := map[string]string{"a": pubA, "b": pubB, "c": pubC}
+	natIDs := map[string]string{}
+	// First, check which NATs need to be created
+	for zone, subnet := range natSubnets {
 		natID, _, _ := runCmd(ctx, "aws", "ec2", "describe-nat-gateways",
 			"--filter",
 			"Name=vpc-id,Values="+vpcID,
@@ -1229,38 +1255,44 @@ func ensureNATs(ctx context.Context, vpcID, pubA, pubB, pubC string) (string, st
 			"Name=state,Values=available",
 			"--query", "NatGateways[0].NatGatewayId",
 			"--output", "text")
-		if natID == "" || natID == "None" || natID == "null" {
-			awsLogger.Infof("Creating NAT Gateway in subnet %s...", subnet)
-			alloc := mustRun(ctx, "aws", "ec2", "allocate-address",
-				"--domain", "vpc",
-				"--query", "AllocationId",
-				"--output", "text")
-			tagEC2Resource(ctx, alloc, resourceName("nat-eip", label))
-			natID = mustRun(ctx, "aws", "ec2", "create-nat-gateway",
-				"--subnet-id", subnet,
-				"--allocation-id", alloc,
-				"--query", "NatGateway.NatGatewayId",
-				"--output", "text")
-			tagEC2Resource(ctx, natID, resourceName("nat-gateway", label))
-			newNATs = append(newNATs, natID)
-		} else {
-			awsLogger.Successf("Reusing NAT Gateway: %s", natID)
-			tagExistingNatResources(ctx, natID, label)
+		if !(natID == "" || natID == "None" || natID == "null") {
+			natIDs[zone] = natID
 		}
-		return natID
 	}
-	natA := ensure(pubA, "a")
-	natB := ensure(pubB, "b")
-	natC := ensure(pubC, "c")
+	missingNATs := len(natSubnets) - len(natIDs)
+	if missingNATs > 0 {
+		ensureElasticIPQuota(ctx, missingNATs)
+	}
+	for zone, subnet := range natSubnets {
+		if natIDs[zone] != "" {
+			awsLogger.Successf("Reusing NAT Gateway: %s", natIDs[zone])
+			tagExistingNatResources(ctx, natIDs[zone], zone)
+			continue
+		}
+		awsLogger.Infof("Creating NAT Gateway in subnet %s...", subnet)
+		alloc := mustRun(ctx, "aws", "ec2", "allocate-address",
+			"--domain", "vpc",
+			"--query", "AllocationId",
+			"--output", "text")
+		tagEC2Resource(ctx, alloc, resourceName("nat-eip", zone))
+		natID := mustRun(ctx, "aws", "ec2", "create-nat-gateway",
+			"--subnet-id", subnet,
+			"--allocation-id", alloc,
+			"--query", "NatGateway.NatGatewayId",
+			"--output", "text")
+		tagEC2Resource(ctx, natID, resourceName("nat-gateway", zone))
+		natIDs[zone] = natID
+		createdNewNats = true
+	}
 
-	if len(newNATs) > 0 {
+	if createdNewNats {
 		args := []string{"ec2", "wait", "nat-gateway-available", "--nat-gateway-ids"}
-		args = append(args, newNATs...)
+		args = append(args, slices.Collect(maps.Values(natIDs))...)
 		mustRun(ctx, "aws", args...)
 		awsLogger.Successf("New NAT Gateways are available.")
 	}
-	awsLogger.Printf("NAT Gateways: %s, %s, %s", natA, natB, natC)
-	return natA, natB, natC
+	awsLogger.Printf("NAT Gateways: %s, %s, %s", natIDs["a"], natIDs["b"], natIDs["c"])
+	return natIDs["a"], natIDs["b"], natIDs["c"]
 }
 
 func tagExistingNatResources(ctx context.Context, natID, label string) {
