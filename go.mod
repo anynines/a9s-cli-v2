@@ -21,6 +21,7 @@ require (
 	github.com/mattn/go-colorable v0.1.13
 	github.com/sethvargo/go-password v0.2.0
 	github.com/spf13/cobra v1.8.1
+	golang.org/x/mod v0.30.0
 	golang.org/x/oauth2 v0.28.0
 	golang.org/x/term v0.38.0
 	gopkg.in/yaml.v2 v2.4.0
