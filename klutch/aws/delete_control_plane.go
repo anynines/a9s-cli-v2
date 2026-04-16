@@ -33,18 +33,7 @@ type DeleteOptions struct {
 // DeleteControlPlaneCluster tears down the EKS control plane and AWS resources that were created by CreateControlPlaneCluster.
 // It mirrors the flow of 70-delete-eks-control-plane-cluster.sh with safe defaults (DNS/ACM are opt-in).
 func DeleteControlPlaneCluster(ctx context.Context, opts DeleteOptions) {
-	deleteCluster(ctx, defaultConfig(), opts)
-}
-
-// DeleteWorkloadCluster deletes a Klutch workload EKS cluster and its AWS resources.
-func DeleteWorkloadCluster(ctx context.Context, opts DeleteOptions) {
-	deleteCluster(ctx, workloadConfig(strings.TrimSpace(opts.ClusterName)), opts)
-}
-
-func deleteCluster(ctx context.Context, cfg Config, opts DeleteOptions) {
-	restore := setKlutchContext(cfg)
-	defer restore()
-
+	cfg := defaultConfig()
 	if opts.Region != "" {
 		cfg.Region = opts.Region
 	}
@@ -57,8 +46,41 @@ func deleteCluster(ctx context.Context, cfg Config, opts DeleteOptions) {
 	cfg.ALBControllerPolicyName += "-" + cfg.ClusterName
 	cfg.ControlPlaneSGName = fmt.Sprintf("%s-sg", cfg.ClusterName)
 	cfg.ResourceNamePrefix = cfg.ClusterName
-	cfg.AlbServiceAccountName += "-" + cfg.ClusterName
 	klutchNamePrefix = cfg.ResourceNamePrefix
+
+	deleteCluster(ctx, cfg, opts)
+}
+
+// DeleteWorkloadCluster deletes a Klutch workload EKS cluster and its AWS resources.
+func DeleteWorkloadCluster(ctx context.Context, opts DeleteOptions) {
+	cfg := defaultConfig()
+	if opts.Region != "" {
+		cfg.Region = opts.Region
+	}
+	if opts.ClusterName != "" {
+		cfg.ClusterName = opts.ClusterName
+	}
+	cfg.NodegroupName = fmt.Sprintf("%s-nodegroup", opts.ClusterName)
+	cfg.ClusterRoleName += "-" + cfg.ClusterName
+	cfg.NodeRoleName += "-" + cfg.ClusterName
+	cfg.ALBControllerPolicyName += "-" + cfg.ClusterName
+	cfg.ControlPlaneSGName = fmt.Sprintf("%s-sg", cfg.ClusterName)
+	cfg.ResourceNamePrefix = cfg.ClusterName
+	klutchNamePrefix = cfg.ResourceNamePrefix
+
+	deleteCluster(ctx, cfg, opts)
+}
+
+func deleteCluster(ctx context.Context, cfg Config, opts DeleteOptions) {
+	restore := setKlutchContext(cfg)
+	defer restore()
+
+	if opts.Region != "" {
+		cfg.Region = opts.Region
+	}
+	if opts.ClusterName != "" {
+		cfg.ClusterName = opts.ClusterName
+	}
 
 	if opts.NodegroupName != "" {
 		cfg.NodegroupName = opts.NodegroupName

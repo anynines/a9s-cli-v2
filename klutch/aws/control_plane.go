@@ -254,7 +254,6 @@ func workloadConfig(clusterName string) Config {
 	cfg.ClusterRoleName += "-" + cfg.ClusterName
 	cfg.NodeRoleName += "-" + cfg.ClusterName
 	cfg.ALBControllerPolicyName += "-" + cfg.ClusterName
-	cfg.AlbServiceAccountName += "-" + cfg.ClusterName
 	cfg.NodegroupName = fmt.Sprintf("%s-nodegroup", clusterName)
 	cfg.ControlPlaneSGName = fmt.Sprintf("%s-sg", clusterName)
 	cfg.ResourceNamePrefix = clusterName
@@ -319,7 +318,6 @@ func CreateControlPlaneCluster(ctx context.Context, opts CreateOptions) {
 	cfg.ALBControllerPolicyName += "-" + cfg.ClusterName
 	cfg.ControlPlaneSGName = fmt.Sprintf("%s-sg", cfg.ClusterName)
 	cfg.ResourceNamePrefix = cfg.ClusterName
-	cfg.AlbServiceAccountName += "-" + cfg.ClusterName
 	if opts.NodeInstanceTypes != "" {
 		cfg.NodeInstanceTypes = opts.NodeInstanceTypes
 	}
@@ -381,6 +379,11 @@ func provisionCluster(ctx context.Context, cfg Config, opts CreateOptions) {
 		}
 		checkAWSCLIVersion(ctx)
 		awsLogger.Successf("All required commands (%s) are available.", strings.Join(requiredCmds, ", "))
+	}
+
+	// check cluster name length early to avoid cluster failing during provisioning due to this issue
+	if fullAlbServiceAccountName := fmt.Sprintf("eksctl-%s-addon-iamserviceaccount-kube-system-%s", cfg.ClusterName, cfg.AlbServiceAccountName); len(fullAlbServiceAccountName) > 128 {
+		makeup.ExitDueToFatalError(nil, fmt.Sprintf("Cluster name %s is too long, cluster name may not exceed %d characters.", cfg.ClusterName, 128-len("eksctl--addon-iamserviceaccount-kube-system-"+cfg.AlbServiceAccountName)))
 	}
 
 	awsLogger.Section("Configuration")
