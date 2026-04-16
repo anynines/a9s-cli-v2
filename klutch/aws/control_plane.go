@@ -122,7 +122,7 @@ var (
 	// date of pinning: 16.04.26;
 	// reason for pinning: serviceManaged field in DescribeAddresses API
 	// response is required
-	awsCliMinimumVersion = "2.24.20"
+	awsCliMinimumVersion = "v2.24.20"
 )
 
 func setKlutchContext(cfg Config) func() {
@@ -517,7 +517,7 @@ func checkAWSCLIVersion(ctx context.Context) {
 	if len(match) < 2 {
 		awsLogger.Fatalf(err, "Could not extract aws CLI version:\n %s", errOut)
 	}
-	version := match[1]
+	version := "v" + match[1]
 	if cmp := semver.Compare(version, awsCliMinimumVersion); cmp < 0 {
 		awsLogger.Fatalf(nil, "AWS CLI version %s is not supported, minimum required version is %s", version, awsCliMinimumVersion)
 	}
