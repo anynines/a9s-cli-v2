@@ -906,15 +906,33 @@ func ensureTenantOperatorRole(ctx context.Context, cfg Config, accountID string)
 	return roleArn
 }
 
-func resolveKubectlContextForCluster(ctx context.Context, clusterName string) string {
-	out, err := k8s.Contexts(clusterName)
-	if err != nil {
-		return clusterName
+func resolveKubectlContextForCluster(cfg Config) string {
+	out, err := k8s.Contexts(cfg.ClusterName)
+	if err != nil || len(out) == 0 {
+		makeup.PrintWarning("Could retrieve contexts, falling back to guess " + cfg.ClusterName)
+		return cfg.ClusterName
 	}
-	if len(out) > 0 {
-		return out[0]
+
+	context := ""
+	for _, line := range out {
+		if line == cfg.ClusterName {
+			context = line
+		}
+		if line == fmt.Sprintf("arn:aws:eks:eu-central-1:378836732719:cluster/%s", cfg.ClusterName) {
+			context = line
 	}
-	return clusterName
+		if strings.HasSuffix(line, fmt.Sprintf("@%s.%s.eksctl.io", cfg.ClusterName, cfg.Region)) {
+			context = line
+		}
+	}
+
+	if context != "" {
+		makeup.PrintSuccess("Found context " + context)
+		return context
+	}
+
+	makeup.PrintWarning("Could not find exact match for " + cfg.ClusterName + " via considered string comparisons, falling back to guess " + out[0])
+	return out[0]
 }
 
 // ApplyControlPlaneAddons installs AWS-side addons (tenant operator) onto an existing control-plane cluster.
@@ -961,7 +979,7 @@ func ApplyControlPlaneAddons(ctx context.Context, opts CreateOptions) {
 	// Ensure kubeconfig points to the cluster.
 	mustRun(ctx, "aws", "eks", "update-kubeconfig", "--region", cfg.Region, "--name", cfg.ClusterName)
 	// Switch kubectl context to the control-plane cluster so subsequent apply steps hit the right cluster.
-	cpCtx := resolveKubectlContextForCluster(ctx, cfg.ClusterName)
+	cpCtx := resolveKubectlContextForCluster(cfg)
 	if strings.TrimSpace(cpCtx) != "" {
 		if out, err := k8s.SwitchContext(cpCtx); err != nil {
 			makeup.ExitDueToFatalError(err, fmt.Sprintf("Failed to switch kubectl context to %s (continuing):\n: %s", cpCtx, out))
