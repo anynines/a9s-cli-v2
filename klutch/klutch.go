@@ -97,7 +97,7 @@ func DeployKlutchClusters() {
 }
 
 // ApplyKlutchControlPlane installs the Klutch control plane components into the current kube context.
-func ApplyKlutchControlPlane(host string, ingressPort int, acmCertificateARN string, hostedZoneName string) {
+func ApplyKlutchControlPlane(host string, ingressPort int, acmCertificateARN string, hostedZoneName string, clusterName string) {
 	makeup.PrintWelcomeScreen(
 		makeup.UnattendedMode,
 		applyControlPlaneTitle,
@@ -142,8 +142,8 @@ func ApplyKlutchControlPlane(host string, ingressPort int, acmCertificateARN str
 	var provisioner CertificateProvisioner
 	if hostedZoneName != "" {
 		provisioner = NewCertificateProvisioner("")
-		verifyHostedZoneResolvable(provisioner, hostedZoneName)
-		verifyHostedZoneRequirements(provisioner, hostedZoneName, baseDomain, dexHost, backendHost)
+		verifyHostedZoneResolvable(provisioner, hostedZoneName, clusterName)
+		verifyHostedZoneRequirements(provisioner, hostedZoneName, baseDomain, dexHost, backendHost, clusterName)
 	}
 
 	// Auto-provision an ACM certificate if none was provided and a hosted zone is available.
@@ -565,7 +565,7 @@ func waitForOIDCDiscovery(issuer string, timeout time.Duration) error {
 
 // verifyHostedZoneRequirements ensures that the provided hosts are within the hosted zone
 // and that the zone is properly delegated. It prints actionable instructions and exits if requirements are not met.
-func verifyHostedZoneRequirements(provisioner CertificateProvisioner, hostedZoneName, baseDomain, dexHost, backendHost string) {
+func verifyHostedZoneRequirements(provisioner CertificateProvisioner, hostedZoneName, baseDomain, dexHost, backendHost, clusterName string) {
 	if hostedZoneName == "" || provisioner == nil {
 		return
 	}
@@ -589,7 +589,7 @@ func verifyHostedZoneRequirements(provisioner CertificateProvisioner, hostedZone
 		makeup.PrintWarning(fmt.Sprintf("Hosted zone %s not found in Route53. It may have been deleted.", zone))
 		makeup.PrintInfo(fmt.Sprintf("Creating public hosted zone %s and retrieving its NS records...", zone))
 		makeup.WaitForUser(makeup.UnattendedMode)
-		expectedNS, err = provisioner.EnsurePublicHostedZone(zone)
+		expectedNS, err = provisioner.EnsurePublicHostedZone(zone, clusterName)
 		if err != nil {
 			makeup.ExitDueToFatalError(err, fmt.Sprintf("Could not create or fetch NS records for hosted zone %s from Route53.", zone))
 		}

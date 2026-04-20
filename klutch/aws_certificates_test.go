@@ -25,7 +25,7 @@ func (f *fakeProvisioner) GetHostedZoneNS(hostedZoneName string) ([]string, erro
 func (f *fakeProvisioner) EnsureALBAliasRecord(hostedZoneName, recordName, albDNSName string) error {
 	return nil
 }
-func (f *fakeProvisioner) EnsurePublicHostedZone(hostedZoneName string) ([]string, error) {
+func (f *fakeProvisioner) EnsurePublicHostedZone(hostedZoneName, clusterName string) ([]string, error) {
 	return f.GetHostedZoneNS(hostedZoneName)
 }
 
@@ -52,7 +52,7 @@ func TestVerifyHostedZoneResolvableWaitsForDelegation(t *testing.T) {
 
 	prov := &fakeProvisioner{ns: []string{"ns-1.awsdns.com.", "ns-2.awsdns.net."}}
 
-	verifyHostedZoneResolvable(prov, "example.com")
+	verifyHostedZoneResolvable(prov, "example.com", "")
 
 	if callCount < 2 {
 		t.Fatalf("expected multiple lookup attempts before delegation")

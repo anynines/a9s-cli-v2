@@ -320,6 +320,7 @@ func parseImageRef(ref string) imageRef {
 		return out
 	}
 	out.awsCommand = "ecr-public"
+	// since ecr-public is a global service the region must be set to us-east-1
 	out.awsRegion = "us-east-1"
 	parts = strings.Split(out.repository, "/")
 	if len(parts) < 2 {

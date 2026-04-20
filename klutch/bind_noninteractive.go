@@ -278,14 +278,6 @@ func ensureKubeconfigCA(kubeconfig []byte, clusterName, regionHint string) ([]by
 		ca, fetchErr = fetchClusterCA(cn, region)
 	}
 	if fetchErr != nil || len(ca) == 0 {
-		for name := range cfg.Clusters {
-			ca, fetchErr = fetchClusterCA(name, region)
-			if fetchErr == nil && len(ca) > 0 {
-				break
-			}
-		}
-	}
-	if fetchErr != nil {
 		return nil, fetchErr
 	}
 	if len(ca) == 0 {
@@ -529,8 +521,11 @@ func createExportRequests(ctx context.Context, kubeconfig []byte, requests []bin
 	}
 
 	currentCtx := kfg.CurrentContext
-	if currentCtx == "" || kfg.Contexts[currentCtx] == nil || kfg.Contexts[currentCtx].Namespace == "" {
-		return fmt.Errorf("returned kubeconfig missing current context/namespace")
+	if currentCtx == "" || kfg.Contexts[currentCtx] == nil {
+		return fmt.Errorf("returned kubeconfig missing current context:\n%s", string(kubeconfig))
+	}
+	if kfg.Contexts[currentCtx].Namespace == "" {
+		return fmt.Errorf("returned kubeconfig missing current namespace:\n%s", string(kubeconfig))
 	}
 	ns := kfg.Contexts[currentCtx].Namespace
 

@@ -33,24 +33,40 @@ type DeleteOptions struct {
 // DeleteControlPlaneCluster tears down the EKS control plane and AWS resources that were created by CreateControlPlaneCluster.
 // It mirrors the flow of 70-delete-eks-control-plane-cluster.sh with safe defaults (DNS/ACM are opt-in).
 func DeleteControlPlaneCluster(ctx context.Context, opts DeleteOptions) {
-	deleteCluster(ctx, defaultConfig(), opts)
-}
-
-// DeleteWorkloadCluster deletes a Klutch workload EKS cluster and its AWS resources.
-func DeleteWorkloadCluster(ctx context.Context, opts DeleteOptions) {
-	deleteCluster(ctx, workloadConfig(opts.ClusterName), opts)
-}
-
-func deleteCluster(ctx context.Context, cfg Config, opts DeleteOptions) {
-	restore := setKlutchContext(cfg)
-	defer restore()
-
+	cfg := defaultConfig()
 	if opts.Region != "" {
 		cfg.Region = opts.Region
 	}
 	if opts.ClusterName != "" {
 		cfg.ClusterName = opts.ClusterName
 	}
+	cfg.NodegroupName = fmt.Sprintf("%s-nodegroup", opts.ClusterName)
+	cfg.ClusterRoleName += "-" + cfg.ClusterName
+	cfg.NodeRoleName += "-" + cfg.ClusterName
+	cfg.ALBControllerPolicyName += "-" + cfg.ClusterName
+	cfg.ControlPlaneSGName = fmt.Sprintf("%s-sg", cfg.ClusterName)
+	cfg.ResourceNamePrefix = cfg.ClusterName
+
+	deleteCluster(ctx, cfg, opts)
+}
+
+// DeleteWorkloadCluster deletes a Klutch workload EKS cluster and its AWS resources.
+func DeleteWorkloadCluster(ctx context.Context, opts DeleteOptions) {
+	cfg := workloadConfig(opts.ClusterName)
+	if opts.Region != "" {
+		cfg.Region = opts.Region
+	}
+	if opts.ClusterName != "" {
+		cfg.ClusterName = opts.ClusterName
+	}
+
+	deleteCluster(ctx, cfg, opts)
+}
+
+func deleteCluster(ctx context.Context, cfg Config, opts DeleteOptions) {
+	restore := setKlutchContext(cfg)
+	defer restore()
+
 	if opts.NodegroupName != "" {
 		cfg.NodegroupName = opts.NodegroupName
 	}
@@ -109,7 +125,7 @@ func deleteCluster(ctx context.Context, cfg Config, opts DeleteOptions) {
 	clusterExists, clusterReachable := discoverCluster(ctx, cfg, opts)
 
 	if clusterReachable {
-		kubernetesCleanup(ctx, opts)
+		kubernetesCleanup(ctx, cfg, opts)
 	}
 	iamCleanup(ctx, cfg, opts, accountID, clusterReachable)
 
@@ -119,12 +135,16 @@ func deleteCluster(ctx context.Context, cfg Config, opts DeleteOptions) {
 		awsLogger.Infof("Cluster does not exist. Skipping nodegroup/cluster deletion.")
 	}
 
-	vpcID := findKlutchVPC(ctx, opts.Region)
+	// Always remove the ClusterName tags all Hosted Zones
+	// to free the zones for adoption by a new cluster.
+	removeClusterNameTagFromAllHostedZones(ctx, opts)
+
+	vpcID := findKlutchVPC(cfg, ctx, opts.Region)
 	if vpcID == "" {
 		awsLogger.Infof("No Klutch VPC found.")
 		dnsAndACMCleanup(ctx, nil, opts)
 		if opts.CleanupOrphans {
-			cleanupTaggedEIPs(ctx, opts)
+			cleanupTaggedEIPs(cfg, ctx, opts)
 		}
 		return
 	}
@@ -132,7 +152,7 @@ func deleteCluster(ctx context.Context, cfg Config, opts DeleteOptions) {
 	deleteVPCDependencies(ctx, vpcID, opts)
 	deleteVPC(ctx, vpcID, opts)
 	if opts.CleanupOrphans {
-		cleanupTaggedEIPs(ctx, opts)
+		cleanupTaggedEIPs(cfg, ctx, opts)
 	}
 }
 
@@ -171,7 +191,7 @@ func discoverCluster(ctx context.Context, cfg Config, opts DeleteOptions) (bool,
 	return clusterExists, clusterReachable
 }
 
-func kubernetesCleanup(ctx context.Context, opts DeleteOptions) {
+func kubernetesCleanup(ctx context.Context, cfg Config, opts DeleteOptions) {
 	awsLogger.Section("Kubernetes Cleanup")
 	if opts.DryRun {
 		awsLogger.Infof("Dry-run: would delete storageclass gp3 (if present).")
@@ -187,7 +207,7 @@ func kubernetesCleanup(ctx context.Context, opts DeleteOptions) {
 	if opts.DryRun {
 		awsLogger.Infof("Dry-run: would uninstall AWS LB Controller Helm release (if present).")
 	} else {
-		if _, errOut, err := runCmd(ctx, "helm", "uninstall", "aws-load-balancer-controller", "-n", "kube-system"); err != nil {
+		if _, errOut, err := runCmd(ctx, "helm", "uninstall", cfg.AlbServiceAccountName, "-n", "kube-system"); err != nil {
 			awsLogger.Warningf("Failed to uninstall AWS LB Controller: %v\nstderr: %s", err, errOut)
 		} else {
 			awsLogger.Successf("Uninstalled AWS LB Controller (if present).")
@@ -204,7 +224,7 @@ func iamCleanup(ctx context.Context, cfg Config, opts DeleteOptions, accountID s
 			"--cluster", cfg.ClusterName,
 			"--region", cfg.Region,
 			"--namespace", "kube-system",
-			"--name", "aws-load-balancer-controller",
+			"--name", cfg.AlbServiceAccountName,
 			"--wait"); err != nil {
 			awsLogger.Warningf("Failed to delete IAM service account: %v\nstderr: %s", err, errOut)
 		} else {
@@ -303,10 +323,11 @@ func deleteNodegroupsAndCluster(ctx context.Context, cfg Config, opts DeleteOpti
 	}
 }
 
-func findKlutchVPC(ctx context.Context, region string) string {
+func findKlutchVPC(cfg Config, ctx context.Context, region string) string {
 	awsLogger.Section("Discover Klutch VPC")
 	args := []string{"ec2", "describe-vpcs",
 		"--filters", fmt.Sprintf("Name=tag:%s,Values=%s", klutchTagKey, klutchTagValue),
+		fmt.Sprintf("Name=tag:Name,Values=%s", resourceName(cfg, "vpc")),
 		"--query", "Vpcs[0].VpcId", "--output", "text"}
 	args = appendRegion(args, region)
 	vpcID, errOut, err := runCmd(ctx, "aws", args...)
@@ -578,7 +599,7 @@ func deleteENIs(ctx context.Context, vpcID string, opts DeleteOptions) {
 }
 
 func deleteTenantOperatorRole(ctx context.Context, cfg Config, accountID string, opts DeleteOptions) {
-	roleName := resourceName("tenant-operator")
+	roleName := resourceName(cfg, "tenant-operator")
 	roleArn := fmt.Sprintf("arn:aws:iam::%s:role/%s", accountID, roleName)
 
 	if opts.DryRun {
@@ -766,10 +787,16 @@ func releaseEIPs(ctx context.Context, natEIPs []string, opts DeleteOptions) {
 	}
 }
 
-func cleanupTaggedEIPs(ctx context.Context, opts DeleteOptions) {
+func cleanupTaggedEIPs(cfg Config, ctx context.Context, opts DeleteOptions) {
 	awsLogger.Section("Orphaned EIP Cleanup")
 
-	filters := []string{fmt.Sprintf("Name=tag:%s,Values=%s", klutchTagKey, klutchTagValue)}
+	filters := []string{fmt.Sprintf("Name=tag:%s,Values=%s", klutchTagKey, klutchTagValue),
+		fmt.Sprintf("Name=tag:Name,Values=%s,%s,%s",
+			resourceName(cfg, "nat-eip", "a"),
+			resourceName(cfg, "nat-eip", "b"),
+			resourceName(cfg, "nat-eip", "c"),
+		),
+	}
 	if cn := strings.TrimSpace(opts.ClusterName); cn != "" {
 		filters = append(filters, fmt.Sprintf("Name=tag:%s,Values=%s", clusterNameTagKey, cn))
 	}
@@ -794,6 +821,62 @@ func cleanupTaggedEIPs(ctx context.Context, opts DeleteOptions) {
 
 	awsLogger.Infof("Found %d Klutch-tagged EIP(s) to release post-delete.", len(allocs))
 	releaseEIPs(ctx, allocs, opts)
+}
+
+func removeClusterNameTagFromAllHostedZones(ctx context.Context, opts DeleteOptions) {
+	zoneID := findHostedZoneIdByClusterNameTag(ctx, opts)
+	for zoneID != "" {
+		removeClusterNameTagFromHostedZone(ctx, zoneID, opts)
+		zoneID = findHostedZoneIdByClusterNameTag(ctx, opts)
+	}
+}
+
+// findHostedZoneIdByClusterNameTag finds the Route53 hosted zone tagged with
+// ClusterName=clusterName using the Resource Groups Tagging API, which supports
+// server-side tag filtering (unlike aws route53 list-hosted-zones).
+// Returns the plain zone ID (without the /hostedzone/ prefix), or empty string if not found.
+func findHostedZoneIdByClusterNameTag(ctx context.Context, opts DeleteOptions) string {
+	if opts.DryRun {
+		return ""
+	}
+
+	out, errOut, err := runCmd(ctx, "aws", "resourcegroupstaggingapi", "get-resources",
+		"--resource-type-filters", "route53:hostedzone",
+		"--tag-filters", fmt.Sprintf("Key=ClusterName,Values=%s", opts.ClusterName),
+		"--query", "ResourceTagMappingList[0].ResourceARN",
+		// since Route53 is a global service the region must be set to us-east-1
+		"--region", "us-east-1",
+		"--output", "text")
+	if err != nil {
+		awsLogger.Warningf("Failed to search for hosted zone by opts.ClusterName tag: %v\nstderr: %s", err, errOut)
+		return ""
+	}
+	outNormalized := strings.ToLower(strings.TrimSpace(out))
+	if out == "" || outNormalized == "none" || outNormalized == "null" {
+		awsLogger.Infof("Found no hosted zones tagged with ClusterName=%s.", opts.ClusterName)
+		return ""
+	}
+	// ARN format: arn:aws:route53:::hostedzone/ZONE_ID
+	id := out[strings.LastIndex(out, "/")+1:]
+	awsLogger.Infof("Found hosted zone id=%s tagged with ClusterName=%s.", id, opts.ClusterName)
+	return id
+}
+
+// removeClusterNameTagFromHostedZone removes the ClusterName tag from a Route53 hosted zone
+// so that a new cluster can adopt it.
+func removeClusterNameTagFromHostedZone(ctx context.Context, zoneID string, opts DeleteOptions) {
+	if opts.DryRun {
+		awsLogger.Infof("Dry-run: would remove ClusterName tag from hosted zone %s.", zoneID)
+		return
+	}
+	if _, errOut, err := runCmd(ctx, "aws", "route53", "change-tags-for-resource",
+		"--resource-type", "hostedzone",
+		"--resource-id", zoneID,
+		"--remove-tag-keys", "ClusterName"); err != nil {
+		awsLogger.Warningf("Failed to remove ClusterName tag from hosted zone %s: %v\nstderr: %s", zoneID, err, errOut)
+		return
+	}
+	awsLogger.Successf("Removed ClusterName tag from hosted zone %s.", zoneID)
 }
 
 func findHostedZoneIDByName(ctx context.Context, hostedZoneName string) string {
@@ -927,10 +1010,18 @@ func discoverKlutchCertificateARN(ctx context.Context, opts DeleteOptions) strin
 			awsLogger.Warningf("Could not parse tags for ACM certificate %s: %v", arn, err)
 			continue
 		}
+		foundKlutchTag := false
+		resourceNameMatches := false
 		for _, t := range resp.Tags {
 			if t.Key == klutchTagKey && t.Value == klutchTagValue {
-				return arn
+				foundKlutchTag = true
 			}
+			if t.Key == "HostedZoneName" && t.Value == opts.HostedZoneName {
+				resourceNameMatches = true
+			}
+		}
+		if foundKlutchTag && resourceNameMatches {
+			return arn
 		}
 	}
 
@@ -980,6 +1071,7 @@ func dnsAndACMCleanup(ctx context.Context, lbTargets []string, opts DeleteOption
 	hostedZoneName := strings.TrimSpace(opts.HostedZoneName)
 	if (opts.IncludeDNSRecords || opts.IncludeHostedZone) && hostedZoneName == "" {
 		awsLogger.Warningf("Hosted zone name not provided; skipping DNS/hosted zone cleanup.")
+		return
 	} else if hostedZoneName != "" && (opts.IncludeDNSRecords || opts.IncludeHostedZone) {
 		zoneID = findHostedZoneIDByName(ctx, hostedZoneName)
 		if zoneID == "" {

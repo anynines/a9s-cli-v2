@@ -112,7 +112,6 @@ var commandsWithoutSubcommands = []string{
 // Replaced in unit tests to prevent actual kubectl execution.
 // var execCommand = exec.Command
 var execCommand = func(name string, arg ...string) *exec.Cmd {
-	makeup.PrintInfo(fmt.Sprintf("Executing command: '%s %s'", name, strings.Join(arg, " ")))
 	return exec.Command(name, arg...)
 }
 
@@ -301,7 +300,7 @@ func (k *KubeClient) BindApiService(secretNamespace, secretName, konnectorImage,
 
 func (k *KubeClient) kubectlCommandWithPrompt(command string, manifestBytes []byte, description string) (string, error) {
 	if description != "" {
-		makeup.PrintInfo(fmt.Sprintf("Preparing to "+command+": %s", description))
+		makeup.PrintInfo("Preparing to " + command + " " + description)
 	}
 
 	// If verbose mode is enabled, always print the manifest
@@ -319,7 +318,6 @@ func (k *KubeClient) kubectlCommandWithPrompt(command string, manifestBytes []by
 		if !shouldExecute {
 			return "", fmt.Errorf("user cancelled kubectl %s", command)
 		}
-		makeup.PrintInfo("Executing '" + command + "'...")
 	}
 
 	// Execute the actual kubectl command
@@ -332,7 +330,7 @@ func (k *KubeClient) kubectlCommandWithPrompt(command string, manifestBytes []by
 
 	_, output, err := runKubeCtlCommand(opts.withContextFrom(k))
 	if err != nil {
-		makeup.PrintFail(fmt.Sprintf("failed to "+command+" manifest:\n%s", string(output)))
+		makeup.PrintFail(fmt.Sprintf("failed to "+command+" manifest:\n%s\n%s", string(output), string(manifestBytes)))
 		return string(output), err
 	}
 
@@ -340,7 +338,7 @@ func (k *KubeClient) kubectlCommandWithPrompt(command string, manifestBytes []by
 		fmt.Println(string(output))
 	}
 
-	makeup.PrintSuccess("Executed " + command + " successfully.")
+	makeup.PrintSuccess("Executed " + command + " " + description + " successfully.")
 	return string(output), nil
 }
 

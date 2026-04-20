@@ -96,7 +96,7 @@ var applyKlutchControlPlaneCmd = &cobra.Command{
 			klutchaws.ApplyControlPlaneAddons(context.Background(), cfgOpts)
 		}
 
-		klutch.ApplyKlutchControlPlane(applyKlutchControlPlaneHost, applyKlutchControlPlanePort, applyKlutchControlPlaneACMCertARN, applyKlutchControlPlaneHostedZone)
+		klutch.ApplyKlutchControlPlane(applyKlutchControlPlaneHost, applyKlutchControlPlanePort, applyKlutchControlPlaneACMCertARN, applyKlutchControlPlaneHostedZone, applyKlutchClusterName)
 	},
 }
 

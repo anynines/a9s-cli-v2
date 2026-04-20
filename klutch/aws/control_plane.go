@@ -40,6 +40,7 @@ type Config struct {
 	KlutchTagValue                  string
 	ResourceNamePrefix              string
 	ClusterRole                     string
+	AlbServiceAccountName           string
 
 	TenantOperatorImage        string
 	TenantOperatorChart        string
@@ -57,6 +58,8 @@ type CreateOptions struct {
 	DryRun bool
 	// ClusterName overrides the default name if set (used by workload clusters).
 	ClusterName string
+	// ControlPlaneToBindTo contains the name of the Control Plane to bind to when creating a Workload Cluster
+	ControlPlaneToBindTo string
 	// Node overrides for control-plane/workload clusters.
 	NodeInstanceTypes string
 	NodeCount         int
@@ -157,8 +160,8 @@ func RandomWorkloadClusterName() string {
 	return fmt.Sprintf("klutch-workload-cluster-%s", hex.EncodeToString(buf))
 }
 
-func resourceName(parts ...string) string {
-	return fmt.Sprintf("%s-%s", klutchNamePrefix, strings.Join(parts, "-"))
+func resourceName(cfg Config, parts ...string) string {
+	return fmt.Sprintf("%s-%s", cfg.ResourceNamePrefix, strings.Join(parts, "-"))
 }
 
 func setClusterTagContext(name, arn string) {
@@ -231,6 +234,7 @@ func defaultConfig() Config {
 		TenantOperatorChart:        defaultTenantOperatorChartImage,
 		TenantOperatorChartVersion: defaultTenantOperatorChartVersion,
 		HostedZoneName:             "",
+		AlbServiceAccountName:      "aws-load-balancer-controller",
 	}
 }
 
@@ -249,6 +253,9 @@ func workloadConfig(clusterName string) Config {
 	}
 	cfg.ClusterName = clusterName
 
+	cfg.ClusterRoleName += "-" + cfg.ClusterName
+	cfg.NodeRoleName += "-" + cfg.ClusterName
+	cfg.ALBControllerPolicyName += "-" + cfg.ClusterName
 	cfg.NodegroupName = fmt.Sprintf("%s-nodegroup", clusterName)
 	cfg.ControlPlaneSGName = fmt.Sprintf("%s-sg", clusterName)
 	cfg.ResourceNamePrefix = clusterName
@@ -307,6 +314,12 @@ func CreateControlPlaneCluster(ctx context.Context, opts CreateOptions) {
 	if opts.ClusterName != "" {
 		cfg.ClusterName = opts.ClusterName
 	}
+	cfg.NodegroupName = fmt.Sprintf("%s-nodegroup", cfg.ClusterName)
+	cfg.ClusterRoleName += "-" + cfg.ClusterName
+	cfg.NodeRoleName += "-" + cfg.ClusterName
+	cfg.ALBControllerPolicyName += "-" + cfg.ClusterName
+	cfg.ControlPlaneSGName = fmt.Sprintf("%s-sg", cfg.ClusterName)
+	cfg.ResourceNamePrefix = cfg.ClusterName
 	if opts.NodeInstanceTypes != "" {
 		cfg.NodeInstanceTypes = opts.NodeInstanceTypes
 	}
@@ -370,12 +383,24 @@ func provisionCluster(ctx context.Context, cfg Config, opts CreateOptions) {
 		awsLogger.Successf("All required commands (%s) are available.", strings.Join(requiredCmds, ", "))
 	}
 
+	// check cluster name length early to avoid cluster failing during provisioning due to this issue
+	if fullAlbServiceAccountName := fmt.Sprintf("eksctl-%s-addon-iamserviceaccount-kube-system-%s", cfg.ClusterName, cfg.AlbServiceAccountName); len(fullAlbServiceAccountName) > 128 {
+		makeup.ExitDueToFatalError(nil, fmt.Sprintf("Cluster name %s is too long, cluster name may not exceed %d characters.", cfg.ClusterName, 128-len("eksctl--addon-iamserviceaccount-kube-system-"+cfg.AlbServiceAccountName)))
+	}
+
 	awsLogger.Section("Configuration")
 	awsLogger.Printf("Klutch Role:                      %s", cfg.ClusterRole)
 	awsLogger.Printf("Klutch Tag Value:                 %s", klutchTagValue)
 	awsLogger.Printf("Resource Name Prefix:             %s", klutchNamePrefix)
 	awsLogger.Printf("Region:                           %s", cfg.Region)
 	awsLogger.Printf("Cluster Name:                     %s", cfg.ClusterName)
+	if cfg.ClusterRole != "Control Plane" {
+		autoBindControlPlane := opts.ControlPlaneToBindTo
+		if autoBindControlPlane == "" {
+			autoBindControlPlane = "<none given, using default value 'klutch-control-plane'>"
+		}
+		awsLogger.Printf("Control Plane Cluster to bind to: %s", autoBindControlPlane)
+	}
 	awsLogger.Printf("Nodegroup Name:                   %s", cfg.NodegroupName)
 	awsLogger.Printf("Node Instance Types:              %s", cfg.NodeInstanceTypes)
 	awsLogger.Printf("Nodegroup Scaling:                %s", cfg.NodeScalingConfig)
@@ -440,6 +465,7 @@ func provisionCluster(ctx context.Context, cfg Config, opts CreateOptions) {
 	vpcID := ""
 	if out, _, err := runCmd(ctx, "aws", "ec2", "describe-vpcs",
 		"--filters", fmt.Sprintf("Name=tag:%s,Values=%s", klutchTagKey, klutchTagValue),
+		fmt.Sprintf("Name=tag:Name,Values=%s", resourceName(cfg, "vpc")),
 		"--query", "Vpcs[0].VpcId",
 		"--output", "text"); err == nil && out != "None" && out != "null" {
 		vpcID = out
@@ -453,14 +479,14 @@ func provisionCluster(ctx context.Context, cfg Config, opts CreateOptions) {
 		vpcID = mustRun(ctx, "aws", "ec2", "create-vpc",
 			"--cidr-block", cfg.BaseCIDR,
 			"--query", "Vpc.VpcId", "--output", "text")
-		tagEC2Resource(ctx, vpcID, resourceName("vpc"))
+		tagEC2Resource(ctx, vpcID, resourceName(cfg, "vpc"))
 		awsLogger.Successf("Created VPC: %s", vpcID)
 	}
 
 	ensureClusterRole(ctx, cfg.ClusterRoleName)
 	ensureNodeRole(ctx, cfg.NodeRoleName)
 
-	keyArn := ensureKMSKey(ctx, cfg.Region, accountID, cfg.ClusterRoleName)
+	keyArn := ensureKMSKey(cfg, ctx, cfg.Region, accountID, cfg.ClusterRoleName)
 
 	ensureNetworking(ctx, cfg, vpcID)
 
@@ -572,7 +598,7 @@ func printCreatePlan(cfg Config) {
 			Title:   "KMS key for secret encryption",
 			Purpose: "Create and tag a KMS key so EKS can encrypt Kubernetes secrets at rest.",
 			Commands: []string{
-				fmt.Sprintf("aws kms create-key --description \"Encrypts secret data stored by the Klutch %s EKS cluster\" --query KeyMetadata.KeyId --output text --tags TagKey=Klutch,TagValue=%s TagKey=Name,TagValue=%s", roleLabel, klutchTagValue, resourceName("kms-key")),
+				fmt.Sprintf("aws kms create-key --description \"Encrypts secret data stored by the Klutch %s EKS cluster\" --query KeyMetadata.KeyId --output text --tags TagKey=Klutch,TagValue=%s TagKey=Name,TagValue=%s", roleLabel, klutchTagValue, resourceName(cfg, "kms-key")),
 				fmt.Sprintf("aws iam put-role-policy --role-name %s --policy-document file:///tmp/eks-kms-policy.json", cfg.ClusterRoleName),
 				fmt.Sprintf("aws kms tag-resource --key-id <kms-arn> --tags TagKey=%s,TagValue=%s TagKey=%s,TagValue=%s", clusterNameTagKey, cfg.ClusterName, clusterIDTagKey, clusterArnPlaceholder),
 			},
@@ -752,7 +778,7 @@ func ensureNodeRole(ctx context.Context, roleName string) {
 }
 
 func ensureTenantOperatorRole(ctx context.Context, cfg Config, accountID string) string {
-	roleName := resourceName("tenant-operator")
+	roleName := resourceName(cfg, "tenant-operator")
 	roleArn := fmt.Sprintf("arn:aws:iam::%s:role/%s", accountID, roleName)
 
 	awsLogger.Section("Tenant Operator IAM role")
@@ -889,15 +915,36 @@ func ensureTenantOperatorRole(ctx context.Context, cfg Config, accountID string)
 	return roleArn
 }
 
-func resolveKubectlContextForCluster(ctx context.Context, clusterName string) string {
-	out, err := k8s.Contexts(clusterName)
-	if err != nil {
-		return clusterName
+func resolveKubectlContextForCluster(ctx context.Context, cfg Config) string {
+	out, err := k8s.Contexts(cfg.ClusterName)
+	if err != nil || len(out) == 0 {
+		makeup.PrintWarning("Could retrieve contexts, falling back to guess " + cfg.ClusterName)
+		return cfg.ClusterName
 	}
-	if len(out) > 0 {
-		return out[0]
+
+	context := ""
+	id, err := getAccountID(ctx)
+	if err != nil || len(id) == 0 {
+		makeup.PrintWarning("Could not retrieve AWS Account ID for Kubecontext searching, falling back on RegEx")
+		id = `[0-9]+`
 	}
-	return clusterName
+	eksctlIoPattern := regexp.MustCompile(fmt.Sprintf(`[^@]+@[^@]+@%s\.%s\.eksctl\.io`, cfg.ClusterName, cfg.Region))
+	arnPattern := regexp.MustCompile(fmt.Sprintf("arn:aws:eks:%s:%s:cluster/%s", cfg.Region, id, cfg.ClusterName))
+	for _, line := range out {
+		if line == cfg.ClusterName ||
+			eksctlIoPattern.Match([]byte(line)) ||
+			arnPattern.Match([]byte(line)) {
+			context = line
+		}
+	}
+
+	if context != "" {
+		makeup.PrintSuccess("Found context " + context)
+		return context
+	}
+
+	makeup.PrintWarning("Could not find exact match for " + cfg.ClusterName + " via considered string comparisons, falling back to guess " + out[0])
+	return out[0]
 }
 
 // ApplyControlPlaneAddons installs AWS-side addons (tenant operator) onto an existing control-plane cluster.
@@ -944,7 +991,7 @@ func ApplyControlPlaneAddons(ctx context.Context, opts CreateOptions) {
 	// Ensure kubeconfig points to the cluster.
 	mustRun(ctx, "aws", "eks", "update-kubeconfig", "--region", cfg.Region, "--name", cfg.ClusterName)
 	// Switch kubectl context to the control-plane cluster so subsequent apply steps hit the right cluster.
-	cpCtx := resolveKubectlContextForCluster(ctx, cfg.ClusterName)
+	cpCtx := resolveKubectlContextForCluster(ctx, cfg)
 	if strings.TrimSpace(cpCtx) != "" {
 		if out, err := k8s.SwitchContext(cpCtx); err != nil {
 			makeup.ExitDueToFatalError(err, fmt.Sprintf("Failed to switch kubectl context to %s (continuing):\n: %s", cpCtx, out))
@@ -970,13 +1017,13 @@ func ApplyControlPlaneAddons(ctx context.Context, opts CreateOptions) {
 	awsLogger.Successf("Klutch control-plane addons applied to cluster %s.", cfg.ClusterName)
 }
 
-func ensureKMSKey(ctx context.Context, region, accountID, clusterRole string) string {
+func ensureKMSKey(cfg Config, ctx context.Context, region, accountID, clusterRole string) string {
 	keyID := os.Getenv("KEY_ID")
 	if keyID == "" {
 		awsLogger.Infof("Creating new KMS key for EKS secret encryption...")
 		tags := append([]string{
 			fmt.Sprintf("TagKey=%s,TagValue=%s", klutchTagKey, klutchTagValue),
-			fmt.Sprintf("TagKey=Name,TagValue=%s", resourceName("kms-key")),
+			fmt.Sprintf("TagKey=Name,TagValue=%s", resourceName(cfg, "kms-key")),
 		}, clusterTagPairsKMS()...)
 		args := []string{
 			"kms", "create-key",
@@ -1045,29 +1092,29 @@ func ensureNetworking(ctx context.Context, cfg Config, vpcID string) {
 		"--vpc-id", vpcID,
 		"--enable-dns-hostnames", "{\"Value\":true}")
 
-	igwID := ensureIGW(ctx, vpcID)
+	igwID := ensureIGW(cfg, ctx, vpcID)
 
-	pubA := ensureSubnet(ctx, vpcID, cfg.PubACIDR, cfg.Region+"a", resourceName("public-subnet-a"))
-	pubB := ensureSubnet(ctx, vpcID, cfg.PubBCIDR, cfg.Region+"b", resourceName("public-subnet-b"))
-	pubC := ensureSubnet(ctx, vpcID, cfg.PubCCIDR, cfg.Region+"c", resourceName("public-subnet-c"))
-	privA := ensureSubnet(ctx, vpcID, cfg.PrivACIDR, cfg.Region+"a", resourceName("private-subnet-a"))
-	privB := ensureSubnet(ctx, vpcID, cfg.PrivBCIDR, cfg.Region+"b", resourceName("private-subnet-b"))
-	privC := ensureSubnet(ctx, vpcID, cfg.PrivCCIDR, cfg.Region+"c", resourceName("private-subnet-c"))
+	pubA := ensureSubnet(ctx, vpcID, cfg.PubACIDR, cfg.Region+"a", resourceName(cfg, "public-subnet-a"))
+	pubB := ensureSubnet(ctx, vpcID, cfg.PubBCIDR, cfg.Region+"b", resourceName(cfg, "public-subnet-b"))
+	pubC := ensureSubnet(ctx, vpcID, cfg.PubCCIDR, cfg.Region+"c", resourceName(cfg, "public-subnet-c"))
+	privA := ensureSubnet(ctx, vpcID, cfg.PrivACIDR, cfg.Region+"a", resourceName(cfg, "private-subnet-a"))
+	privB := ensureSubnet(ctx, vpcID, cfg.PrivBCIDR, cfg.Region+"b", resourceName(cfg, "private-subnet-b"))
+	privC := ensureSubnet(ctx, vpcID, cfg.PrivCCIDR, cfg.Region+"c", resourceName(cfg, "private-subnet-c"))
 
 	awsLogger.Printf("PUBLIC SUBNETS:  %s, %s, %s", pubA, pubB, pubC)
 	awsLogger.Printf("PRIVATE SUBNETS: %s, %s, %s", privA, privB, privC)
 
-	publicRT := ensurePublicRouteTable(ctx, vpcID, igwID, []string{pubA, pubB, pubC})
+	publicRT := ensurePublicRouteTable(cfg, ctx, vpcID, igwID, []string{pubA, pubB, pubC})
 
-	natA, natB, natC := ensureNATs(ctx, vpcID, pubA, pubB, pubC)
+	natA, natB, natC := ensureNATs(cfg, ctx, vpcID, pubA, pubB, pubC)
 
-	privRTA := ensurePrivateRT(ctx, vpcID, privA, natA, resourceName("private-route-table-a"))
-	privRTB := ensurePrivateRT(ctx, vpcID, privB, natB, resourceName("private-route-table-b"))
-	privRTC := ensurePrivateRT(ctx, vpcID, privC, natC, resourceName("private-route-table-c"))
+	privRTA := ensurePrivateRT(ctx, vpcID, privA, natA, resourceName(cfg, "private-route-table-a"))
+	privRTB := ensurePrivateRT(ctx, vpcID, privB, natB, resourceName(cfg, "private-route-table-b"))
+	privRTC := ensurePrivateRT(ctx, vpcID, privC, natC, resourceName(cfg, "private-route-table-c"))
 	_ = publicRT
 	awsLogger.Printf("PRIVATE ROUTE TABLES: %s, %s, %s", privRTA, privRTB, privRTC)
 
-	ensureSecurityGroup(ctx, vpcID, cfg.ControlPlaneSGName)
+	ensureSecurityGroup(cfg, ctx, vpcID, cfg.ControlPlaneSGName)
 }
 
 // deriveBindURLFromCluster tries to read the control-plane info ConfigMap to build a bind URL.
@@ -1137,7 +1184,7 @@ func populateTenantOperatorDefaults(ctx context.Context, cfg *Config) {
 	}
 }
 
-func ensureIGW(ctx context.Context, vpcID string) string {
+func ensureIGW(cfg Config, ctx context.Context, vpcID string) string {
 	awsLogger.Infof("Checking for existing Internet Gateway attached to VPC %s...", vpcID)
 	igwID, _, _ := runCmd(ctx, "aws", "ec2", "describe-internet-gateways",
 		"--filters", "Name=attachment.vpc-id,Values="+vpcID,
@@ -1148,7 +1195,7 @@ func ensureIGW(ctx context.Context, vpcID string) string {
 		igwID = mustRun(ctx, "aws", "ec2", "create-internet-gateway",
 			"--query", "InternetGateway.InternetGatewayId",
 			"--output", "text")
-		tagEC2Resource(ctx, igwID, resourceName("internet-gateway"))
+		tagEC2Resource(ctx, igwID, resourceName(cfg, "internet-gateway"))
 		mustRun(ctx, "aws", "ec2", "attach-internet-gateway",
 			"--internet-gateway-id", igwID,
 			"--vpc-id", vpcID)
@@ -1179,7 +1226,7 @@ func ensureSubnet(ctx context.Context, vpcID, cidr, az, name string) string {
 	return out
 }
 
-func ensurePublicRouteTable(ctx context.Context, vpcID, igwID string, pubSubnets []string) string {
+func ensurePublicRouteTable(cfg Config, ctx context.Context, vpcID, igwID string, pubSubnets []string) string {
 	awsLogger.Infof("Checking for existing public route table...")
 	rtID, _, _ := runCmd(ctx, "aws", "ec2", "describe-route-tables",
 		"--filters", "Name=vpc-id,Values="+vpcID,
@@ -1191,7 +1238,7 @@ func ensurePublicRouteTable(ctx context.Context, vpcID, igwID string, pubSubnets
 			"--vpc-id", vpcID,
 			"--query", "RouteTable.RouteTableId",
 			"--output", "text")
-		tagEC2Resource(ctx, rtID, resourceName("public-route-table"))
+		tagEC2Resource(ctx, rtID, resourceName(cfg, "public-route-table"))
 		mustRun(ctx, "aws", "ec2", "create-route",
 			"--route-table-id", rtID,
 			"--destination-cidr-block", "0.0.0.0/0",
@@ -1241,7 +1288,7 @@ func ensureElasticIPQuota(ctx context.Context, required int) {
 	awsLogger.Successf("Elastic IP quota is sufficient.")
 }
 
-func ensureNATs(ctx context.Context, vpcID, pubA, pubB, pubC string) (string, string, string) {
+func ensureNATs(cfg Config, ctx context.Context, vpcID, pubA, pubB, pubC string) (string, string, string) {
 	awsLogger.Infof("Ensuring NAT Gateways exist...")
 	createdNewNats := false
 	natSubnets := map[string]string{"a": pubA, "b": pubB, "c": pubC}
@@ -1266,7 +1313,7 @@ func ensureNATs(ctx context.Context, vpcID, pubA, pubB, pubC string) (string, st
 	for zone, subnet := range natSubnets {
 		if natIDs[zone] != "" {
 			awsLogger.Successf("Reusing NAT Gateway: %s", natIDs[zone])
-			tagExistingNatResources(ctx, natIDs[zone], zone)
+			tagExistingNatResources(cfg, ctx, natIDs[zone], zone)
 			continue
 		}
 		awsLogger.Infof("Creating NAT Gateway in subnet %s...", subnet)
@@ -1274,13 +1321,13 @@ func ensureNATs(ctx context.Context, vpcID, pubA, pubB, pubC string) (string, st
 			"--domain", "vpc",
 			"--query", "AllocationId",
 			"--output", "text")
-		tagEC2Resource(ctx, alloc, resourceName("nat-eip", zone))
+		tagEC2Resource(ctx, alloc, resourceName(cfg, "nat-eip", zone))
 		natID := mustRun(ctx, "aws", "ec2", "create-nat-gateway",
 			"--subnet-id", subnet,
 			"--allocation-id", alloc,
 			"--query", "NatGateway.NatGatewayId",
 			"--output", "text")
-		tagEC2Resource(ctx, natID, resourceName("nat-gateway", zone))
+		tagEC2Resource(ctx, natID, resourceName(cfg, "nat-gateway", zone))
 		natIDs[zone] = natID
 		createdNewNats = true
 	}
@@ -1295,8 +1342,8 @@ func ensureNATs(ctx context.Context, vpcID, pubA, pubB, pubC string) (string, st
 	return natIDs["a"], natIDs["b"], natIDs["c"]
 }
 
-func tagExistingNatResources(ctx context.Context, natID, label string) {
-	tagEC2Resource(ctx, natID, resourceName("nat-gateway", label))
+func tagExistingNatResources(cfg Config, ctx context.Context, natID, label string) {
+	tagEC2Resource(ctx, natID, resourceName(cfg, "nat-gateway", label))
 	allocs, errOut, err := runCmd(ctx, "aws", "ec2", "describe-nat-gateways",
 		"--nat-gateway-ids", natID,
 		"--query", "NatGateways[].NatGatewayAddresses[].AllocationId",
@@ -1310,7 +1357,7 @@ func tagExistingNatResources(ctx context.Context, natID, label string) {
 		return
 	}
 	for _, alloc := range strings.Fields(allocs) {
-		tagEC2Resource(ctx, alloc, resourceName("nat-eip", label))
+		tagEC2Resource(ctx, alloc, resourceName(cfg, "nat-eip", label))
 	}
 }
 
@@ -1339,7 +1386,7 @@ func ensurePrivateRT(ctx context.Context, vpcID, privSubnet, natID, name string)
 	return rtID
 }
 
-func ensureSecurityGroup(ctx context.Context, vpcID, sgName string) string {
+func ensureSecurityGroup(cfg Config, ctx context.Context, vpcID, sgName string) string {
 	awsLogger.Infof("Ensuring security group exists...")
 	sgID, _, _ := runCmd(ctx, "aws", "ec2", "describe-security-groups",
 		"--filters",
@@ -1354,7 +1401,7 @@ func ensureSecurityGroup(ctx context.Context, vpcID, sgName string) string {
 			"--vpc-id", vpcID,
 			"--query", "GroupId",
 			"--output", "text")
-		tagEC2Resource(ctx, sgID, resourceName("security-group"))
+		tagEC2Resource(ctx, sgID, resourceName(cfg, "security-group"))
 		awsLogger.Successf("Created security group: %s", sgID)
 	} else {
 		awsLogger.Successf("Reusing security group: %s", sgID)
@@ -1607,7 +1654,7 @@ func ensureALBController(ctx context.Context, cfg Config, vpcID, accountID strin
 	mustRun(ctx, "eksctl", "create", "iamserviceaccount",
 		"--cluster", cfg.ClusterName,
 		"--namespace", "kube-system",
-		"--name", "aws-load-balancer-controller",
+		"--name", cfg.AlbServiceAccountName,
 		"--attach-policy-arn", policyArn,
 		"--region", cfg.Region,
 		"--approve",
@@ -1621,19 +1668,19 @@ func ensureALBController(ctx context.Context, cfg Config, vpcID, accountID strin
 	mustRun(ctx, "helm", "repo", "update")
 
 	args := []string{
-		"upgrade", "--install", "aws-load-balancer-controller", "eks/aws-load-balancer-controller",
+		"upgrade", "--install", cfg.AlbServiceAccountName, "eks/aws-load-balancer-controller",
 		"-n", "kube-system",
 		"--set", "clusterName=" + cfg.ClusterName,
 		"--set", "region=" + cfg.Region,
 		"--set", "vpcId=" + vpcID,
 		"--set", "serviceAccount.create=false",
-		"--set", "serviceAccount.name=aws-load-balancer-controller",
+		"--set", "serviceAccount.name=" + cfg.AlbServiceAccountName,
 	}
 	mustRun(ctx, "helm", args...)
 
 	// Re-attach the managed policy to the role derived from the service account annotation
 	// to ensure the controller has the updated permissions.
-	roleName := getALBControllerRoleName(ctx)
+	roleName := getALBControllerRoleName(ctx, cfg)
 	if roleName != "" {
 		awsLogger.Infof("Attaching managed policy %s to role %s to ensure ALB controller permissions are present...", cfg.ALBControllerPolicyName, roleName)
 		if _, errOut, err := runCmd(ctx, "aws", "iam", "attach-role-policy",
@@ -1648,13 +1695,13 @@ func ensureALBController(ctx context.Context, cfg Config, vpcID, accountID strin
 	k8sClient := k8s.NewKubeClient("")
 
 	awsLogger.Infof("Waiting for aws-load-balancer-controller deployment rollout...")
-	if errOut, err := k8sClient.RolloutStatus("deployment", "aws-load-balancer-controller", "kube-system", ""); err != nil {
+	if errOut, err := k8sClient.RolloutStatus("deployment", cfg.AlbServiceAccountName, "kube-system", ""); err != nil {
 		awsLogger.Fatalf(err, "❌ ALB controller rollout failed\nstderr: %s", errOut)
 	}
 	awsLogger.Successf("aws-load-balancer-controller deployment is ready.")
 }
 
-func getALBControllerRoleName(ctx context.Context) string {
+func getALBControllerRoleName(ctx context.Context, cfg Config) string {
 	type sa struct {
 		Metadata struct {
 			Annotations map[string]string `json:"annotations"`
@@ -1662,7 +1709,7 @@ func getALBControllerRoleName(ctx context.Context) string {
 	}
 
 	k8sClient := k8s.NewKubeClient("")
-	out, err := k8sClient.Get("sa", "aws-load-balancer-controller", "kube-system", "json", false)
+	out, err := k8sClient.Get("sa", cfg.AlbServiceAccountName, "kube-system", "json", false)
 	if err != nil {
 		awsLogger.Warningf("Could not fetch service account to derive role name: %v\nstderr: %s", err, out)
 		return ""
