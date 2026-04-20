@@ -17,7 +17,7 @@ func TestFindKlutchVPCUsesRegion(t *testing.T) {
 		return "vpc-123", "", nil
 	}
 
-	vpcID := findKlutchVPC(context.Background(), "eu-central-1")
+	vpcID := findKlutchVPC(Config{}, context.Background(), "eu-central-1")
 	if vpcID != "vpc-123" {
 		t.Fatalf("expected vpc-123, got %q", vpcID)
 	}

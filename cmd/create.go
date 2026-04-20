@@ -45,6 +45,8 @@ var createKlutchTenantForce bool
 var createKlutchTenantTokenURL string
 var createKlutchTenantBindURL string
 var createKlutchTenantBindRequestFile string
+var createKlutchWorkloadAutobindControlPlaneName string
+
 var createKlutchWorkloadTenantName string
 var createKlutchWorkloadTenantSecretName string
 var createKlutchWorkloadTenantRegion string
@@ -414,8 +416,6 @@ var cmdCreateClusterKlutchTenant = &cobra.Command{
 			makeup.ExitDueToFatalError(err, "Failed to render Tenant manifest.")
 		}
 
-		makeup.PrintInfo(fmt.Sprintf("Applying Tenant %s to namespace %s...", createKlutchTenantName, ns))
-
 		// Use the kubectl client to apply the manifest
 		k8sClient := k8s.NewKubeClient("")
 		if _, err := k8sClient.ApplyWithPrompt(yamlBytes, fmt.Sprintf("Tenant %s", createKlutchTenantName)); err != nil {
@@ -431,12 +431,15 @@ var cmdCreateClusterKlutchWorkload = &cobra.Command{
 	Short: "Create a Klutch workload cluster (EKS).",
 	Long:  `Creates a Klutch workload cluster on the selected provider. Currently only AWS is supported.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		opts := klutchaws.CreateOptions{DryRun: createKlutchDryRun}
-		opts.NodeInstanceTypes = strings.TrimSpace(createKlutchNodeType)
-		opts.NodeCount = createKlutchNodes
+		opts := klutchaws.CreateOptions{
+			DryRun:               createKlutchDryRun,
+			NodeInstanceTypes:    strings.TrimSpace(createKlutchNodeType),
+			NodeCount:            createKlutchNodes,
+			ControlPlaneToBindTo: createKlutchWorkloadAutobindControlPlaneName,
+		}
 		var tenantConn *klutchaws.OIDCConnection
 		var tenantBindRequest []byte
-
+		var tenantSecretName string
 		if cmd.Flags().Changed("cluster-name") {
 			opts.ClusterName = strings.TrimSpace(demo.DemoClusterName)
 		} else if envName := strings.TrimSpace(os.Getenv("WORKLOAD_CLUSTER_NAME")); envName != "" {
@@ -452,10 +455,10 @@ var cmdCreateClusterKlutchWorkload = &cobra.Command{
 			if region == "" {
 				region = klutchaws.ControlPlaneDefaultRegion()
 			}
-			secretName := klutchaws.TenantSecretName(createKlutchWorkloadTenantName, createKlutchWorkloadTenantSecretName)
-			conn, err := klutchaws.GetTenantCredentials(context.Background(), region, secretName)
+			tenantSecretName = klutchaws.TenantSecretName(createKlutchWorkloadTenantName, createKlutchWorkloadTenantSecretName)
+			conn, err := klutchaws.GetTenantCredentials(context.Background(), region, tenantSecretName)
 			if err != nil {
-				makeup.ExitDueToFatalError(err, fmt.Sprintf("Failed to load tenant secret %s in %s", secretName, region))
+				makeup.ExitDueToFatalError(err, fmt.Sprintf("Failed to load tenant secret %s in %s", tenantSecretName, region))
 			}
 			if strings.TrimSpace(conn.BindURL) == "" {
 				makeup.ExitDueToFatalError(nil, "Tenant secret is missing bind_url. Provide a tenant with bind_url or recreate the tenant.")
@@ -498,10 +501,10 @@ var cmdCreateClusterKlutchWorkload = &cobra.Command{
 				WorkloadKubeconfigPath:  "",
 				WorkloadContext:         "",
 				BindRequestData:         tenantBindRequest,
-				ControlPlaneClusterName: klutch.DefaultControlPlaneClusterName,
+				ControlPlaneClusterName: createKlutchWorkloadAutobindControlPlaneName,
 			}
 
-			makeup.PrintInfo("Auto-binding workload cluster using tenant credentials...")
+			makeup.PrintInfo(fmt.Sprintf("Auto-binding workload cluster %s to control plane cluster %s using credentials from tenant secret %s...", opts.ClusterName, bindOpts.ControlPlaneClusterName, tenantSecretName))
 			if err := klutch.NonInteractiveBind(context.Background(), bindOpts); err != nil {
 				makeup.ExitDueToFatalError(err, "Failed to bind workload cluster.")
 			}
@@ -669,6 +672,7 @@ func init() {
 	cmdCreateClusterKlutchWorkload.Flags().StringVar(&createKlutchWorkloadTenantRegion, "tenant-region", "", "AWS region for the tenant secret (defaults to CONTROL_PLANE_CLUSTER_REGION or eu-central-1).")
 	cmdCreateClusterKlutchWorkload.Flags().StringVar(&createKlutchWorkloadBindRequestFile, "bind-request-file", "", "Optional bind request JSON to override the tenant's stored bind request.")
 	cmdCreateClusterKlutchWorkload.Flags().StringVar(&createKlutchNodeType, "eks-node-type", "t3a.xlarge", "Instance type for EKS nodegroups.")
+	cmdCreateClusterKlutchWorkload.Flags().StringVar(&createKlutchWorkloadAutobindControlPlaneName, "control-plane-cluster", "", "Control plane cluster name for CA lookup (defaults to klutch-control-plane).")
 	cmdCreateClusterKlutchWorkload.Flags().IntVar(&createKlutchNodes, "eks-nodes", 3, "Number of worker nodes (sets min/max/desired to this value).")
 
 	cmdCreateCluster.AddCommand(cmdCreateClusterA8s)

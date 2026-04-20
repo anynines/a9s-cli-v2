@@ -58,6 +58,8 @@ type CreateOptions struct {
 	DryRun bool
 	// ClusterName overrides the default name if set (used by workload clusters).
 	ClusterName string
+	// ControlPlaneToBindTo contains the name of the Control Plane to bind to when creating a Workload Cluster
+	ControlPlaneToBindTo string
 	// Node overrides for control-plane/workload clusters.
 	NodeInstanceTypes string
 	NodeCount         int
@@ -158,8 +160,8 @@ func RandomWorkloadClusterName() string {
 	return fmt.Sprintf("klutch-workload-cluster-%s", hex.EncodeToString(buf))
 }
 
-func resourceName(parts ...string) string {
-	return fmt.Sprintf("%s-%s", klutchNamePrefix, strings.Join(parts, "-"))
+func resourceName(cfg Config, parts ...string) string {
+	return fmt.Sprintf("%s-%s", cfg.ResourceNamePrefix, strings.Join(parts, "-"))
 }
 
 func setClusterTagContext(name, arn string) {
@@ -392,6 +394,13 @@ func provisionCluster(ctx context.Context, cfg Config, opts CreateOptions) {
 	awsLogger.Printf("Resource Name Prefix:             %s", klutchNamePrefix)
 	awsLogger.Printf("Region:                           %s", cfg.Region)
 	awsLogger.Printf("Cluster Name:                     %s", cfg.ClusterName)
+	if cfg.ClusterRole != "Control Plane" {
+		autoBindControlPlane := opts.ControlPlaneToBindTo
+		if autoBindControlPlane == "" {
+			autoBindControlPlane = "<none given, using default value 'klutch-control-plane'>"
+		}
+		awsLogger.Printf("Control Plane Cluster to bind to: %s", autoBindControlPlane)
+	}
 	awsLogger.Printf("Nodegroup Name:                   %s", cfg.NodegroupName)
 	awsLogger.Printf("Node Instance Types:              %s", cfg.NodeInstanceTypes)
 	awsLogger.Printf("Nodegroup Scaling:                %s", cfg.NodeScalingConfig)
@@ -456,7 +465,7 @@ func provisionCluster(ctx context.Context, cfg Config, opts CreateOptions) {
 	vpcID := ""
 	if out, _, err := runCmd(ctx, "aws", "ec2", "describe-vpcs",
 		"--filters", fmt.Sprintf("Name=tag:%s,Values=%s", klutchTagKey, klutchTagValue),
-		fmt.Sprintf("Name=tag:Name,Values=%s", resourceName("vpc")),
+		fmt.Sprintf("Name=tag:Name,Values=%s", resourceName(cfg, "vpc")),
 		"--query", "Vpcs[0].VpcId",
 		"--output", "text"); err == nil && out != "None" && out != "null" {
 		vpcID = out
@@ -470,14 +479,14 @@ func provisionCluster(ctx context.Context, cfg Config, opts CreateOptions) {
 		vpcID = mustRun(ctx, "aws", "ec2", "create-vpc",
 			"--cidr-block", cfg.BaseCIDR,
 			"--query", "Vpc.VpcId", "--output", "text")
-		tagEC2Resource(ctx, vpcID, resourceName("vpc"))
+		tagEC2Resource(ctx, vpcID, resourceName(cfg, "vpc"))
 		awsLogger.Successf("Created VPC: %s", vpcID)
 	}
 
 	ensureClusterRole(ctx, cfg.ClusterRoleName)
 	ensureNodeRole(ctx, cfg.NodeRoleName)
 
-	keyArn := ensureKMSKey(ctx, cfg.Region, accountID, cfg.ClusterRoleName)
+	keyArn := ensureKMSKey(cfg, ctx, cfg.Region, accountID, cfg.ClusterRoleName)
 
 	ensureNetworking(ctx, cfg, vpcID)
 
@@ -589,7 +598,7 @@ func printCreatePlan(cfg Config) {
 			Title:   "KMS key for secret encryption",
 			Purpose: "Create and tag a KMS key so EKS can encrypt Kubernetes secrets at rest.",
 			Commands: []string{
-				fmt.Sprintf("aws kms create-key --description \"Encrypts secret data stored by the Klutch %s EKS cluster\" --query KeyMetadata.KeyId --output text --tags TagKey=Klutch,TagValue=%s TagKey=Name,TagValue=%s", roleLabel, klutchTagValue, resourceName("kms-key")),
+				fmt.Sprintf("aws kms create-key --description \"Encrypts secret data stored by the Klutch %s EKS cluster\" --query KeyMetadata.KeyId --output text --tags TagKey=Klutch,TagValue=%s TagKey=Name,TagValue=%s", roleLabel, klutchTagValue, resourceName(cfg, "kms-key")),
 				fmt.Sprintf("aws iam put-role-policy --role-name %s --policy-document file:///tmp/eks-kms-policy.json", cfg.ClusterRoleName),
 				fmt.Sprintf("aws kms tag-resource --key-id <kms-arn> --tags TagKey=%s,TagValue=%s TagKey=%s,TagValue=%s", clusterNameTagKey, cfg.ClusterName, clusterIDTagKey, clusterArnPlaceholder),
 			},
@@ -769,7 +778,7 @@ func ensureNodeRole(ctx context.Context, roleName string) {
 }
 
 func ensureTenantOperatorRole(ctx context.Context, cfg Config, accountID string) string {
-	roleName := resourceName("tenant-operator")
+	roleName := resourceName(cfg, "tenant-operator")
 	roleArn := fmt.Sprintf("arn:aws:iam::%s:role/%s", accountID, roleName)
 
 	awsLogger.Section("Tenant Operator IAM role")
@@ -906,7 +915,7 @@ func ensureTenantOperatorRole(ctx context.Context, cfg Config, accountID string)
 	return roleArn
 }
 
-func resolveKubectlContextForCluster(cfg Config) string {
+func resolveKubectlContextForCluster(ctx context.Context, cfg Config) string {
 	out, err := k8s.Contexts(cfg.ClusterName)
 	if err != nil || len(out) == 0 {
 		makeup.PrintWarning("Could retrieve contexts, falling back to guess " + cfg.ClusterName)
@@ -914,14 +923,17 @@ func resolveKubectlContextForCluster(cfg Config) string {
 	}
 
 	context := ""
-	for _, line := range out {
-		if line == cfg.ClusterName {
-			context = line
-		}
-		if line == fmt.Sprintf("arn:aws:eks:eu-central-1:378836732719:cluster/%s", cfg.ClusterName) {
-			context = line
+	id, err := getAccountID(ctx)
+	if err != nil || len(id) == 0 {
+		makeup.PrintWarning("Could not retrieve AWS Account ID for Kubecontext searching, falling back on RegEx")
+		id = `[0-9]+`
 	}
-		if strings.HasSuffix(line, fmt.Sprintf("@%s.%s.eksctl.io", cfg.ClusterName, cfg.Region)) {
+	eksctlIoPattern := regexp.MustCompile(fmt.Sprintf(`[^@]+@[^@]+@%s\.%s\.eksctl\.io`, cfg.ClusterName, cfg.Region))
+	arnPattern := regexp.MustCompile(fmt.Sprintf("arn:aws:eks:%s:%s:cluster/%s", cfg.Region, id, cfg.ClusterName))
+	for _, line := range out {
+		if line == cfg.ClusterName ||
+			eksctlIoPattern.Match([]byte(line)) ||
+			arnPattern.Match([]byte(line)) {
 			context = line
 		}
 	}
@@ -979,7 +991,7 @@ func ApplyControlPlaneAddons(ctx context.Context, opts CreateOptions) {
 	// Ensure kubeconfig points to the cluster.
 	mustRun(ctx, "aws", "eks", "update-kubeconfig", "--region", cfg.Region, "--name", cfg.ClusterName)
 	// Switch kubectl context to the control-plane cluster so subsequent apply steps hit the right cluster.
-	cpCtx := resolveKubectlContextForCluster(cfg)
+	cpCtx := resolveKubectlContextForCluster(ctx, cfg)
 	if strings.TrimSpace(cpCtx) != "" {
 		if out, err := k8s.SwitchContext(cpCtx); err != nil {
 			makeup.ExitDueToFatalError(err, fmt.Sprintf("Failed to switch kubectl context to %s (continuing):\n: %s", cpCtx, out))
@@ -1005,13 +1017,13 @@ func ApplyControlPlaneAddons(ctx context.Context, opts CreateOptions) {
 	awsLogger.Successf("Klutch control-plane addons applied to cluster %s.", cfg.ClusterName)
 }
 
-func ensureKMSKey(ctx context.Context, region, accountID, clusterRole string) string {
+func ensureKMSKey(cfg Config, ctx context.Context, region, accountID, clusterRole string) string {
 	keyID := os.Getenv("KEY_ID")
 	if keyID == "" {
 		awsLogger.Infof("Creating new KMS key for EKS secret encryption...")
 		tags := append([]string{
 			fmt.Sprintf("TagKey=%s,TagValue=%s", klutchTagKey, klutchTagValue),
-			fmt.Sprintf("TagKey=Name,TagValue=%s", resourceName("kms-key")),
+			fmt.Sprintf("TagKey=Name,TagValue=%s", resourceName(cfg, "kms-key")),
 		}, clusterTagPairsKMS()...)
 		args := []string{
 			"kms", "create-key",
@@ -1080,29 +1092,29 @@ func ensureNetworking(ctx context.Context, cfg Config, vpcID string) {
 		"--vpc-id", vpcID,
 		"--enable-dns-hostnames", "{\"Value\":true}")
 
-	igwID := ensureIGW(ctx, vpcID)
+	igwID := ensureIGW(cfg, ctx, vpcID)
 
-	pubA := ensureSubnet(ctx, vpcID, cfg.PubACIDR, cfg.Region+"a", resourceName("public-subnet-a"))
-	pubB := ensureSubnet(ctx, vpcID, cfg.PubBCIDR, cfg.Region+"b", resourceName("public-subnet-b"))
-	pubC := ensureSubnet(ctx, vpcID, cfg.PubCCIDR, cfg.Region+"c", resourceName("public-subnet-c"))
-	privA := ensureSubnet(ctx, vpcID, cfg.PrivACIDR, cfg.Region+"a", resourceName("private-subnet-a"))
-	privB := ensureSubnet(ctx, vpcID, cfg.PrivBCIDR, cfg.Region+"b", resourceName("private-subnet-b"))
-	privC := ensureSubnet(ctx, vpcID, cfg.PrivCCIDR, cfg.Region+"c", resourceName("private-subnet-c"))
+	pubA := ensureSubnet(ctx, vpcID, cfg.PubACIDR, cfg.Region+"a", resourceName(cfg, "public-subnet-a"))
+	pubB := ensureSubnet(ctx, vpcID, cfg.PubBCIDR, cfg.Region+"b", resourceName(cfg, "public-subnet-b"))
+	pubC := ensureSubnet(ctx, vpcID, cfg.PubCCIDR, cfg.Region+"c", resourceName(cfg, "public-subnet-c"))
+	privA := ensureSubnet(ctx, vpcID, cfg.PrivACIDR, cfg.Region+"a", resourceName(cfg, "private-subnet-a"))
+	privB := ensureSubnet(ctx, vpcID, cfg.PrivBCIDR, cfg.Region+"b", resourceName(cfg, "private-subnet-b"))
+	privC := ensureSubnet(ctx, vpcID, cfg.PrivCCIDR, cfg.Region+"c", resourceName(cfg, "private-subnet-c"))
 
 	awsLogger.Printf("PUBLIC SUBNETS:  %s, %s, %s", pubA, pubB, pubC)
 	awsLogger.Printf("PRIVATE SUBNETS: %s, %s, %s", privA, privB, privC)
 
-	publicRT := ensurePublicRouteTable(ctx, vpcID, igwID, []string{pubA, pubB, pubC})
+	publicRT := ensurePublicRouteTable(cfg, ctx, vpcID, igwID, []string{pubA, pubB, pubC})
 
-	natA, natB, natC := ensureNATs(ctx, vpcID, pubA, pubB, pubC)
+	natA, natB, natC := ensureNATs(cfg, ctx, vpcID, pubA, pubB, pubC)
 
-	privRTA := ensurePrivateRT(ctx, vpcID, privA, natA, resourceName("private-route-table-a"))
-	privRTB := ensurePrivateRT(ctx, vpcID, privB, natB, resourceName("private-route-table-b"))
-	privRTC := ensurePrivateRT(ctx, vpcID, privC, natC, resourceName("private-route-table-c"))
+	privRTA := ensurePrivateRT(ctx, vpcID, privA, natA, resourceName(cfg, "private-route-table-a"))
+	privRTB := ensurePrivateRT(ctx, vpcID, privB, natB, resourceName(cfg, "private-route-table-b"))
+	privRTC := ensurePrivateRT(ctx, vpcID, privC, natC, resourceName(cfg, "private-route-table-c"))
 	_ = publicRT
 	awsLogger.Printf("PRIVATE ROUTE TABLES: %s, %s, %s", privRTA, privRTB, privRTC)
 
-	ensureSecurityGroup(ctx, vpcID, cfg.ControlPlaneSGName)
+	ensureSecurityGroup(cfg, ctx, vpcID, cfg.ControlPlaneSGName)
 }
 
 // deriveBindURLFromCluster tries to read the control-plane info ConfigMap to build a bind URL.
@@ -1172,7 +1184,7 @@ func populateTenantOperatorDefaults(ctx context.Context, cfg *Config) {
 	}
 }
 
-func ensureIGW(ctx context.Context, vpcID string) string {
+func ensureIGW(cfg Config, ctx context.Context, vpcID string) string {
 	awsLogger.Infof("Checking for existing Internet Gateway attached to VPC %s...", vpcID)
 	igwID, _, _ := runCmd(ctx, "aws", "ec2", "describe-internet-gateways",
 		"--filters", "Name=attachment.vpc-id,Values="+vpcID,
@@ -1183,7 +1195,7 @@ func ensureIGW(ctx context.Context, vpcID string) string {
 		igwID = mustRun(ctx, "aws", "ec2", "create-internet-gateway",
 			"--query", "InternetGateway.InternetGatewayId",
 			"--output", "text")
-		tagEC2Resource(ctx, igwID, resourceName("internet-gateway"))
+		tagEC2Resource(ctx, igwID, resourceName(cfg, "internet-gateway"))
 		mustRun(ctx, "aws", "ec2", "attach-internet-gateway",
 			"--internet-gateway-id", igwID,
 			"--vpc-id", vpcID)
@@ -1214,7 +1226,7 @@ func ensureSubnet(ctx context.Context, vpcID, cidr, az, name string) string {
 	return out
 }
 
-func ensurePublicRouteTable(ctx context.Context, vpcID, igwID string, pubSubnets []string) string {
+func ensurePublicRouteTable(cfg Config, ctx context.Context, vpcID, igwID string, pubSubnets []string) string {
 	awsLogger.Infof("Checking for existing public route table...")
 	rtID, _, _ := runCmd(ctx, "aws", "ec2", "describe-route-tables",
 		"--filters", "Name=vpc-id,Values="+vpcID,
@@ -1226,7 +1238,7 @@ func ensurePublicRouteTable(ctx context.Context, vpcID, igwID string, pubSubnets
 			"--vpc-id", vpcID,
 			"--query", "RouteTable.RouteTableId",
 			"--output", "text")
-		tagEC2Resource(ctx, rtID, resourceName("public-route-table"))
+		tagEC2Resource(ctx, rtID, resourceName(cfg, "public-route-table"))
 		mustRun(ctx, "aws", "ec2", "create-route",
 			"--route-table-id", rtID,
 			"--destination-cidr-block", "0.0.0.0/0",
@@ -1276,7 +1288,7 @@ func ensureElasticIPQuota(ctx context.Context, required int) {
 	awsLogger.Successf("Elastic IP quota is sufficient.")
 }
 
-func ensureNATs(ctx context.Context, vpcID, pubA, pubB, pubC string) (string, string, string) {
+func ensureNATs(cfg Config, ctx context.Context, vpcID, pubA, pubB, pubC string) (string, string, string) {
 	awsLogger.Infof("Ensuring NAT Gateways exist...")
 	createdNewNats := false
 	natSubnets := map[string]string{"a": pubA, "b": pubB, "c": pubC}
@@ -1301,7 +1313,7 @@ func ensureNATs(ctx context.Context, vpcID, pubA, pubB, pubC string) (string, st
 	for zone, subnet := range natSubnets {
 		if natIDs[zone] != "" {
 			awsLogger.Successf("Reusing NAT Gateway: %s", natIDs[zone])
-			tagExistingNatResources(ctx, natIDs[zone], zone)
+			tagExistingNatResources(cfg, ctx, natIDs[zone], zone)
 			continue
 		}
 		awsLogger.Infof("Creating NAT Gateway in subnet %s...", subnet)
@@ -1309,13 +1321,13 @@ func ensureNATs(ctx context.Context, vpcID, pubA, pubB, pubC string) (string, st
 			"--domain", "vpc",
 			"--query", "AllocationId",
 			"--output", "text")
-		tagEC2Resource(ctx, alloc, resourceName("nat-eip", zone))
+		tagEC2Resource(ctx, alloc, resourceName(cfg, "nat-eip", zone))
 		natID := mustRun(ctx, "aws", "ec2", "create-nat-gateway",
 			"--subnet-id", subnet,
 			"--allocation-id", alloc,
 			"--query", "NatGateway.NatGatewayId",
 			"--output", "text")
-		tagEC2Resource(ctx, natID, resourceName("nat-gateway", zone))
+		tagEC2Resource(ctx, natID, resourceName(cfg, "nat-gateway", zone))
 		natIDs[zone] = natID
 		createdNewNats = true
 	}
@@ -1330,8 +1342,8 @@ func ensureNATs(ctx context.Context, vpcID, pubA, pubB, pubC string) (string, st
 	return natIDs["a"], natIDs["b"], natIDs["c"]
 }
 
-func tagExistingNatResources(ctx context.Context, natID, label string) {
-	tagEC2Resource(ctx, natID, resourceName("nat-gateway", label))
+func tagExistingNatResources(cfg Config, ctx context.Context, natID, label string) {
+	tagEC2Resource(ctx, natID, resourceName(cfg, "nat-gateway", label))
 	allocs, errOut, err := runCmd(ctx, "aws", "ec2", "describe-nat-gateways",
 		"--nat-gateway-ids", natID,
 		"--query", "NatGateways[].NatGatewayAddresses[].AllocationId",
@@ -1345,7 +1357,7 @@ func tagExistingNatResources(ctx context.Context, natID, label string) {
 		return
 	}
 	for _, alloc := range strings.Fields(allocs) {
-		tagEC2Resource(ctx, alloc, resourceName("nat-eip", label))
+		tagEC2Resource(ctx, alloc, resourceName(cfg, "nat-eip", label))
 	}
 }
 
@@ -1374,7 +1386,7 @@ func ensurePrivateRT(ctx context.Context, vpcID, privSubnet, natID, name string)
 	return rtID
 }
 
-func ensureSecurityGroup(ctx context.Context, vpcID, sgName string) string {
+func ensureSecurityGroup(cfg Config, ctx context.Context, vpcID, sgName string) string {
 	awsLogger.Infof("Ensuring security group exists...")
 	sgID, _, _ := runCmd(ctx, "aws", "ec2", "describe-security-groups",
 		"--filters",
@@ -1389,7 +1401,7 @@ func ensureSecurityGroup(ctx context.Context, vpcID, sgName string) string {
 			"--vpc-id", vpcID,
 			"--query", "GroupId",
 			"--output", "text")
-		tagEC2Resource(ctx, sgID, resourceName("security-group"))
+		tagEC2Resource(ctx, sgID, resourceName(cfg, "security-group"))
 		awsLogger.Successf("Created security group: %s", sgID)
 	} else {
 		awsLogger.Successf("Reusing security group: %s", sgID)

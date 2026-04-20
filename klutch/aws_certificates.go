@@ -28,12 +28,12 @@ var (
 	dnsDelegationPollDelay  = 10 * time.Second
 	dnsDelegationMaxRetries = 180 // allow up to ~30 minutes for registrar DNS delegation to propagate
 	lookupNSFunc            = net.LookupNS
+	clusterNameTagKey       = "ClusterName"
 )
 
 const (
-	klutchTagKey      = "Klutch"
-	klutchTagValue    = "ControlPlane"
-	clusterNameTagKey = "ClusterName"
+	klutchTagKey   = "Klutch"
+	klutchTagValue = "ControlPlane"
 )
 
 type CertificateProvisioner interface {
@@ -714,7 +714,7 @@ func getZoneIdsByName(ctx context.Context, hostedZoneName string, p *AWSProvisio
 		if clusterNameTagValue != "" && clusterNameTagValue != clusterName {
 			err := fmt.Errorf("Hosted Zone %s is already associated with Cluster %s ", hostedZoneName, clusterNameTagValue)
 			makeup.ExitDueToFatalError(err, fmt.Sprintf("Could not use existing Hosted Zone %s because it was already associated with the EKS cluster %s.\n"+
-				"Please choose a different Hosted Zone Name, delete cluster %s, or if that cluster is already gone and the tag is stale remove the 'ClusterName' tag from the Hosted Zone manually.",
+				"Please choose a different Hosted Zone Name, delete cluster %s.\n If that cluster is already gone and the tag is stale, then remove the 'ClusterName' tag from the Hosted Zone manually.",
 				hostedZoneName, clusterNameTagValue, clusterNameTagValue))
 		}
 		if klutchTagFound && clusterNameTagValue == "" {
@@ -722,7 +722,7 @@ func getZoneIdsByName(ctx context.Context, hostedZoneName string, p *AWSProvisio
 			_, err = p.r53Client.ChangeTagsForResource(ctx, &route53.ChangeTagsForResourceInput{
 				ResourceId:   &hostedZoneIdCleaned,
 				ResourceType: types.TagResourceTypeHostedzone,
-				AddTags:      []types.Tag{{Key: &clusterNameTagValue, Value: aws.String(clusterName)}},
+				AddTags:      []types.Tag{{Key: &clusterNameTagKey, Value: aws.String(clusterName)}},
 			})
 			if err != nil {
 				return "", "", fmt.Errorf("tagging orphaned public hosted zone %s (id: %s): %w", hostedZoneName, hostedZoneIdCleaned, err)

@@ -171,7 +171,7 @@ var bindKlutchWorkloadCmd = &cobra.Command{
 
 func init() {
 	bindKlutchWorkloadCmd.Flags().StringVar(&bindKlutchWorkloadControlPlane, "control-plane", "", "Klutch control plane bind endpoint (e.g. https://klutch-bind.example.com/exports).")
-	bindKlutchWorkloadCmd.Flags().StringVar(&bindKlutchWorkloadControlPlaneCluster, "control-plane-cluster", klutch.DefaultControlPlaneClusterName, "Control plane cluster name for CA lookup (defaults to klutch-control-plane).")
+	bindKlutchWorkloadCmd.Flags().StringVar(&bindKlutchWorkloadControlPlaneCluster, "control-plane-cluster", "", "Control plane cluster name for CA lookup (defaults to klutch-control-plane).")
 	bindKlutchWorkloadCmd.Flags().StringVar(&bindKlutchWorkloadKubeconfig, "kubeconfig", "", "Path to the workload cluster kubeconfig.")
 	bindKlutchWorkloadCmd.Flags().StringVar(&bindKlutchWorkloadContext, "context", "", "Workload cluster kubeconfig context to use.")
 	bindKlutchWorkloadCmd.Flags().StringVarP(&bindKlutchWorkloadOutput, "output", "o", "", "Output format passed to kube-bind (e.g. yaml).")

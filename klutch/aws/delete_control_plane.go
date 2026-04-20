@@ -46,27 +46,19 @@ func DeleteControlPlaneCluster(ctx context.Context, opts DeleteOptions) {
 	cfg.ALBControllerPolicyName += "-" + cfg.ClusterName
 	cfg.ControlPlaneSGName = fmt.Sprintf("%s-sg", cfg.ClusterName)
 	cfg.ResourceNamePrefix = cfg.ClusterName
-	klutchNamePrefix = cfg.ResourceNamePrefix
 
 	deleteCluster(ctx, cfg, opts)
 }
 
 // DeleteWorkloadCluster deletes a Klutch workload EKS cluster and its AWS resources.
 func DeleteWorkloadCluster(ctx context.Context, opts DeleteOptions) {
-	cfg := defaultConfig()
+	cfg := workloadConfig(opts.ClusterName)
 	if opts.Region != "" {
 		cfg.Region = opts.Region
 	}
 	if opts.ClusterName != "" {
 		cfg.ClusterName = opts.ClusterName
 	}
-	cfg.NodegroupName = fmt.Sprintf("%s-nodegroup", opts.ClusterName)
-	cfg.ClusterRoleName += "-" + cfg.ClusterName
-	cfg.NodeRoleName += "-" + cfg.ClusterName
-	cfg.ALBControllerPolicyName += "-" + cfg.ClusterName
-	cfg.ControlPlaneSGName = fmt.Sprintf("%s-sg", cfg.ClusterName)
-	cfg.ResourceNamePrefix = cfg.ClusterName
-	klutchNamePrefix = cfg.ResourceNamePrefix
 
 	deleteCluster(ctx, cfg, opts)
 }
@@ -74,13 +66,6 @@ func DeleteWorkloadCluster(ctx context.Context, opts DeleteOptions) {
 func deleteCluster(ctx context.Context, cfg Config, opts DeleteOptions) {
 	restore := setKlutchContext(cfg)
 	defer restore()
-
-	if opts.Region != "" {
-		cfg.Region = opts.Region
-	}
-	if opts.ClusterName != "" {
-		cfg.ClusterName = opts.ClusterName
-	}
 
 	if opts.NodegroupName != "" {
 		cfg.NodegroupName = opts.NodegroupName
@@ -154,12 +139,12 @@ func deleteCluster(ctx context.Context, cfg Config, opts DeleteOptions) {
 	// to free the zones for adoption by a new cluster.
 	removeClusterNameTagFromAllHostedZones(ctx, opts)
 
-	vpcID := findKlutchVPC(ctx, opts.Region)
+	vpcID := findKlutchVPC(cfg, ctx, opts.Region)
 	if vpcID == "" {
 		awsLogger.Infof("No Klutch VPC found.")
 		dnsAndACMCleanup(ctx, nil, opts)
 		if opts.CleanupOrphans {
-			cleanupTaggedEIPs(ctx, opts)
+			cleanupTaggedEIPs(cfg, ctx, opts)
 		}
 		return
 	}
@@ -167,7 +152,7 @@ func deleteCluster(ctx context.Context, cfg Config, opts DeleteOptions) {
 	deleteVPCDependencies(ctx, vpcID, opts)
 	deleteVPC(ctx, vpcID, opts)
 	if opts.CleanupOrphans {
-		cleanupTaggedEIPs(ctx, opts)
+		cleanupTaggedEIPs(cfg, ctx, opts)
 	}
 }
 
@@ -338,11 +323,11 @@ func deleteNodegroupsAndCluster(ctx context.Context, cfg Config, opts DeleteOpti
 	}
 }
 
-func findKlutchVPC(ctx context.Context, region string) string {
+func findKlutchVPC(cfg Config, ctx context.Context, region string) string {
 	awsLogger.Section("Discover Klutch VPC")
 	args := []string{"ec2", "describe-vpcs",
 		"--filters", fmt.Sprintf("Name=tag:%s,Values=%s", klutchTagKey, klutchTagValue),
-		fmt.Sprintf("Name=tag:Name,Values=%s", resourceName("vpc")),
+		fmt.Sprintf("Name=tag:Name,Values=%s", resourceName(cfg, "vpc")),
 		"--query", "Vpcs[0].VpcId", "--output", "text"}
 	args = appendRegion(args, region)
 	vpcID, errOut, err := runCmd(ctx, "aws", args...)
@@ -614,7 +599,7 @@ func deleteENIs(ctx context.Context, vpcID string, opts DeleteOptions) {
 }
 
 func deleteTenantOperatorRole(ctx context.Context, cfg Config, accountID string, opts DeleteOptions) {
-	roleName := resourceName("tenant-operator")
+	roleName := resourceName(cfg, "tenant-operator")
 	roleArn := fmt.Sprintf("arn:aws:iam::%s:role/%s", accountID, roleName)
 
 	if opts.DryRun {
@@ -802,14 +787,14 @@ func releaseEIPs(ctx context.Context, natEIPs []string, opts DeleteOptions) {
 	}
 }
 
-func cleanupTaggedEIPs(ctx context.Context, opts DeleteOptions) {
+func cleanupTaggedEIPs(cfg Config, ctx context.Context, opts DeleteOptions) {
 	awsLogger.Section("Orphaned EIP Cleanup")
 
 	filters := []string{fmt.Sprintf("Name=tag:%s,Values=%s", klutchTagKey, klutchTagValue),
 		fmt.Sprintf("Name=tag:Name,Values=%s,%s,%s",
-			resourceName("nat-eip", "a"),
-			resourceName("nat-eip", "b"),
-			resourceName("nat-eip", "c"),
+			resourceName(cfg, "nat-eip", "a"),
+			resourceName(cfg, "nat-eip", "b"),
+			resourceName(cfg, "nat-eip", "c"),
 		),
 	}
 	if cn := strings.TrimSpace(opts.ClusterName); cn != "" {
@@ -859,6 +844,8 @@ func findHostedZoneIdByClusterNameTag(ctx context.Context, opts DeleteOptions) s
 		"--resource-type-filters", "route53:hostedzone",
 		"--tag-filters", fmt.Sprintf("Key=ClusterName,Values=%s", opts.ClusterName),
 		"--query", "ResourceTagMappingList[0].ResourceARN",
+		// since Route53 is a global service the region must be set to us-east-1
+		"--region", "us-east-1",
 		"--output", "text")
 	if err != nil {
 		awsLogger.Warningf("Failed to search for hosted zone by opts.ClusterName tag: %v\nstderr: %s", err, errOut)
