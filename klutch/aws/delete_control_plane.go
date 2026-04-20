@@ -334,7 +334,7 @@ func klutchKmsKeyCleanup(cfg Config, ctx context.Context, opts DeleteOptions) {
 	args := []string{"resourcegroupstaggingapi", "get-resources",
 		"--tag-filters",
 		fmt.Sprintf("Key=%s,Values=%s", klutchTagKey, klutchTagValue),
-		fmt.Sprintf("Key=Name,Values=%s", resourceName(cfg, "kms-key")),
+		fmt.Sprintf("Key=Name,Values=%s,%s", resourceName(cfg, "kms-key"), resourceName(cfg, "kms-key-retired")),
 		"--resource-type-filters", "kms",
 		"--query", "ResourceTagMappingList[].ResourceARN",
 		"--output", "text"}
