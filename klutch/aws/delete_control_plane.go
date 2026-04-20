@@ -140,8 +140,12 @@ func deleteCluster(ctx context.Context, cfg Config, opts DeleteOptions) {
 	// to free the zones for adoption by a new cluster.
 	removeClusterNameTagFromAllHostedZones(ctx, opts)
 
-	vpcID := findKlutchVPC(cfg, ctx, opts.Region)
+	vpcCleanup(ctx, cfg, opts, findKlutchVPC(cfg, ctx, opts.Region))
 
+	klutchKmsKeyCleanup(cfg, ctx, opts)
+}
+
+func vpcCleanup(ctx context.Context, cfg Config, opts DeleteOptions, vpcID string) {
 	if vpcID == "" {
 		awsLogger.Infof("No Klutch VPC found.")
 		dnsAndACMCleanup(ctx, nil, opts)
@@ -156,7 +160,6 @@ func deleteCluster(ctx context.Context, cfg Config, opts DeleteOptions) {
 	if opts.CleanupOrphans {
 		cleanupTaggedEIPs(cfg, ctx, opts)
 	}
-	klutchKmsKeyCleanup(cfg, ctx, opts)
 }
 
 func discoverCluster(ctx context.Context, cfg Config, opts DeleteOptions) (bool, bool) {
@@ -329,7 +332,9 @@ func klutchKmsKeyCleanup(cfg Config, ctx context.Context, opts DeleteOptions) {
 	awsLogger.Section("Disable Klutch KMS Keys")
 
 	args := []string{"resourcegroupstaggingapi", "get-resources",
-		"--tag-filters", fmt.Sprintf("Key=%s,Values=%s", klutchTagKey, klutchTagValue),
+		"--tag-filters",
+		fmt.Sprintf("Key=%s,Values=%s", klutchTagKey, klutchTagValue),
+		fmt.Sprintf("Key=Name,Values=%s", resourceName(cfg, "kms-key")),
 		"--resource-type-filters", "kms",
 		"--query", "ResourceTagMappingList[].ResourceARN",
 		"--output", "text"}
