@@ -48,7 +48,7 @@ func (m *MinioManager) WaitForMinioToBecomeReady() {
 	}
 
 	m.K8s.WaitForSystemToBecomeReady(MinioNamespace, MinioSystemName, expectedPods)
-	makeup.WaitForUser(m.UnattendedMode)
+	makeup.WaitForUser()
 }
 
 func SetupMinioRepository(workingDir string) {

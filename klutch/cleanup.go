@@ -2,7 +2,6 @@ package klutch
 
 import (
 	"fmt"
-	"os/exec"
 	"path/filepath"
 
 	"github.com/anynines/a9s-cli-v2/makeup"
@@ -45,8 +44,7 @@ func DeleteControlPlaneInstall() {
 	manager.deleteKubectlResource("ns", "ingress-nginx", "")
 
 	// Crossplane helm release
-	cmd := exec.Command("helm", "uninstall", "crossplane", "-n", "crossplane-system")
-	if output, err := cmd.CombinedOutput(); err != nil {
+	if output, err := makeup.Command("helm", "uninstall", "crossplane", "-n", "crossplane-system").WithPrompt().Run(); err != nil {
 		makeup.PrintWarning(fmt.Sprintf("Helm uninstall crossplane failed (ignored): %v %s", err, string(output)))
 	} else {
 		makeup.PrintCheckmark("Uninstalled crossplane helm release.")
@@ -56,8 +54,7 @@ func DeleteControlPlaneInstall() {
 	manager.deleteKubectlResource("ns", "crossplane-system", "")
 
 	// Tenant operator helm release
-	cmd = exec.Command("helm", "uninstall", "a9s-tenants-operator", "-n", "a9s-tenants-operator-system")
-	if output, err := cmd.CombinedOutput(); err != nil {
+	if output, err := makeup.Command("helm", "uninstall", "a9s-tenants-operator", "-n", "a9s-tenants-operator-system").WithPrompt().Run(); err != nil {
 		makeup.PrintWarning(fmt.Sprintf("Helm uninstall tenant operator failed (ignored): %v %s", err, string(output)))
 	} else {
 		makeup.PrintCheckmark("Uninstalled tenant operator helm release.")

@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"slices"
 	"strings"
 	"time"
@@ -97,17 +96,8 @@ func deployTenantOperator(ctx context.Context, cfg Config, accountID string) {
 	}
 
 	makeup.PrintInfo("Deploying tenant operator via Helm...")
-	cmd := exec.CommandContext(ctx, args[0], args[1:]...)
-	// Ensure OCI support is on for Helm (required for ECR-hosted charts).
-	cmd.Env = append(os.Environ(), "HELM_EXPERIMENTAL_OCI=1")
-	var outBuf, errBuf bytes.Buffer
-	cmd.Stdout = &outBuf
-	cmd.Stderr = &errBuf
-	if err := cmd.Run(); err != nil {
-		makeup.ExitDueToFatalError(err, fmt.Sprintf("Failed to deploy tenant operator.\nstderr: %s", errBuf.String()))
-	}
-	if makeup.Verbose {
-		makeup.Print(outBuf.String())
+	if output, err := makeup.Command(args[0], args[1:]...).Env("HELM_EXPERIMENTAL_OCI=1").Ctx(ctx).WithPrompt().Run(); err != nil {
+		makeup.ExitDueToFatalError(err, "Failed to deploy tenant operator.\n"+string(output))
 	}
 	waitForTenantOperator(ctx, ns)
 }
@@ -129,24 +119,14 @@ func ensureHelmRegistryLogin(ctx context.Context, cfg Config) {
 		"eu-central-1")
 
 	makeup.PrintInfo(fmt.Sprintf("Logging into Helm OCI registry %s via ECR...", ref.registry))
-	passCmd := exec.CommandContext(ctx, "aws", ref.awsCommand, "get-login-password", "--region", region)
-	var pwBuf bytes.Buffer
-	passCmd.Stdout = &pwBuf
-	if err := passCmd.Run(); err != nil {
-		makeup.ExitDueToFatalError(err, fmt.Sprintf("Failed to obtain ECR login password for %s", ref.registry))
+	pwOutput, err := makeup.Command("aws", ref.awsCommand, "get-login-password", "--region", region).Ctx(ctx).NoPrompt().Run()
+	if err != nil {
+		makeup.ExitDueToFatalError(err, fmt.Sprintf("Failed to obtain ECR login password for %s:\n%s", ref.registry, pwOutput))
 		return
 	}
 
-	loginCmd := exec.CommandContext(ctx, "helm", "registry", "login", ref.registry, "--username", "AWS", "--password-stdin")
-	loginCmd.Stdin = bytes.NewReader(pwBuf.Bytes())
-	var outBuf, errBuf bytes.Buffer
-	loginCmd.Stdout = &outBuf
-	loginCmd.Stderr = &errBuf
-	if err := loginCmd.Run(); err != nil {
-		makeup.ExitDueToFatalError(err, fmt.Sprintf("Helm registry login to %s failed: %v\nstderr: %s", ref.registry, err, strings.TrimSpace(errBuf.String())))
-	}
-	if makeup.Verbose {
-		makeup.Print(outBuf.String())
+	if loginOutput, err := makeup.Command("helm", "registry", "login", ref.registry, "--username", "AWS", "--password-stdin").Ctx(ctx).Stdin([]byte(pwOutput)).NoPrompt().Run(); err != nil {
+		makeup.ExitDueToFatalError(err, fmt.Sprintf("Helm registry login to %s failed: %v\nstderr: %s", ref.registry, err, strings.TrimSpace(string(loginOutput))))
 	}
 	makeup.PrintInfo(fmt.Sprintf("Helm registry login to %s succeeded.", ref.registry))
 }
@@ -194,7 +174,7 @@ func verifyTenantOperatorChart(ctx context.Context, chart, version string) error
 	if strings.TrimSpace(version) != "" {
 		args = append(args, "--version", version)
 	}
-	_, errOut, err := runCmd(ctx, "helm", args...)
+	errOut, err := runCmd(ctx, "helm", args...)
 	if err == nil {
 		return nil
 	}
@@ -223,7 +203,7 @@ func verifyTenantOperatorImage(ctx context.Context, cfg Config) error {
 			return fmt.Errorf("Unable to verify tenant operator image %q because Docker is not installed. Install Docker or use an ECR image so the CLI can verify it.", ref.original)
 		}
 
-		_, errOut, err := runCmd(ctx, "docker", "manifest", "inspect", ref.original)
+		errOut, err := runCmd(ctx, "docker", "manifest", "inspect", ref.original)
 		if err == nil {
 			return nil
 		}
@@ -251,7 +231,7 @@ func verifyTenantOperatorImage(ctx context.Context, cfg Config) error {
 		"--region", region,
 		"--repository-name", ref.repository,
 		"--image-ids", imageId}
-	_, errOut, err := runCmd(ctx, "aws", args...)
+	errOut, err := runCmd(ctx, "aws", args...)
 	if err == nil {
 		return nil
 	}

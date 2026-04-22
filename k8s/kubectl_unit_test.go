@@ -135,13 +135,19 @@ func withFakeExec(t *testing.T, env ...string) {
 	t.Helper()
 	origCmd := execCommand
 	origCmdCtx := execCommandContext
+	origMakeupCmd := makeup.ExecCommand
+	origMakeupCmdCtx := makeup.ExecCommandContext
 	origUnattended := makeup.UnattendedMode
 	execCommand = fakeExecCommand(env...)
 	execCommandContext = fakeExecCommandContext(env...)
+	makeup.ExecCommand = fakeExecCommand(env...)
+	makeup.ExecCommandContext = fakeExecCommandContext(env...)
 	makeup.UnattendedMode = true
 	t.Cleanup(func() {
 		execCommand = origCmd
 		execCommandContext = origCmdCtx
+		makeup.ExecCommand = origMakeupCmd
+		makeup.ExecCommandContext = origMakeupCmdCtx
 		makeup.UnattendedMode = origUnattended
 	})
 }

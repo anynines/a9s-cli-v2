@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"os/exec"
 	"strings"
 	"time"
 
@@ -323,12 +322,11 @@ func controlPlaneRegionFromURL(endpoint string) string {
 }
 
 func fetchClusterCA(clusterName, region string) ([]byte, error) {
-	cmd := exec.Command("aws", "eks", "describe-cluster",
+	out, err := makeup.Command("aws", "eks", "describe-cluster",
 		"--name", clusterName,
 		"--region", region,
 		"--query", "cluster.certificateAuthority.data",
-		"--output", "text")
-	out, err := cmd.Output()
+		"--output", "text").NoPrompt().Run()
 	if err != nil {
 		return nil, fmt.Errorf("fetch CA for cluster %s in %s: %w", clusterName, region, err)
 	}

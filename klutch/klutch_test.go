@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"testing"
 
 	"github.com/anynines/a9s-cli-v2/demo"
 	"github.com/anynines/a9s-cli-v2/k8s"
+	"github.com/anynines/a9s-cli-v2/makeup"
 	"gopkg.in/yaml.v2"
 )
 
@@ -41,8 +41,7 @@ func TestDeploy(t *testing.T) {
 }
 
 func checkKindClusterRunning(t *testing.T, clusterName string) {
-	cmd := exec.Command("docker", "ps", "--filter", fmt.Sprintf("name=%s", clusterName), "--format", "{{.Names}}")
-	output, err := cmd.CombinedOutput()
+	output, err := makeup.Command("docker", "ps", "--filter", fmt.Sprintf("name=%s", clusterName), "--format", "{{.Names}}").NoPrompt().Run()
 	if err != nil {
 		t.Fatalf("expected no error listing containers, but got error %v : %s", err, string(output))
 	}

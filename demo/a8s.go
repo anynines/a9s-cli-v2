@@ -123,7 +123,7 @@ func (m *A8sDemoManager) CreateA8sStack(createClusterIfNotExists bool) {
 
 	CheckPrerequisites()
 
-	makeup.WaitForUser(UnattendedMode)
+	makeup.WaitForUser()
 
 	//TODO It's odd that a check method also creates a k8s cluster
 	CheckK8sCluster(createClusterIfNotExists)
@@ -185,7 +185,7 @@ func (m *A8sDemoManager) WaitForA8sSystemToBecomeReady() {
 	m.K8s.KubectlWaitForSystemToBecomeReady(A8sSystemNamespace, expectedPodsByLabels)
 
 	makeup.PrintCheckmark("The a8s System appears to be ready.")
-	makeup.WaitForUser(UnattendedMode)
+	makeup.WaitForUser()
 }
 
 func (m *A8sDemoManager) WaitForServiceInstanceToBecomeReady(namespace, serviceInstanceName string, nrOfInstances int) {
@@ -200,7 +200,7 @@ func (m *A8sDemoManager) WaitForServiceInstanceToBecomeReady(namespace, serviceI
 
 	m.K8s.WaitForSystemToBecomeReady(namespace, serviceInstanceName, expectedPods)
 
-	makeup.WaitForUser(UnattendedMode)
+	makeup.WaitForUser()
 }
 
 func (m *A8sDemoManager) CreatePGServiceInstance() {

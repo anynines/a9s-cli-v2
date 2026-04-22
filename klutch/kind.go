@@ -3,7 +3,6 @@ package klutch
 import (
 	_ "embed"
 	"fmt"
-	"os/exec"
 	"strings"
 
 	"github.com/anynines/a9s-cli-v2/k8s"
@@ -29,7 +28,7 @@ func DeployControlPlaneKindCluster(clusterName string, hostIP string, ingressPor
 
 	if exists {
 		makeup.PrintWarning(fmt.Sprintf("Cluster %s already exists. Skipping creation. If the existing cluster is not correctly configured, Klutch will not work. In that case, delete the cluster and start again.", clusterName))
-		makeup.WaitForUser(makeup.UnattendedMode)
+		makeup.WaitForUser()
 		return
 	}
 
@@ -45,26 +44,9 @@ func DeployControlPlaneKindCluster(clusterName string, hostIP string, ingressPor
 	}
 
 	makeup.PrintH2("Creating a kind cluster with following config: ")
-	makeup.PrintYAML(renderedTemplate.Bytes(), false)
-	makeup.WaitForUser(makeup.UnattendedMode)
 
-	cmd := exec.Command("kind", "create", "cluster", "--config", "-")
-	cmd.Stdin = renderedTemplate
-
-	// Print stderr to show progress to the user.
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		makeup.ExitDueToFatalError(err, "Could not set up the command.")
-	}
-
-	go printCommandOutput(stderr)
-
-	if err := cmd.Start(); err != nil {
-		makeup.ExitDueToFatalError(err, "Could not start the command.")
-	}
-
-	if err := cmd.Wait(); err != nil {
-		makeup.ExitDueToFatalError(err, "Error occured while executing the command.")
+	if out, err := makeup.Command("kind", "create", "cluster", "--config", "-").Stdin(renderedTemplate.Bytes()).WithPrompt().Run(); err != nil {
+		makeup.ExitDueToFatalError(err, "An error occurred while executing the command 'kind create cluster':\n"+string(out))
 	}
 }
 
@@ -93,35 +75,18 @@ func DeployAppCluster(clusterName string) {
 
 	if exists {
 		makeup.PrintWarning(fmt.Sprintf("Cluster %s already exists. Skipping creation.", clusterName))
-		makeup.WaitForUser(makeup.UnattendedMode)
+		makeup.WaitForUser()
 		return
 	}
 
-	cmd := exec.Command("kind", "create", "cluster", "--name", clusterName)
-
-	makeup.PrintCommandBox(cmd.String())
-	makeup.WaitForUser(makeup.UnattendedMode)
-
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		makeup.ExitDueToFatalError(err, "Could not set up the command.")
-	}
-
-	go printCommandOutput(stderr)
-
-	if err := cmd.Start(); err != nil {
+	if _, err := makeup.Command("kind", "create", "cluster", "--name", clusterName).WithPrompt().Run(); err != nil {
 		makeup.ExitDueToFatalError(err, "Could not start the command.")
-	}
-
-	if err := cmd.Wait(); err != nil {
-		makeup.ExitDueToFatalError(err, "Error occured while executing the command.")
 	}
 }
 
 // TODO: Similar code exists in kind_creator.go, but awkward to use in this specific case.
 func clusterExists(clusterName string) (bool, error) {
-	cmd := exec.Command("kind", "get", "clusters")
-	output, err := cmd.CombinedOutput()
+	output, err := makeup.Command("kind", "get", "clusters").NoPrompt().Run()
 	if err != nil {
 		return false, err
 	}

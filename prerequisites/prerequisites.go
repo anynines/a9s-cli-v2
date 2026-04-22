@@ -150,9 +150,7 @@ func CheckRequiredTools(requiredTools []RequiredTool) {
 // CheckDockerRunning checks if docker is running. If it is not running, exit the program with an
 // error.
 func CheckDockerRunning() {
-	cmd := exec.Command("docker", "info")
-	err := cmd.Run()
-	if err != nil {
+	if _, err := makeup.Command("docker", "info").NoPrompt().Run(); err != nil {
 		makeup.PrintFailSummary("Docker must be running. Aborting...")
 		os.Exit(1)
 	}

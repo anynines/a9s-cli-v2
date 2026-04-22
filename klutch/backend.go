@@ -8,7 +8,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"os/exec"
 	"strings"
 	"time"
 
@@ -68,13 +67,11 @@ func createExternalCASecret(acmArn string, k *k8s.KubeClient) (string, error) {
 		return "", fmt.Errorf("empty ACM ARN")
 	}
 	// Fetch cert + chain; concatenating covers intermediates.
-	cmd := exec.Command("aws", "acm", "get-certificate", "--certificate-arn", arn, "--query", "Certificate")
-	certOut, err := cmd.Output()
+	certOut, err := makeup.Command("aws", "acm", "get-certificate", "--certificate-arn", arn, "--query", "Certificate").NoPrompt().Run()
 	if err != nil {
 		return "", fmt.Errorf("failed to fetch ACM certificate: %w", err)
 	}
-	cmd = exec.Command("aws", "acm", "get-certificate", "--certificate-arn", arn, "--query", "CertificateChain")
-	chainOut, err := cmd.Output()
+	chainOut, err := makeup.Command("aws", "acm", "get-certificate", "--certificate-arn", arn, "--query", "CertificateChain").NoPrompt().Run()
 	if err != nil {
 		return "", fmt.Errorf("failed to fetch ACM certificate chain: %w", err)
 	}
@@ -200,7 +197,7 @@ func (k *KlutchManager) WaitForBindBackend(host string, port string, scheme stri
 	verifyBindEndpoint(host, port, scheme, 10*time.Minute)
 
 	makeup.PrintCheckmark("The klutch-bind backend appears to be ready.")
-	makeup.WaitForUser(makeup.UnattendedMode)
+	makeup.WaitForUser()
 }
 
 // verifyBindEndpoint checks that /export returns a non-empty payload.
