@@ -303,10 +303,6 @@ Use --no-apply to only provision the cluster. Currently only AWS is supported.`,
 		options.TenantOperatorBindRequest = strings.TrimSpace(createKlutchTenantOperatorBindRequest)
 		options.HostedZoneName = strings.TrimSpace(createKlutchApplyHostedZone)
 
-		if err := runKlutchClusterCreation(demo.KubernetesTool, options); err != nil {
-			makeup.ExitDueToFatalError(nil, err.Error())
-		}
-
 		if createKlutchDryRun {
 			makeup.PrintInfo("Skipping Klutch control plane install because --dry-run was provided.")
 			return
@@ -323,6 +319,10 @@ Use --no-apply to only provision the cluster. Currently only AWS is supported.`,
 
 		if createKlutchApplyIngressPort < 1 || createKlutchApplyIngressPort > 65535 {
 			makeup.ExitDueToFatalError(nil, "Invalid ingress port. Must be between 1 and 65535.")
+		}
+
+		if err := runKlutchClusterCreation(demo.KubernetesTool, options); err != nil {
+			makeup.ExitDueToFatalError(nil, err.Error())
 		}
 
 		imgURL, imgTag := resolveBackendImageRef(createKlutchBackendImageRef, createKlutchBackendImageURL, createKlutchBackendImageTag)
@@ -440,7 +440,7 @@ var cmdCreateClusterKlutchWorkload = &cobra.Command{
 		var tenantConn *klutchaws.OIDCConnection
 		var tenantBindRequest []byte
 		var tenantSecretName string
-		if cmd.Flags().Changed("cluster-name") {
+		if cmd.Flags().Changed("cluster-name") && strings.TrimSpace(demo.DemoClusterName) != "" {
 			opts.ClusterName = strings.TrimSpace(demo.DemoClusterName)
 		} else if envName := strings.TrimSpace(os.Getenv("WORKLOAD_CLUSTER_NAME")); envName != "" {
 			opts.ClusterName = envName
@@ -633,20 +633,21 @@ func init() {
 	cmdCreateStackA8s.PersistentFlags().BoolVar(&demo.NoPreCheck, "no-precheck", false, "skip the verification of prerequisites.")
 
 	// create demo
+	cmdCreateClusterKlutchControlPlane.Flags().BoolVar(&createKlutchSkipApply, "no-apply", false, "Create the Klutch control plane cluster without installing the Klutch control plane components.")
+	initRequiredStringFlagWithDependency(&createKlutchSkipApply, "no-apply", false, cmdCreateClusterKlutchControlPlane, &createKlutchApplyHostedZone, "hosted-zone-name", "", "Route53 hosted zone name (FQDN). Required unless --no-apply is set. If provided and no ACM ARN is supplied, the CLI will request an ACM cert and create DNS validation records automatically.")
 	cmdCreateCluster.PersistentFlags().StringVarP(&demo.KubernetesTool, "provider", "p", "", "provider for creating the Kubernetes cluster. Valid options are \"minikube\" and \"kind\" for local demos, as well as \"aws\" for Klutch.")
 	cmdCreateCluster.PersistentFlags().StringVarP(&demo.DemoClusterName, "cluster-name", "c", "a8s-demo", "name of the demo Kubernetes cluster.")
 	cmdCreateClusterKlutchControlPlane.Flags().BoolVar(&createKlutchDryRun, "dry-run", false, "Show planned AWS resources and commands for Klutch without creating them.")
 	cmdCreateClusterKlutchWorkload.Flags().BoolVar(&createKlutchDryRun, "dry-run", false, "Show planned AWS resources and commands for Klutch without creating them.")
-	cmdCreateClusterKlutchControlPlane.Flags().BoolVar(&createKlutchSkipApply, "no-apply", false, "Create the Klutch control plane cluster without installing the Klutch control plane components.")
 	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchApplyHost, "host", "", "Host (IP or DNS name) to reach the ingress when applying the control plane. Defaults to the Kubernetes API server host of the current kube context.")
 	cmdCreateClusterKlutchControlPlane.Flags().IntVar(&createKlutchApplyIngressPort, "ingress-port", 443, "Port the ingress should listen on when applying the control plane.")
 	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchApplyACMCertificateARN, "acm-certificate-arn", "", "ACM certificate ARN to enable HTTPS on the ALB ingress when applying the control plane.")
-	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchApplyHostedZone, "hosted-zone-name", "", "Route53 hosted zone name (FQDN). Required unless --no-apply is set. If provided and no ACM ARN is supplied, the CLI will request an ACM cert and create DNS validation records automatically.")
 	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchOIDCProvider, "oidc-provider", "", "OIDC provider to use for the Klutch control plane. Defaults to cognito when --provider=aws, otherwise dex.")
-	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchOIDCIssuerURL, "oidc-issuer-url", "", "OIDC issuer URL (required for oidc-provider=cognito).")
-	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchOIDCClientID, "oidc-client-id", "", "OIDC client ID (required for oidc-provider=cognito).")
-	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchOIDCClientSecret, "oidc-client-secret", "", "OIDC client secret (required for oidc-provider=cognito).")
+	initRequiredStringFlagWithDependency(&createKlutchOIDCProvider, "oidc-provider", "cognito", cmdCreateClusterKlutchControlPlane, &createKlutchOIDCIssuerURL, "oidc-issuer-url", "", "OIDC issuer URL (required for oidc-provider=cognito).")
+	initRequiredStringFlagWithDependency(&createKlutchOIDCProvider, "oidc-provider", "cognito", cmdCreateClusterKlutchControlPlane, &createKlutchOIDCClientID, "oidc-client-id", "", "OIDC client ID (required for oidc-provider=cognito).")
+	initRequiredStringFlagWithDependency(&createKlutchOIDCProvider, "oidc-provider", "cognito", cmdCreateClusterKlutchControlPlane, &createKlutchOIDCClientSecret, "oidc-client-secret", "", "OIDC client secret (required for oidc-provider=cognito).")
 	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchOIDCCallbackURL, "oidc-callback-url", "", "OIDC callback URL to configure on the backend. Defaults to https://<host>/callback when not provided.")
+	initRequiredStringFlagP(cmdCreateClusterKlutchControlPlane, &demo.KubernetesTool, "provider", "p", "aws", "provider for creating the Kubernetes cluster. Currently the only valid option for Klutch is \"aws\".")
 	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchTenantOperatorImage, "tenant-operator-image", "", "Tenant operator container image (defaults to built-in ECR dev image).")
 	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchTenantOperatorChart, "tenant-operator-chart", "", "Tenant operator Helm chart (OCI URL).")
 	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchTenantOperatorRoleARN, "tenant-operator-role-arn", "", "IAM role ARN for the tenant operator service account (IRSA).")
@@ -658,7 +659,7 @@ func init() {
 	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchBackendImageRef, "klutch-bind-backend-img", "", "Override the klutch-bind backend image as <repo>:<tag>.")
 	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchBackendImageURL, "klutch-bind-backend-img-url", "", "Override the klutch-bind backend image URL (repository).")
 	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchBackendImageTag, "klutch-bind-backend-img-tag", "", "Override the klutch-bind backend image tag.")
-	cmdCreateClusterKlutchTenant.Flags().StringVar(&createKlutchTenantName, "tenant-name", "", "Name/prefix for the tenant (used to name the Cognito app client).")
+	initRequiredStringFlag(cmdCreateClusterKlutchTenant, &createKlutchTenantName, "tenant-name", "", "Name/prefix for the tenant (used to name the Cognito app client).")
 	cmdCreateClusterKlutchTenant.Flags().StringVar(&createKlutchTenantRegion, "region", "", "AWS region for Cognito (defaults to CONTROL_PLANE_CLUSTER_REGION or eu-central-1).")
 	cmdCreateClusterKlutchTenant.Flags().StringVar(&createKlutchTenantUserPoolID, "user-pool-id", "", "Existing Cognito user pool ID to reuse. If omitted, a pool named <tenant>-klutch is created or reused.")
 	cmdCreateClusterKlutchTenant.Flags().BoolVar(&createKlutchTenantStoreSecret, "store-secret", true, "Store the tenant credentials in AWS Secrets Manager.")
@@ -667,6 +668,7 @@ func init() {
 	cmdCreateClusterKlutchTenant.Flags().StringVar(&createKlutchTenantTokenURL, "token-url", "", "Override the OAuth2 token URL (defaults to Cognito hosted domain token endpoint).")
 	cmdCreateClusterKlutchTenant.Flags().StringVar(&createKlutchTenantBindURL, "bind-url", "", "Control-plane bind URL to store with the tenant (e.g. https://klutch-bind.example.com/bind-noninteractive).")
 	cmdCreateClusterKlutchTenant.Flags().StringVar(&createKlutchTenantBindRequestFile, "bind-request-file", "", "Path to bind request JSON to store with the tenant (defaults to all exported services).")
+	initRequiredStringFlagP(cmdCreateClusterKlutchWorkload, &demo.KubernetesTool, "provider", "p", "aws", "provider for creating the Kubernetes cluster. Currently the only valid option for Klutch is \"aws\".")
 	cmdCreateClusterKlutchWorkload.Flags().StringVar(&createKlutchWorkloadTenantName, "tenant-name", "", "Tenant name to auto-bind with.")
 	cmdCreateClusterKlutchWorkload.Flags().StringVar(&createKlutchWorkloadTenantSecretName, "tenant-secret-name", "", "Explicit tenant secret name (defaults to klutch/<tenant>/oidc-client).")
 	cmdCreateClusterKlutchWorkload.Flags().StringVar(&createKlutchWorkloadTenantRegion, "tenant-region", "", "AWS region for the tenant secret (defaults to CONTROL_PLANE_CLUSTER_REGION or eu-central-1).")
