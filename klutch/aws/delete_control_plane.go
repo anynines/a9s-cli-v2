@@ -340,9 +340,9 @@ func klutchKmsKeyCleanup(cfg Config, ctx context.Context, opts DeleteOptions) {
 		"--output", "text"}
 	args = appendRegion(args, opts.Region)
 
-	out, errOut, err := runCmd(ctx, "aws", args...)
+	out, err := runCmd(ctx, "aws", args...)
 	if err != nil {
-		awsLogger.Warningf("Failed to list Klutch-tagged KMS keys: %v\nstderr: %s", err, errOut)
+		awsLogger.Warningf("Failed to list Klutch-tagged KMS keys: %v\nstderr: %s", err, out)
 		return
 	}
 
@@ -400,7 +400,7 @@ func klutchKmsKeyCleanup(cfg Config, ctx context.Context, opts DeleteOptions) {
 func scheduleDeletionForKmsKey(ctx context.Context, arn string, opts DeleteOptions, keysDeletionSchedulingFailed []string) []string {
 	schedArgs := []string{"kms", "schedule-key-deletion", "--key-id", arn, "--pending-window-in-days", "7"}
 	schedArgs = appendRegion(schedArgs, opts.Region)
-	if _, errOut, err := runCmd(ctx, "aws", schedArgs...); err != nil {
+	if errOut, err := runCmd(ctx, "aws", schedArgs...); err != nil {
 		if strings.Contains(errOut, "KMSInvalidStateException") && strings.Contains(errOut, "is pending deletion.") {
 			awsLogger.Infof("KMS key %s is already pending deletion. Skipping retagging.", arn)
 			return keysDeletionSchedulingFailed
@@ -416,7 +416,7 @@ func retagKmsKey(cfg Config, ctx context.Context, arn string, opts DeleteOptions
 	retagArgs := appendRegion([]string{"kms", "tag-resource",
 		"--key-id", arn, "--tags",
 		"TagKey=Name,TagValue=" + resourceName(cfg, "kms-key-retired")}, opts.Region)
-	if _, errOut, err := runCmd(ctx, "aws", retagArgs...); err != nil {
+	if errOut, err := runCmd(ctx, "aws", retagArgs...); err != nil {
 		// If the key is already pending deletion, we can ignore this error
 		if strings.Contains(errOut, "KMSInvalidStateException") && strings.Contains(errOut, "is pending deletion.") {
 			awsLogger.Infof("KMS key %s is already pending deletion. Skipping retagging.", arn)
@@ -433,7 +433,7 @@ func disableKmsKey(ctx context.Context, arn string, opts DeleteOptions, keysDisa
 	disableArgs := appendRegion([]string{"kms", "disable-key",
 		"--key-id", arn},
 		opts.Region)
-	if _, errOut, err := runCmd(ctx, "aws", disableArgs...); err != nil {
+	if errOut, err := runCmd(ctx, "aws", disableArgs...); err != nil {
 		// If the key is already pending deletion, we can ignore this error
 		if strings.Contains(errOut, "KMSInvalidStateException") && strings.Contains(errOut, "is pending deletion.") {
 			awsLogger.Infof("KMS key %s is already pending deletion. Skipping disabling.", arn)
