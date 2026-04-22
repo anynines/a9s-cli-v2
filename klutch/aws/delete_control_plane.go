@@ -41,7 +41,7 @@ func DeleteControlPlaneCluster(ctx context.Context, opts DeleteOptions) {
 		cfg.ClusterName = opts.ClusterName
 	}
 	cfg.NodegroupName = fmt.Sprintf("%s-nodegroup", opts.ClusterName)
-	cfg.ClusterRoleName += "-" + cfg.ClusterName
+	cfg.ClusterIamRoleName += "-" + cfg.ClusterName
 	cfg.NodeRoleName += "-" + cfg.ClusterName
 	cfg.ALBControllerPolicyName += "-" + cfg.ClusterName
 	cfg.ControlPlaneSGName = fmt.Sprintf("%s-sg", cfg.ClusterName)
@@ -234,7 +234,7 @@ func iamCleanup(ctx context.Context, cfg Config, opts DeleteOptions, accountID s
 		awsLogger.Warningf("Skipping IAM service account deletion via eksctl (cluster unreachable).")
 	}
 
-	if strings.EqualFold(cfg.ClusterRole, "control plane") {
+	if cfg.ClusterRole == clusterRoleControlPlane {
 		// Delete all Tenant CRs (best-effort) before tearing down operator/IAM.
 		deleteTenants(ctx, clusterReachable)
 		// Attempt to delete tenant operator IAM role (stale roles break IRSA on recreate).

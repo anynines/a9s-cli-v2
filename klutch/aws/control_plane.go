@@ -28,7 +28,7 @@ type Config struct {
 	NodeInstanceTypes               string
 	NodeScalingConfig               string
 	NodeAMIType                     string
-	ClusterRoleName                 string
+	ClusterIamRoleName              string
 	NodeRoleName                    string
 	BaseCIDR                        string
 	PubACIDR, PubBCIDR, PubCCIDR    string
@@ -119,10 +119,14 @@ const (
 var (
 	klutchTagKey                      = "Klutch"
 	klutchTagValue                    = "ControlPlane"
+	klutchTagValueControlPlane        = "ControlPlane"
+	klutchTagValueWorkload            = "Workload"
 	klutchNamePrefix                  = "klutch-control-plane"
 	klutchRoleLabel                   = "control plane"
 	clusterNameTagKey                 = "eks.cluster/name"
 	clusterIDTagKey                   = "eks.cluster/id"
+	clusterRoleControlPlane           = "Control Plane"
+	clusterRoleWorkload               = "Workload"
 	currentClusterName                string
 	currentClusterArn                 string
 	defaultTenantOperatorImage        = "public.ecr.aws/h6x7g6i7/anynines/cli-resources/tenants-operator:0.1.0"
@@ -221,7 +225,7 @@ func defaultConfig() Config {
 		NodeInstanceTypes:          "t3a.xlarge",
 		NodeScalingConfig:          "minSize=3,maxSize=3,desiredSize=3",
 		NodeAMIType:                "AL2023_x86_64_STANDARD",
-		ClusterRoleName:            "EKSClusterRole",
+		ClusterIamRoleName:         "EKSClusterRole",
 		NodeRoleName:               "EKSNodeInstanceRole",
 		BaseCIDR:                   "10.0.0.0/16",
 		PubACIDR:                   "10.0.1.0/24",
@@ -233,9 +237,9 @@ func defaultConfig() Config {
 		ALBControllerVersion:       "v2.7.1",
 		ALBControllerPolicyName:    "AWSLoadBalancerControllerIAMPolicy",
 		ControlPlaneSGName:         "klutch-control-plane-sg",
-		KlutchTagValue:             "ControlPlane",
+		KlutchTagValue:             klutchTagValueControlPlane,
 		ResourceNamePrefix:         "klutch-control-plane",
-		ClusterRole:                "Control Plane",
+		ClusterRole:                clusterRoleControlPlane,
 		TenantOperatorImage:        defaultTenantOperatorImage,
 		TenantOperatorChart:        defaultTenantOperatorChartImage,
 		TenantOperatorChartVersion: defaultTenantOperatorChartVersion,
@@ -251,15 +255,15 @@ func ControlPlaneDefaultRegion() string {
 
 func workloadConfig(clusterName string) Config {
 	cfg := defaultConfig()
-	cfg.KlutchTagValue = "Workload"
-	cfg.ClusterRole = "Workload"
+	cfg.KlutchTagValue = klutchTagValueWorkload
+	cfg.ClusterRole = clusterRoleWorkload
 
 	if clusterName == "" {
 		clusterName = RandomWorkloadClusterName()
 	}
 	cfg.ClusterName = clusterName
 
-	cfg.ClusterRoleName += "-" + cfg.ClusterName
+	cfg.ClusterIamRoleName += "-" + cfg.ClusterName
 	cfg.NodeRoleName += "-" + cfg.ClusterName
 	cfg.ALBControllerPolicyName += "-" + cfg.ClusterName
 	cfg.NodegroupName = fmt.Sprintf("%s-nodegroup", clusterName)
@@ -334,7 +338,7 @@ func CreateControlPlaneCluster(ctx context.Context, opts CreateOptions) {
 		cfg.ClusterName = opts.ClusterName
 	}
 	cfg.NodegroupName = fmt.Sprintf("%s-nodegroup", cfg.ClusterName)
-	cfg.ClusterRoleName += "-" + cfg.ClusterName
+	cfg.ClusterIamRoleName += "-" + cfg.ClusterName
 	cfg.NodeRoleName += "-" + cfg.ClusterName
 	cfg.ALBControllerPolicyName += "-" + cfg.ClusterName
 	cfg.ControlPlaneSGName = fmt.Sprintf("%s-sg", cfg.ClusterName)
@@ -424,7 +428,7 @@ func provisionCluster(ctx context.Context, cfg Config, opts CreateOptions) {
 	awsLogger.Printf("Nodegroup Name:                   %s", cfg.NodegroupName)
 	awsLogger.Printf("Node Instance Types:              %s", cfg.NodeInstanceTypes)
 	awsLogger.Printf("Nodegroup Scaling:                %s", cfg.NodeScalingConfig)
-	awsLogger.Printf("Cluster Role Name:                %s", cfg.ClusterRoleName)
+	awsLogger.Printf("Cluster Role Name:                %s", cfg.ClusterIamRoleName)
 	awsLogger.Printf("Node Role Name:                   %s", cfg.NodeRoleName)
 	awsLogger.Printf("VPC CIDR:                         %s", cfg.BaseCIDR)
 	awsLogger.Printf("Public Subnets:                   %s, %s, %s", cfg.PubACIDR, cfg.PubBCIDR, cfg.PubCCIDR)
@@ -506,10 +510,10 @@ func provisionCluster(ctx context.Context, cfg Config, opts CreateOptions) {
 		awsLogger.Successf("Created VPC: %s", vpcID)
 	}
 
-	ensureClusterRole(ctx, cfg.ClusterRoleName)
+	ensureClusterRole(ctx, cfg.ClusterIamRoleName)
 	ensureNodeRole(ctx, cfg.NodeRoleName)
 
-	keyArn := ensureKMSKey(cfg, ctx, cfg.Region, out, cfg.ClusterRoleName)
+	keyArn := ensureKMSKey(cfg, ctx, cfg.Region, out, cfg.ClusterIamRoleName)
 
 	ensureNetworking(ctx, cfg, vpcID)
 
@@ -537,7 +541,7 @@ func provisionCluster(ctx context.Context, cfg Config, opts CreateOptions) {
 
 	ensureALBController(ctx, cfg, vpcID, out)
 
-	if strings.EqualFold(cfg.ClusterRole, "Control Plane") {
+	if cfg.ClusterRole == clusterRoleControlPlane {
 		populateTenantOperatorDefaults(ctx, &cfg)
 		if cfg.TenantOperatorRoleARN == "" {
 			cfg.TenantOperatorRoleARN = ensureTenantOperatorRole(ctx, cfg, out)
@@ -607,9 +611,9 @@ func printCreatePlan(cfg Config) {
 			Title:   "IAM roles for cluster and nodes",
 			Purpose: "Grant the EKS service and worker nodes the permissions required to manage AWS resources and pull container images.",
 			Commands: []string{
-				fmt.Sprintf("aws iam get-role --role-name %s", cfg.ClusterRoleName),
-				fmt.Sprintf("aws iam create-role --role-name %s --assume-role-policy-document file:///tmp/eks-cluster-trust.json --tags Key=%s,Value=%s Key=Name,Value=%s", cfg.ClusterRoleName, klutchTagKey, klutchTagValue, cfg.ClusterRoleName),
-				fmt.Sprintf("aws iam attach-role-policy --role-name %s --policy-arn arn:aws:iam::aws:policy/AmazonEKSClusterPolicy", cfg.ClusterRoleName),
+				fmt.Sprintf("aws iam get-role --role-name %s", cfg.ClusterIamRoleName),
+				fmt.Sprintf("aws iam create-role --role-name %s --assume-role-policy-document file:///tmp/eks-cluster-trust.json --tags Key=%s,Value=%s Key=Name,Value=%s", cfg.ClusterIamRoleName, klutchTagKey, klutchTagValue, cfg.ClusterIamRoleName),
+				fmt.Sprintf("aws iam attach-role-policy --role-name %s --policy-arn arn:aws:iam::aws:policy/AmazonEKSClusterPolicy", cfg.ClusterIamRoleName),
 				fmt.Sprintf("aws iam get-role --role-name %s", cfg.NodeRoleName),
 				fmt.Sprintf("aws iam create-role --role-name %s --assume-role-policy-document file:///tmp/eks-node-trust.json --tags Key=%s,Value=%s Key=Name,Value=%s", cfg.NodeRoleName, klutchTagKey, klutchTagValue, cfg.NodeRoleName),
 				fmt.Sprintf("aws iam attach-role-policy --role-name %s --policy-arn arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy", cfg.NodeRoleName),
@@ -622,7 +626,7 @@ func printCreatePlan(cfg Config) {
 			Purpose: "Create and tag a KMS key so EKS can encrypt Kubernetes secrets at rest.",
 			Commands: []string{
 				fmt.Sprintf("aws kms create-key --description \"Encrypts secret data stored by the Klutch %s EKS cluster\" --query KeyMetadata.KeyId --output text --tags TagKey=Klutch,TagValue=%s TagKey=Name,TagValue=%s", roleLabel, klutchTagValue, resourceName(cfg, "kms-key")),
-				fmt.Sprintf("aws iam put-role-policy --role-name %s --policy-document file:///tmp/eks-kms-policy.json", cfg.ClusterRoleName),
+				fmt.Sprintf("aws iam put-role-policy --role-name %s --policy-document file:///tmp/eks-kms-policy.json", cfg.ClusterIamRoleName),
 				fmt.Sprintf("aws kms tag-resource --key-id <kms-arn> --tags TagKey=%s,TagValue=%s TagKey=%s,TagValue=%s", clusterNameTagKey, cfg.ClusterName, clusterIDTagKey, clusterArnPlaceholder),
 			},
 		},
@@ -649,7 +653,7 @@ func printCreatePlan(cfg Config) {
 			Title:   "EKS cluster",
 			Purpose: "Create the EKS cluster with secret encryption, private networking, and Klutch tags.",
 			Commands: []string{
-				fmt.Sprintf("aws eks create-cluster --name %s --region %s --role-arn arn:aws:iam::%s:role/%s --resources-vpc-config subnetIds=%s,securityGroupIds=%s --encryption-config [{\"resources\":[\"secrets\"],\"provider\":{\"keyArn\":\"<kms-arn>\"}}] --tags %s", cfg.ClusterName, cfg.Region, accountPlaceholder, cfg.ClusterRoleName, strings.Join(privateSubnets, ","), sgID, clusterTags),
+				fmt.Sprintf("aws eks create-cluster --name %s --region %s --role-arn arn:aws:iam::%s:role/%s --resources-vpc-config subnetIds=%s,securityGroupIds=%s --encryption-config [{\"resources\":[\"secrets\"],\"provider\":{\"keyArn\":\"<kms-arn>\"}}] --tags %s", cfg.ClusterName, cfg.Region, accountPlaceholder, cfg.ClusterIamRoleName, strings.Join(privateSubnets, ","), sgID, clusterTags),
 				fmt.Sprintf("aws eks wait cluster-active --name %s --region %s", cfg.ClusterName, cfg.Region),
 				fmt.Sprintf("aws eks describe-cluster --name %s --region %s --query cluster.status", cfg.ClusterName, cfg.Region),
 			},
@@ -1464,7 +1468,7 @@ func createEKSCluster(ctx context.Context, cfg Config, vpcID, keyArn, accountID,
 	mustRunWithPrompt(ctx, "aws", "eks", "create-cluster",
 		"--name", cfg.ClusterName,
 		"--region", cfg.Region,
-		"--role-arn", fmt.Sprintf("arn:aws:iam::%s:role/%s", accountID, cfg.ClusterRoleName),
+		"--role-arn", fmt.Sprintf("arn:aws:iam::%s:role/%s", accountID, cfg.ClusterIamRoleName),
 		"--resources-vpc-config", fmt.Sprintf("subnetIds=%s,securityGroupIds=%s", subnets, sgID),
 		"--encryption-config", fmt.Sprintf("[{\"resources\":[\"secrets\"],\"provider\":{\"keyArn\":\"%s\"}}]", keyArn),
 		"--tags", fmt.Sprintf("%s=%s,Name=%s,%s=%s,%s=%s", klutchTagKey, klutchTagValue, cfg.ClusterName, clusterNameTagKey, cfg.ClusterName, clusterIDTagKey, clusterArn),
@@ -1896,28 +1900,31 @@ func ensureRouteTableAssociation(ctx context.Context, rtID, subnetID string) {
 // ensurePolicyVersion sets a new default policy version from the given document,
 // pruning an old non-default version if necessary to stay within the 5-version limit.
 func ensurePolicyVersion(ctx context.Context, policyArn, policyDocument string) {
-	versionsOut, err := runCmd(ctx, "aws", "iam", "list-policy-versions", "--policy-arn", policyArn)
-	if err == nil {
-		type version struct {
-			VersionId        string `json:"VersionId"`
-			IsDefaultVersion bool   `json:"IsDefaultVersion"`
-		}
-		type list struct {
-			Versions []version `json:"Versions"`
-		}
-		var lv list
-		if err := json.Unmarshal([]byte(versionsOut), &lv); err == nil {
-			if len(lv.Versions) >= 5 {
-				for _, v := range lv.Versions {
-					if !v.IsDefaultVersion {
-						awsLogger.Infof("Deleting old policy version %s to make room for an updated ALB controller policy...", v.VersionId)
-						errOut, err := runCmdWithPrompt(ctx, "aws", "iam", "delete-policy-version", "--policy-arn", policyArn, "--version-id", v.VersionId)
-						if err != nil {
-							awsLogger.Warningf("Failed to delete policy version %s (continued): %v\nstderr: %s", v.VersionId, err, errOut)
-						}
-						break
-					}
+	versionsOut, err := runCmd(ctx, "aws", "iam", "list-policy-versions", "--policy-arn", policyArn, "--output", "json")
+	if err != nil {
+		awsLogger.Fatalf(err, "Could not retrieve PolicyVersions for IAM Policy %s:\n%s", policyArn, versionsOut)
+	}
+	type version struct {
+		VersionId        string `json:"VersionId"`
+		IsDefaultVersion bool   `json:"IsDefaultVersion"`
+	}
+	type list struct {
+		Versions []version `json:"Versions"`
+	}
+	var lv list
+
+	if err := json.Unmarshal([]byte(versionsOut), &lv); err != nil {
+		awsLogger.Fatalf(err, "Could not unmarshal PolicyVersions for IAM Policy %s:\n%s", policyArn, versionsOut)
+	}
+	if len(lv.Versions) >= 5 {
+		for _, v := range lv.Versions {
+			if !v.IsDefaultVersion {
+				awsLogger.Infof("Deleting old policy version %s to make room for an updated ALB controller policy...", v.VersionId)
+				errOut, err := runCmdWithPrompt(ctx, "aws", "iam", "delete-policy-version", "--policy-arn", policyArn, "--version-id", v.VersionId)
+				if err != nil {
+					awsLogger.Warningf("Failed to delete policy version %s (continued): %v\nstderr: %s", v.VersionId, err, errOut)
 				}
+				break
 			}
 		}
 	}
@@ -1926,7 +1933,7 @@ func ensurePolicyVersion(ctx context.Context, policyArn, policyDocument string) 
 		"--policy-arn", policyArn,
 		"--policy-document", policyDocument,
 		"--set-as-default"); err != nil {
-		awsLogger.Warningf("Failed to update policy %s to latest version (continued): %v\nstderr: %s", policyArn, err, errOut)
+		awsLogger.Fatalf(err, "Failed to update policy %s to latest version (continued)\nstderr: %s", policyArn, errOut)
 	} else {
 		awsLogger.Successf("Updated IAM policy %s to latest version.", policyArn)
 	}

@@ -153,7 +153,7 @@ func findTaggedControlPlaneUserPool(ctx context.Context, region string) string {
 			"--resource-arn", arn,
 			"--query", "Tags",
 			"--output", "text")
-		if strings.Contains(tags, "Klutch") && strings.Contains(tags, "ControlPlane") {
+		if strings.Contains(tags, "Klutch") && strings.Contains(tags, klutchTagValueControlPlane) {
 			return pid
 		}
 	}
