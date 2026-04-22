@@ -652,12 +652,13 @@ func (p *AWSProvisioner) EnsurePublicHostedZone(hostedZoneName, clusterName stri
 			PrivateZone: false,
 		},
 	})
-	if err != nil {
+	if err != nil || created.HostedZone.Id == nil {
 		return nil, fmt.Errorf("creating public hosted zone %s: %w", hostedZoneName, err)
 	}
 
+	hostedZoneIdCleaned := strings.TrimPrefix(*created.HostedZone.Id, "/hostedzone/")
 	_, err = p.r53Client.ChangeTagsForResource(ctx, &route53.ChangeTagsForResourceInput{
-		ResourceId:   created.HostedZone.Id,
+		ResourceId:   &hostedZoneIdCleaned,
 		ResourceType: types.TagResourceTypeHostedzone,
 		AddTags: []types.Tag{
 			{Key: aws.String(klutchTagKey), Value: aws.String(klutchTagValue)},
