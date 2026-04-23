@@ -48,10 +48,11 @@ var A8sPGRestore pg.Restore
 
 var A8sPGServiceBinding pg.ServiceBinding
 
-var DeploymentVersion string // e.g. v0.3.0
-var NoPreCheck bool          // e.g. false -> Perform prechecks
-var DoNotApply bool          // e.g. yes --> do not execute kubectl apply -f ...
-var KubernetesTool string    // e.g. "minikube" or "kind"
+const DefaultDeploymentVersion = "v1.3.0" // e.g. v0.3.0
+var DeploymentVersion string              // e.g. v0.3.0
+var NoPreCheck bool                       // e.g. false -> Perform prechecks
+var DoNotApply bool                       // e.g. yes --> do not execute kubectl apply -f ...
+var KubernetesTool string                 // e.g. "minikube" or "kind"
 
 // const default_waiting_time_in_s = 10
 
