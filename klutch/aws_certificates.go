@@ -28,6 +28,7 @@ var (
 	dnsDelegationPollDelay  = 10 * time.Second
 	dnsDelegationMaxRetries = 180 // allow up to ~30 minutes for registrar DNS delegation to propagate
 	lookupNSFunc            = net.LookupNS
+	clusterNameTagKey       = "ClusterName"
 )
 
 const (
@@ -40,7 +41,7 @@ type CertificateProvisioner interface {
 	EnsureCNAMERecords(hostedZoneName string, records map[string]string) error
 	GetHostedZoneNS(hostedZoneName string) ([]string, error)
 	EnsureALBAliasRecord(hostedZoneName, recordName, albDNSName string) error
-	EnsurePublicHostedZone(hostedZoneName string) ([]string, error)
+	EnsurePublicHostedZone(hostedZoneName, clusterName string) ([]string, error)
 }
 
 type AWSProvisioner struct {
@@ -88,8 +89,8 @@ func detectAWSRegion(kubeContext string) string {
 // verifyHostedZoneResolvable ensures the hosted zone name is publicly resolvable (delegated).
 // If it is not resolvable, instruct the user to delegate the domain to Route53 and wait
 // until the NS records propagate.
-func verifyHostedZoneResolvable(provisioner CertificateProvisioner, hostedZoneName string) {
-	expectedNS, err := provisioner.EnsurePublicHostedZone(hostedZoneName)
+func verifyHostedZoneResolvable(provisioner CertificateProvisioner, hostedZoneName, clusterName string) {
+	expectedNS, err := provisioner.EnsurePublicHostedZone(hostedZoneName, clusterName)
 	if err != nil {
 		makeup.ExitDueToFatalError(err, fmt.Sprintf("Hosted zone %s is not publicly resolvable and its nameservers could not be retrieved.", hostedZoneName))
 	}
@@ -165,7 +166,7 @@ func ensureDualstackALBDNS(albDNS string) string {
 	return "dualstack." + albDNS
 }
 
-func certificateTags(domainName string) []acmTypes.Tag {
+func certificateTags(domainName, hostedZoneName string) []acmTypes.Tag {
 	sanitized := strings.ReplaceAll(strings.TrimPrefix(normalizeDomain(domainName), "*."), "*", "")
 	if sanitized == "" {
 		sanitized = "klutch-certificate"
@@ -173,6 +174,7 @@ func certificateTags(domainName string) []acmTypes.Tag {
 	return []acmTypes.Tag{
 		{Key: aws.String(klutchTagKey), Value: aws.String(klutchTagValue)},
 		{Key: aws.String("Name"), Value: aws.String(fmt.Sprintf("klutch-certificate-%s", sanitized))},
+		{Key: aws.String("HostedZoneName"), Value: aws.String(hostedZoneName)},
 	}
 }
 
@@ -238,7 +240,7 @@ func (p *AWSProvisioner) findExistingIssuedCertificate(ctx context.Context, requ
 }
 
 // ensureCertificateTags makes sure our standard tags are present on the given certificate.
-func (p *AWSProvisioner) ensureCertificateTags(ctx context.Context, certArn, domainName string) error {
+func (p *AWSProvisioner) ensureCertificateTags(ctx context.Context, certArn, domainName, hostedZoneName string) error {
 	existingTagsOut, err := p.acmClient.ListTagsForCertificate(ctx, &acm.ListTagsForCertificateInput{
 		CertificateArn: aws.String(certArn),
 	})
@@ -251,7 +253,7 @@ func (p *AWSProvisioner) ensureCertificateTags(ctx context.Context, certArn, dom
 		existing[aws.ToString(t.Key)] = aws.ToString(t.Value)
 	}
 
-	desired := certificateTags(domainName)
+	desired := certificateTags(domainName, hostedZoneName)
 	var toAdd []acmTypes.Tag
 	for _, t := range desired {
 		if val, ok := existing[aws.ToString(t.Key)]; !ok || val != aws.ToString(t.Value) {
@@ -284,7 +286,7 @@ func (p *AWSProvisioner) EnsureCertificate(domainName string, altNames []string,
 	requiredNames = append(requiredNames, altNames...)
 
 	if existingArn, err := p.findExistingIssuedCertificate(ctx, requiredNames); err == nil && existingArn != "" {
-		if err := p.ensureCertificateTags(ctx, existingArn, domainName); err != nil {
+		if err := p.ensureCertificateTags(ctx, existingArn, domainName, hostedZoneName); err != nil {
 			return "", err
 		}
 		return existingArn, nil
@@ -296,7 +298,7 @@ func (p *AWSProvisioner) EnsureCertificate(domainName string, altNames []string,
 		DomainName:              aws.String(domainName),
 		SubjectAlternativeNames: altNames,
 		ValidationMethod:        acmTypes.ValidationMethodDns,
-		Tags:                    certificateTags(domainName),
+		Tags:                    certificateTags(domainName, hostedZoneName),
 	})
 	if err != nil {
 		return "", fmt.Errorf("requesting ACM certificate: %w", err)
@@ -622,27 +624,12 @@ func (p *AWSProvisioner) GetHostedZoneNS(hostedZoneName string) ([]string, error
 }
 
 // EnsurePublicHostedZone returns NS records for a public hosted zone, creating one if necessary.
-func (p *AWSProvisioner) EnsurePublicHostedZone(hostedZoneName string) ([]string, error) {
+func (p *AWSProvisioner) EnsurePublicHostedZone(hostedZoneName, clusterName string) ([]string, error) {
 	ctx := context.Background()
-	normalized := ensureTrailingDot(hostedZoneName)
-	out, err := p.r53Client.ListHostedZonesByName(ctx, &route53.ListHostedZonesByNameInput{
-		DNSName: aws.String(normalized),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("listing hosted zones: %w", err)
-	}
 
-	var publicZoneID string
-	var privateZoneID string
-	for _, zone := range out.HostedZones {
-		if aws.ToString(zone.Name) == normalized {
-			if zone.Config != nil && zone.Config.PrivateZone {
-				privateZoneID = strings.TrimPrefix(aws.ToString(zone.Id), "/hostedzone/")
-				continue
-			}
-			publicZoneID = strings.TrimPrefix(aws.ToString(zone.Id), "/hostedzone/")
-			break
-		}
+	publicZoneID, privateZoneID, err := getZoneIdsByName(ctx, hostedZoneName, p, clusterName)
+	if err != nil {
+		return nil, err
 	}
 
 	if publicZoneID != "" {
@@ -665,14 +652,105 @@ func (p *AWSProvisioner) EnsurePublicHostedZone(hostedZoneName string) ([]string
 			PrivateZone: false,
 		},
 	})
-	if err != nil {
+	if err != nil || created.HostedZone.Id == nil {
 		return nil, fmt.Errorf("creating public hosted zone %s: %w", hostedZoneName, err)
+	}
+
+	hostedZoneIdCleaned := strings.TrimPrefix(*created.HostedZone.Id, "/hostedzone/")
+	_, err = p.r53Client.ChangeTagsForResource(ctx, &route53.ChangeTagsForResourceInput{
+		ResourceId:   &hostedZoneIdCleaned,
+		ResourceType: types.TagResourceTypeHostedzone,
+		AddTags: []types.Tag{
+			{Key: aws.String(klutchTagKey), Value: aws.String(klutchTagValue)},
+			{Key: aws.String(clusterNameTagKey), Value: aws.String(clusterName)},
+		},
+	})
+	if err != nil {
+		hostedZoneId := ""
+		if created.HostedZone.Id != nil {
+			hostedZoneId = " (id: " + *created.HostedZone.Id + ")"
+		}
+		return nil, fmt.Errorf("tagging public hosted zone %s%s: %w", hostedZoneName, hostedZoneId, err)
 	}
 
 	ns := created.DelegationSet.NameServers
 	makeup.PrintInfo(fmt.Sprintf("Created public hosted zone %s. Nameservers: %s", hostedZoneName, strings.Join(ns, ", ")))
 	p.ensureParentDelegation(ctx, hostedZoneName, ns)
 	return ns, nil
+}
+
+func getZoneIdsByName(ctx context.Context, hostedZoneName string, p *AWSProvisioner, clusterName string) (string, string, error) {
+	normalized := ensureTrailingDot(hostedZoneName)
+	out, err := p.r53Client.ListHostedZonesByName(ctx, &route53.ListHostedZonesByNameInput{
+		DNSName: aws.String(normalized),
+	})
+	if err != nil {
+		return "", "", fmt.Errorf("listing hosted zones: %w", err)
+	}
+
+	var publicZoneID string
+	var privateZoneID string
+	for _, zone := range out.HostedZones {
+		if aws.ToString(zone.Name) != normalized {
+			continue
+		}
+		if zone.Id == nil {
+			return "", "", fmt.Errorf("hosted zone %s did not have an Id set", hostedZoneName)
+		}
+		hostedZoneIdCleaned := strings.TrimPrefix(*zone.Id, "/hostedzone/")
+		tags, err := p.r53Client.ListTagsForResource(ctx, &route53.ListTagsForResourceInput{ResourceId: &hostedZoneIdCleaned, ResourceType: types.TagResourceTypeHostedzone})
+		if err != nil {
+			return "", "", fmt.Errorf("retrieving tags for hosted zone %s (id: %s): %w", hostedZoneName, hostedZoneIdCleaned, err)
+		}
+		klutchTagFound := false
+		clusterNameTagValue := ""
+		for _, tag := range tags.ResourceTagSet.Tags {
+			if aws.ToString(tag.Key) == klutchTagKey && aws.ToString(tag.Value) == klutchTagValue {
+				klutchTagFound = true
+			}
+			if aws.ToString(tag.Key) == clusterNameTagKey {
+				clusterNameTagValue = aws.ToString(tag.Value)
+			}
+		}
+		if clusterNameTagValue != "" && clusterNameTagValue != clusterName {
+			err := fmt.Errorf("Hosted Zone %s is already associated with Cluster %s ", hostedZoneName, clusterNameTagValue)
+			makeup.ExitDueToFatalError(err, fmt.Sprintf("Could not use existing Hosted Zone %s because it was already associated with the EKS cluster %s.\n"+
+				"Please choose a different Hosted Zone Name, delete cluster %s.\n If that cluster is already gone and the tag is stale, then remove the 'ClusterName' tag from the Hosted Zone manually.",
+				hostedZoneName, clusterNameTagValue, clusterNameTagValue))
+		}
+		if klutchTagFound && clusterNameTagValue == "" {
+			makeup.PrintWarning("Found 'Klutch' tag but no 'ClusterName' tag, adopting orphaned Hosted Zone " + hostedZoneName)
+			_, err = p.r53Client.ChangeTagsForResource(ctx, &route53.ChangeTagsForResourceInput{
+				ResourceId:   &hostedZoneIdCleaned,
+				ResourceType: types.TagResourceTypeHostedzone,
+				AddTags:      []types.Tag{{Key: &clusterNameTagKey, Value: aws.String(clusterName)}},
+			})
+			if err != nil {
+				return "", "", fmt.Errorf("tagging orphaned public hosted zone %s (id: %s): %w", hostedZoneName, hostedZoneIdCleaned, err)
+			}
+		}
+		if !klutchTagFound {
+			makeup.PrintWarning("Found no Klutch-related tags, adopting unmanaged Hosted Zone " + hostedZoneName)
+			_, err = p.r53Client.ChangeTagsForResource(ctx, &route53.ChangeTagsForResourceInput{
+				ResourceId:   &hostedZoneIdCleaned,
+				ResourceType: types.TagResourceTypeHostedzone,
+				AddTags: []types.Tag{
+					{Key: aws.String(klutchTagKey), Value: aws.String(klutchTagValue)},
+					{Key: aws.String(clusterNameTagKey), Value: aws.String(clusterName)},
+				},
+			})
+			if err != nil {
+				return "", "", fmt.Errorf("tagging unmanaged public hosted zone %s (id: %s): %w", hostedZoneName, hostedZoneIdCleaned, err)
+			}
+		}
+		if zone.Config != nil && zone.Config.PrivateZone {
+			privateZoneID = hostedZoneIdCleaned
+			continue
+		}
+		publicZoneID = hostedZoneIdCleaned
+		break
+	}
+	return publicZoneID, privateZoneID, nil
 }
 
 func (p *AWSProvisioner) ensureParentDelegation(ctx context.Context, hostedZoneName string, nameServers []string) {

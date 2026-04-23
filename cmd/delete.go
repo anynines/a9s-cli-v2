@@ -22,6 +22,7 @@ var deleteKlutchHostedZoneName string
 var deleteKlutchACMCertificateARN string
 var deleteKlutchCleanupOrphans bool
 var deleteKlutchReally bool
+var deleteKlutchScheduleKmsDeletion bool
 var deleteKlutchTenantRegion string
 var deleteKlutchTenantSecretName string
 
@@ -53,7 +54,7 @@ var cmdDeleteDemo = &cobra.Command{
 var cmdDeleteDemoA8s = &cobra.Command{
 	Use:   "a8s",
 	Short: "Delete the given a8s Data Service Kubernetes cluster.",
-	Long: `Delete the given a8s Data Service Kubernetes cluster in order to free corresponding 
+	Long: `Delete the given a8s Data Service Kubernetes cluster in order to free corresponding
 	resources.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		demo.SelectClusterProvider()
@@ -155,7 +156,8 @@ var cmdDeleteClusterKlutchControlPlane = &cobra.Command{
 			HostedZoneName:        deleteKlutchHostedZoneName,
 			ACMCertificateARN:     deleteKlutchACMCertificateARN,
 			CleanupOrphans:        deleteKlutchCleanupOrphans,
-			SkipPrompt:            demo.UnattendedMode && deleteKlutchReally,
+			SkipPrompt:            makeup.UnattendedMode && deleteKlutchReally,
+			ScheduleKmsDeletion:   deleteKlutchScheduleKmsDeletion,
 		}
 
 		if cmd.Flags().Changed("cluster-name") {
@@ -184,7 +186,7 @@ var cmdDeleteClusterKlutchWorkload = &cobra.Command{
 			IncludeSSLCertificate: deleteKlutchCleanupDNSACM || deleteKlutchDeleteACMCertificate,
 			HostedZoneName:        deleteKlutchHostedZoneName,
 			ACMCertificateARN:     deleteKlutchACMCertificateARN,
-			SkipPrompt:            demo.UnattendedMode && deleteKlutchReally,
+			SkipPrompt:            makeup.UnattendedMode && deleteKlutchReally,
 		}
 
 		if cmd.Flags().Changed("cluster-name") {
@@ -251,7 +253,7 @@ func init() {
 	cmdDeleteKlutchTenant.Flags().StringVar(&deleteKlutchTenantRegion, "region", "", "AWS region for Cognito/Secrets Manager (defaults to CONTROL_PLANE_CLUSTER_REGION or eu-central-1).")
 	cmdDeleteKlutchTenant.Flags().StringVar(&deleteKlutchTenantSecretName, "secret-name", "", "Secrets Manager name that holds the tenant credentials (defaults to klutch/<tenant>/oidc-client).")
 	cmdDeleteDemo.PersistentFlags().StringVarP(&demo.DemoClusterName, "cluster-name", "c", "a8s-demo", "name of the demo Kubernetes cluster.")
-	cmdDeleteDemo.PersistentFlags().BoolVarP(&demo.UnattendedMode, "yes", "y", false, "skip yes-no questions by answering with \"yes\".")
+	cmdDeleteDemo.PersistentFlags().BoolVarP(&makeup.UnattendedMode, "yes", "y", false, "skip yes-no questions by answering with \"yes\".")
 
 	cmdDeleteDemo.AddCommand(cmdDeleteDemoA8s)
 	cmdDeleteDemo.AddCommand(cmdDeleteClusterKlutch)
@@ -264,20 +266,26 @@ func init() {
 }
 
 func addKlutchControlPlaneFlags(cmd *cobra.Command) {
+	initRequiredStringFlagP(cmd, &demo.KubernetesTool, "provider", "p", "aws", "provider for deleting the Kubernetes cluster. Currently the only valid option for Klutch is \"aws\".")
 	cmd.Flags().BoolVar(&deleteKlutchCleanupDNSACM, "cleanup-dns-acm", false, "Delete Klutch Route53 DNS records/hosted zone and ACM certificate (opt-in; destructive).")
 	cmd.Flags().BoolVar(&deleteKlutchDeleteDNSZone, "delete-dns-zone", false, "Delete Klutch Route53 hosted zone (and its records).")
 	cmd.Flags().BoolVar(&deleteKlutchDeleteACMCertificate, "delete-acm-certificate", false, "Delete Klutch ACM certificate.")
-	cmd.Flags().StringVar(&deleteKlutchHostedZoneName, "hosted-zone-name", "", "Hosted zone name to clean up when using DNS deletion flags.")
+	initRequiredStringFlagWithDependency(&deleteKlutchCleanupDNSACM, "cleanup-dns-acm", true, cmd, &deleteKlutchHostedZoneName, "hosted-zone-name", "", "Hosted zone name to clean up when using DNS deletion flags.")
+	setStringFlagDependency(&deleteKlutchDeleteDNSZone, "delete-dns-zone", true, cmd, &deleteKlutchHostedZoneName, "hosted-zone-name")
 	cmd.Flags().StringVar(&deleteKlutchACMCertificateARN, "acm-certificate-arn", "", "ACM certificate ARN to delete (falls back to discovering a tagged Klutch certificate).")
 	cmd.Flags().BoolVar(&deleteKlutchCleanupOrphans, "cleanup-orphans", false, "Attempt to remove Klutch-tagged orphaned AWS resources (e.g., EIPs) after cluster deletion.")
 	cmd.Flags().BoolVar(&deleteKlutchReally, "really", false, "Confirm destructive Klutch cluster deletion (requires --yes to skip the prompt).")
+	cmd.Flags().BoolVar(&deleteKlutchScheduleKmsDeletion, "schedule-kms-deletion", false, "Attempt to schedule any Klutch-tagged KMS keys for deletion after 7 days.")
 }
 
 func addKlutchWorkloadFlags(cmd *cobra.Command) {
+	initRequiredStringFlagP(cmd, &demo.KubernetesTool, "provider", "p", "aws", "provider for deleting the Kubernetes cluster. Currently the only valid option for Klutch is \"aws\".")
+	initRequiredStringFlagP(cmd, &demo.DemoClusterName, "cluster-name", "c", "", "name of the Workload cluster to delete.")
 	cmd.Flags().BoolVar(&deleteKlutchCleanupDNSACM, "cleanup-dns-acm", false, "Delete Klutch Route53 DNS records/hosted zone and ACM certificate (opt-in; destructive).")
 	cmd.Flags().BoolVar(&deleteKlutchDeleteDNSZone, "delete-dns-zone", false, "Delete Klutch Route53 hosted zone (and its records).")
 	cmd.Flags().BoolVar(&deleteKlutchDeleteACMCertificate, "delete-acm-certificate", false, "Delete Klutch ACM certificate.")
-	cmd.Flags().StringVar(&deleteKlutchHostedZoneName, "hosted-zone-name", "", "Hosted zone name to clean up when using DNS deletion flags.")
+	initRequiredStringFlagWithDependency(&deleteKlutchCleanupDNSACM, "cleanup-dns-acm", true, cmd, &deleteKlutchHostedZoneName, "hosted-zone-name", "", "Hosted zone name to clean up when using DNS deletion flags.")
+	setStringFlagDependency(&deleteKlutchDeleteDNSZone, "delete-dns-zone", true, cmd, &deleteKlutchHostedZoneName, "hosted-zone-name")
 	cmd.Flags().StringVar(&deleteKlutchACMCertificateARN, "acm-certificate-arn", "", "ACM certificate ARN to delete (falls back to discovering a tagged Klutch certificate).")
 	cmd.Flags().BoolVar(&deleteKlutchCleanupOrphans, "cleanup-orphans", false, "Attempt to remove Klutch-tagged orphaned AWS resources (e.g., EIPs) after cluster deletion.")
 	cmd.Flags().BoolVar(&deleteKlutchReally, "really", false, "Confirm destructive Klutch cluster deletion (requires --yes to skip the prompt).")

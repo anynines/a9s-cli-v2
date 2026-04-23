@@ -163,6 +163,19 @@ func RegularText(s string) string {
 }
 
 func CommandBox(s string) string {
+	header := lipgloss.NewStyle().Bold(true).Foreground(highlight).Render(" The following command will be executed for you:")
+	command := lipgloss.NewStyle().Render(s)
+	header = ListEmoji(header, emoji.RightArrow)
+	return "\n" + header + "\n " + command
+}
+
+func CommandBoxSmall(s string) string {
+	command := lipgloss.NewStyle().Foreground(subtle).Render(s)
+	result := ListEmoji(" executing "+command+"...", emoji.RightArrow)
+	return result
+}
+
+func CommandBoxOld(s string) string {
 	width, _, _ := term.GetSize(int(os.Stdout.Fd()))
 	// okButton := activeButtonStyle.Render("Yes")
 	// cancelButton := buttonStyle.Render("Maybe")

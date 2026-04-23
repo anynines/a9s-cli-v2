@@ -12,12 +12,12 @@ func TestFindKlutchVPCUsesRegion(t *testing.T) {
 	}()
 
 	var gotArgs []string
-	runCmd = func(ctx context.Context, name string, args ...string) (string, string, error) {
+	runCmd = func(ctx context.Context, name string, args ...string) (string, error) {
 		gotArgs = append([]string(nil), args...)
-		return "vpc-123", "", nil
+		return "vpc-123", nil
 	}
 
-	vpcID := findKlutchVPC(context.Background(), "eu-central-1")
+	vpcID := findKlutchVPC(Config{}, context.Background(), "eu-central-1")
 	if vpcID != "vpc-123" {
 		t.Fatalf("expected vpc-123, got %q", vpcID)
 	}
@@ -28,15 +28,15 @@ func TestFindKlutchVPCUsesRegion(t *testing.T) {
 }
 
 func TestDeleteVPCUsesRegion(t *testing.T) {
-	origRunCmd := runCmd
+	origRunCmdWithPrompt := runCmdWithPrompt
 	defer func() {
-		runCmd = origRunCmd
+		runCmdWithPrompt = origRunCmdWithPrompt
 	}()
 
 	var gotArgs []string
-	runCmd = func(ctx context.Context, name string, args ...string) (string, string, error) {
+	runCmdWithPrompt = func(ctx context.Context, name string, args ...string) (string, error) {
 		gotArgs = append([]string(nil), args...)
-		return "", "", nil
+		return "", nil
 	}
 
 	deleteVPC(context.Background(), "vpc-123", DeleteOptions{Region: "eu-central-1"})

@@ -13,6 +13,8 @@ import (
 
 var Verbose bool
 
+var UnattendedMode bool
+
 /*
 The makeup package contains helper methods to format output and print messages to the user.
 */
@@ -39,11 +41,15 @@ func PrintWelcomeScreen(unattendedMode bool, title, subtitle string) {
 
 	PrintH2(subtitle)
 
-	WaitForUser(unattendedMode)
+	WaitForUser()
 }
 
 func PrintCommandBox(s string) {
 	fmt.Println(CommandBox(s))
+}
+
+func PrintSmallCommand(s string) {
+	fmt.Println(CommandBoxSmall(s))
 }
 
 func PrintH1(s string) {
@@ -107,18 +113,17 @@ func PrintInfo(s string) {
 	PrintEmoji(" "+s, emoji.Information)
 }
 
-func WaitForUser(unattendedMode bool) {
-	if !unattendedMode {
-		msg := "Press <ENTER> key to continue or <CTRL>+C to abort."
+func WaitForUser() {
+	if !UnattendedMode {
+		msg := "Press <ENTER> key to continue or <CTRL>+C to abort:"
 		style := lipgloss.NewStyle().
 			MarginTop(1).
-			MarginBottom(1).
 			MarginLeft(1).
 			Foreground(highlight).
 			Underline(true).
 			Render(msg)
 
-		fmt.Println(style)
+		fmt.Print(style + " ")
 
 		reader := bufio.NewReader(os.Stdin)
 		reader.ReadString('\n')

@@ -7,7 +7,6 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"github.com/anynines/a9s-cli-v2/demo"
 	"github.com/anynines/a9s-cli-v2/makeup"
 	"k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -63,11 +62,10 @@ func (k *KlutchManager) DeployDex(hostIP string, ingressPort string, ingressClas
 		makeup.ExitDueToFatalError(err, "Could not render the dex manifests.")
 	}
 
-	makeup.PrintH2("Applying the following manifests: ")
-	makeup.PrintYAML(manifests.Bytes(), false)
-	makeup.WaitForUser(demo.UnattendedMode)
-
-	k.cpK8s.KubectlApplyStdin(manifests)
+	// Note: Manifest display and waiting are handled by KubectlApplyWithPrompt
+	if _, err := k.cpK8s.ApplyWithPrompt(manifests.Bytes(), "dex manifests"); err != nil {
+		makeup.ExitDueToFatalError(err, "Failed to apply dex manifests")
+	}
 
 	makeup.Print("Done applying the dex manifests.")
 }
@@ -86,7 +84,7 @@ func (k *KlutchManager) WaitForDex() {
 	k.cpK8s.KubectlWaitForRollout("deployment", "dex", "default")
 
 	makeup.PrintCheckmark("Dex appears to be ready.")
-	makeup.WaitForUser(demo.UnattendedMode)
+	makeup.WaitForUser()
 }
 
 // getOIDCIssuerClientSecret checks if the dex oidc-config secret exists and returns the oidc-issuer-client-secret if set.

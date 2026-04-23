@@ -12,10 +12,10 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"os/exec"
 	"strings"
 	"time"
 
+	"github.com/anynines/a9s-cli-v2/k8s"
 	"github.com/anynines/a9s-cli-v2/makeup"
 	"github.com/anynines/klutchio/bind/deploy/crd"
 	"github.com/anynines/klutchio/bind/deploy/konnector"
@@ -49,7 +49,7 @@ type NonInteractiveBindOptions struct {
 	OIDCScope               string
 	KonnectorImage          string
 	WriteKubeconfigTo       string
-	WorkloadKubeconfig      string
+	WorkloadKubeconfigPath  string
 	WorkloadContext         string
 	ControlPlaneClusterName string
 }
@@ -167,7 +167,16 @@ func NonInteractiveBind(ctx context.Context, opts NonInteractiveBindOptions) err
 		return err
 	}
 
-	if err := applyManifests(ctx, crdManifests, manifests, opts.WorkloadKubeconfig, opts.WorkloadContext); err != nil {
+	k8sClient := k8s.NewKubeClient(opts.WorkloadContext)
+	if strings.TrimSpace(crdManifests) != "" {
+		if _, err := k8sClient.ApplyWithPrompt([]byte(crdManifests), "Binding CRDs"); err != nil {
+			return err
+		}
+		if err := waitForAPIServiceBinding(ctx, opts.WorkloadKubeconfigPath, opts.WorkloadContext); err != nil {
+			return err
+		}
+	}
+	if _, err := k8sClient.ApplyWithPrompt([]byte(manifests), "Binding Resources"); err != nil {
 		return err
 	}
 	makeup.PrintCheckmark("Applied klutch-bind resources to the workload cluster.")
@@ -268,14 +277,6 @@ func ensureKubeconfigCA(kubeconfig []byte, clusterName, regionHint string) ([]by
 		ca, fetchErr = fetchClusterCA(cn, region)
 	}
 	if fetchErr != nil || len(ca) == 0 {
-		for name := range cfg.Clusters {
-			ca, fetchErr = fetchClusterCA(name, region)
-			if fetchErr == nil && len(ca) > 0 {
-				break
-			}
-		}
-	}
-	if fetchErr != nil {
 		return nil, fetchErr
 	}
 	if len(ca) == 0 {
@@ -321,12 +322,11 @@ func controlPlaneRegionFromURL(endpoint string) string {
 }
 
 func fetchClusterCA(clusterName, region string) ([]byte, error) {
-	cmd := exec.Command("aws", "eks", "describe-cluster",
+	out, err := makeup.Command("aws", "eks", "describe-cluster",
 		"--name", clusterName,
 		"--region", region,
 		"--query", "cluster.certificateAuthority.data",
-		"--output", "text")
-	out, err := cmd.Output()
+		"--output", "text").NoPrompt().Run()
 	if err != nil {
 		return nil, fmt.Errorf("fetch CA for cluster %s in %s: %w", clusterName, region, err)
 	}
@@ -493,47 +493,8 @@ func parseBindingResponse(resp bindv1alpha1.BindingResponse) ([]bindv1alpha1.API
 	return bindings, exportReqs, nil
 }
 
-func applyManifests(ctx context.Context, crdManifest, mainManifest string, kubeconfigPath, kubeContext string) error {
-	apply := func(manifest string) error {
-		cmdArgs := []string{"apply", "-f", "-"}
-		if strings.TrimSpace(kubeconfigPath) != "" {
-			cmdArgs = append(cmdArgs, "--kubeconfig", kubeconfigPath)
-		}
-		if strings.TrimSpace(kubeContext) != "" {
-			cmdArgs = append(cmdArgs, "--context", kubeContext)
-		}
-		cmd := exec.CommandContext(ctx, "kubectl", cmdArgs...)
-		cmd.Stdin = bytes.NewBufferString(manifest)
-		out, err := cmd.CombinedOutput()
-		if err != nil {
-			return fmt.Errorf("failed to apply workload manifests: %w (output: %s)", err, strings.TrimSpace(string(out)))
-		}
-		if makeup.Verbose {
-			fmt.Println(string(out))
-		}
-		return nil
-	}
-
-	if strings.TrimSpace(crdManifest) != "" {
-		if err := apply(crdManifest); err != nil {
-			return err
-		}
-		if err := waitForAPIServiceBinding(ctx, kubeconfigPath, kubeContext); err != nil {
-			return err
-		}
-	}
-
-	return apply(mainManifest)
-}
-
 func waitForAPIServiceBinding(ctx context.Context, kubeconfigPath, kubeContext string) error {
-	cmdArgs := []string{"api-resources", "--api-group=klutch.anynines.com", "-o", "name"}
-	if strings.TrimSpace(kubeconfigPath) != "" {
-		cmdArgs = append(cmdArgs, "--kubeconfig", kubeconfigPath)
-	}
-	if strings.TrimSpace(kubeContext) != "" {
-		cmdArgs = append(cmdArgs, "--context", kubeContext)
-	}
+	k8sClient := k8s.NewKubeClient("")
 	timeout := time.After(30 * time.Second)
 	tick := time.Tick(1 * time.Second)
 	for {
@@ -543,8 +504,7 @@ func waitForAPIServiceBinding(ctx context.Context, kubeconfigPath, kubeContext s
 		case <-timeout:
 			return fmt.Errorf("APIServiceBinding CRD not registered in time")
 		case <-tick:
-			cmd := exec.CommandContext(ctx, "kubectl", cmdArgs...)
-			out, err := cmd.Output()
+			out, err := k8sClient.ApiResources("klutch.anynines.com", kubeconfigPath, kubeContext, "name")
 			if err == nil && strings.Contains(string(out), "apiservicebindings") {
 				return nil
 			}
@@ -559,8 +519,11 @@ func createExportRequests(ctx context.Context, kubeconfig []byte, requests []bin
 	}
 
 	currentCtx := kfg.CurrentContext
-	if currentCtx == "" || kfg.Contexts[currentCtx] == nil || kfg.Contexts[currentCtx].Namespace == "" {
-		return fmt.Errorf("returned kubeconfig missing current context/namespace")
+	if currentCtx == "" || kfg.Contexts[currentCtx] == nil {
+		return fmt.Errorf("returned kubeconfig missing current context:\n%s", string(kubeconfig))
+	}
+	if kfg.Contexts[currentCtx].Namespace == "" {
+		return fmt.Errorf("returned kubeconfig missing current namespace:\n%s", string(kubeconfig))
 	}
 	ns := kfg.Contexts[currentCtx].Namespace
 

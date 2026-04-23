@@ -3,10 +3,8 @@ package k8s
 import (
 	"flag"
 	"os"
-	"os/exec"
 	"path/filepath"
 
-	"github.com/anynines/a9s-cli-v2/creator"
 	"github.com/anynines/a9s-cli-v2/makeup"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -14,27 +12,12 @@ import (
 	"k8s.io/client-go/util/homedir"
 )
 
-var Creator creator.KubernetesCreator
-
-func CheckIfDockerIsRunning() bool {
-	cmd := exec.Command("docker", "info")
-	err := cmd.Run()
-	if err != nil {
-		makeup.PrintFail("Docker is not running.")
-		makeup.PrintInfo("Please start the Docker daemon. In case you are using Docker Desktop, start Docker Desktop.")
-		return false
-	}
-	makeup.PrintCheckmark("Docker is running.")
-	return true
-}
-
 /*
 Verifies if there's a Kubernetes cluster.
 Does not verify whether it is the intended Kubernetes cluster.
 */
 func CheckIfAnyKubernetesIsRunning() bool {
-	cmd := exec.Command("kubectl", "api-versions")
-	err := cmd.Run()
+	_, err := makeup.Command("kubectl", "api-versions").NoPrompt().Run()
 	if err != nil {
 		makeup.PrintFail("Kubernetes is not running.")
 		makeup.PrintInfo("Please try to restart it or recreate it (delete and re-run the creation).")

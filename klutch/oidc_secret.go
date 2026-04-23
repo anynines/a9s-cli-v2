@@ -1,10 +1,8 @@
 package klutch
 
 import (
-	"bytes"
 	"fmt"
 
-	"github.com/anynines/a9s-cli-v2/demo"
 	"github.com/anynines/a9s-cli-v2/makeup"
 )
 
@@ -23,11 +21,8 @@ stringData:
   oidc-callback-url: "%s"
 `, opts.ClientID, opts.ClientSecret, opts.IssuerURL, opts.CallbackURL)
 
-	makeup.PrintH2("Applying external OIDC configuration secret...")
-	makeup.PrintYAML([]byte(manifest), false)
-	makeup.WaitForUser(demo.UnattendedMode)
-
-	k.cpK8s.KubectlApplyStdin(bytes.NewBufferString(manifest))
-
-	makeup.Print("Applied external OIDC configuration.")
+	// Note: Manifest display and waiting are handled by KubectlApplyWithPrompt
+	if _, err := k.cpK8s.ApplyWithPrompt([]byte(manifest), "external OIDC configuration secret"); err != nil {
+		makeup.ExitDueToFatalError(err, "Failed to apply external OIDC configuration secret")
+	}
 }

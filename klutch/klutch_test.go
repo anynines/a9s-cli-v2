@@ -1,15 +1,15 @@
 package klutch
 
 import (
-	"bytes"
 	"fmt"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"testing"
 
 	"github.com/anynines/a9s-cli-v2/demo"
+	"github.com/anynines/a9s-cli-v2/k8s"
+	"github.com/anynines/a9s-cli-v2/makeup"
 	"gopkg.in/yaml.v2"
 )
 
@@ -41,8 +41,7 @@ func TestDeploy(t *testing.T) {
 }
 
 func checkKindClusterRunning(t *testing.T, clusterName string) {
-	cmd := exec.Command("docker", "ps", "--filter", fmt.Sprintf("name=%s", clusterName), "--format", "{{.Names}}")
-	output, err := cmd.CombinedOutput()
+	output, err := makeup.Command("docker", "ps", "--filter", fmt.Sprintf("name=%s", clusterName), "--format", "{{.Names}}").NoPrompt().Run()
 	if err != nil {
 		t.Fatalf("expected no error listing containers, but got error %v : %s", err, string(output))
 	}
@@ -79,31 +78,13 @@ spec:
     name: a8s-postgresql
 `
 
-	in := bytes.NewBufferString(claim)
-	cmd := exec.Command("kubectl", "apply", "--context", contextControlPlane, "-f", "-")
-	cmd.Stdin = in
-	output, err := cmd.CombinedOutput()
+	k8sClient := k8s.NewKubeClient(contextControlPlane)
+	output, err := k8sClient.ApplyWithPrompt([]byte(claim), "")
 	if err != nil {
 		t.Fatalf("expected no error while applying claim, but got %v : %s", err, string(output))
 	}
 
-	cmdWait := exec.Command("kubectl", "wait", "--context", contextControlPlane, "--for=condition=ready", "postgresqlinstances", "klutch-test-pg", "--timeout=120s")
-	output, err = cmdWait.CombinedOutput()
-	if err != nil {
-		t.Fatalf("expected no error while waiting for claim, but got %v : %s", err, string(output))
-	}
+	k8sClient.KubectlWaitForResourceCondition("ready", "postgresqlinstances", "klutch-test-pg", "-A", "--timeout=120s")
 
-	cmdWaitPg := exec.Command("kubectl", "wait", "--context", contextControlPlane, "--for=condition=ready", "pod", "--selector", "a8s.a9s/dsi-name=klutch-test-pg", "--timeout=120s")
-	output, err = cmdWaitPg.CombinedOutput()
-	if err != nil {
-		t.Fatalf("expected no error while waiting for pg instance, but got %v : %s", err, string(output))
-	}
-
-	in = bytes.NewBufferString(claim)
-	cmdDelete := exec.Command("kubectl", "delete", "--timeout=120s", "--wait=false", "--context", contextControlPlane, "-f", "-")
-	cmdDelete.Stdin = in
-	output, err = cmdDelete.CombinedOutput()
-	if err != nil {
-		t.Fatalf("expected no error while deleting claim, but got %v : %s", err, string(output))
-	}
+	k8sClient.DeleteFromManifest(claim)
 }

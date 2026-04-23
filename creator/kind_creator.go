@@ -1,13 +1,14 @@
 package creator
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
+	"github.com/anynines/a9s-cli-v2/k8s"
 	"github.com/anynines/a9s-cli-v2/makeup"
 	"gopkg.in/yaml.v2"
 )
@@ -98,29 +99,15 @@ func (c KindCreator) Create(spec KubernetesClusterSpec, unattendedMode bool) {
 	c.generateClusterConfigFile(spec, config, filepath)
 
 	// kind create cluster --name a8s-ds --config kind-cluster-3nodes.yaml
-	cmd := exec.Command("kind", "create", "cluster", "--name", spec.Name, "--config", filepath)
-
-	makeup.PrintCommandBox(cmd.String())
-	makeup.WaitForUser(unattendedMode)
-
-	output, err := cmd.CombinedOutput()
-
+	output, err := makeup.Command("kind", "create", "cluster", "--name", spec.Name, "--config", filepath).WithPrompt().Run()
 	if err != nil {
-		makeup.PrintFail("Failed to execute the command: " + err.Error())
-		fmt.Println(string(output))
-		os.Exit(1)
-		return
-	} else {
-		fmt.Println(string(output))
-		return
+		makeup.ExitDueToFatalError(err, fmt.Sprintf("Failed to execute the command 'kind create cluster --name %s --config %s':\n%s", spec.Name, filepath, output))
 	}
 }
 
 func (c KindCreator) Exists(clustername string) bool {
-	cmd := exec.Command("kind", "get", "clusters")
 
-	// Capture the command output
-	output, err := cmd.CombinedOutput()
+	output, err := makeup.Command("kind", "get", "clusters").NoPrompt().Run()
 	if err != nil {
 		makeup.PrintFail("Couldn't capture output of 'kind get clusters' command.")
 		log.Fatal(err)
@@ -155,9 +142,7 @@ func (c KindCreator) Running(clustername string) bool {
 		return false
 	}
 
-	cmd := exec.Command("kubectl", "cluster-info", "--context", "kind-"+clustername)
-
-	output, err := cmd.CombinedOutput()
+	output, err := k8s.ClusterInfo(context.TODO(), "kind-"+clustername)
 
 	if err != nil {
 		makeup.PrintFail("Failed to execute the command: " + err.Error())
@@ -172,22 +157,12 @@ func (c KindCreator) Running(clustername string) bool {
 func (c KindCreator) Delete(name string, unattendedMode bool) {
 	makeup.PrintWarning("Deleting the Demo Kubernetes Cluster " + name + "...")
 
-	cmd := exec.Command("kind", "delete", "cluster", "-n", name)
-
-	makeup.PrintCommandBox(cmd.String())
-	makeup.WaitForUser(unattendedMode)
-
-	output, err := cmd.CombinedOutput()
+	output, err := makeup.Command("kind", "delete", "cluster", "-n", name).WithPrompt().Run()
 
 	if err != nil {
-		makeup.PrintFail("Failed to execute the command: " + err.Error())
-		fmt.Println(string(output))
-		os.Exit(1)
-		return
-	} else {
-		fmt.Println(string(output))
-		return
+		makeup.ExitDueToFatalError(err, fmt.Sprintf("Failed to execute the command 'kind delete cluster -n %s':\n%s", name, output))
 	}
+	fmt.Println(string(output))
 }
 
 /*

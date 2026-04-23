@@ -105,7 +105,7 @@ func init() {
 	defaultRegion := "eu-central-1"
 	defaultInstanceType := "t3a.xlarge"
 
-	estimateCostClusterKlutchCmd.PersistentFlags().StringVarP(&estimateProvider, "provider", "p", "", "Provider to use (only \"aws\" supported).")
+	initRequiredStringFlagP(estimateCostClusterKlutchCmd, &estimateProvider, "provider", "p", "", "Provider to use (only \"aws\" supported).")
 	estimateCostClusterKlutchCmd.PersistentFlags().StringVar(&estimateRegion, "region", defaultRegion, "AWS region to price.")
 	estimateCostClusterKlutchCmd.PersistentFlags().StringVar(&estimateInstanceType, "instance-type", defaultInstanceType, "EC2 instance type for worker nodes.")
 	estimateCostClusterKlutchCmd.PersistentFlags().IntVar(&estimateDesiredNodes, "desired-nodes", 3, "Desired number of worker nodes.")

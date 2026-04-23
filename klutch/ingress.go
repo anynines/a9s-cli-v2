@@ -1,7 +1,6 @@
 package klutch
 
 import (
-	"bytes"
 	_ "embed"
 
 	"github.com/anynines/a9s-cli-v2/makeup"
@@ -19,11 +18,15 @@ var ingressConfigMap string
 func (k *KlutchManager) DeployIngressNginx() {
 	makeup.PrintH1("Applying ingress-nginx manifests...")
 
-	k.cpK8s.KubectlApplyF(ingressManifestsUrl, true)
+	// Fetch and apply ingress-nginx manifests
+	if _, err := k.cpK8s.ApplyFromUrl(ingressManifestsUrl, ingressManifestsUrl); err != nil {
+		makeup.ExitDueToFatalError(err, "Failed to apply ingress-nginx manifests")
+	}
 
 	// Apply configmap
-	in := bytes.NewBufferString(ingressConfigMap)
-	k.cpK8s.KubectlApplyStdin(in)
+	if _, err := k.cpK8s.ApplyWithPrompt([]byte(ingressConfigMap), "ingress-nginx configmap"); err != nil {
+		makeup.ExitDueToFatalError(err, "Failed to apply ingress-nginx configmap")
+	}
 
 	makeup.Print("Done applying ingress-nginx manifests.")
 }
@@ -32,8 +35,8 @@ func (k *KlutchManager) WaitForIngressNginx() {
 	makeup.PrintH1("Waiting for ingress-nginx to become ready...")
 
 	k.cpK8s.KubectlWaitForRollout("deployment", "ingress-nginx-controller", "ingress-nginx")
-	k.cpK8s.KubectlWaitForResourceCondition("complete", "job", "ingress-nginx-admission-create", "ingress-nginx")
-	k.cpK8s.KubectlWaitForResourceCondition("complete", "job", "ingress-nginx-admission-patch", "ingress-nginx")
+	k.cpK8s.KubectlWaitForResourceCondition("complete", "job", "ingress-nginx-admission-create", "ingress-nginx", "")
+	k.cpK8s.KubectlWaitForResourceCondition("complete", "job", "ingress-nginx-admission-patch", "ingress-nginx", "")
 
 	makeup.PrintCheckmark("ingress-nginx appears to be ready.")
 }

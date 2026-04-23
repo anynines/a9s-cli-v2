@@ -3,7 +3,6 @@ package klutch
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 
 	"github.com/anynines/a9s-cli-v2/demo"
@@ -17,7 +16,7 @@ func DeleteClusters() {
 	checkDeletePrerequisites()
 
 	makeup.PrintH1("Are you sure you want to delete the Klutch clusters?")
-	if demo.UnattendedMode {
+	if makeup.UnattendedMode {
 		makeup.PrintInfo("Unattended mode enabled; proceeding with deletion.")
 	} else {
 		if !makeup.ConfirmYes("Type 'yes' to proceed: ") {
@@ -35,8 +34,7 @@ func DeleteClusters() {
 
 // deleteCluster deletes a kind cluster with the given name.
 func deleteCluster(name string) {
-	cmd := exec.Command("kind", "delete", "cluster", "-n", name)
-	output, err := cmd.CombinedOutput()
+	output, err := makeup.Command("kind", "delete", "cluster", "-n", name).WithPrompt().Run()
 	if err != nil {
 		makeup.ExitDueToFatalError(err, fmt.Sprintf("Could not delete cluster: %s", string(output)))
 	}
