@@ -691,5 +691,6 @@ func init() {
 	cmdCreate.AddCommand(cmdCreateStack)
 	rootCmd.PersistentFlags().BoolVarP(&makeup.UnattendedMode, "yes", "y", false, "skip yes-no questions by answering with \"yes\".")
 	rootCmd.PersistentFlags().BoolVarP(&makeup.Verbose, "verbose", "v", false, "enable verbose output?")
+	rootCmd.PersistentFlags().BoolVar(&makeup.ShowCommands, "show-commands", false, "output shell commands when they are executed")
 	rootCmd.AddCommand(cmdCreate)
 }

@@ -128,7 +128,7 @@ func (c command) Run() ([]byte, error) {
 
 func printCommandString(command *exec.Cmd, c command) {
 
-	if c.commandMode == CommandModeQuiet {
+	if c.commandMode == CommandModeQuiet || !ShowCommands {
 		return
 	}
 
@@ -156,7 +156,9 @@ func printCommandString(command *exec.Cmd, c command) {
 	}
 
 	if c.commandMode == CommandModeNoPrompt {
+		if Verbose {
 		PrintSmallCommand(commandString)
+		}
 		return
 	}
 

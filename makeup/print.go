@@ -11,9 +11,11 @@ import (
 	"golang.org/x/term"
 )
 
-var Verbose bool
-
-var UnattendedMode bool
+var (
+	Verbose        bool
+	ShowCommands   bool
+	UnattendedMode bool
+)
 
 /*
 The makeup package contains helper methods to format output and print messages to the user.
