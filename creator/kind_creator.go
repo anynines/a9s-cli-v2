@@ -99,7 +99,7 @@ func (c KindCreator) Create(spec KubernetesClusterSpec, unattendedMode bool) {
 	c.generateClusterConfigFile(spec, config, filepath)
 
 	// kind create cluster --name a8s-ds --config kind-cluster-3nodes.yaml
-	output, err := makeup.Command("kind", "create", "cluster", "--name", spec.Name, "--config", filepath).WithPrompt().Run()
+	output, err := makeup.NewCommand("kind", "create", "cluster", "--name", spec.Name, "--config", filepath).WithPrompt().Run()
 	if err != nil {
 		makeup.ExitDueToFatalError(err, fmt.Sprintf("Failed to execute the command 'kind create cluster --name %s --config %s':\n%s", spec.Name, filepath, output))
 	}
@@ -107,7 +107,7 @@ func (c KindCreator) Create(spec KubernetesClusterSpec, unattendedMode bool) {
 
 func (c KindCreator) Exists(clustername string) bool {
 
-	output, err := makeup.Command("kind", "get", "clusters").NoPrompt().Run()
+	output, err := makeup.NewCommand("kind", "get", "clusters").NoPrompt().Run()
 	if err != nil {
 		makeup.PrintFail("Couldn't capture output of 'kind get clusters' command.")
 		log.Fatal(err)
@@ -157,7 +157,7 @@ func (c KindCreator) Running(clustername string) bool {
 func (c KindCreator) Delete(name string, unattendedMode bool) {
 	makeup.PrintWarning("Deleting the Demo Kubernetes Cluster " + name + "...")
 
-	output, err := makeup.Command("kind", "delete", "cluster", "-n", name).WithPrompt().Run()
+	output, err := makeup.NewCommand("kind", "delete", "cluster", "-n", name).WithPrompt().Run()
 
 	if err != nil {
 		makeup.ExitDueToFatalError(err, fmt.Sprintf("Failed to execute the command 'kind delete cluster -n %s':\n%s", name, output))

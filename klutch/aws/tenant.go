@@ -23,7 +23,7 @@ func ListTenantSecrets(ctx context.Context, region string, prefix string) ([]str
 		prefix = defaultTenantSecretPrefix
 	}
 	query := fmt.Sprintf("SecretList[?starts_with(Name, `%s`)].Name", prefix)
-	out, err := runCmd(ctx, "aws", "secretsmanager", "list-secrets",
+	out, err := runCmd(ctx, false, false, "aws", "secretsmanager", "list-secrets",
 		"--region", region,
 		"--max-results", "100",
 		"--query", query,
@@ -40,7 +40,7 @@ func ListTenantSecrets(ctx context.Context, region string, prefix string) ([]str
 
 // GetTenantCredentials retrieves an OIDCConnection from Secrets Manager.
 func GetTenantCredentials(ctx context.Context, region string, secretName string) (OIDCConnection, error) {
-	out, err := runCmd(ctx, "aws", "secretsmanager", "get-secret-value",
+	out, err := runCmd(ctx, false, false, "aws", "secretsmanager", "get-secret-value",
 		"--region", region,
 		"--secret-id", secretName,
 		"--query", "SecretString",
@@ -57,7 +57,7 @@ func GetTenantCredentials(ctx context.Context, region string, secretName string)
 
 // DeleteTenantSecret deletes a tenant secret from Secrets Manager.
 func DeleteTenantSecret(ctx context.Context, region string, secretName string) error {
-	if errOut, err := runCmdWithPrompt(ctx, "aws", "secretsmanager", "delete-secret",
+	if errOut, err := runCmd(ctx, true, false, "aws", "secretsmanager", "delete-secret",
 		"--region", region,
 		"--secret-id", secretName,
 		"--force-delete-without-recovery"); err != nil {
@@ -68,7 +68,7 @@ func DeleteTenantSecret(ctx context.Context, region string, secretName string) e
 
 // TenantSecretExists returns true if the secret exists.
 func TenantSecretExists(ctx context.Context, region, secretName string) bool {
-	errOut, err := runCmd(ctx, "aws", "secretsmanager", "describe-secret",
+	errOut, err := runCmd(ctx, false, false, "aws", "secretsmanager", "describe-secret",
 		"--region", region,
 		"--secret-id", secretName,
 		"--query", "ARN",

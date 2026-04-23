@@ -34,7 +34,7 @@ func DeleteClusters() {
 
 // deleteCluster deletes a kind cluster with the given name.
 func deleteCluster(name string) {
-	output, err := makeup.Command("kind", "delete", "cluster", "-n", name).WithPrompt().Run()
+	output, err := makeup.NewCommand("kind", "delete", "cluster", "-n", name).WithPrompt().Run()
 	if err != nil {
 		makeup.ExitDueToFatalError(err, fmt.Sprintf("Could not delete cluster: %s", string(output)))
 	}

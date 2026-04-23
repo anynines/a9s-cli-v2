@@ -117,7 +117,7 @@ func deleteCluster(ctx context.Context, cfg Config, opts DeleteOptions) {
 		}
 	}
 
-	out, err := runCmd(ctx, "aws", "sts", "get-caller-identity", "--query", "Account", "--output", "text")
+	out, err := runCmd(ctx, false, false, "aws", "sts", "get-caller-identity", "--query", "Account", "--output", "text")
 	if err != nil || out == "" || out == "None" || out == "null" {
 		awsLogger.Fatalf(err, "Unable to determine AWS Account ID. Run 'aws configure'. stderr: %s", out)
 	}
@@ -168,7 +168,7 @@ func discoverCluster(ctx context.Context, cfg Config, opts DeleteOptions) (bool,
 	clusterReachable := false
 	status := "UNKNOWN"
 
-	out, err := runCmd(ctx, "aws", "eks", "describe-cluster",
+	out, err := runCmd(ctx, false, true, "aws", "eks", "describe-cluster",
 		"--name", cfg.ClusterName,
 		"--region", cfg.Region,
 		"--query", "cluster.status",
@@ -181,7 +181,7 @@ func discoverCluster(ctx context.Context, cfg Config, opts DeleteOptions) (bool,
 			if opts.DryRun {
 				clusterReachable = true
 			} else {
-				if errOut, err := runCmdWithPrompt(ctx, "aws", "eks", "update-kubeconfig",
+				if errOut, err := runCmd(ctx, true, false, "aws", "eks", "update-kubeconfig",
 					"--name", cfg.ClusterName,
 					"--region", cfg.Region); err != nil {
 					awsLogger.Warningf("Could not update kubeconfig: %v\nstderr: %s", err, errOut)
@@ -213,7 +213,7 @@ func kubernetesCleanup(ctx context.Context, cfg Config, opts DeleteOptions) {
 	if opts.DryRun {
 		awsLogger.Infof("Dry-run: would uninstall AWS LB Controller Helm release (if present).")
 	} else {
-		if errOut, err := runCmdWithPrompt(ctx, "helm", "uninstall", cfg.AlbServiceAccountName, "-n", "kube-system"); err != nil {
+		if errOut, err := runCmd(ctx, true, false, "helm", "uninstall", cfg.AlbServiceAccountName, "-n", "kube-system"); err != nil {
 			awsLogger.Warningf("Failed to uninstall AWS LB Controller: %v\nstderr: %s", err, errOut)
 		} else {
 			awsLogger.Successf("Uninstalled AWS LB Controller (if present).")
@@ -226,7 +226,7 @@ func iamCleanup(ctx context.Context, cfg Config, opts DeleteOptions, accountID s
 	if opts.DryRun {
 		awsLogger.Infof("Dry-run: would delete IAM service account aws-load-balancer-controller.")
 	} else if clusterReachable {
-		if errOut, err := runCmdWithPrompt(ctx, "eksctl", "delete", "iamserviceaccount",
+		if errOut, err := runCmd(ctx, true, false, "eksctl", "delete", "iamserviceaccount",
 			"--cluster", cfg.ClusterName,
 			"--region", cfg.Region,
 			"--namespace", "kube-system",
@@ -248,7 +248,7 @@ func iamCleanup(ctx context.Context, cfg Config, opts DeleteOptions, accountID s
 	}
 	deleteOIDCProvider(ctx, cfg, accountID, opts, clusterReachable)
 
-	policyArn, err := runCmd(ctx, "aws", "iam", "list-policies", "--scope", "Local",
+	policyArn, err := runCmd(ctx, false, false, "aws", "iam", "list-policies", "--scope", "Local",
 		"--query", fmt.Sprintf("Policies[?PolicyName=='%s'].Arn | [0]", cfg.ALBControllerPolicyName),
 		"--output", "text")
 	if err != nil || policyArn == "" || policyArn == "None" {
@@ -256,7 +256,7 @@ func iamCleanup(ctx context.Context, cfg Config, opts DeleteOptions, accountID s
 		return
 	}
 
-	versions, _ := runCmd(ctx, "aws", "iam", "list-policy-versions",
+	versions, _ := runCmd(ctx, false, false, "aws", "iam", "list-policy-versions",
 		"--policy-arn", policyArn,
 		"--query", "Versions[?IsDefaultVersion==`false`].VersionId",
 		"--output", "text")
@@ -265,7 +265,7 @@ func iamCleanup(ctx context.Context, cfg Config, opts DeleteOptions, accountID s
 			awsLogger.Infof("Dry-run: would delete policy version %s for %s", v, cfg.ALBControllerPolicyName)
 			continue
 		}
-		if errOut, err := runCmdWithPrompt(ctx, "aws", "iam", "delete-policy-version",
+		if errOut, err := runCmd(ctx, true, false, "aws", "iam", "delete-policy-version",
 			"--policy-arn", policyArn, "--version-id", v); err != nil {
 			awsLogger.Warningf("Failed to delete policy version %s: %v\nstderr: %s", v, err, errOut)
 		}
@@ -273,7 +273,7 @@ func iamCleanup(ctx context.Context, cfg Config, opts DeleteOptions, accountID s
 	if opts.DryRun {
 		awsLogger.Infof("Dry-run: would delete ALB IAM policy %s", cfg.ALBControllerPolicyName)
 	} else {
-		if errOut, err := runCmdWithPrompt(ctx, "aws", "iam", "delete-policy", "--policy-arn", policyArn); err != nil {
+		if errOut, err := runCmd(ctx, true, false, "aws", "iam", "delete-policy", "--policy-arn", policyArn); err != nil {
 			awsLogger.Warningf("Failed to delete ALB IAM policy: %v\nstderr: %s", err, errOut)
 		} else {
 			awsLogger.Successf("Deleted ALB IAM policy.")
@@ -284,7 +284,7 @@ func iamCleanup(ctx context.Context, cfg Config, opts DeleteOptions, accountID s
 func deleteNodegroupsAndCluster(ctx context.Context, cfg Config, opts DeleteOptions) {
 	awsLogger.Section("Delete Nodegroups and Cluster")
 
-	ngs, _ := runCmd(ctx, "aws", "eks", "list-nodegroups",
+	ngs, _ := runCmd(ctx, false, false, "aws", "eks", "list-nodegroups",
 		"--cluster-name", cfg.ClusterName,
 		"--region", cfg.Region,
 		"--query", "nodegroups[]",
@@ -296,13 +296,13 @@ func deleteNodegroupsAndCluster(ctx context.Context, cfg Config, opts DeleteOpti
 			awsLogger.Infof("Dry-run: would delete nodegroup %s and wait for deletion.", ng)
 			continue
 		}
-		if errOut, err := runCmdWithPrompt(ctx, "aws", "eks", "delete-nodegroup",
+		if errOut, err := runCmd(ctx, true, false, "aws", "eks", "delete-nodegroup",
 			"--cluster-name", cfg.ClusterName,
 			"--nodegroup-name", ng,
 			"--region", cfg.Region); err != nil {
 			awsLogger.Warningf("Failed to request deletion for nodegroup %s: %v\nstderr: %s", ng, err, errOut)
 		}
-		if errOut, err := runCmd(ctx, "aws", "eks", "wait", "nodegroup-deleted",
+		if errOut, err := runCmd(ctx, false, false, "aws", "eks", "wait", "nodegroup-deleted",
 			"--cluster-name", cfg.ClusterName,
 			"--nodegroup-name", ng,
 			"--region", cfg.Region); err != nil {
@@ -314,12 +314,12 @@ func deleteNodegroupsAndCluster(ctx context.Context, cfg Config, opts DeleteOpti
 	if opts.DryRun {
 		awsLogger.Infof("Dry-run: would delete cluster %s and wait for deletion.", cfg.ClusterName)
 	} else {
-		if errOut, err := runCmdWithPrompt(ctx, "aws", "eks", "delete-cluster",
+		if errOut, err := runCmd(ctx, true, false, "aws", "eks", "delete-cluster",
 			"--name", cfg.ClusterName,
 			"--region", cfg.Region); err != nil {
 			awsLogger.Warningf("Failed to request cluster deletion: %v\nstderr: %s", err, errOut)
 		}
-		if errOut, err := runCmd(ctx, "aws", "eks", "wait", "cluster-deleted",
+		if errOut, err := runCmd(ctx, false, false, "aws", "eks", "wait", "cluster-deleted",
 			"--name", cfg.ClusterName,
 			"--region", cfg.Region); err != nil {
 			awsLogger.Warningf("Wait for cluster deletion failed: %v\nstderr: %s", err, errOut)
@@ -340,7 +340,7 @@ func klutchKmsKeyCleanup(cfg Config, ctx context.Context, opts DeleteOptions) {
 		"--output", "text"}
 	args = appendRegion(args, opts.Region)
 
-	out, err := runCmd(ctx, "aws", args...)
+	out, err := runCmd(ctx, false, false, "aws", args...)
 	if err != nil {
 		awsLogger.Warningf("Failed to list Klutch-tagged KMS keys: %v\nstderr: %s", err, out)
 		return
@@ -400,7 +400,7 @@ func klutchKmsKeyCleanup(cfg Config, ctx context.Context, opts DeleteOptions) {
 func scheduleDeletionForKmsKey(ctx context.Context, arn string, opts DeleteOptions, keysDeletionSchedulingFailed []string) []string {
 	schedArgs := []string{"kms", "schedule-key-deletion", "--key-id", arn, "--pending-window-in-days", "7"}
 	schedArgs = appendRegion(schedArgs, opts.Region)
-	if errOut, err := runCmd(ctx, "aws", schedArgs...); err != nil {
+	if errOut, err := runCmd(ctx, false, false, "aws", schedArgs...); err != nil {
 		if strings.Contains(errOut, "KMSInvalidStateException") && strings.Contains(errOut, "is pending deletion.") {
 			awsLogger.Infof("KMS key %s is already pending deletion. Skipping retagging.", arn)
 			return keysDeletionSchedulingFailed
@@ -416,7 +416,7 @@ func retagKmsKey(cfg Config, ctx context.Context, arn string, opts DeleteOptions
 	retagArgs := appendRegion([]string{"kms", "tag-resource",
 		"--key-id", arn, "--tags",
 		"TagKey=Name,TagValue=" + resourceName(cfg, "kms-key-retired")}, opts.Region)
-	if errOut, err := runCmd(ctx, "aws", retagArgs...); err != nil {
+	if errOut, err := runCmd(ctx, false, false, "aws", retagArgs...); err != nil {
 		// If the key is already pending deletion, we can ignore this error
 		if strings.Contains(errOut, "KMSInvalidStateException") && strings.Contains(errOut, "is pending deletion.") {
 			awsLogger.Infof("KMS key %s is already pending deletion. Skipping retagging.", arn)
@@ -433,7 +433,7 @@ func disableKmsKey(ctx context.Context, arn string, opts DeleteOptions, keysDisa
 	disableArgs := appendRegion([]string{"kms", "disable-key",
 		"--key-id", arn},
 		opts.Region)
-	if errOut, err := runCmd(ctx, "aws", disableArgs...); err != nil {
+	if errOut, err := runCmd(ctx, false, false, "aws", disableArgs...); err != nil {
 		// If the key is already pending deletion, we can ignore this error
 		if strings.Contains(errOut, "KMSInvalidStateException") && strings.Contains(errOut, "is pending deletion.") {
 			awsLogger.Infof("KMS key %s is already pending deletion. Skipping disabling.", arn)
@@ -461,9 +461,9 @@ func findKlutchVPC(cfg Config, ctx context.Context, region string) string {
 		fmt.Sprintf("Name=tag:Name,Values=%s", resourceName(cfg, "vpc")),
 		"--query", "Vpcs[0].VpcId", "--output", "text"}
 	args = appendRegion(args, region)
-	out, err := runCmd(ctx, "aws", args...)
+	out, err := runCmd(ctx, false, false, "aws", args...)
 	if err != nil || out == "" || out == "None" {
-		awsLogger.Infof("No Klutch VPC found (stderr: %s)", out)
+		awsLogger.Infof("No VPC with '%s=%s' and 'Name=%s' found (stderr: %s)", klutchTagKey, klutchTagValue, resourceName(cfg, "vpc"), out)
 		return ""
 	}
 	awsLogger.Infof("Klutch VPC: %s", out)
@@ -495,7 +495,7 @@ func deleteVPCEndpoints(ctx context.Context, vpcID string, opts DeleteOptions) {
 		"--query", "VpcEndpoints[].VpcEndpointId",
 		"--output", "text"}
 	args = appendRegion(args, opts.Region)
-	eps, _ := runCmd(ctx, "aws", args...)
+	eps, _ := runCmd(ctx, false, false, "aws", args...)
 	for _, ep := range strings.Fields(eps) {
 		if opts.DryRun {
 			awsLogger.Infof("Dry-run: would delete VPC endpoint %s", ep)
@@ -503,7 +503,7 @@ func deleteVPCEndpoints(ctx context.Context, vpcID string, opts DeleteOptions) {
 		}
 		args = []string{"ec2", "delete-vpc-endpoints", "--vpc-endpoint-ids", ep}
 		args = appendRegion(args, opts.Region)
-		errOut, err := runCmdWithPrompt(ctx, "aws", args...)
+		errOut, err := runCmd(ctx, true, false, "aws", args...)
 		if err != nil {
 			awsLogger.Warningf("Failed to delete VPC endpoint %s: %v\nstderr: %s", ep, err, errOut)
 		}
@@ -517,7 +517,7 @@ func deleteLoadBalancers(ctx context.Context, vpcID string, opts DeleteOptions) 
 		"--query", "LoadBalancers[?VpcId==`" + vpcID + "`].LoadBalancerArn",
 		"--output", "text"}
 	args = appendRegion(args, opts.Region)
-	lbs, _ := runCmd(ctx, "aws", args...)
+	lbs, _ := runCmd(ctx, false, false, "aws", args...)
 	for _, lb := range strings.Fields(lbs) {
 		awsLogger.Infof("  LoadBalancer: %s", lb)
 
@@ -526,7 +526,7 @@ func deleteLoadBalancers(ctx context.Context, vpcID string, opts DeleteOptions) 
 			"--query", "LoadBalancers[0].DNSName",
 			"--output", "text"}
 		args = appendRegion(args, opts.Region)
-		lbDNS, _ := runCmd(ctx, "aws", args...)
+		lbDNS, _ := runCmd(ctx, false, false, "aws", args...)
 		if lbDNS != "" && lbDNS != "None" {
 			lbTargets = append(lbTargets, lbDNS)
 		}
@@ -536,14 +536,14 @@ func deleteLoadBalancers(ctx context.Context, vpcID string, opts DeleteOptions) 
 			"--query", "TargetGroups[].TargetGroupArn",
 			"--output", "text"}
 		args = appendRegion(args, opts.Region)
-		tgs, _ := runCmd(ctx, "aws", args...)
+		tgs, _ := runCmd(ctx, false, false, "aws", args...)
 
 		if opts.DryRun {
 			awsLogger.Infof("Dry-run: would delete load balancer %s and target groups %s", lb, strings.TrimSpace(tgs))
 		} else {
 			args = []string{"elbv2", "delete-load-balancer", "--load-balancer-arn", lb}
 			args = appendRegion(args, opts.Region)
-			if errOut, err := runCmdWithPrompt(ctx, "aws", args...); err != nil {
+			if errOut, err := runCmd(ctx, true, false, "aws", args...); err != nil {
 				awsLogger.Warningf("Failed to delete load balancer %s: %v\nstderr: %s", lb, err, errOut)
 			}
 
@@ -552,7 +552,7 @@ func deleteLoadBalancers(ctx context.Context, vpcID string, opts DeleteOptions) 
 			for _, tg := range strings.Fields(tgs) {
 				args = []string{"elbv2", "delete-target-group", "--target-group-arn", tg}
 				args = appendRegion(args, opts.Region)
-				if errOut, err := runCmdWithPrompt(ctx, "aws", args...); err != nil {
+				if errOut, err := runCmd(ctx, true, false, "aws", args...); err != nil {
 					awsLogger.Warningf("Failed to delete target group %s: %v\nstderr: %s", tg, err, errOut)
 				}
 			}
@@ -573,7 +573,7 @@ func waitForELBENIs(ctx context.Context, vpcID string, opts DeleteOptions) {
 			"--query", "NetworkInterfaces[?starts_with(Description, 'ELB ')].NetworkInterfaceId",
 			"--output", "text"}
 		args = appendRegion(args, opts.Region)
-		enis, _ := runCmd(ctx, "aws", args...)
+		enis, _ := runCmd(ctx, false, false, "aws", args...)
 		if strings.TrimSpace(enis) == "" {
 			awsLogger.Infof("No ELB ENIs remaining.")
 			return
@@ -590,14 +590,14 @@ func deleteNATGateways(ctx context.Context, vpcID string, opts DeleteOptions) []
 		"--query", "NatGateways[].NatGatewayAddresses[].AllocationId",
 		"--output", "text"}
 	args = appendRegion(args, opts.Region)
-	natEIPs, _ := runCmd(ctx, "aws", args...)
+	natEIPs, _ := runCmd(ctx, false, false, "aws", args...)
 
 	args = []string{"ec2", "describe-nat-gateways",
 		"--filter", "Name=vpc-id,Values=" + vpcID,
 		"--query", "NatGateways[].NatGatewayId",
 		"--output", "text"}
 	args = appendRegion(args, opts.Region)
-	ngws, _ := runCmd(ctx, "aws", args...)
+	ngws, _ := runCmd(ctx, false, false, "aws", args...)
 
 	for _, ng := range strings.Fields(ngws) {
 		awsLogger.Infof("Requesting deletion of NAT Gateway %s...", ng)
@@ -607,7 +607,7 @@ func deleteNATGateways(ctx context.Context, vpcID string, opts DeleteOptions) []
 		}
 		args = []string{"ec2", "delete-nat-gateway", "--nat-gateway-id", ng}
 		args = appendRegion(args, opts.Region)
-		if errOut, err := runCmdWithPrompt(ctx, "aws", args...); err != nil {
+		if errOut, err := runCmd(ctx, true, false, "aws", args...); err != nil {
 			awsLogger.Warningf("Failed to delete NAT Gateway %s: %v\nstderr: %s", ng, err, errOut)
 		}
 	}
@@ -626,7 +626,7 @@ func deleteNATGateways(ctx context.Context, vpcID string, opts DeleteOptions) []
 				"--query", "NatGateways[0].State",
 				"--output", "text"}
 			args = appendRegion(args, opts.Region)
-			state, _ := runCmd(ctx, "aws", args...)
+			state, _ := runCmd(ctx, false, false, "aws", args...)
 			if state == "deleted" || state == "nat-gateway-not-found" || state == "None" || state == "null" {
 				awsLogger.Infof("NAT Gateway %s is deleted.", ng)
 				break
@@ -645,7 +645,7 @@ func deleteInternetGateway(ctx context.Context, vpcID string, opts DeleteOptions
 		"--query", "InternetGateways[0].InternetGatewayId",
 		"--output", "text"}
 	args = appendRegion(args, opts.Region)
-	igwID, _ := runCmd(ctx, "aws", args...)
+	igwID, _ := runCmd(ctx, false, false, "aws", args...)
 	if igwID == "" || igwID == "None" {
 		return
 	}
@@ -657,13 +657,13 @@ func deleteInternetGateway(ctx context.Context, vpcID string, opts DeleteOptions
 		"--internet-gateway-id", igwID,
 		"--vpc-id", vpcID}
 	args = appendRegion(args, opts.Region)
-	if errOut, err := runCmdWithPrompt(ctx, "aws", args...); err != nil {
+	if errOut, err := runCmd(ctx, true, false, "aws", args...); err != nil {
 		awsLogger.Warningf("Failed to detach IGW %s: %v\nstderr: %s", igwID, err, errOut)
 	}
 	args = []string{"ec2", "delete-internet-gateway",
 		"--internet-gateway-id", igwID}
 	args = appendRegion(args, opts.Region)
-	if errOut, err := runCmdWithPrompt(ctx, "aws", args...); err != nil {
+	if errOut, err := runCmd(ctx, true, false, "aws", args...); err != nil {
 		awsLogger.Warningf("Failed to delete IGW %s: %v\nstderr: %s", igwID, err, errOut)
 	}
 }
@@ -675,7 +675,7 @@ func deleteRouteTables(ctx context.Context, vpcID string, opts DeleteOptions) {
 		"--query", "RouteTables[?!(Associations[?Main==`true`])].RouteTableId",
 		"--output", "text"}
 	args = appendRegion(args, opts.Region)
-	nonMainRTs, _ := runCmd(ctx, "aws", args...)
+	nonMainRTs, _ := runCmd(ctx, false, false, "aws", args...)
 
 	for _, rt := range strings.Fields(nonMainRTs) {
 		awsLogger.Infof("Processing non-main route table %s...", rt)
@@ -684,7 +684,7 @@ func deleteRouteTables(ctx context.Context, vpcID string, opts DeleteOptions) {
 			"--query", "RouteTables[0].Associations[].RouteTableAssociationId",
 			"--output", "text"}
 		args = appendRegion(args, opts.Region)
-		assocs, _ := runCmd(ctx, "aws", args...)
+		assocs, _ := runCmd(ctx, false, false, "aws", args...)
 		for assoc := range strings.FieldsSeq(assocs) {
 			if opts.DryRun {
 				awsLogger.Infof("Dry-run: would disassociate route table %s association %s", rt, assoc)
@@ -692,7 +692,7 @@ func deleteRouteTables(ctx context.Context, vpcID string, opts DeleteOptions) {
 			}
 			args = []string{"ec2", "disassociate-route-table", "--association-id", assoc}
 			args = appendRegion(args, opts.Region)
-			if errOut, err := runCmdWithPrompt(ctx, "aws", args...); err != nil {
+			if errOut, err := runCmd(ctx, true, false, "aws", args...); err != nil {
 				awsLogger.Warningf("Failed to disassociate route table %s: %v\nstderr: %s", assoc, err, errOut)
 			}
 		}
@@ -701,7 +701,7 @@ func deleteRouteTables(ctx context.Context, vpcID string, opts DeleteOptions) {
 		} else {
 			args = []string{"ec2", "delete-route-table", "--route-table-id", rt}
 			args = appendRegion(args, opts.Region)
-			if errOut, err := runCmdWithPrompt(ctx, "aws", args...); err != nil {
+			if errOut, err := runCmd(ctx, true, false, "aws", args...); err != nil {
 				awsLogger.Warningf("Failed to delete route table %s: %v\nstderr: %s", rt, err, errOut)
 			}
 		}
@@ -715,14 +715,14 @@ func deleteENIs(ctx context.Context, vpcID string, opts DeleteOptions) {
 		"--query", "NetworkInterfaces[].NetworkInterfaceId",
 		"--output", "text"}
 	args = appendRegion(args, opts.Region)
-	enis, _ := runCmd(ctx, "aws", args...)
+	enis, _ := runCmd(ctx, false, false, "aws", args...)
 	for _, eni := range strings.Fields(enis) {
 		if opts.DryRun {
 			awsLogger.Infof("Dry-run: would delete ENI %s", eni)
 		} else {
 			args = []string{"ec2", "delete-network-interface", "--network-interface-id", eni}
 			args = appendRegion(args, opts.Region)
-			if errOut, err := runCmdWithPrompt(ctx, "aws", args...); err != nil {
+			if errOut, err := runCmd(ctx, true, false, "aws", args...); err != nil {
 				awsLogger.Warningf("Failed to delete ENI %s: %v\nstderr: %s", eni, err, errOut)
 			}
 		}
@@ -738,11 +738,11 @@ func deleteTenantOperatorRole(ctx context.Context, cfg Config, accountID string,
 		return
 	}
 
-	_, _ = runCmdWithPrompt(ctx, "aws", "iam", "delete-role-policy",
+	_, _ = runCmd(ctx, true, false, "aws", "iam", "delete-role-policy",
 		"--role-name", roleName,
 		"--policy-name", "TenantOperatorInline")
 
-	if errOut, err := runCmdWithPrompt(ctx, "aws", "iam", "delete-role", "--role-name", roleName); err != nil {
+	if errOut, err := runCmd(ctx, true, false, "aws", "iam", "delete-role", "--role-name", roleName); err != nil {
 		if strings.Contains(errOut, "NoSuchEntity") {
 			awsLogger.Infof("Tenant operator IAM role %s not found (nothing to delete).", roleArn)
 			return
@@ -761,7 +761,7 @@ func deleteOIDCProvider(ctx context.Context, cfg Config, accountID string, opts 
 
 	issuer := ""
 	if clusterReachable {
-		out, err := runCmd(ctx, "aws", "eks", "describe-cluster",
+		out, err := runCmd(ctx, false, false, "aws", "eks", "describe-cluster",
 			"--name", cfg.ClusterName,
 			"--region", cfg.Region,
 			"--query", "cluster.identity.oidc.issuer",
@@ -779,7 +779,7 @@ func deleteOIDCProvider(ctx context.Context, cfg Config, accountID string, opts 
 	providerHost := strings.TrimPrefix(issuer, "https://")
 	providerArn := fmt.Sprintf("arn:aws:iam::%s:oidc-provider/%s", accountID, providerHost)
 
-	if errOut, err := runCmdWithPrompt(ctx, "aws", "iam", "delete-open-id-connect-provider",
+	if errOut, err := runCmd(ctx, true, false, "aws", "iam", "delete-open-id-connect-provider",
 		"--open-id-connect-provider-arn", providerArn); err != nil {
 		if strings.Contains(errOut, "NoSuchEntity") {
 			awsLogger.Infof("IAM OIDC provider %s not found (nothing to delete).", providerArn)
@@ -826,14 +826,14 @@ func deleteSubnets(ctx context.Context, vpcID string, opts DeleteOptions) {
 		"--query", "Subnets[].SubnetId",
 		"--output", "text"}
 	args = appendRegion(args, opts.Region)
-	subnets, _ := runCmd(ctx, "aws", args...)
+	subnets, _ := runCmd(ctx, false, false, "aws", args...)
 	for _, sn := range strings.Fields(subnets) {
 		if opts.DryRun {
 			awsLogger.Infof("Dry-run: would delete subnet %s", sn)
 		} else {
 			args = []string{"ec2", "delete-subnet", "--subnet-id", sn}
 			args = appendRegion(args, opts.Region)
-			if errOut, err := runCmdWithPrompt(ctx, "aws", args...); err != nil {
+			if errOut, err := runCmd(ctx, true, false, "aws", args...); err != nil {
 				awsLogger.Warningf("Failed to delete subnet %s: %v\nstderr: %s", sn, err, errOut)
 			}
 		}
@@ -847,7 +847,7 @@ func deleteSecurityGroups(ctx context.Context, vpcID string, opts DeleteOptions)
 		"--query", "SecurityGroups[?GroupName!=`default`].GroupId",
 		"--output", "text"}
 	args = appendRegion(args, opts.Region)
-	sgs, _ := runCmd(ctx, "aws", args...)
+	sgs, _ := runCmd(ctx, false, false, "aws", args...)
 	if strings.TrimSpace(sgs) == "" {
 		awsLogger.Infof("No non-default Security Groups found to delete.")
 		return
@@ -858,7 +858,7 @@ func deleteSecurityGroups(ctx context.Context, vpcID string, opts DeleteOptions)
 		} else {
 			args = []string{"ec2", "delete-security-group", "--group-id", sg}
 			args = appendRegion(args, opts.Region)
-			if errOut, err := runCmdWithPrompt(ctx, "aws", args...); err != nil {
+			if errOut, err := runCmd(ctx, true, false, "aws", args...); err != nil {
 				awsLogger.Warningf("Failed to delete security group %s: %v\nstderr: %s", sg, err, errOut)
 			}
 		}
@@ -875,7 +875,7 @@ func resetDHCPOptions(ctx context.Context, vpcID string, opts DeleteOptions) {
 		"--dhcp-options-id", "default",
 		"--vpc-id", vpcID}
 	args = appendRegion(args, opts.Region)
-	if errOut, err := runCmdWithPrompt(ctx, "aws", args...); err != nil {
+	if errOut, err := runCmd(ctx, true, false, "aws", args...); err != nil {
 		awsLogger.Warningf("Failed to reset DHCP options: %v\nstderr: %s", err, errOut)
 	}
 }
@@ -899,10 +899,10 @@ func releaseEIPs(ctx context.Context, natEIPs []string, opts DeleteOptions) {
 			args = append(args, "--region", opts.Region)
 		}
 		for attempt := 1; attempt <= 2; attempt++ {
-			if errOut, err := runCmdWithPrompt(ctx, "aws", args...); err != nil {
+			if errOut, err := runCmd(ctx, true, false, "aws", args...); err != nil {
 				if attempt == 1 && isAuthError(errOut) {
 					awsLogger.Warningf("Release failed for %s due to AWS authentication. Retrying once after validating credentials...", alloc)
-					if idErrOut, idErr := runCmd(ctx, "aws", "sts", "get-caller-identity", "--output", "text"); idErr != nil {
+					if idErrOut, idErr := runCmd(ctx, false, false, "aws", "sts", "get-caller-identity", "--output", "text"); idErr != nil {
 						awsLogger.Warningf("AWS credentials appear invalid. Refresh them (e.g., aws sso login) and rerun:\n  aws ec2 release-address --allocation-id %s --region %s\nSTS stderr: %s", alloc, defaultString(opts.Region, "<region>"), idErrOut)
 						break
 					}
@@ -939,7 +939,7 @@ func cleanupTaggedEIPs(cfg Config, ctx context.Context, opts DeleteOptions) {
 		args = append(args, "--region", opts.Region)
 	}
 
-	out, err := runCmd(ctx, "aws", args...)
+	out, err := runCmd(ctx, false, false, "aws", args...)
 	if err != nil {
 		awsLogger.Warningf("Failed to list Klutch-tagged EIPs: %v\nstderr: %s", err, out)
 		return
@@ -971,7 +971,7 @@ func findHostedZoneIdByClusterNameTag(ctx context.Context, opts DeleteOptions) s
 		return ""
 	}
 
-	out, err := runCmd(ctx, "aws", "resourcegroupstaggingapi", "get-resources",
+	out, err := runCmd(ctx, false, false, "aws", "resourcegroupstaggingapi", "get-resources",
 		"--resource-type-filters", "route53:hostedzone",
 		"--tag-filters", fmt.Sprintf("Key=ClusterName,Values=%s", opts.ClusterName),
 		"--query", "ResourceTagMappingList[0].ResourceARN",
@@ -1000,7 +1000,7 @@ func removeClusterNameTagFromHostedZone(ctx context.Context, zoneID string, opts
 		awsLogger.Infof("Dry-run: would remove ClusterName tag from hosted zone %s.", zoneID)
 		return
 	}
-	if out, err := runCmd(ctx, "aws", "route53", "change-tags-for-resource",
+	if out, err := runCmd(ctx, false, false, "aws", "route53", "change-tags-for-resource",
 		"--resource-type", "hostedzone",
 		"--resource-id", zoneID,
 		"--remove-tag-keys", "ClusterName"); err != nil {
@@ -1020,7 +1020,7 @@ func findHostedZoneIDByName(ctx context.Context, hostedZoneName string) string {
 	}
 
 	query := fmt.Sprintf("HostedZones[?Name==`%s`].Id | [0]", normalized)
-	out, err := runCmd(ctx, "aws", "route53", "list-hosted-zones-by-name",
+	out, err := runCmd(ctx, false, false, "aws", "route53", "list-hosted-zones-by-name",
 		"--dns-name", normalized,
 		"--query", query,
 		"--output", "text")
@@ -1036,7 +1036,7 @@ func findHostedZoneIDByName(ctx context.Context, hostedZoneName string) string {
 }
 
 func listHostedZoneRecords(ctx context.Context, zoneID string) ([]map[string]interface{}, error) {
-	out, err := runCmd(ctx, "aws", "route53", "list-resource-record-sets",
+	out, err := runCmd(ctx, false, false, "aws", "route53", "list-resource-record-sets",
 		"--hosted-zone-id", zoneID,
 		"--query", "ResourceRecordSets[?Type!=`NS` && Type!=`SOA`]",
 		"--output", "json")
@@ -1086,7 +1086,7 @@ func deleteDNSRecords(ctx context.Context, zoneID, hostedZoneName string, opts D
 		return
 	}
 
-	if errOut, err := runCmdWithPrompt(ctx, "aws", "route53", "change-resource-record-sets",
+	if errOut, err := runCmd(ctx, true, false, "aws", "route53", "change-resource-record-sets",
 		"--hosted-zone-id", zoneID,
 		"--change-batch", string(payload)); err != nil {
 		awsLogger.Warningf("Failed to delete DNS records in hosted zone %s: %v\nstderr: %s", hostedZoneName, err, errOut)
@@ -1100,7 +1100,7 @@ func deleteHostedZone(ctx context.Context, zoneID, hostedZoneName string, opts D
 		awsLogger.Infof("Dry-run: would delete hosted zone %s (ID %s).", hostedZoneName, zoneID)
 		return
 	}
-	if errOut, err := runCmdWithPrompt(ctx, "aws", "route53", "delete-hosted-zone", "--id", zoneID); err != nil {
+	if errOut, err := runCmd(ctx, true, false, "aws", "route53", "delete-hosted-zone", "--id", zoneID); err != nil {
 		awsLogger.Warningf("Failed to delete hosted zone %s: %v\nstderr: %s", hostedZoneName, err, errOut)
 	} else {
 		awsLogger.Successf("Deleted hosted zone %s.", hostedZoneName)
@@ -1114,7 +1114,7 @@ func discoverKlutchCertificateARN(ctx context.Context, opts DeleteOptions) strin
 		args = append(args, "--region", opts.Region)
 	}
 
-	out, err := runCmd(ctx, "aws", args...)
+	out, err := runCmd(ctx, false, false, "aws", args...)
 	if err != nil {
 		awsLogger.Warningf("Could not list ACM certificates: %v\nstderr: %s", err, out)
 		return ""
@@ -1125,7 +1125,7 @@ func discoverKlutchCertificateARN(ctx context.Context, opts DeleteOptions) strin
 		if opts.Region != "" {
 			tagArgs = append(tagArgs, "--region", opts.Region)
 		}
-		tagsOut, tagErr := runCmd(ctx, "aws", tagArgs...)
+		tagsOut, tagErr := runCmd(ctx, false, false, "aws", tagArgs...)
 		if tagErr != nil {
 			awsLogger.Warningf("Could not list tags for ACM certificate %s: %v\nstderr: %s", arn, tagErr, tagsOut)
 			continue
@@ -1179,7 +1179,7 @@ func deleteACMCertificate(ctx context.Context, opts DeleteOptions) {
 	if opts.Region != "" {
 		args = append(args, "--region", opts.Region)
 	}
-	if errOut, err := runCmdWithPrompt(ctx, "aws", args...); err != nil {
+	if errOut, err := runCmd(ctx, true, false, "aws", args...); err != nil {
 		awsLogger.Warningf("Failed to delete ACM certificate %s: %v\nstderr: %s", arn, err, errOut)
 	} else {
 		awsLogger.Successf("Deleted ACM certificate %s.", arn)
@@ -1231,7 +1231,7 @@ func deleteVPC(ctx context.Context, vpcID string, opts DeleteOptions) {
 	}
 	args := []string{"ec2", "delete-vpc", "--vpc-id", vpcID}
 	args = appendRegion(args, opts.Region)
-	if errOut, err := runCmdWithPrompt(ctx, "aws", args...); err != nil {
+	if errOut, err := runCmd(ctx, true, false, "aws", args...); err != nil {
 		awsLogger.Warningf("Failed to delete VPC %s due to dependencies. Running diagnostics...\nstderr: %s", vpcID, errOut)
 		runDiagnostics(ctx, vpcID, opts.Region)
 	} else {
@@ -1258,7 +1258,7 @@ func runDiagnostics(ctx context.Context, vpcID, region string) {
 	for _, d := range diagnostics {
 		awsLogger.Infof("--- Diagnostics: %s ---", d.title)
 		args := appendRegion(d.args, region)
-		if errOut, err := runCmd(ctx, "aws", args...); err != nil {
+		if errOut, err := runCmd(ctx, false, false, "aws", args...); err != nil {
 			awsLogger.Warningf("Diagnostic %s failed: %v\nstderr: %s", d.title, err, errOut)
 		}
 	}

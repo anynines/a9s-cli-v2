@@ -8,18 +8,12 @@ import (
 
 func TestCreateControlPlaneCluster_DryRunSkipsExternalCalls(t *testing.T) {
 	origRunCmd := runCmd
-	origRunCmdWithPrompt := runCmdWithPrompt
 	origLookPath := execLookPath
 	runCmdCalled := false
 	lookPathCalled := false
-	runCmd = func(ctx context.Context, name string, args ...string) (string, error) {
+	runCmd = func(ctx context.Context, withPrompt bool, _ bool, name string, args ...string) (string, error) {
 		runCmdCalled = true
 		t.Fatalf("runCmd should not be called during dry-run, got %s %v", name, args)
-		return "", nil
-	}
-	runCmdWithPrompt = func(ctx context.Context, name string, args ...string) (string, error) {
-		runCmdCalled = true
-		t.Fatalf("runCmdWithPrompt should not be called during dry-run, got %s %v", name, args)
 		return "", nil
 	}
 	execLookPath = func(file string) (string, error) {
@@ -29,7 +23,6 @@ func TestCreateControlPlaneCluster_DryRunSkipsExternalCalls(t *testing.T) {
 	}
 	defer func() {
 		runCmd = origRunCmd
-		runCmdWithPrompt = origRunCmdWithPrompt
 		execLookPath = origLookPath
 	}()
 
@@ -41,9 +34,9 @@ func TestCreateControlPlaneCluster_DryRunSkipsExternalCalls(t *testing.T) {
 }
 
 func TestTagEC2ResourceAddsClusterTags(t *testing.T) {
-	origRunCmdWithPrompt := runCmdWithPrompt
+	origRunCmd := runCmd
 	defer func() {
-		runCmdWithPrompt = origRunCmdWithPrompt
+		runCmd = origRunCmd
 		setClusterTagContext("", "")
 	}()
 
@@ -51,7 +44,7 @@ func TestTagEC2ResourceAddsClusterTags(t *testing.T) {
 
 	var gotName string
 	var gotArgs []string
-	runCmdWithPrompt = func(ctx context.Context, name string, args ...string) (string, error) {
+	runCmd = func(ctx context.Context, _, _ bool, name string, args ...string) (string, error) {
 		gotName = name
 		gotArgs = append([]string(nil), args...)
 		return "", nil

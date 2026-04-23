@@ -347,7 +347,7 @@ func openURL(url string) error {
 
 	args = append(args, url)
 
-	_, err := makeup.Command(cmd, args...).NoPrompt().Run()
+	_, err := makeup.NewCommand(cmd, args...).NoPrompt().Run()
 	return err
 }
 

@@ -32,7 +32,7 @@ func CheckoutGitRepository(repositoryURL, localDirectory string, tag string) {
 		}
 		args = append(args, repositoryURL, localDirectory)
 
-		output, err := makeup.Command("git", args...).WithPrompt().Run()
+		output, err := makeup.NewCommand("git", args...).WithPrompt().Run()
 		if err != nil {
 			makeup.ExitDueToFatalError(err, "Failed to clone the git repository:\n"+string(output))
 		}
@@ -43,7 +43,7 @@ func CheckoutGitRepository(repositoryURL, localDirectory string, tag string) {
 	makeup.PrintInfo("Found existing repository at " + localDirectory + ", checking for local changes...")
 
 	// Fail fast if the working tree is dirty to avoid silently discarding user changes.
-	output, err := makeup.Command("git", "-C", localDirectory, "status", "--porcelain").Run()
+	output, err := makeup.NewCommand("git", "-C", localDirectory, "status", "--porcelain").Run()
 	if err != nil {
 		makeup.ExitDueToFatalError(err, "Failed to check git status of "+localDirectory)
 	}
@@ -56,7 +56,7 @@ func CheckoutGitRepository(repositoryURL, localDirectory string, tag string) {
 	}
 
 	makeup.PrintInfo("Fetching latest refs from remote...")
-	if output, err := makeup.Command("git", "-C", localDirectory, "fetch", "--tags", "--force", "origin").WithPrompt().Run(); err != nil {
+	if output, err := makeup.NewCommand("git", "-C", localDirectory, "fetch", "--tags", "--force", "origin").WithPrompt().Run(); err != nil {
 		makeup.ExitDueToFatalError(err, "Failed to fetch from remote:\n"+string(output))
 	}
 
@@ -67,15 +67,15 @@ func CheckoutGitRepository(repositoryURL, localDirectory string, tag string) {
 	}
 
 	makeup.PrintInfo("Checking out " + ref + "...")
-	if output, err := makeup.Command("git", "-C", localDirectory, "checkout", ref).WithPrompt().Run(); err != nil {
+	if output, err := makeup.NewCommand("git", "-C", localDirectory, "checkout", ref).WithPrompt().Run(); err != nil {
 		makeup.ExitDueToFatalError(err, "Failed to checkout "+ref+":\n"+string(output))
 	}
 
 	// If we are on a branch (not detached HEAD), pull to fast-forward.
-	branchOut, err := makeup.Command("git", "-C", localDirectory, "symbolic-ref", "--short", "HEAD").Run()
+	branchOut, err := makeup.NewCommand("git", "-C", localDirectory, "symbolic-ref", "--short", "HEAD").Run()
 	if err == nil && strings.TrimSpace(string(branchOut)) != "" {
 		makeup.PrintInfo("Pulling latest changes for branch " + strings.TrimSpace(string(branchOut)) + "...")
-		if output, err := makeup.Command("git", "-C", localDirectory, "pull", "--ff-only").WithPrompt().Run(); err != nil {
+		if output, err := makeup.NewCommand("git", "-C", localDirectory, "pull", "--ff-only").WithPrompt().Run(); err != nil {
 			makeup.ExitDueToFatalError(err, "Failed to pull latest changes:\n"+string(output))
 		}
 	}

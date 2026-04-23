@@ -146,7 +146,7 @@ func showManifestInPager(content []byte) {
 		pager = "less -R"
 	}
 	parts := strings.Fields(pager)
-	if _, err := makeup.Command(parts[0], parts[1:]...).Stdin(content).Quiet().Interactive().Run(); err != nil {
+	if _, err := makeup.NewCommand(parts[0], parts[1:]...).Stdin(content).Quiet().Interactive().Run(); err != nil {
 		fmt.Println(string(content))
 	}
 }
@@ -651,7 +651,7 @@ func runKubeCtlCommand(opts KubectlOpts) (string, []byte, error) {
 		args = append(args, opts.AdditionalArgs...)
 	}
 
-	output, err := makeup.Command("kubectl", args...).Stdin(opts.StdIn).Quiet().Run()
+	output, err := makeup.NewCommand("kubectl", args...).Stdin(opts.StdIn).Quiet().Run()
 
 	if makeup.Verbose || err != nil {
 		fmt.Println(string(output))

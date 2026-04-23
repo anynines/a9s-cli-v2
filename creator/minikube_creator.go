@@ -44,7 +44,7 @@ func (c MinikubeCreator) Exists(name string) bool {
 
 	// Capture the command output
 	// Output example: https://gist.github.com/fischerjulian/ae095c2848c5c9cd668a5c25bbd83a94s
-	output, err := makeup.Command("minikube", "profile", "list", "-o", "json").NoPrompt().Run()
+	output, err := makeup.NewCommand("minikube", "profile", "list", "-o", "json").NoPrompt().Run()
 	if err != nil {
 		makeup.ExitDueToFatalError(err, "Couldn't capture output of 'minikube profile list -o json' command:\n"+string(output))
 	}
@@ -79,7 +79,7 @@ func (c MinikubeCreator) Running(name string) bool {
 
 	// Capture the command output
 	// Output example: https://gist.github.com/fischerjulian/ae095c2848c5c9cd668a5c25bbd83a94s
-	output, err := makeup.Command("minikube", "profile", "list", "-o", "json").NoPrompt().Run()
+	output, err := makeup.NewCommand("minikube", "profile", "list", "-o", "json").NoPrompt().Run()
 	if err != nil {
 		makeup.ExitDueToFatalError(err, "Couldn't capture output of 'minikube profile list -o json' command:\n"+string(output))
 	}
@@ -113,7 +113,7 @@ func (c MinikubeCreator) Create(spec KubernetesClusterSpec, unattended bool) {
 
 	makeup.PrintFlexedBiceps("Let's create a Kubernetes cluster named " + spec.Name + " using minikube...")
 
-	output, err := makeup.Command("minikube", "start", "--nodes", strconv.Itoa(spec.NrOfNodes), "--memory", spec.NodeMemory, "--profile", spec.Name).WithPrompt().Run()
+	output, err := makeup.NewCommand("minikube", "start", "--nodes", strconv.Itoa(spec.NrOfNodes), "--memory", spec.NodeMemory, "--profile", spec.Name).WithPrompt().Run()
 
 	if err != nil {
 		makeup.ExitDueToFatalError(err, fmt.Sprintf("Failed to execute the command 'minikube start --nodes %s --memory %s --profile %s':\n%s",
@@ -127,7 +127,7 @@ Deletes the given demo Kubernetes cluster.
 func (c MinikubeCreator) Delete(name string, unattended bool) {
 	makeup.PrintWarning("Deleting the Demo Kubernetes Cluster " + name + "...")
 
-	output, err := makeup.Command("minikube", "delete", "--profile", name).WithPrompt().Run()
+	output, err := makeup.NewCommand("minikube", "delete", "--profile", name).WithPrompt().Run()
 
 	if err != nil {
 		makeup.ExitDueToFatalError(err, fmt.Sprintf("Failed to execute the command 'minikube delete --profile %s':\n%s", name, output))

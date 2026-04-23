@@ -41,7 +41,7 @@ func TestDeploy(t *testing.T) {
 }
 
 func checkKindClusterRunning(t *testing.T, clusterName string) {
-	output, err := makeup.Command("docker", "ps", "--filter", fmt.Sprintf("name=%s", clusterName), "--format", "{{.Names}}").NoPrompt().Run()
+	output, err := makeup.NewCommand("docker", "ps", "--filter", fmt.Sprintf("name=%s", clusterName), "--format", "{{.Names}}").NoPrompt().Run()
 	if err != nil {
 		t.Fatalf("expected no error listing containers, but got error %v : %s", err, string(output))
 	}

@@ -322,7 +322,7 @@ func controlPlaneRegionFromURL(endpoint string) string {
 }
 
 func fetchClusterCA(clusterName, region string) ([]byte, error) {
-	out, err := makeup.Command("aws", "eks", "describe-cluster",
+	out, err := makeup.NewCommand("aws", "eks", "describe-cluster",
 		"--name", clusterName,
 		"--region", region,
 		"--query", "cluster.certificateAuthority.data",

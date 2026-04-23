@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -71,8 +72,17 @@ var getKlutchTenantsCmd = &cobra.Command{
 			return
 		}
 		makeup.PrintH1("Klutch Tenants (Secrets Manager)")
+		pattern := regexp.MustCompile("klutch/(.+)/oidc-client")
 		for _, t := range tenants {
-			makeup.Print(fmt.Sprintf("- %s", t))
+			tenantName := ""
+			matches := pattern.FindStringSubmatch(t)
+			if len(matches) < 2 {
+				tenantName = t
+			} else {
+				tenantName = matches[1]
+			}
+			makeup.Print("- Name:    " + tenantName)
+			makeup.Print("  Secret:  " + t)
 		}
 	},
 }

@@ -12,7 +12,7 @@ func TestFindKlutchVPCUsesRegion(t *testing.T) {
 	}()
 
 	var gotArgs []string
-	runCmd = func(ctx context.Context, name string, args ...string) (string, error) {
+	runCmd = func(ctx context.Context, _, _ bool, name string, args ...string) (string, error) {
 		gotArgs = append([]string(nil), args...)
 		return "vpc-123", nil
 	}
@@ -28,13 +28,13 @@ func TestFindKlutchVPCUsesRegion(t *testing.T) {
 }
 
 func TestDeleteVPCUsesRegion(t *testing.T) {
-	origRunCmdWithPrompt := runCmdWithPrompt
+	origRunCmd := runCmd
 	defer func() {
-		runCmdWithPrompt = origRunCmdWithPrompt
+		runCmd = origRunCmd
 	}()
 
 	var gotArgs []string
-	runCmdWithPrompt = func(ctx context.Context, name string, args ...string) (string, error) {
+	runCmd = func(ctx context.Context, _, _ bool, name string, args ...string) (string, error) {
 		gotArgs = append([]string(nil), args...)
 		return "", nil
 	}

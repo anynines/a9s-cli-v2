@@ -57,7 +57,7 @@ func (k *KlutchManager) DeployCrossplaneHelmChart() {
 		"--set", `args={"--enable-ssa-claims"}`,
 	)
 
-	output, err := makeup.Command("helm", args...).WithPrompt().Run()
+	output, err := makeup.NewCommand("helm", args...).WithPrompt().Run()
 	if err != nil {
 		makeup.ExitDueToFatalError(err, fmt.Sprintf("error while deploying helm chart: %s", string(output)))
 	}

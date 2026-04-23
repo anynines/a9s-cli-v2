@@ -30,19 +30,28 @@ func TestFirstAWSValue(t *testing.T) {
 
 func TestDiscoverOrCreateClientCreatesWhenListReturnsNoneTokens(t *testing.T) {
 	origRunCmd := runCmd
-	origRunCmdWithPrompt := runCmdWithPrompt
 	defer func() {
 		runCmd = origRunCmd
-		runCmdWithPrompt = origRunCmdWithPrompt
 	}()
 
 	createCalled := false
-	runCmd = func(ctx context.Context, name string, args ...string) (string, error) {
+	runCmd = func(ctx context.Context, withPrompt bool, suppressOutput bool, name string, args ...string) (string, error) {
 		if name != "aws" {
 			t.Fatalf("expected aws command, got %s", name)
 		}
 		if len(args) < 2 || args[0] != "cognito-idp" {
 			t.Fatalf("unexpected args: %v", args)
+		}
+
+		if withPrompt {
+			switch args[1] {
+			case "create-user-pool-client":
+				createCalled = true
+				return `{"ClientId":"new-client-id","ClientSecret":"new-secret"}`, nil
+			default:
+				t.Fatalf("unexpected runCmdWithPrompt command: %s", strings.Join(args, " "))
+			}
+			return "", nil
 		}
 
 		switch args[1] {
@@ -52,23 +61,6 @@ func TestDiscoverOrCreateClientCreatesWhenListReturnsNoneTokens(t *testing.T) {
 			t.Fatalf("describe-user-pool-client should not be called when no client exists")
 		default:
 			t.Fatalf("unexpected runCmd command: %s", strings.Join(args, " "))
-		}
-		return "", nil
-	}
-	runCmdWithPrompt = func(ctx context.Context, name string, args ...string) (string, error) {
-		if name != "aws" {
-			t.Fatalf("expected aws command, got %s", name)
-		}
-		if len(args) < 2 || args[0] != "cognito-idp" {
-			t.Fatalf("unexpected args: %v", args)
-		}
-
-		switch args[1] {
-		case "create-user-pool-client":
-			createCalled = true
-			return `{"ClientId":"new-client-id","ClientSecret":"new-secret"}`, nil
-		default:
-			t.Fatalf("unexpected runCmdWithPrompt command: %s", strings.Join(args, " "))
 		}
 		return "", nil
 	}
@@ -87,20 +79,29 @@ func TestDiscoverOrCreateClientCreatesWhenListReturnsNoneTokens(t *testing.T) {
 
 func TestDiscoverOrCreateClientUsesExistingClientIDFromPagedOutput(t *testing.T) {
 	origRunCmd := runCmd
-	origRunCmdWithPrompt := runCmdWithPrompt
 	defer func() {
 		runCmd = origRunCmd
-		runCmdWithPrompt = origRunCmdWithPrompt
 	}()
 
 	describeCalled := false
 	createCalled := false
-	runCmd = func(ctx context.Context, name string, args ...string) (string, error) {
+	runCmd = func(ctx context.Context, withPrompt bool, _ bool, name string, args ...string) (string, error) {
 		if name != "aws" {
 			t.Fatalf("expected aws command, got %s", name)
 		}
 		if len(args) < 2 || args[0] != "cognito-idp" {
 			t.Fatalf("unexpected args: %v", args)
+		}
+
+		if withPrompt {
+			switch args[1] {
+			case "create-user-pool-client":
+				createCalled = true
+				t.Fatalf("create-user-pool-client should not be called when client id exists")
+			default:
+				t.Fatalf("unexpected runCmdWithPrompt command: %s", strings.Join(args, " "))
+			}
+			return "", nil
 		}
 
 		switch args[1] {
@@ -111,23 +112,6 @@ func TestDiscoverOrCreateClientUsesExistingClientIDFromPagedOutput(t *testing.T)
 			return `{"ClientId":"existing-client-id","ClientSecret":"existing-secret"}`, nil
 		default:
 			t.Fatalf("unexpected runCmd command: %s", strings.Join(args, " "))
-		}
-		return "", nil
-	}
-	runCmdWithPrompt = func(ctx context.Context, name string, args ...string) (string, error) {
-		if name != "aws" {
-			t.Fatalf("expected aws command, got %s", name)
-		}
-		if len(args) < 2 || args[0] != "cognito-idp" {
-			t.Fatalf("unexpected args: %v", args)
-		}
-
-		switch args[1] {
-		case "create-user-pool-client":
-			createCalled = true
-			t.Fatalf("create-user-pool-client should not be called when client id exists")
-		default:
-			t.Fatalf("unexpected runCmdWithPrompt command: %s", strings.Join(args, " "))
 		}
 		return "", nil
 	}

@@ -67,11 +67,11 @@ func createExternalCASecret(acmArn string, k *k8s.KubeClient) (string, error) {
 		return "", fmt.Errorf("empty ACM ARN")
 	}
 	// Fetch cert + chain; concatenating covers intermediates.
-	certOut, err := makeup.Command("aws", "acm", "get-certificate", "--certificate-arn", arn, "--query", "Certificate").NoPrompt().Run()
+	certOut, err := makeup.NewCommand("aws", "acm", "get-certificate", "--certificate-arn", arn, "--query", "Certificate").NoPrompt().Run()
 	if err != nil {
 		return "", fmt.Errorf("failed to fetch ACM certificate: %w", err)
 	}
-	chainOut, err := makeup.Command("aws", "acm", "get-certificate", "--certificate-arn", arn, "--query", "CertificateChain").NoPrompt().Run()
+	chainOut, err := makeup.NewCommand("aws", "acm", "get-certificate", "--certificate-arn", arn, "--query", "CertificateChain").NoPrompt().Run()
 	if err != nil {
 		return "", fmt.Errorf("failed to fetch ACM certificate chain: %w", err)
 	}

@@ -44,7 +44,7 @@ func DeleteControlPlaneInstall() {
 	manager.deleteKubectlResource("ns", "ingress-nginx", "")
 
 	// Crossplane helm release
-	if output, err := makeup.Command("helm", "uninstall", "crossplane", "-n", "crossplane-system").WithPrompt().Run(); err != nil {
+	if output, err := makeup.NewCommand("helm", "uninstall", "crossplane", "-n", "crossplane-system").WithPrompt().Run(); err != nil {
 		makeup.PrintWarning(fmt.Sprintf("Helm uninstall crossplane failed (ignored): %v %s", err, string(output)))
 	} else {
 		makeup.PrintCheckmark("Uninstalled crossplane helm release.")
@@ -54,7 +54,7 @@ func DeleteControlPlaneInstall() {
 	manager.deleteKubectlResource("ns", "crossplane-system", "")
 
 	// Tenant operator helm release
-	if output, err := makeup.Command("helm", "uninstall", "a9s-tenants-operator", "-n", "a9s-tenants-operator-system").WithPrompt().Run(); err != nil {
+	if output, err := makeup.NewCommand("helm", "uninstall", "a9s-tenants-operator", "-n", "a9s-tenants-operator-system").WithPrompt().Run(); err != nil {
 		makeup.PrintWarning(fmt.Sprintf("Helm uninstall tenant operator failed (ignored): %v %s", err, string(output)))
 	} else {
 		makeup.PrintCheckmark("Uninstalled tenant operator helm release.")

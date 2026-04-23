@@ -17,7 +17,7 @@ Verifies if there's a Kubernetes cluster.
 Does not verify whether it is the intended Kubernetes cluster.
 */
 func CheckIfAnyKubernetesIsRunning() bool {
-	_, err := makeup.Command("kubectl", "api-versions").NoPrompt().Run()
+	_, err := makeup.NewCommand("kubectl", "api-versions").NoPrompt().Run()
 	if err != nil {
 		makeup.PrintFail("Kubernetes is not running.")
 		makeup.PrintInfo("Please try to restart it or recreate it (delete and re-run the creation).")

@@ -45,7 +45,7 @@ func DeployControlPlaneKindCluster(clusterName string, hostIP string, ingressPor
 
 	makeup.PrintH2("Creating a kind cluster with following config: ")
 
-	if out, err := makeup.Command("kind", "create", "cluster", "--config", "-").Stdin(renderedTemplate.Bytes()).WithPrompt().Run(); err != nil {
+	if out, err := makeup.NewCommand("kind", "create", "cluster", "--config", "-").Stdin(renderedTemplate.Bytes()).WithPrompt().Run(); err != nil {
 		makeup.ExitDueToFatalError(err, "An error occurred while executing the command 'kind create cluster':\n"+string(out))
 	}
 }
@@ -79,14 +79,14 @@ func DeployAppCluster(clusterName string) {
 		return
 	}
 
-	if _, err := makeup.Command("kind", "create", "cluster", "--name", clusterName).WithPrompt().Run(); err != nil {
+	if _, err := makeup.NewCommand("kind", "create", "cluster", "--name", clusterName).WithPrompt().Run(); err != nil {
 		makeup.ExitDueToFatalError(err, "Could not start the command.")
 	}
 }
 
 // TODO: Similar code exists in kind_creator.go, but awkward to use in this specific case.
 func clusterExists(clusterName string) (bool, error) {
-	output, err := makeup.Command("kind", "get", "clusters").NoPrompt().Run()
+	output, err := makeup.NewCommand("kind", "get", "clusters").NoPrompt().Run()
 	if err != nil {
 		return false, err
 	}

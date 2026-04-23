@@ -23,69 +23,76 @@ var (
 	ExecCommandContext = exec.CommandContext
 )
 
-type command struct {
-	name        string
-	args        []string
-	env         []string
-	stdIn       []byte
-	commandMode CommandMode
-	ctx         context.Context
-	interactive bool
+type Command struct {
+	name           string
+	args           []string
+	env            []string
+	stdIn          []byte
+	commandMode    CommandMode
+	ctx            context.Context
+	interactive    bool
+	suppressOutput bool
 }
 
-func Command(name string, args ...string) command {
-	return command{
+func NewCommand(name string, args ...string) *Command {
+	return &Command{
 		commandMode: CommandModeWithPrompt,
 		name:        name,
 		args:        args,
 	}
 }
 
-func (c command) Ctx(ctx context.Context) command {
-	result := c
-	result.ctx = ctx
-	return result
+func (c *Command) Ctx(ctx context.Context) *Command {
+	c.ctx = ctx
+	return c
 }
 
-func (c command) WithPrompt() command {
-	result := c
-	result.commandMode = CommandModeWithPrompt
-	return result
+func (c *Command) WithPrompt() *Command {
+	c.commandMode = CommandModeWithPrompt
+	return c
 }
 
-func (c command) NoPrompt() command {
-	result := c
-	result.commandMode = CommandModeNoPrompt
-	return result
+func (c *Command) NoPrompt() *Command {
+	c.commandMode = CommandModeNoPrompt
+	return c
 }
 
-func (c command) Quiet() command {
-	result := c
-	result.commandMode = CommandModeQuiet
-	return result
+func (c *Command) Quiet() *Command {
+	c.commandMode = CommandModeQuiet
+	return c
+}
+
+func (c *Command) GetName() string {
+	return c.name
+}
+
+func (c *Command) GetArgs() []string {
+	return c.args
 }
 
 // Interactive connects the command's stdin/stdout/stderr directly to the
 // terminal. Use this for programs (like pagers) that need to take over the TTY.
-func (c command) Interactive() command {
-	result := c
-	result.interactive = true
-	return result
+func (c *Command) Interactive() *Command {
+	c.interactive = true
+	return c
 }
 
-func (c command) Env(env string, envs ...string) command {
-	result := c
-	result.env = append([]string{env}, envs...)
-	return result
+func (c *Command) SuppressOutput() *Command {
+	c.suppressOutput = true
+	return c
 }
 
-func (c command) Stdin(stdIn []byte) command {
-	result := c
-	result.stdIn = stdIn
-	return result
+func (c *Command) Env(env string, envs ...string) *Command {
+	c.env = append([]string{env}, envs...)
+	return c
 }
 
-func (c command) Run() ([]byte, error) {
+func (c *Command) Stdin(stdIn []byte) *Command {
+	c.stdIn = stdIn
+	return c
+}
+
+func (c *Command) Run() ([]byte, error) {
 	var command *exec.Cmd
 	if c.ctx != nil {
 		command = ExecCommandContext(c.ctx, c.name, c.args...)
@@ -119,14 +126,14 @@ func (c command) Run() ([]byte, error) {
 
 	output, err := command.CombinedOutput()
 
-	if Verbose || err != nil {
+	if (Verbose || err != nil) && !c.suppressOutput {
 		fmt.Println(string(output))
 	}
 
 	return output, err
 }
 
-func printCommandString(command *exec.Cmd, c command) {
+func printCommandString(command *exec.Cmd, c *Command) {
 
 	if c.commandMode == CommandModeQuiet || !ShowCommands {
 		return
@@ -157,7 +164,7 @@ func printCommandString(command *exec.Cmd, c command) {
 
 	if c.commandMode == CommandModeNoPrompt {
 		if Verbose {
-		PrintSmallCommand(commandString)
+			PrintSmallCommand(commandString)
 		}
 		return
 	}
