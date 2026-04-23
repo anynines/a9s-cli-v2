@@ -86,11 +86,13 @@ func repoExists(localDirectory string) bool {
 	_, err := os.Stat(localDirectory)
 	if err == nil {
 		info, err := os.Stat(filepath.Join(localDirectory, ".git"))
-		if !os.IsNotExist(err) {
-			makeup.ExitDueToFatalError(err, "Failed to check for .git directory")
+		if err == nil {
+			return info.IsDir()
 		}
-
-		return err == nil && info.IsDir()
+		if os.IsNotExist(err) {
+			return false
+		}
+		makeup.ExitDueToFatalError(err, "Failed check for .git directory")
 	}
 
 	if os.IsNotExist(err) {
