@@ -12,7 +12,9 @@ There's a `Makefile` to help building and running the cli during development.
 
 Building a local binary for development purposes can be done with:
 
-    make build
+```shell
+make build
+```
 
 The binary can be found in `bin/a9s`.
 
@@ -20,45 +22,59 @@ The binary can be found in `bin/a9s`.
 
 Building binaries via cross-compilation for all selected platforms can be done with:
 
-    make build-all
+```shell
+make build-all
+```
 
 The binaries can be found in `bin/`.
 
 ## Testing the CLI
 
 ### Unit Tests
+
 The state of unit tests is currently very poor.
 
 Execute the unit tests:
 
-    make test
+```shell
+make test
+```
 
 Or:
 
-    make test_failfast
+```shell
+make test_failfast
+```
 
 ### End to End Tests
 
-End-to-end testing can be done using the external Ruby/RSpec test suite located at `e2e-tests` directory.
+End-to-end testing can be done using the external Ruby/RSpec test suite located at `e2e-tests`
+directory.
 
 Ensure that you've setup everything is properly setup by running `a9s create cluster` at least once.
 
 Then execute:
 
-    cd e2s-tests
-    rspec
+```shell
+cd e2s-tests
+rspec
+```
 
 ## Version Bump
 
-**Note**: The version of the a9s CLI is maintained in the file `VERSION` and used in the `Makefile` and passed via `ldflags` into the binary. Therefore, when issuing new releases the `VERSION` file needs to be updated before building the binaries.
+**Note**: The version of the a9s CLI is maintained in the file `VERSION` and used in the `Makefile`
+and passed via `ldflags` into the binary. Therefore, when issuing new releases the `VERSION` file
+needs to be updated before building the binaries.
 
-## Making Release 
->**Note:** this part is deprecated, please use the steps shown further below using the Goreleaser GitHub action
+## Making Release
+
+>**Note:** this part is deprecated, please use the steps shown further below using the Goreleaser
+>GitHub action
 
 Example: Release `v0.10.0`.
 
 1. Ensure that all tests are run including `e2e-tests`.
-1. Ensure that the documentation is updated incl. 
+1. Ensure that the documentation is updated incl.
     1. adding a copy of the docs to the corresponding version directory under `docs/versioned_docs`
     2. updating `docs/versions.json` by adding the new version to the array
 1. Ensure the Readme is updated.
@@ -70,52 +86,56 @@ Example: Release `v0.10.0`.
 1. Upload binaries to the release folder in the S3 bucket
 1. Run `run-ci.bash` on the CI VM executing `e2e-tests` on linux.
 1. Update and upload the `releases.json` file to the S3 bucket.
-1. Deploy the documentation 
+1. Deploy the documentation
 
 ## GitHub Release with GoReleaser and GitHub Actions
 
 This section contains targets for creating GitHub releases using GoReleaser and GitHub actions.
-GoReleaser automates the build, packaging and release process for Go projects,
-integrating with GitHub's release functionality.
+GoReleaser automates the build, packaging and release process for Go projects, integrating with
+GitHub's release functionality.
 
 ### Creating GitHub Releases with GoReleaser and GitHub Actions
 
 This guide outlines the process for creating GitHub releases using GoReleaser and GitHub actions.
-Following these steps will automate the build, packaging, and release process
-for your Go project, streamlining the creation of consistent and professional
-releases on GitHub.
+Following these steps will automate the build, packaging, and release process for your Go project,
+streamlining the creation of consistent and professional releases on GitHub.
 
 #### Steps to Create a Release
 
 Example: Release `v0.10.0`.
 
 1. Ensure that all tests are run including `e2e-tests`.
-1. Ensure that the documentation is updated incl. 
+1. Ensure that the documentation is updated incl.
     1. adding a copy of the docs to the corresponding version directory under `docs/versioned_docs`
     2. updating `docs/versions.json` by adding the new version to the array
 1. Ensure the Readme is updated.
 1. Ensure the Changelog is updated.
 1. Ensure the remote `main` branch is up to date and clean with all necessary changes comitted.
-1. Ensure that your local main branch has the same state as the remote branch (i.e. it is up to date).
+1. Ensure that your local main branch has the same state as the remote branch (i.e. it is up to
+   date).
 1. Add the git tag to your local main branch:
 
     ```bash
     git tag -a v0.10.0 -m "Release v0.10.0"
     ```
-1. Push the tag to the remote main branch (this will trigger the GitHub action and start Goreleaser):
+
+1. Push the tag to the remote main branch (this will trigger the GitHub action and start
+   Goreleaser):
 
     ```bash
     git push origin v0.10.0
     ```
-1. Deploy the documentation 
+
+1. Deploy the documentation
 
 #### Testing the Release Process
 
 To test the release process without creating an actual release, use goreleaser locally like this:
 
-1. Install [GoReleaser](https://goreleaser.com/). 
+1. Install [GoReleaser](https://goreleaser.com/).
 2. Set up a GitHub Personal Access Token with appropriate permissions.
 3. Run the following two commands:
+
 ```bash
 export GITHUB_TOKEN="your_personal_access_token_here"
 ```
@@ -124,24 +144,47 @@ export GITHUB_TOKEN="your_personal_access_token_here"
 goreleaser release --snapshot --clean
 ```
 
-This command will simulate the release process without publishing or creating
-any permanent artifacts.
+This command will simulate the release process without publishing or creating any permanent
+artifacts.
 
-# Design Principles / Ideals
-* The CLI acts like a personal assistent who knows how to install and use certain Kubernetes extensions including a list of anynines products facilitating their use.
-    * The CLI helps with installing a cluster.
-    * The CLI helps with writing YAML manifests, e.g. so that users do not have to lookup attributes in the documentation.
+## Design Principles / Ideals
+
+* The CLI acts like a personal assistent who knows how to install and use certain Kubernetes
+  extensions including a list of anynines products facilitating their use.
+  * The CLI helps with installing a cluster.
+  * The CLI helps with writing YAML manifests, e.g. so that users do not have to lookup attributes
+      in the documentation.
 * The CLI should not need a tight synchronization with product releases.
-    * The release of a new a8s Postgres version, for example, should be working with an existing CLI version.
+  * The release of a new a8s Postgres version, for example, should be working with an existing CLI
+      version.
 * Minimize the code owned in the CLI for achieving a specified goal.
-    * The use of other CLI tools is preferred over implementing existing functionality again. Just like a human assistent would use existing tools to achieve a certain goal, so does the CLI.
+  * The use of other CLI tools is preferred over implementing existing functionality again. Just
+      like a human assistent would use existing tools to achieve a certain goal, so does the CLI.
 * Automation over documentation.
-    * If the CLI can do a task, the task should be automated instead of adding a paragraph to the documentation.
-        * Documentation is wonderful but the CLI can interact much better with the user than any documentation could.
+  * If the CLI can do a task, the task should be automated instead of adding a paragraph to the
+      documentation.
+    * Documentation is wonderful but the CLI can interact much better with the user than any
+          documentation could.
 
-# Known Issues / Limitations
+## Known Issues / Limitations
+
 * Currently releases are tested on MacOS and Linux.
 * Windows binaries are available but they have not been tested.
-* Creating a backup for non-existing service instances falsely suggests that the backup has been successful.
+* Creating a backup for non-existing service instances falsely suggests that the backup has been
+  successful.
 * Deletion of backups with `kubectl delete backup ...` get stuck and the deletion doesn't succeed.
-* When applying a sql file to an a8s Postgres database using `a9s pg apply --file` ensure that there is no change of the primary pod for clustered instances as otherwise the file might be copied to the wrong pod. There's a slight delay between determining the primary pod and uploading the file to it. 
+* When applying a sql file to an a8s Postgres database using `a9s pg apply --file` ensure that there
+  is no change of the primary pod for clustered instances as otherwise the file might be copied to
+  the wrong pod. There's a slight delay between determining the primary pod and uploading the file
+  to it.
+* Creating an a8s Postgres instance requires a node with at least 2 vCPU free for allocation,
+  meaning that when deploying the framework to an EKS cluster using nodes from the `t3`/`t3a` family
+  at least one node of at least size `xlarge` must be present
+* Currently the Conditions of the Crossplane Resource Claims representing a8s Postgres objects (such
+  as instances, backups etc.) do not reflect the actual state of the manged resources (i.e. the
+  claim for an instance being ready does not mean the instance itself is ready, too)
+  * workaround: use the `status.managed` field present in the Claims to get a rough view of what's
+    going on with the managed resources from inside the workload cluster, for more in-depth
+    information switch to the control-plane cluster and inspect the managed resources there directly
+* KMS keys create by the CLI do not have an Alias set, meaning they can't be identified easily in
+  the AWS Dashboard (workaround: retrieve them via the `aws` CLI using their tags)
