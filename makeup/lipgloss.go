@@ -171,7 +171,7 @@ func CommandBox(s string) string {
 
 func CommandBoxSmall(s string) string {
 	command := lipgloss.NewStyle().Foreground(subtle).Render(s)
-	result := ListEmoji(" executing "+command+"...", emoji.RightArrow)
+	result := ListEmoji(" executing "+command, emoji.RightArrow)
 	return result
 }
 

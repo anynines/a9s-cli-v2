@@ -220,9 +220,8 @@ var cmdDeleteKlutchTenant = &cobra.Command{
 		}
 		secretName := klutchaws.TenantSecretName(tenantName, deleteKlutchTenantSecretName)
 
-		if !makeup.UnattendedMode && !makeup.ConfirmYes(fmt.Sprintf("This will delete Secrets Manager secret %s in %s. Type 'yes' to continue: ", secretName, region)) {
-			makeup.PrintInfo("Deletion aborted.")
-			return
+		if !makeup.UnattendedMode {
+			makeup.PrintWarning(fmt.Sprintf("This will delete Secrets Manager secret %s in %s.", secretName, region))
 		}
 
 		if err := klutchaws.DeleteTenantSecret(context.Background(), region, secretName); err != nil {

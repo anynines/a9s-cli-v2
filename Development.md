@@ -188,3 +188,7 @@ artifacts.
     information switch to the control-plane cluster and inspect the managed resources there directly
 * KMS keys create by the CLI do not have an Alias set, meaning they can't be identified easily in
   the AWS Dashboard (workaround: retrieve them via the `aws` CLI using their tags)
+* Trying to delete a Tenant Secret which does not exist will still result in a success-message.
+  Setting the `--verbose` flag to check the output of `aws secretsmanager delete-secret` will also
+  not be helpful here, as the `aws` command itself will act as if the secret had been deleted
+  successfully.

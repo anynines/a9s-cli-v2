@@ -24,14 +24,14 @@ var (
 )
 
 type Command struct {
-	name           string
-	args           []string
-	env            []string
-	stdIn          []byte
-	commandMode    CommandMode
-	ctx            context.Context
-	interactive    bool
-	suppressOutput bool
+	name        string
+	args        []string
+	env         []string
+	stdIn       []byte
+	commandMode CommandMode
+	ctx         context.Context
+	interactive bool
+	showOutput  bool
 }
 
 func NewCommand(name string, args ...string) *Command {
@@ -39,6 +39,7 @@ func NewCommand(name string, args ...string) *Command {
 		commandMode: CommandModeWithPrompt,
 		name:        name,
 		args:        args,
+		showOutput:  true,
 	}
 }
 
@@ -78,7 +79,7 @@ func (c *Command) Interactive() *Command {
 }
 
 func (c *Command) SuppressOutput() *Command {
-	c.suppressOutput = true
+	c.showOutput = false
 	return c
 }
 
@@ -126,7 +127,7 @@ func (c *Command) Run() ([]byte, error) {
 
 	output, err := command.CombinedOutput()
 
-	if (Verbose || err != nil) && !c.suppressOutput {
+	if !UnattendedMode || (c.showOutput && (Verbose || err != nil)) {
 		fmt.Println(string(output))
 	}
 
@@ -135,26 +136,19 @@ func (c *Command) Run() ([]byte, error) {
 
 func printCommandString(command *exec.Cmd, c *Command) {
 
-	if c.commandMode == CommandModeQuiet || !ShowCommands {
+	if c.commandMode == CommandModeQuiet {
 		return
 	}
 
-	quotedArgs := []string{}
-	for i := range command.Args {
-		arg := command.Args[i]
-		if strings.Contains(arg, " ") || strings.Contains(arg, "$") {
-			arg = `"` + arg + `"`
-		}
-		quotedArgs = append(quotedArgs, arg)
-	}
-	commandString := strings.Join(quotedArgs, " ")
-
 	if c.commandMode == CommandModeWithPrompt {
 		if UnattendedMode {
-			PrintSmallCommand(commandString)
+			if ShowCommands {
+				PrintSmallCommand(c.getCommandString())
+			}
 			return
 		}
-		PrintCommandBox(commandString)
+
+		PrintCommandBox(c.getCommandString())
 		if c.stdIn != nil {
 			println("Standard Input:\n" + string(c.stdIn))
 		}
@@ -163,12 +157,25 @@ func printCommandString(command *exec.Cmd, c *Command) {
 	}
 
 	if c.commandMode == CommandModeNoPrompt {
-		if Verbose {
-			PrintSmallCommand(commandString)
+		if ShowCommands {
+			PrintSmallCommand(c.getCommandString())
 		}
 		return
 	}
 
-	err := fmt.Errorf("No Command Mode chosen for command %s", commandString)
+	err := fmt.Errorf("No Command Mode chosen for command %s", c.getCommandString())
 	ExitDueToFatalError(err, "")
+}
+
+func (c *Command) getCommandString() string {
+	quotedArgs := []string{c.name}
+	for i := range c.args {
+		arg := c.args[i]
+		if strings.Contains(arg, " ") || strings.Contains(arg, "$") {
+			arg = `"` + arg + `"`
+		}
+		quotedArgs = append(quotedArgs, arg)
+	}
+	commandString := strings.Join(quotedArgs, " ")
+	return commandString
 }
