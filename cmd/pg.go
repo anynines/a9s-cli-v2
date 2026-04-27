@@ -19,7 +19,9 @@ var cmdPG = &cobra.Command{
 
 		makeup.PrintWarning(" " + "Please select a subcommand from the list below.")
 
-		cmd.Help()
+		if err := cmd.Help(); err != nil {
+			makeup.ExitDueToFatalError(err, "")
+		}
 	},
 }
 

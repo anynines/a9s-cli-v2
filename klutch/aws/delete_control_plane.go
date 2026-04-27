@@ -34,31 +34,19 @@ type DeleteOptions struct {
 // DeleteControlPlaneCluster tears down the EKS control plane and AWS resources that were created by CreateControlPlaneCluster.
 // It mirrors the flow of 70-delete-eks-control-plane-cluster.sh with safe defaults (DNS/ACM are opt-in).
 func DeleteControlPlaneCluster(ctx context.Context, opts DeleteOptions) {
-	cfg := defaultConfig()
+	cfg := newConfig(opts.ClusterName, clusterRoleControlPlane)
 	if opts.Region != "" {
 		cfg.Region = opts.Region
 	}
-	if opts.ClusterName != "" {
-		cfg.ClusterName = opts.ClusterName
-	}
-	cfg.NodegroupName = fmt.Sprintf("%s-nodegroup", opts.ClusterName)
-	cfg.ClusterIamRoleName += "-" + cfg.ClusterName
-	cfg.NodeRoleName += "-" + cfg.ClusterName
-	cfg.ALBControllerPolicyName += "-" + cfg.ClusterName
-	cfg.ControlPlaneSGName = fmt.Sprintf("%s-sg", cfg.ClusterName)
-	cfg.ResourceNamePrefix = cfg.ClusterName
 
 	deleteCluster(ctx, cfg, opts)
 }
 
 // DeleteWorkloadCluster deletes a Klutch workload EKS cluster and its AWS resources.
 func DeleteWorkloadCluster(ctx context.Context, opts DeleteOptions) {
-	cfg := workloadConfig(opts.ClusterName)
+	cfg := newConfig(opts.ClusterName, clusterRoleWorkload)
 	if opts.Region != "" {
 		cfg.Region = opts.Region
-	}
-	if opts.ClusterName != "" {
-		cfg.ClusterName = opts.ClusterName
 	}
 
 	deleteCluster(ctx, cfg, opts)
@@ -103,7 +91,7 @@ func deleteCluster(ctx context.Context, cfg Config, opts DeleteOptions) {
 		if opts.SkipPrompt {
 			awsLogger.Infof("Skipping delete confirmation because --yes and --really were provided.")
 		} else {
-			prompt := fmt.Sprintf("This will delete the Klutch %s on AWS. Type 'yes' to continue: ", strings.ToLower(cfg.ClusterRole))
+			prompt := fmt.Sprintf("This will delete the Klutch %s on AWS. Type 'yes' to continue: ", strings.ToLower(cfg.ClusterRole.String()))
 			if !makeup.ConfirmYes(prompt) {
 				makeup.PrintInfo("Deletion aborted.")
 				return
@@ -166,7 +154,7 @@ func discoverCluster(ctx context.Context, cfg Config, opts DeleteOptions) (bool,
 	awsLogger.Section("Discover EKS Cluster")
 	clusterExists := false
 	clusterReachable := false
-	status := "UNKNOWN"
+	status := ""
 
 	out, err := runCmd(ctx, false, true, "aws", "eks", "describe-cluster",
 		"--name", cfg.ClusterName,

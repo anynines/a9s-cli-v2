@@ -174,8 +174,9 @@ var cmdCreate = &cobra.Command{
 	Long:  `Create data service resources including data service instances, service bindings backups and restore jobs.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		makeup.PrintWarning(" " + "Please select the data service resource type you would like to instantiate.")
-
-		cmd.Help()
+		if err := cmd.Help(); err != nil {
+			makeup.ExitDueToFatalError(err, "")
+		}
 	},
 }
 
@@ -185,7 +186,9 @@ var cmdCreatePG = &cobra.Command{
 	Long:  `Create PostgreSQL resources such as service instances, service bindings, backups and restore jobs.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		makeup.PrintWarning(" " + "Please select a PostgreSQL resource such as (service) instance.")
-		cmd.Help()
+		if err := cmd.Help(); err != nil {
+			makeup.ExitDueToFatalError(err, "")
+		}
 	},
 }
 
@@ -236,7 +239,9 @@ var cmdCreateCluster = &cobra.Command{
 	the chosen stack. Select a sub-command to create corresponding stack.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		makeup.PrintWarning(" " + "Please use a sub-command.")
-		cmd.Help()
+		if err := cmd.Help(); err != nil {
+			makeup.ExitDueToFatalError(err, "")
+		}
 	},
 }
 
@@ -248,7 +253,9 @@ var cmdCreateStack = &cobra.Command{
 	the chosen stack. Select a sub-command to create corresponding stack.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		makeup.PrintWarning(" " + "Please use a sub-command.")
-		cmd.Help()
+		if err := cmd.Help(); err != nil {
+			makeup.ExitDueToFatalError(err, "")
+		}
 	},
 }
 
@@ -268,7 +275,9 @@ var cmdCreateClusterKlutch = &cobra.Command{
 	Long:  `Create Klutch clusters on the selected provider. Currently only AWS is supported for the control plane.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		makeup.PrintWarning(" " + "Please use a sub-command.")
-		cmd.Help()
+		if err := cmd.Help(); err != nil {
+			makeup.ExitDueToFatalError(err, "")
+		}
 	},
 }
 
@@ -278,7 +287,9 @@ var cmdCreateKlutch = &cobra.Command{
 	Long:  `Create Klutch resources such as tenants (Cognito app clients).`,
 	Run: func(cmd *cobra.Command, args []string) {
 		makeup.PrintWarning(" " + "Please use a sub-command.")
-		cmd.Help()
+		if err := cmd.Help(); err != nil {
+			makeup.ExitDueToFatalError(err, "")
+		}
 	},
 }
 

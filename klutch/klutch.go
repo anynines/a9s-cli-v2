@@ -219,7 +219,10 @@ func (k *KlutchManager) deployAppCluster() {
 	DeployAppCluster(appClusterName)
 	WaitForKindCluster(k.appK8s)
 
-	k8s.SwitchContext(k.appContext) // in case the app cluster already existed, switch to it.
+	out, err := k8s.SwitchContext(k.appContext) // in case the app cluster already existed, switch to it.
+	if err != nil {
+		makeup.ExitDueToFatalError(err, "Could not switch to context "+k.appContext+":\n"+string(out))
+	}
 }
 
 func printSummary() {

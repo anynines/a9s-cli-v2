@@ -98,16 +98,16 @@ func (k *KubeClient) kubectlWaitFor(condition, kind, name, namespace, timeout, s
 	}
 
 	opts := KubectlOpts{
-		Command:        "wait",
-		Kind:           kind,
-		Name:           name,
-		Namespace:      namespace,
-		Selector:       selector,
-		Timeout:        timeout,
-		AdditionalArgs: []string{"--for=" + condition},
+		command:        "wait",
+		kind:           kind,
+		name:           name,
+		namespace:      namespace,
+		selector:       selector,
+		timeout:        timeout,
+		additionalArgs: []string{"--for=" + condition},
 	}
 	if name == "" && selector == "" {
-		opts.AdditionalArgs = append(opts.AdditionalArgs, "--all")
+		opts.additionalArgs = append(opts.additionalArgs, "--all")
 	}
 
 	_, output, err := runKubeCtlCommand(opts.withContextFrom(k))
@@ -127,11 +127,11 @@ func (k *KubeClient) KubectlWaitForRollout(kind string, name string, namespace s
 	// Fallback to kubectl for non-deployments.
 	if strings.ToLower(kind) != "deployment" {
 		opts := KubectlOpts{
-			Command:   "rollout",
-			Kind:      "status",
-			Name:      kind + "/" + name,
-			Namespace: namespace,
-			Timeout:   kubectlWaitTimeoutOption,
+			command:   "rollout",
+			kind:      "status",
+			name:      kind + "/" + name,
+			namespace: namespace,
+			timeout:   kubectlWaitTimeoutOption,
 		}
 
 		_, output, err := runKubeCtlCommand(opts.withContextFrom(k))
@@ -268,12 +268,12 @@ func summarizeDeploymentPods(ctx context.Context, clientset *kubernetes.Clientse
 // identified by kind and label to become ready, or a timeout to be reached.
 func (k *KubeClient) KubectlWaitForRolloutWithSelector(kind string, selector string, namespace string) {
 	opts := KubectlOpts{
-		Command:   "rollout",
-		Kind:      "status",
-		Name:      kind,
-		Selector:  selector,
-		Namespace: namespace,
-		Timeout:   kubectlWaitTimeoutOption,
+		command:   "rollout",
+		kind:      "status",
+		name:      kind,
+		selector:  selector,
+		namespace: namespace,
+		timeout:   kubectlWaitTimeoutOption,
 	}
 	_, output, err := runKubeCtlCommand(opts.withContextFrom(k))
 	if err != nil {

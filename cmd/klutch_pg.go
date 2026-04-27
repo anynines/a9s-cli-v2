@@ -86,7 +86,9 @@ var cmdCreateKlutchPG = &cobra.Command{
 	Long:  `Create Klutch-managed PostgreSQL claim resources on a workload cluster bound via klutch-bind.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		makeup.PrintWarning(" " + "Please use a sub-command.")
-		cmd.Help()
+		if err := cmd.Help(); err != nil {
+			makeup.ExitDueToFatalError(err, "")
+		}
 	},
 }
 
@@ -320,7 +322,9 @@ var cmdDeleteKlutchPG = &cobra.Command{
 	Long:  `Delete Klutch-managed PostgreSQL claim resources from a workload cluster bound via klutch-bind.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		makeup.PrintWarning(" " + "Please use a sub-command.")
-		cmd.Help()
+		if err := cmd.Help(); err != nil {
+			makeup.ExitDueToFatalError(err, "")
+		}
 	},
 }
 

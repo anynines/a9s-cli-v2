@@ -20,6 +20,19 @@ import (
 	"k8s.io/apimachinery/pkg/util/json"
 )
 
+type ClusterRole string
+
+func (c ClusterRole) String() string {
+	return string(c)
+}
+
+var (
+	clusterRoleControlPlane ClusterRole = "Control Plane"
+	clusterRoleWorkload     ClusterRole = "Workload"
+)
+
+const defaultAwsRegion = "eu-central-1"
+
 type Config struct {
 	AwsAccountId                    string
 	Region                          string
@@ -30,6 +43,7 @@ type Config struct {
 	NodeAMIType                     string
 	ClusterIamRoleName              string
 	NodeRoleName                    string
+	EbsRoleName                     string
 	BaseCIDR                        string
 	PubACIDR, PubBCIDR, PubCCIDR    string
 	PrivACIDR, PrivBCIDR, PrivCCIDR string
@@ -38,7 +52,7 @@ type Config struct {
 	ControlPlaneSGName              string
 	KlutchTagValue                  string
 	ResourceNamePrefix              string
-	ClusterRole                     string
+	ClusterRole                     ClusterRole
 	AlbServiceAccountName           string
 
 	TenantOperatorImage        string
@@ -125,8 +139,6 @@ var (
 	klutchRoleLabel                   = "control plane"
 	clusterNameTagKey                 = "eks.cluster/name"
 	clusterIDTagKey                   = "eks.cluster/id"
-	clusterRoleControlPlane           = "Control Plane"
-	clusterRoleWorkload               = "Workload"
 	currentClusterName                string
 	currentClusterArn                 string
 	defaultTenantOperatorImage        = "public.ecr.aws/h6x7g6i7/anynines/cli-resources/tenants-operator:0.1.0"
@@ -150,7 +162,7 @@ func setKlutchContext(cfg Config) func() {
 		klutchNamePrefix = cfg.ResourceNamePrefix
 	}
 	if cfg.ClusterRole != "" {
-		klutchRoleLabel = strings.ToLower(cfg.ClusterRole)
+		klutchRoleLabel = strings.ToLower(cfg.ClusterRole.String())
 	}
 
 	return func() {
@@ -219,14 +231,13 @@ func getenv(key, def string) string {
 
 func defaultConfig() Config {
 	return Config{
-		Region:                     "eu-central-1",
-		ClusterName:                "klutch-control-plane",
-		NodegroupName:              "klutch-control-plane-nodegroup",
+		Region:                     defaultAwsRegion,
 		NodeInstanceTypes:          "t3a.xlarge",
 		NodeScalingConfig:          "minSize=3,maxSize=3,desiredSize=3",
 		NodeAMIType:                "AL2023_x86_64_STANDARD",
 		ClusterIamRoleName:         "EKSClusterRole",
 		NodeRoleName:               "EKSNodeInstanceRole",
+		EbsRoleName:                "AmazonEKS_EBS_CSI_DriverRole",
 		BaseCIDR:                   "10.0.0.0/16",
 		PubACIDR:                   "10.0.1.0/24",
 		PubBCIDR:                   "10.0.2.0/24",
@@ -236,10 +247,6 @@ func defaultConfig() Config {
 		PrivCCIDR:                  "10.0.103.0/24",
 		ALBControllerVersion:       "v2.7.1",
 		ALBControllerPolicyName:    "AWSLoadBalancerControllerIAMPolicy",
-		ControlPlaneSGName:         "klutch-control-plane-sg",
-		KlutchTagValue:             klutchTagValueControlPlane,
-		ResourceNamePrefix:         "klutch-control-plane",
-		ClusterRole:                clusterRoleControlPlane,
 		TenantOperatorImage:        defaultTenantOperatorImage,
 		TenantOperatorChart:        defaultTenantOperatorChartImage,
 		TenantOperatorChartVersion: defaultTenantOperatorChartVersion,
@@ -250,21 +257,53 @@ func defaultConfig() Config {
 
 // ControlPlaneDefaultRegion returns the default region used for Klutch control plane resources.
 func ControlPlaneDefaultRegion() string {
-	return defaultConfig().Region
+	return defaultAwsRegion
 }
 
-func workloadConfig(clusterName string) Config {
+func newConfig(clusterName string, clusterRole ClusterRole) Config {
+	clusterName = strings.TrimSpace(clusterName)
 	cfg := defaultConfig()
 	cfg.KlutchTagValue = klutchTagValueWorkload
-	cfg.ClusterRole = clusterRoleWorkload
+	cfg.ClusterRole = clusterRole
 
-	if clusterName == "" {
-		clusterName = RandomWorkloadClusterName()
+	switch clusterRole {
+	case clusterRoleControlPlane:
+		if clusterName == "" {
+			clusterName = "klutch-control-plane"
+		}
+		cfg.KlutchTagValue = klutchTagValueControlPlane
+
+	case clusterRoleWorkload:
+		if clusterName == "" {
+			clusterName = RandomWorkloadClusterName()
+		}
+		cfg.KlutchTagValue = klutchTagValueWorkload
+
+	default:
+		makeup.ExitDueToFatalError(nil, "Unknown cluster role "+clusterRole.String())
 	}
+
 	cfg.ClusterName = clusterName
+
+	lenAllowedByAlbAccountName := 128 - len("eksctl--addon-iamserviceaccount-kube-system-"+cfg.AlbServiceAccountName)
+	lenAllowedByEbsRoleName := 64 - len(cfg.EbsRoleName+"-")
+	maxResourceNameLen := 64
+	maxClusterNameLen := lenAllowedByEbsRoleName
+	maxClusterNameReason := "EBS CSI Role"
+	if lenAllowedByAlbAccountName < lenAllowedByEbsRoleName {
+		maxResourceNameLen = 128
+		maxClusterNameLen = lenAllowedByAlbAccountName
+		maxClusterNameReason = "ALB ServiceAccount"
+	}
+
+	// check cluster name length early to avoid cluster failing during provisioning due to this issue
+	if len(cfg.ClusterName) > maxClusterNameLen {
+		makeup.ExitDueToFatalError(nil, fmt.Sprintf("Cluster name %s is too long (is %d but may not exceed %d because otherwise the name of the %s would exceed its limit of %d characters)", cfg.ClusterName, len(cfg.ClusterName), maxClusterNameLen, maxClusterNameReason, maxResourceNameLen))
+	}
 
 	cfg.ClusterIamRoleName += "-" + cfg.ClusterName
 	cfg.NodeRoleName += "-" + cfg.ClusterName
+	cfg.EbsRoleName += "-" + cfg.ClusterName
 	cfg.ALBControllerPolicyName += "-" + cfg.ClusterName
 	cfg.NodegroupName = fmt.Sprintf("%s-nodegroup", clusterName)
 	cfg.ControlPlaneSGName = fmt.Sprintf("%s-sg", clusterName)
@@ -334,16 +373,8 @@ func mustRun(ctx context.Context, name string, args ...string) string {
 }
 
 func CreateControlPlaneCluster(ctx context.Context, opts CreateOptions) {
-	cfg := defaultConfig()
-	if opts.ClusterName != "" {
-		cfg.ClusterName = opts.ClusterName
-	}
-	cfg.NodegroupName = fmt.Sprintf("%s-nodegroup", cfg.ClusterName)
-	cfg.ClusterIamRoleName += "-" + cfg.ClusterName
-	cfg.NodeRoleName += "-" + cfg.ClusterName
-	cfg.ALBControllerPolicyName += "-" + cfg.ClusterName
-	cfg.ControlPlaneSGName = fmt.Sprintf("%s-sg", cfg.ClusterName)
-	cfg.ResourceNamePrefix = cfg.ClusterName
+	cfg := newConfig(opts.ClusterName, clusterRoleControlPlane)
+
 	if opts.NodeInstanceTypes != "" {
 		cfg.NodeInstanceTypes = opts.NodeInstanceTypes
 	}
@@ -378,7 +409,7 @@ func CreateControlPlaneCluster(ctx context.Context, opts CreateOptions) {
 }
 
 func CreateWorkloadCluster(ctx context.Context, opts CreateOptions) {
-	cfg := workloadConfig(opts.ClusterName)
+	cfg := newConfig(opts.ClusterName, clusterRoleWorkload)
 	if opts.NodeInstanceTypes != "" {
 		cfg.NodeInstanceTypes = opts.NodeInstanceTypes
 	}
@@ -392,7 +423,7 @@ func provisionCluster(ctx context.Context, cfg Config, opts CreateOptions) {
 	restore := setKlutchContext(cfg)
 	defer restore()
 
-	awsLogger.Successf("Starting Klutch %s EKS cluster provisioning (Go version)", strings.ToLower(cfg.ClusterRole))
+	awsLogger.Successf("Starting Klutch %s EKS cluster provisioning (Go version)", strings.ToLower(cfg.ClusterRole.String()))
 
 	requiredCmds := []string{"aws", "kubectl", "eksctl", "helm"}
 	if opts.DryRun {
@@ -406,11 +437,6 @@ func provisionCluster(ctx context.Context, cfg Config, opts CreateOptions) {
 		checkAWSCLIVersion(ctx)
 		checkKubectlMinVersion(ctx, "v1.27.0")
 		awsLogger.Successf("All required commands (%s) are available.", strings.Join(requiredCmds, ", "))
-	}
-
-	// check cluster name length early to avoid cluster failing during provisioning due to this issue
-	if fullAlbServiceAccountName := fmt.Sprintf("eksctl-%s-addon-iamserviceaccount-kube-system-%s", cfg.ClusterName, cfg.AlbServiceAccountName); len(fullAlbServiceAccountName) > 128 {
-		makeup.ExitDueToFatalError(nil, fmt.Sprintf("Cluster name %s is too long, cluster name may not exceed %d characters.", cfg.ClusterName, 128-len("eksctl--addon-iamserviceaccount-kube-system-"+cfg.AlbServiceAccountName)))
 	}
 
 	awsLogger.Section("Configuration")
@@ -538,7 +564,7 @@ func provisionCluster(ctx context.Context, cfg Config, opts CreateOptions) {
 		"--region", cfg.Region,
 		"--name", cfg.ClusterName)
 	waitForNodesReady(ctx)
-	if strings.EqualFold(cfg.ClusterRole, "Control Plane") {
+	if cfg.ClusterRole == clusterRoleControlPlane {
 		ensureEBSCSIDriverAddon(ctx, cfg)
 		awsLogger.Successf("aws-ebs-csi-driver addon is installed.")
 	}
@@ -584,7 +610,7 @@ func checkAWSCLIVersion(ctx context.Context) {
 
 func printCreatePlan(cfg Config) {
 	awsLogger.Section("Dry-Run Plan")
-	roleLabel := strings.ToLower(cfg.ClusterRole)
+	roleLabel := strings.ToLower(cfg.ClusterRole.String())
 	awsLogger.Infof("Listing the AWS resources that would be created or verified and the commands that would be executed for the Klutch %s cluster.", roleLabel)
 
 	accountPlaceholder := "<account-id>"
@@ -693,7 +719,7 @@ func printCreatePlan(cfg Config) {
 			Title:   "EBS CSI controller and addon",
 			Purpose: "Create the IAM service account role for the EBS CSI controller and install the aws-ebs-csi-driver addon.",
 			Commands: []string{
-				"eksctl create iamserviceaccount --name ebs-csi-controller-sa --namespace kube-system --cluster " + cfg.ClusterName + " --role-name AmazonEKS_EBS_CSI_DriverRole --role-only --attach-policy-arn arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy --approve",
+				"eksctl create iamserviceaccount --name ebs-csi-controller-sa --namespace kube-system --cluster " + cfg.ClusterName + " --role-name " + cfg.EbsRoleName + " --role-only --attach-policy-arn arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy --approve",
 				"eksctl create addon --cluster " + cfg.ClusterName + " --name aws-ebs-csi-driver --version latest --force",
 			},
 		},
@@ -994,10 +1020,7 @@ func resolveKubectlContextForCluster(ctx context.Context, cfg Config) string {
 // ApplyControlPlaneAddons installs AWS-side addons (tenant operator) onto an existing control-plane cluster.
 // It assumes the EKS cluster already exists and that ALB/etc. are in place.
 func ApplyControlPlaneAddons(ctx context.Context, opts CreateOptions) {
-	cfg := defaultConfig()
-	if strings.TrimSpace(opts.ClusterName) != "" {
-		cfg.ClusterName = strings.TrimSpace(opts.ClusterName)
-	}
+	cfg := newConfig(opts.ClusterName, clusterRoleControlPlane)
 	if opts.TenantOperatorImage != "" {
 		cfg.TenantOperatorImage = opts.TenantOperatorImage
 	}
@@ -1669,7 +1692,7 @@ func ensureEBSCSIDriverAddon(ctx context.Context, cfg Config) {
 		"--name", "ebs-csi-controller-sa",
 		"--namespace", "kube-system",
 		"--cluster", cfg.ClusterName,
-		"--role-name", "AmazonEKS_EBS_CSI_DriverRole",
+		"--role-name", cfg.EbsRoleName,
 		"--role-only",
 		"--attach-policy-arn", "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy",
 		"--approve")
@@ -1922,50 +1945,9 @@ func checkKubectlMinVersion(ctx context.Context, minVersion string) {
 // ensureRouteTableAssociation makes sure the given subnet is associated with the desired route table.
 // If already associated, it is left untouched. If associated elsewhere, it is replaced.
 func ensureRouteTableAssociation(ctx context.Context, rtID, subnetID string) {
-	type assoc struct {
-		RouteTableId  string `json:"RouteTableId"`
-		AssociationId string `json:"AssociationId"`
-		Main          bool   `json:"Main"`
-	}
-	type rt struct {
-		Associations []assoc `json:"Associations"`
-	}
-	type describe struct {
-		RouteTables []rt `json:"RouteTables"`
-	}
 
-	out, err := runCmd(ctx, false, false, "aws", "ec2", "describe-route-tables",
-		"--filters", "Name=association.subnet-id,Values="+subnetID,
-		"--query", "RouteTables[*].Associations[]",
-		"--output", "json")
-	if err == nil {
-		var desc []assoc
-		if err := json.Unmarshal([]byte(out), &desc); err == nil && len(desc) > 0 {
-			for _, a := range desc {
-				if a.RouteTableId == rtID {
-					awsLogger.Successf("Subnet %s already associated with route table %s. Skipping.", subnetID, rtID)
-					return
-				}
-				// Replace existing association
-				if a.Main {
-					awsLogger.Infof("Replacing main route table association %s for subnet %s with %s...", a.AssociationId, subnetID, rtID)
-					errOut, err := runCmd(ctx, true, false, "aws", "ec2", "replace-route-table-association",
-						"--association-id", a.AssociationId,
-						"--route-table-id", rtID)
-					if err != nil {
-						awsLogger.Warningf("Failed to replace route table association for subnet %s: %v\nstderr: %s", subnetID, err, errOut)
-					}
-					return
-				}
-				awsLogger.Infof("Disassociating subnet %s from route table %s and associating with %s...", subnetID, a.RouteTableId, rtID)
-				errOut, err := runCmd(ctx, true, false, "aws", "ec2", "disassociate-route-table",
-					"--association-id", a.AssociationId)
-				if err != nil {
-					awsLogger.Warningf("Failed to disassociate subnet %s: %v\nstderr: %s", subnetID, err, errOut)
-				}
-				break
-			}
-		}
+	if checkExistingAssociation(ctx, subnetID, rtID) {
+		return
 	}
 
 	awsLogger.Infof("Associating subnet %s with route table %s...", subnetID, rtID)
@@ -1977,6 +1959,50 @@ func ensureRouteTableAssociation(ctx context.Context, rtID, subnetID string) {
 	} else {
 		awsLogger.Successf("Associated subnet %s with route table %s.", subnetID, rtID)
 	}
+}
+
+func checkExistingAssociation(ctx context.Context, subnetID string, rtID string) bool {
+	type assoc struct {
+		RouteTableId  string `json:"RouteTableId"`
+		AssociationId string `json:"AssociationId"`
+		Main          bool   `json:"Main"`
+	}
+	out, err := runCmd(ctx, false, false, "aws", "ec2", "describe-route-tables",
+		"--filters", "Name=association.subnet-id,Values="+subnetID,
+		"--query", "RouteTables[*].Associations[]",
+		"--output", "json")
+	if err != nil {
+		makeup.ExitDueToFatalError(err, "Failed to retrieve existing route table associations:\n"+out)
+	}
+	var desc []assoc
+	if err := json.Unmarshal([]byte(out), &desc); err != nil {
+		makeup.ExitDueToFatalError(err, "Failed to parse existing route table associations:\n"+out)
+	}
+	if len(desc) > 0 {
+		a := desc[0]
+		if a.RouteTableId == rtID {
+			awsLogger.Successf("Subnet %s already associated with route table %s. Skipping.", subnetID, rtID)
+			return true
+		}
+		// Replace existing association
+		if a.Main {
+			awsLogger.Infof("Replacing main route table association %s for subnet %s with %s...", a.AssociationId, subnetID, rtID)
+			errOut, err := runCmd(ctx, true, false, "aws", "ec2", "replace-route-table-association",
+				"--association-id", a.AssociationId,
+				"--route-table-id", rtID)
+			if err != nil {
+				awsLogger.Warningf("Failed to replace route table association for subnet %s: %v\nstderr: %s", subnetID, err, errOut)
+			}
+			return true
+		}
+		awsLogger.Infof("Disassociating subnet %s from route table %s and associating with %s...", subnetID, a.RouteTableId, rtID)
+		errOut, err := runCmd(ctx, true, false, "aws", "ec2", "disassociate-route-table",
+			"--association-id", a.AssociationId)
+		if err != nil {
+			awsLogger.Warningf("Failed to disassociate subnet %s: %v\nstderr: %s", subnetID, err, errOut)
+		}
+	}
+	return false
 }
 
 // ensurePolicyVersion sets a new default policy version from the given document,

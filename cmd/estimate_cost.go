@@ -30,7 +30,9 @@ var estimateCostCmd = &cobra.Command{
 	Long:  `Estimate infrastructure costs for supported stacks and providers.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		makeup.PrintWarning(" Please choose a resource to estimate.")
-		cmd.Help()
+		if err := cmd.Help(); err != nil {
+			makeup.ExitDueToFatalError(err, "")
+		}
 	},
 }
 
@@ -39,7 +41,9 @@ var estimateCostClusterCmd = &cobra.Command{
 	Short: "Estimate cluster-related costs.",
 	Run: func(cmd *cobra.Command, args []string) {
 		makeup.PrintWarning(" Please choose a cluster type to estimate.")
-		cmd.Help()
+		if err := cmd.Help(); err != nil {
+			makeup.ExitDueToFatalError(err, "")
+		}
 	},
 }
 

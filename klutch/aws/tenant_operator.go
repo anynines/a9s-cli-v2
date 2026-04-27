@@ -34,11 +34,6 @@ func deployTenantOperator(ctx context.Context, cfg Config, accountID string) {
 		}
 	}
 
-	imageRepo := cfg.TenantOperatorImage
-	if idx := strings.LastIndex(imageRepo, ":"); idx > 0 {
-		// split tag if present
-	}
-
 	ns := "a9s-tenants-operator-system"
 	release := "a9s-tenants-operator"
 

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/anynines/a9s-cli-v2/demo"
 	"github.com/anynines/a9s-cli-v2/makeup"
 )
 
@@ -326,8 +327,10 @@ func ensureCognitoOAuthSupport(ctx context.Context) error {
 
 func buildTenantUserPoolTags(ctx context.Context, region, tenantUUID, tenantName, resourceName string) []string {
 	accountID, _ := getAccountID(ctx)
-	cfg := defaultConfig()
-	clusterName := cfg.ClusterName
+	clusterName := strings.TrimSpace(demo.DemoClusterName)
+	if clusterName == "" {
+		clusterName = "klutch-control-plane"
+	}
 	clusterArn := fmt.Sprintf("arn:aws:eks:%s:%s:cluster/%s", region, accountID, clusterName)
 
 	// For Cognito CLI, user-pool-tags expects a single comma-separated map string.

@@ -42,7 +42,9 @@ var getCmd = &cobra.Command{
 	Short: "Get resources managed by the CLI.",
 	Run: func(cmd *cobra.Command, args []string) {
 		makeup.PrintWarning(" " + "Please select a subcommand from the list below.")
-		cmd.Help()
+		if err := cmd.Help(); err != nil {
+			makeup.ExitDueToFatalError(err, "")
+		}
 	},
 }
 
@@ -51,7 +53,9 @@ var getKlutchCmd = &cobra.Command{
 	Short: "Get Klutch resources.",
 	Run: func(cmd *cobra.Command, args []string) {
 		makeup.PrintWarning(" " + "Please select a subcommand from the list below.")
-		cmd.Help()
+		if err := cmd.Help(); err != nil {
+			makeup.ExitDueToFatalError(err, "")
+		}
 	},
 }
 

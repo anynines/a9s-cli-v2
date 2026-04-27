@@ -128,7 +128,7 @@ func WaitForUser() {
 		fmt.Print(style + " ")
 
 		reader := bufio.NewReader(os.Stdin)
-		reader.ReadString('\n')
+		_, _ = reader.ReadString('\n')
 
 		PrintEmoji("...", emoji.Emoji(emoji.ManRunning.Tone(emoji.Default)))
 	}

@@ -192,3 +192,7 @@ artifacts.
   Setting the `--verbose` flag to check the output of `aws secretsmanager delete-secret` will also
   not be helpful here, as the `aws` command itself will act as if the secret had been deleted
   successfully.
+* Deleting a Hosted Zone whose parent zone lives in the AWS account also used by the CLI via `a9s
+  delete cluster klutch <cluster-role> --cleanup-dns-acm --hosted-zone-name <zone-name>` will not
+  remove the `NS` entry for the child Hosted Zone from the parent zone's entry list, leaving behind
+  an entry with a non-existent target which might lead to complications in the future

@@ -35,7 +35,9 @@ var cmdDelete = &cobra.Command{
 
 		makeup.PrintWarning(" " + "Please select the data service resource type you would like to delete.")
 
-		cmd.Help()
+		if err := cmd.Help(); err != nil {
+			makeup.ExitDueToFatalError(err, "")
+		}
 	},
 }
 
@@ -47,7 +49,9 @@ var cmdDeleteDemo = &cobra.Command{
 
 		makeup.PrintWarning(" " + "Use a sub-command to choose the demo resource to be deleted.")
 
-		cmd.Help()
+		if err := cmd.Help(); err != nil {
+			makeup.ExitDueToFatalError(err, "")
+		}
 	},
 }
 
@@ -69,7 +73,9 @@ var cmdDeletePG = &cobra.Command{
 	Long:  `Delete PostgreSQL resources such as service instances, service bindings, backups and restore jobs.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		makeup.PrintWarning(" " + "Please select a PostgreSQL resource such as (service) instance.")
-		cmd.Help()
+		if err := cmd.Help(); err != nil {
+			makeup.ExitDueToFatalError(err, "")
+		}
 	},
 }
 
@@ -111,7 +117,9 @@ var cmdDeleteKlutch = &cobra.Command{
 	Long:  `Deletes Klutch components such as the control plane from the current kube context.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		makeup.PrintWarning(" " + "Please select a subcommand from the list below.")
-		cmd.Help()
+		if err := cmd.Help(); err != nil {
+			makeup.ExitDueToFatalError(err, "")
+		}
 	},
 }
 
@@ -135,7 +143,9 @@ var cmdDeleteClusterKlutch = &cobra.Command{
 	Long:  "Use the control-plane or workload subcommand to delete the corresponding Klutch EKS cluster and tagged AWS infrastructure.",
 	Run: func(cmd *cobra.Command, args []string) {
 		makeup.PrintWarning(" " + "Please select either the control-plane or workload subcommand.")
-		cmd.Help()
+		if err := cmd.Help(); err != nil {
+			makeup.ExitDueToFatalError(err, "")
+		}
 	},
 }
 

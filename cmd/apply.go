@@ -40,7 +40,9 @@ var applyCmd = &cobra.Command{
 	Long:  `Applies components such as the Klutch control plane to the current Kubernetes cluster.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		makeup.PrintWarning(" " + "Please select a subcommand from the list below.")
-		cmd.Help()
+		if err := cmd.Help(); err != nil {
+			makeup.ExitDueToFatalError(err, "")
+		}
 	},
 }
 
@@ -50,7 +52,9 @@ var applyKlutchCmd = &cobra.Command{
 	Long:  `Applies Klutch components such as the control plane to the current Kubernetes cluster.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		makeup.PrintWarning(" " + "Please select a subcommand from the list below.")
-		cmd.Help()
+		if err := cmd.Help(); err != nil {
+			makeup.ExitDueToFatalError(err, "")
+		}
 	},
 }
 
@@ -110,7 +114,7 @@ func init() {
 	initRequiredStringFlagWithDependency(&applyKlutchOIDCProvider, "oidc-provider", "cognito", applyKlutchControlPlaneCmd, &applyKlutchOIDCClientID, "oidc-client-id", "", "OIDC client ID (required for oidc-provider=cognito).")
 	initRequiredStringFlagWithDependency(&applyKlutchOIDCProvider, "oidc-provider", "cognito", applyKlutchControlPlaneCmd, &applyKlutchOIDCClientSecret, "oidc-client-secret", "", "OIDC client secret (required for oidc-provider=cognito).")
 	applyKlutchControlPlaneCmd.Flags().StringVar(&applyKlutchOIDCCallbackURL, "oidc-callback-url", "", "OIDC callback URL to configure on the backend. Defaults to https://<host>/callback when not provided.")
-	applyKlutchControlPlaneCmd.Flags().StringVar(&applyKlutchClusterName, "cluster-name", "", "Existing AWS control-plane cluster name (defaults to klutch-control-plane).")
+	applyKlutchControlPlaneCmd.Flags().StringVar(&demo.DemoClusterName, "cluster-name", "", "Existing AWS control-plane cluster name (defaults to klutch-control-plane).")
 	applyKlutchControlPlaneCmd.Flags().StringVar(&applyKlutchTenantOperatorImage, "tenant-operator-image", "", "Tenant operator container image (override default).")
 	applyKlutchControlPlaneCmd.Flags().StringVar(&applyKlutchTenantOperatorChart, "tenant-operator-chart", "", "Tenant operator Helm chart (OCI URL, override default).")
 	applyKlutchControlPlaneCmd.Flags().StringVar(&applyKlutchTenantOperatorChartVersion, "tenant-operator-chart-version", "", "Tenant operator Helm chart version (for OCI charts).")

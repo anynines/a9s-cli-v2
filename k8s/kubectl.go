@@ -32,10 +32,10 @@ Example kubectl command: kubectl cp demo_data.sql default/clustered-0:/home/post
 */
 func (k *KubeClient) KubectlUploadFileToPod(namespace, podName, containerName, fileToUpload, remoteTargetFolder string) error {
 	opts := KubectlOpts{
-		Command:        "cp",
-		Kind:           fileToUpload,
-		Name:           namespace + "/" + podName + ":" + remoteTargetFolder,
-		AdditionalArgs: []string{"-c", containerName},
+		command:        "cp",
+		kind:           fileToUpload,
+		name:           namespace + "/" + podName + ":" + remoteTargetFolder,
+		additionalArgs: []string{"-c", containerName},
 	}
 
 	_, _, err := runKubeCtlCommand(opts.withContextFrom(k))
@@ -49,10 +49,10 @@ Executes command similar to: kubectl exec solo-0 -n default -c postgres -- rm /t
 */
 func (k *KubeClient) KubectlDeleteFileFromPod(namespace, podName, containerName, remoteFilename string) error {
 	opts := KubectlOpts{
-		Command:   "exec",
-		Kind:      podName,
-		Namespace: namespace,
-		AdditionalArgs: []string{
+		command:   "exec",
+		kind:      podName,
+		namespace: namespace,
+		additionalArgs: []string{
 			"-c", containerName,
 			"--",
 			"rm", remoteFilename,
@@ -73,11 +73,11 @@ func (k *KubeClient) FindFirstPodByLabel(namespace, label string) (string, error
 	// output := "clustered-0 clustered-1 clustered-2 solo-0"
 
 	opts := KubectlOpts{
-		Command:      "get",
-		Kind:         "pods",
-		Namespace:    namespace,
-		Selector:     label,
-		OutputFormat: "jsonpath={.items[*].metadata.name}",
+		command:      "get",
+		kind:         "pods",
+		namespace:    namespace,
+		selector:     label,
+		outputFormat: "jsonpath={.items[*].metadata.name}",
 	}
 
 	cmd, output, err := runKubeCtlCommand(opts.withContextFrom(k))
@@ -129,10 +129,10 @@ func (k *KubeClient) kubectlWithContextCommand(args ...string) *exec.Cmd {
 
 func (k *KubeClient) Create(kind string, name string, namespace string) ([]byte, error) {
 	opts := KubectlOpts{
-		Command:   "create",
-		Kind:      kind,
-		Name:      name,
-		Namespace: namespace,
+		command:   "create",
+		kind:      kind,
+		name:      name,
+		namespace: namespace,
 	}
 
 	_, output, err := runKubeCtlCommand(opts.withContextFrom(k))
@@ -226,12 +226,12 @@ func (k *KubeClient) Delete(resource, name, namespace, description string, ignor
 
 func (k *KubeClient) Get(resource string, name string, namespace, format string, ignoreNotFound bool) (string, error) {
 	opts := KubectlOpts{
-		Command:        "get",
-		Kind:           resource,
-		Name:           name,
-		Namespace:      namespace,
-		OutputFormat:   format,
-		IgnoreNotFound: ignoreNotFound,
+		command:        "get",
+		kind:           resource,
+		name:           name,
+		namespace:      namespace,
+		outputFormat:   format,
+		ignoreNotFound: ignoreNotFound,
 	}
 
 	_, outBytes, err := runKubeCtlCommand(opts.withContextFrom(k))
@@ -240,10 +240,10 @@ func (k *KubeClient) Get(resource string, name string, namespace, format string,
 
 func (k *KubeClient) Describe(resource string, name string, namespace string) ([]byte, error) {
 	opts := KubectlOpts{
-		Command:   "describe",
-		Kind:      resource,
-		Name:      name,
-		Namespace: namespace,
+		command:   "describe",
+		kind:      resource,
+		name:      name,
+		namespace: namespace,
 	}
 	_, output, err := runKubeCtlCommand(opts.withContextFrom(k))
 	return output, err
@@ -326,9 +326,10 @@ func (k *KubeClient) kubectlCommandWithPrompt(command string, manifestBytes []by
 	// Execute the actual kubectl command
 
 	opts := KubectlOpts{
-		Command:  command,
-		StdIn:    manifestBytes,
-		Filename: "-",
+		command:               command,
+		stdIn:                 manifestBytes,
+		filename:              "-",
+		avoidDuplicateLogging: true,
 	}
 
 	_, output, err := runKubeCtlCommand(opts.withContextFrom(k))
@@ -387,8 +388,8 @@ func (k *KubeClient) ApplyFromFile(yamlFilepath string) (string, error) {
 //   - unattendedMode: if true, skip all prompts and apply immediately (respects --yes flag)
 func (k *KubeClient) ApplyKustomize(kustomizeFilepath string) (string, error) {
 	renderOpts := KubectlOpts{
-		Command: "kustomize",
-		Kind:    kustomizeFilepath,
+		command: "kustomize",
+		kind:    kustomizeFilepath,
 	}
 
 	// Generate the kustomize output first
@@ -449,10 +450,10 @@ func (k *KubeClient) DeleteFromManifest(manifest string) {
 
 func (k *KubeClient) Exec(serviceInstanceName, namespace, RemoteUploadContainerName, command string, args ...string) (string, error) {
 	opts := KubectlOpts{
-		Command:   "exec",
-		Kind:      serviceInstanceName,
-		Namespace: namespace,
-		AdditionalArgs: append([]string{
+		command:   "exec",
+		kind:      serviceInstanceName,
+		namespace: namespace,
+		additionalArgs: append([]string{
 			"-c",
 			RemoteUploadContainerName,
 			"--",
@@ -465,9 +466,9 @@ func (k *KubeClient) Exec(serviceInstanceName, namespace, RemoteUploadContainerN
 
 func Contexts(filter string) ([]string, error) {
 	opts := KubectlOpts{
-		Command:      "config",
-		Kind:         "get-contexts",
-		OutputFormat: "name",
+		command:      "config",
+		kind:         "get-contexts",
+		outputFormat: "name",
 	}
 	_, out, err := runKubeCtlCommand(opts)
 	if err != nil {
@@ -478,8 +479,8 @@ func Contexts(filter string) ([]string, error) {
 }
 func Clusters(filter string) ([]string, error) {
 	opts := KubectlOpts{
-		Command: "config",
-		Kind:    "get-clusters",
+		command: "config",
+		kind:    "get-clusters",
 	}
 	_, out, err := runKubeCtlCommand(opts)
 	if err != nil {
@@ -503,8 +504,8 @@ func trimAndFilter(input []byte, filter string) []string {
 
 func ClusterInfo(ctx context.Context, kubeContext string) (string, error) {
 	opts := KubectlOpts{
-		Command: "cluster-info",
-		Context: kubeContext,
+		command: "cluster-info",
+		context: kubeContext,
 	}
 	_, out, err := runKubeCtlCommand(opts)
 	return string(out), err
@@ -512,9 +513,9 @@ func ClusterInfo(ctx context.Context, kubeContext string) (string, error) {
 
 func SwitchContext(target string) ([]byte, error) {
 	opts := KubectlOpts{
-		Command: "config",
-		Kind:    "use-context",
-		Name:    target,
+		command: "config",
+		kind:    "use-context",
+		name:    target,
 	}
 	_, out, err := runKubeCtlCommand(opts)
 	return out, err
@@ -522,8 +523,8 @@ func SwitchContext(target string) ([]byte, error) {
 
 func CurrentContext() (string, error) {
 	opts := KubectlOpts{
-		Command: "config",
-		Kind:    "current-context",
+		command: "config",
+		kind:    "current-context",
 	}
 	_, out, err := runKubeCtlCommand(opts)
 	if err != nil {
@@ -537,11 +538,11 @@ func (k *KubeClient) RolloutStatus(resourceType, name, namespace, timeout string
 		name = resourceType + "/" + name
 	}
 	opts := KubectlOpts{
-		Command:   "rollout",
-		Kind:      "status",
-		Name:      name,
-		Namespace: namespace,
-		Timeout:   timeout,
+		command:   "rollout",
+		kind:      "status",
+		name:      name,
+		namespace: namespace,
+		timeout:   timeout,
 	}
 
 	_, out, err := runKubeCtlCommand(opts.withContextFrom(k))
@@ -553,11 +554,11 @@ func (k *KubeClient) ApiResources(apiGroup, kubeconfigPath, kubeContext, format 
 		apiGroup = "--api-group=" + apiGroup
 	}
 	opts := KubectlOpts{
-		Command:        "api-resources",
-		Kind:           apiGroup,
-		OutputFormat:   format,
-		KubeConfigPath: kubeconfigPath,
-		Context:        kubeContext,
+		command:        "api-resources",
+		kind:           apiGroup,
+		outputFormat:   format,
+		kubeConfigPath: kubeconfigPath,
+		context:        kubeContext,
 	}
 
 	_, out, err := runKubeCtlCommand(opts.withContextFrom(k))
@@ -566,13 +567,13 @@ func (k *KubeClient) ApiResources(apiGroup, kubeconfigPath, kubeContext, format 
 
 func Version(client bool, requestTimeout string) (string, error) {
 	opts := KubectlOpts{
-		Command: "version",
+		command: "version",
 	}
 	if client {
-		opts.AdditionalArgs = append(opts.AdditionalArgs, "--client")
+		opts.additionalArgs = append(opts.additionalArgs, "--client")
 	}
 	if requestTimeout != "" {
-		opts.AdditionalArgs = append(opts.AdditionalArgs, "--request-timeout="+requestTimeout)
+		opts.additionalArgs = append(opts.additionalArgs, "--request-timeout="+requestTimeout)
 	}
 
 	_, out, err := runKubeCtlCommand(opts)
@@ -584,74 +585,81 @@ func (k *KubeClient) Run(namespace, name, image, labels, command string, args ..
 		image = "--image=" + image
 	}
 	opts := KubectlOpts{
-		Command:        "run",
-		Kind:           name,
-		Name:           image,
-		Namespace:      namespace,
-		Selector:       labels,
-		AdditionalArgs: []string{},
+		command:        "run",
+		kind:           name,
+		name:           image,
+		namespace:      namespace,
+		selector:       labels,
+		additionalArgs: []string{},
 	}
 
-	opts.AdditionalArgs = append(opts.AdditionalArgs, "--", command)
-	opts.AdditionalArgs = append(opts.AdditionalArgs, args...)
+	opts.additionalArgs = append(opts.additionalArgs, "--", command)
+	opts.additionalArgs = append(opts.additionalArgs, args...)
 
 	_, out, err := runKubeCtlCommand(opts.withContextFrom(k))
 	return string(out), err
 }
 
 type KubectlOpts struct {
-	Command        string
-	Kind           string
-	Name           string
-	Namespace      string
-	OutputFormat   string
-	StdIn          []byte
-	Filename       string
-	Selector       string
-	Context        string
-	KubeConfigPath string
-	Timeout        string
-	AdditionalArgs []string
-	IgnoreNotFound bool
+	command               string
+	kind                  string
+	name                  string
+	namespace             string
+	outputFormat          string
+	stdIn                 []byte
+	filename              string
+	selector              string
+	context               string
+	kubeConfigPath        string
+	timeout               string
+	additionalArgs        []string
+	ignoreNotFound        bool
+	avoidDuplicateLogging bool
 }
 
 func (opts KubectlOpts) withContextFrom(k *KubeClient) KubectlOpts {
-	if opts.Context == "" && k.KubeContext != "" {
-		opts.Context = k.KubeContext
+	if opts.context == "" && k.KubeContext != "" {
+		opts.context = k.KubeContext
 	}
 	return opts
 }
 
 func runKubeCtlCommand(opts KubectlOpts) (string, []byte, error) {
 	args := []string{
-		opts.Command,
+		opts.command,
 	}
-	if opts.Kind == "" {
-		if opts.Filename == "" && !slices.Contains(commandsWithoutSubcommands, opts.Command) {
+	if opts.kind == "" {
+		if opts.filename == "" && !slices.Contains(commandsWithoutSubcommands, opts.command) {
 			return "kubectl " + args[0], nil, fmt.Errorf("resource kind may not be empty")
 		}
 	} else {
-		args = append(args, opts.Kind)
+		args = append(args, opts.kind)
 	}
 
-	args = addIfNotEmpty(args, "", opts.Name)
-	args = addIfNotEmpty(args, "-n", opts.Namespace)
-	args = addIfNotEmpty(args, "-o", opts.OutputFormat)
-	args = addIfNotEmpty(args, "-f", opts.Filename)
-	args = addIfNotEmpty(args, "--context", opts.Context)
-	args = addIfNotEmpty(args, "-l", opts.Selector)
-	args = addIfNotEmpty(args, "--kubeconfig", opts.KubeConfigPath)
-	args = addIfNotEmpty(args, "--timeout=", opts.Timeout)
+	args = addIfNotEmpty(args, "", opts.name)
+	args = addIfNotEmpty(args, "-n", opts.namespace)
+	args = addIfNotEmpty(args, "-o", opts.outputFormat)
+	args = addIfNotEmpty(args, "-f", opts.filename)
+	args = addIfNotEmpty(args, "--context", opts.context)
+	args = addIfNotEmpty(args, "-l", opts.selector)
+	args = addIfNotEmpty(args, "--kubeconfig", opts.kubeConfigPath)
+	args = addIfNotEmpty(args, "--timeout=", opts.timeout)
 
-	if opts.IgnoreNotFound {
+	if opts.ignoreNotFound {
 		args = append(args, "--ignore-not-found")
 	}
 
-	if opts.AdditionalArgs != nil {
-		args = append(args, opts.AdditionalArgs...)
+	if opts.additionalArgs != nil {
+		args = append(args, opts.additionalArgs...)
 	}
 
-	output, err := makeup.NewCommand("kubectl", args...).Stdin(opts.StdIn).Quiet().Run()
+	cmd := makeup.NewCommand("kubectl", args...).Stdin(opts.stdIn)
+	if opts.avoidDuplicateLogging {
+		cmd.Quiet()
+	} else {
+		cmd.NoPrompt()
+	}
+	output, err := cmd.Run()
 
 	if makeup.Verbose || err != nil {
 		fmt.Println(string(output))

@@ -26,7 +26,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apixv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/yaml"
 )
@@ -543,11 +542,6 @@ func createExportRequests(ctx context.Context, kubeconfig []byte, requests []bin
 			return fmt.Errorf("failed to create export request %s in %s: %w", r.GenerateName, ns, err)
 		}
 	}
-	return nil
-}
-
-func ensureControlPlaneCRDs(ctx context.Context, restCfg *rest.Config) error {
-	// CRDs must already exist on the control-plane; the returned kubeconfig typically cannot create them.
 	return nil
 }
 

@@ -150,7 +150,10 @@ func promptPath() string {
 		scanner := bufio.NewScanner(os.Stdin)
 
 		scanner.Scan()
-		scanner.Err()
+		err := scanner.Err()
+		if err != nil {
+			makeup.ExitDueToFatalError(err, "Failed to parse working directory path")
+		}
 
 		// Retrieve the entered path
 		path := scanner.Text()
@@ -233,7 +236,10 @@ func saveStringToFile(filePath, content string) {
 		makeup.ExitDueToFatalError(err, "Couldn't write password to file to store encryption password for backup config to filepath: "+filePath)
 	}
 
-	f.Sync()
+	err = f.Sync()
+	if err != nil {
+		makeup.ExitDueToFatalError(err, "Couldn't flush file writer for backup config at filepath "+filePath)
+	}
 }
 
 func CheckIfFileExists(filePath string) bool {

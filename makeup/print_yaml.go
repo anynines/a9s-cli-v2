@@ -39,7 +39,7 @@ func PrintYAMLFile(yamlFilepath string) error {
 func PrintYAML(content []byte, lineNumbers bool) {
 	tokens, p := GetColoredYAML(content)
 	writer := colorable.NewColorableStdout()
-	writer.Write([]byte(p.PrintTokens(tokens) + "\n"))
+	_, _ = writer.Write([]byte(p.PrintTokens(tokens) + "\n"))
 }
 
 func GetColoredYAML(content []byte) (token.Tokens, printer.Printer) {
