@@ -23,6 +23,12 @@ In this tutorial you will use the `a9s` CLI to provision a local Kubernetes clus
 
 [Go to the PostgreSQL Tutorial](/docs/hands-on-tutorials/hands-on-tutorial-a8s-pg-a9s-cli/)
 
+## Klutch on AWS — Quick-Start Tutorial
+
+Walk through the complete Klutch-on-AWS lifecycle: create a Control Plane and Workload cluster on EKS, provision a PostgreSQL instance via Klutch remote claims, perform backup/restore, and clean up all resources.
+
+[Go to the Klutch AWS Quick-Start Tutorial](/docs/hands-on-tutorials/hands-on-tutorial-klutch-aws-quickstart/)
+
 ## Release gate: manual QA for Klutch on AWS
 
 This tutorial is for final release validation of the full Klutch AWS lifecycle, including the new remote claim commands for PostgreSQL backup and restore.
