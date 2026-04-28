@@ -196,3 +196,6 @@ artifacts.
   delete cluster klutch <cluster-role> --cleanup-dns-acm --hosted-zone-name <zone-name>` will not
   remove the `NS` entry for the child Hosted Zone from the parent zone's entry list, leaving behind
   an entry with a non-existent target which might lead to complications in the future
+* Tenant Cognito user pools and Secrets Manager tenant secrets may remain after control-plane
+  deletion. While the secrets can be deleted using `a9s delete "<tenant-name>">`, the Cognito user
+  pools have to be deleted manually.
