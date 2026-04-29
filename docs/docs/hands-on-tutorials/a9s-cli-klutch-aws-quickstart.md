@@ -16,7 +16,7 @@ keywords:
   - workload cluster
 ---
 
-# Klutch on AWS — Quick-Start Tutorial
+# Klutch on AWS - Quick-Start Tutorial
 
 ## Overview
 
@@ -66,9 +66,9 @@ wall-clock time.
 | [a9s CLI](https://github.com/anynines/a9s-cli-v2) | v0.16.0 (currently only available as pre-release) | [Releases](https://github.com/anynines/a9s-cli-v2/releases) |
 | [aws](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) | v2.24.20 | AWS docs |
 | [kubectl](https://kubernetes.io/docs/tasks/tools/#kubectl) | v1.27.0 | Kubernetes docs |
-| [helm](https://helm.sh/docs/intro/install/) | — | Helm docs |
-| [eksctl](https://docs.aws.amazon.com/eks/latest/eksctl/installation.html) | — | AWS docs |
-| [jq](https://jqlang.org/download/) | — | jqlang.org |
+| [helm](https://helm.sh/docs/intro/install/) | - | Helm docs |
+| [eksctl](https://docs.aws.amazon.com/eks/latest/eksctl/installation.html) | - | AWS docs |
+| [jq](https://jqlang.org/download/) | - | jqlang.org |
 
 ### Optional: log all terminal output
 
@@ -89,7 +89,7 @@ kubectl get postgresqlinstances.anynines.com "${PG}" -n "${NS}" \
   -o jsonpath='{.status.managed}'
 ```
 
-## Step 1 — Verify prerequisites
+## Step 1 - Verify prerequisites
 
 Run the following commands and confirm that every tool reports a version at or above the minimum
 listed above:
@@ -111,9 +111,9 @@ eksctl get clusters
 ```
 
 **Expected result:** `aws sts get-caller-identity` prints your account ID and ARN. `eksctl get
-clusters` either lists existing clusters or returns an empty table — both are fine.
+clusters` either lists existing clusters or returns an empty table - both are fine.
 
-## Step 2 — Set environment variables
+## Step 2 - Set environment variables
 
 All commands in this tutorial reference the variables below. Set them once at the start of your
 session:
@@ -145,9 +145,9 @@ export RS="${PG}-rs"
 > If a Route53 hosted zone matching `HOSTED_ZONE` does not exist, the
 > `a9s` CLI creates one automatically and attempts to add the required NS records in the parent
 > zone. If the parent zone is in a different AWS account, the CLI prints the NS records for you to
-> add manually — see the callout in Step 3.
+> add manually - see the callout in Step 3.
 
-## Step 3 — Create the control plane cluster
+## Step 3 - Create the control plane cluster
 
 > [!Note] Note
 >
@@ -201,7 +201,7 @@ a9s create cluster klutch control-plane --provider aws \
 > the value. The CLI will poll until the delegation is resolvable (up to 30 minutes) before
 > continuing.
 
-## Step 4 — Create a tenant
+## Step 4 - Create a tenant
 
 Switch your kubeconfig to the Control Plane cluster, then create a Tenant:
 
@@ -218,7 +218,7 @@ this Control Plane. Under the hood the Tenant operator:
 
 These credentials are consumed automatically during the workload binding in the next step.
 
-## Step 5 — Create the workload cluster
+## Step 5 - Create the workload cluster
 
 Create a Workload cluster and bind it to the Control Plane in a single command:
 
@@ -242,7 +242,7 @@ credentials from Secrets Manager, and performs a **non-interactive bind** to the
 After binding, Klutch CRDs (e.g. `postgresqlinstances.anynines.com`) become available in the
 Workload cluster.
 
-## Step 6 — Provision a PostgreSQL instance
+## Step 6 - Provision a PostgreSQL instance
 
 With both clusters running and bound, create a PostgreSQL instance from inside the **Workload
 cluster**:
@@ -254,7 +254,7 @@ a9s create klutch pg instance --name "${PG}" -n "${NS}"
 Wait until the value of the `.status.managed` field of the newly created `postgresqlinstance`
 indicates the instance is running before proceeding.
 
-## Step 7 — Interact with PostgreSQL
+## Step 7 - Interact with PostgreSQL
 
 Once the PostgreSQL instance is running you can interact with it from inside the **Control Plane**
 cluster.
@@ -297,10 +297,10 @@ Output from the Pod:
 > [!NOTE]
 >
 > The `pg apply` commands execute as the privileged `postgres` user. Schemas created this way may
-> not be accessible by roles provisioned through Service Bindings — you will need to `GRANT`
+> not be accessible by roles provisioned through Service Bindings - you will need to `GRANT`
 > privileges explicitly.
 
-## Step 8 — Create a service binding
+## Step 8 - Create a service binding
 
 Switch back to the Workload cluster:
 
@@ -342,7 +342,7 @@ kubectl get secret "${SB}-service-binding" -n "${NS}" \
 > Plane clusters. An Envoy Gateway integration is planned for a future release to expose PostgreSQL
 > instances via AWS load balancers.
 
-## Step 9 — Back up and restore (Workload cluster)
+## Step 9 - Back up and restore (Workload cluster)
 
 ### Create a backup
 
@@ -370,7 +370,7 @@ kubectl get restores.anynines.com "${RS}" -n "${NS}" \
   -o jsonpath='{.status.managed}'
 ```
 
-## Step 10 — Clean up resources
+## Step 10 - Clean up resources
 
 Delete resources in reverse dependency order. The `--wait` flag blocks until deletion is confirmed.
 Start in the **Workload** cluster and switch over to the **Control Plane** cluster after the
@@ -410,7 +410,7 @@ kubectl get postgresqlinstances.anynines.com "${PG}" -n "${NS}" --ignore-not-fou
 > There is a known issue where the a8s Backup Manager does not delete backup data from the
 > Minio instance on the Control Plane cluster. A fix is in progress.
 
-## Step 11 — Delete the workload cluster
+## Step 11 - Delete the workload cluster
 
 ```bash
 a9s delete cluster klutch workload -p aws \
@@ -422,7 +422,7 @@ The `--schedule-kms-deletion` flag schedules KMS keys created for this cluster f
 days (AWS does not allow immediate KMS key deletion). Without this flag, disabled KMS keys are left
 behind.
 
-## Step 12 — Delete the control plane cluster
+## Step 12 - Delete the control plane cluster
 
 Choose a cleanup level depending on which AWS resources you want to remove. The table below
 summarises what each flag does:
@@ -435,7 +435,7 @@ summarises what each flag does:
 | `--delete-dns-zone --hosted-zone-name "${HOSTED_ZONE}"` | Also deletes the hosted zone. |
 | `--cleanup-dns-acm --hosted-zone-name "${HOSTED_ZONE}"` | Also deletes the ACM certificate and the hosted zone. |
 
-**Recommended — full cleanup:**
+**Recommended - full cleanup:**
 
 ```bash
 a9s delete cluster klutch control-plane -p aws \
@@ -453,7 +453,7 @@ You have completed the full Klutch-on-AWS lifecycle:
   components.
 * **Created** a Tenant and a bound Workload cluster.
 * **Provisioned** a PostgreSQL instance, created a Service Binding, and performed
-  backup/restore — all from the Workload cluster via Klutch remote claims.
+  backup/restore - all from the Workload cluster via Klutch remote claims.
 * **Cleaned up** all resources in the correct dependency order.
 
 ### Further reading

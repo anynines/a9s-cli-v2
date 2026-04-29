@@ -76,7 +76,7 @@ const config = {
         },
         googleTagManager: {
           containerId: 'GTM-NZZ5ZVC',
-        },   
+        },
         blog: {
           showReadingTime: true,
           blogTitle: "Changelog",
@@ -105,7 +105,7 @@ const config = {
         items: [
           {
             type: "doc",
-            docId: "a9s-cli",
+            docId: "a9s-cli-reference/a9s-cli-reference-index",
             position: "left",
             label: "a9s CLI Docs"
           },

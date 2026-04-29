@@ -45,7 +45,7 @@ var bindCmd = &cobra.Command{
 	},
 }
 
-var bindKlutchWorkloadGroupCmd = &cobra.Command{
+var cmdBindKlutch = &cobra.Command{
 	Use:   "klutch",
 	Short: "Bind Klutch resources.",
 	Run: func(cmd *cobra.Command, args []string) {
@@ -54,7 +54,7 @@ var bindKlutchWorkloadGroupCmd = &cobra.Command{
 	},
 }
 
-var bindKlutchWorkloadCmd = &cobra.Command{
+var cmdBindKlutchWorkload = &cobra.Command{
 	Use:          "workload",
 	Short:        "Bind a workload cluster to a Klutch control plane.",
 	Long:         "Runs the non-interactive helper workflow by default to connect a workload cluster to a Klutch control plane endpoint, or falls back to the interactive kube-bind flow.",
@@ -170,27 +170,30 @@ var bindKlutchWorkloadCmd = &cobra.Command{
 }
 
 func init() {
-	initRequiredStringFlagWithDependency(&bindKlutchWorkloadInteractive, "interactive-bind", true, bindKlutchWorkloadCmd, &bindKlutchWorkloadControlPlane, "control-plane", "", "Klutch control plane bind endpoint (e.g. https://klutch-bind.example.com/exports).")
-	bindKlutchWorkloadCmd.Flags().StringVar(&bindKlutchWorkloadControlPlaneCluster, "control-plane-cluster", "", "Control plane cluster name for CA lookup (defaults to klutch-control-plane).")
-	bindKlutchWorkloadCmd.Flags().StringVar(&bindKlutchWorkloadKubeconfig, "kubeconfig", "", "Path to the workload cluster kubeconfig.")
-	bindKlutchWorkloadCmd.Flags().StringVar(&bindKlutchWorkloadContext, "context", "", "Workload cluster kubeconfig context to use.")
-	bindKlutchWorkloadCmd.Flags().StringVarP(&bindKlutchWorkloadOutput, "output", "o", "", "Output format passed to kube-bind (e.g. yaml).")
-	bindKlutchWorkloadCmd.Flags().BoolVar(&bindKlutchWorkloadDryRun, "dry-run", false, "Pass through --dry-run to kube-bind.")
-	bindKlutchWorkloadCmd.Flags().BoolVar(&bindKlutchWorkloadSkipKonnector, "skip-konnector", false, "Skip deployment of the konnector (pass-through to kube-bind).")
-	bindKlutchWorkloadCmd.Flags().StringVar(&bindKlutchWorkloadKonnectorImage, "konnector-image", "", "Override the konnector image (pass-through to kube-bind).")
-	bindKlutchWorkloadCmd.Flags().StringSliceVar(&bindKlutchWorkloadExtraArgs, "bind-arg", []string{}, "Additional arguments to pass through to kube-bind.")
-	bindKlutchWorkloadCmd.Flags().BoolVar(&bindKlutchWorkloadInteractive, "interactive-bind", false, "Use the interactive kube-bind flow (opens browser). Default is non-interactive helper flow.")
-	bindKlutchWorkloadCmd.Flags().StringVar(&bindKlutchWorkloadRequestFile, "bind-request-file", "", "Path to JSON bind request (clusterID and apis) for non-interactive flow; defaults to the value stored in the tenant secret.")
-	bindKlutchWorkloadCmd.Flags().StringVar(&bindKlutchWorkloadOIDCClientID, "oidc-client-id", "", "OIDC client ID for non-interactive flow (defaults to OIDC_CLIENT_ID).")
-	bindKlutchWorkloadCmd.Flags().StringVar(&bindKlutchWorkloadOIDCClientSecret, "oidc-client-secret", "", "OIDC client secret for non-interactive flow (defaults to OIDC_CLIENT_SECRET).")
-	bindKlutchWorkloadCmd.Flags().StringVar(&bindKlutchWorkloadOIDCTokenURL, "oidc-token-url", "", "OIDC token URL for non-interactive flow (defaults to OIDC_TOKEN_URL).")
-	bindKlutchWorkloadCmd.Flags().StringVar(&bindKlutchWorkloadOIDCScope, "oidc-scope", "", "OIDC scopes for non-interactive flow (defaults to tenant scope).")
-	bindKlutchWorkloadCmd.Flags().StringVar(&bindKlutchWorkloadWriteKubeconfig, "write-kubeconfig", "", "Optional path to write control-plane kubeconfig returned by backend.")
-	bindKlutchWorkloadCmd.Flags().StringVar(&bindKlutchWorkloadTenantName, "tenant-name", "", "Klutch tenant name whose secret holds OIDC credentials.")
-	bindKlutchWorkloadCmd.Flags().StringVar(&bindKlutchWorkloadTenantSecretName, "tenant-secret-name", "", "Explicit Secrets Manager name for the tenant credentials (defaults to klutch/<tenant>/oidc-client).")
-	bindKlutchWorkloadCmd.Flags().StringVar(&bindKlutchWorkloadTenantRegion, "tenant-region", "", "AWS region for the tenant secret (defaults to CONTROL_PLANE_CLUSTER_REGION or eu-central-1).")
-
-	bindKlutchWorkloadGroupCmd.AddCommand(bindKlutchWorkloadCmd)
-	bindCmd.AddCommand(bindKlutchWorkloadGroupCmd)
+	initFlagsBindKlutchWorkload(cmdBindKlutchWorkload)
+	cmdBindKlutch.AddCommand(cmdBindKlutchWorkload)
+	bindCmd.AddCommand(cmdBindKlutch)
 	rootCmd.AddCommand(bindCmd)
+}
+
+func initFlagsBindKlutchWorkload(cmd *cobra.Command) {
+	initRequiredStringFlagWithDependency(cmd, &bindKlutchWorkloadControlPlane, "control-plane", "", "Klutch control plane bind endpoint (e.g. https://klutch-bind.example.com/exports).", &bindKlutchWorkloadInteractive, "interactive-bind", true)
+	cmd.Flags().StringVar(&bindKlutchWorkloadControlPlaneCluster, "control-plane-cluster", "", "Control plane cluster name for CA lookup (defaults to klutch-control-plane).")
+	cmd.Flags().StringVar(&bindKlutchWorkloadKubeconfig, "kubeconfig", "", "Path to the workload cluster kubeconfig.")
+	cmd.Flags().StringVar(&bindKlutchWorkloadContext, "context", "", "Workload cluster kubeconfig context to use.")
+	cmd.Flags().StringVarP(&bindKlutchWorkloadOutput, "output", "o", "", "Output format passed to kube-bind (e.g. yaml).")
+	cmd.Flags().BoolVar(&bindKlutchWorkloadDryRun, "dry-run", false, "Pass through --dry-run to kube-bind.")
+	cmd.Flags().BoolVar(&bindKlutchWorkloadSkipKonnector, "skip-konnector", false, "Skip deployment of the konnector (pass-through to kube-bind).")
+	cmd.Flags().StringVar(&bindKlutchWorkloadKonnectorImage, "konnector-image", "", "Override the konnector image (pass-through to kube-bind).")
+	cmd.Flags().StringSliceVar(&bindKlutchWorkloadExtraArgs, "bind-arg", []string{}, "Additional arguments to pass through to kube-bind.")
+	cmd.Flags().BoolVar(&bindKlutchWorkloadInteractive, "interactive-bind", false, "Use the interactive kube-bind flow (opens browser). Default is non-interactive helper flow.")
+	cmd.Flags().StringVar(&bindKlutchWorkloadRequestFile, "bind-request-file", "", "Path to JSON bind request (clusterID and apis) for non-interactive flow; defaults to the value stored in the tenant secret.")
+	cmd.Flags().StringVar(&bindKlutchWorkloadOIDCClientID, "oidc-client-id", "", "OIDC client ID for non-interactive flow (defaults to OIDC_CLIENT_ID).")
+	cmd.Flags().StringVar(&bindKlutchWorkloadOIDCClientSecret, "oidc-client-secret", "", "OIDC client secret for non-interactive flow (defaults to OIDC_CLIENT_SECRET).")
+	cmd.Flags().StringVar(&bindKlutchWorkloadOIDCTokenURL, "oidc-token-url", "", "OIDC token URL for non-interactive flow (defaults to OIDC_TOKEN_URL).")
+	cmd.Flags().StringVar(&bindKlutchWorkloadOIDCScope, "oidc-scope", "", "OIDC scopes for non-interactive flow (defaults to tenant scope).")
+	cmd.Flags().StringVar(&bindKlutchWorkloadWriteKubeconfig, "write-kubeconfig", "", "Optional path to write control-plane kubeconfig returned by backend.")
+	cmd.Flags().StringVar(&bindKlutchWorkloadTenantName, "tenant-name", "", "Klutch tenant name whose secret holds OIDC credentials.")
+	cmd.Flags().StringVar(&bindKlutchWorkloadTenantSecretName, "tenant-secret-name", "", "Explicit Secrets Manager name for the tenant credentials (defaults to klutch/<tenant>/oidc-client).")
+	cmd.Flags().StringVar(&bindKlutchWorkloadTenantRegion, "tenant-region", "", "AWS region for the tenant secret (defaults to CONTROL_PLANE_CLUSTER_REGION or eu-central-1).")
 }

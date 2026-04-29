@@ -47,7 +47,7 @@ var estimateCostClusterCmd = &cobra.Command{
 	},
 }
 
-var estimateCostClusterKlutchCmd = &cobra.Command{
+var cmdEstimateCostClusterKlutch = &cobra.Command{
 	Use:   "klutch",
 	Short: "Estimate the Klutch control plane cluster costs.",
 	Long: `Pulls region-specific AWS list prices to calculate hourly and monthly costs for
@@ -109,18 +109,22 @@ func init() {
 	defaultRegion := "eu-central-1"
 	defaultInstanceType := "t3a.xlarge"
 
-	initRequiredStringFlagP(estimateCostClusterKlutchCmd, &estimateProvider, "provider", "p", "", "Provider to use (only \"aws\" supported).")
-	estimateCostClusterKlutchCmd.PersistentFlags().StringVar(&estimateRegion, "region", defaultRegion, "AWS region to price.")
-	estimateCostClusterKlutchCmd.PersistentFlags().StringVar(&estimateInstanceType, "instance-type", defaultInstanceType, "EC2 instance type for worker nodes.")
-	estimateCostClusterKlutchCmd.PersistentFlags().IntVar(&estimateDesiredNodes, "desired-nodes", 3, "Desired number of worker nodes.")
-	estimateCostClusterKlutchCmd.PersistentFlags().IntVar(&estimateMinNodes, "min-nodes", 3, "Minimum number of worker nodes.")
-	estimateCostClusterKlutchCmd.PersistentFlags().IntVar(&estimateMaxNodes, "max-nodes", 5, "Maximum number of worker nodes.")
-	estimateCostClusterKlutchCmd.PersistentFlags().IntVar(&estimateNodeDiskGiB, "node-disk-gib", 80, "Root volume size per node in GiB (gp3).")
-	estimateCostClusterKlutchCmd.PersistentFlags().IntVar(&estimateNatGateways, "nat-gateways", 3, "Number of NAT gateways to include in the estimate.")
-	estimateCostClusterKlutchCmd.PersistentFlags().StringVarP(&estimateOutput, "output", "o", "table", "Output format: \"table\" (default) or \"json\".")
-	estimateCostClusterKlutchCmd.PersistentFlags().StringVar(&estimatePricingRegion, "pricing-region", "us-east-1", "AWS region used for the Pricing API (defaults to us-east-1).")
+	initFlagsEstimateCostClusterKlutch(cmdEstimateCostClusterKlutch, defaultRegion, defaultInstanceType)
+	estimateCostClusterCmd.AddCommand(cmdEstimateCostClusterKlutch)
 
-	estimateCostClusterCmd.AddCommand(estimateCostClusterKlutchCmd)
 	estimateCostCmd.AddCommand(estimateCostClusterCmd)
 	rootCmd.AddCommand(estimateCostCmd)
+}
+
+func initFlagsEstimateCostClusterKlutch(cmd *cobra.Command, defaultRegion string, defaultInstanceType string) {
+	initRequiredStringFlagP(cmd, &estimateProvider, "provider", "p", "", "Provider to use (only \"aws\" supported).")
+	cmd.PersistentFlags().StringVar(&estimateRegion, "region", defaultRegion, "AWS region to price.")
+	cmd.PersistentFlags().StringVar(&estimateInstanceType, "instance-type", defaultInstanceType, "EC2 instance type for worker nodes.")
+	cmd.PersistentFlags().IntVar(&estimateDesiredNodes, "desired-nodes", 3, "Desired number of worker nodes.")
+	cmd.PersistentFlags().IntVar(&estimateMinNodes, "min-nodes", 3, "Minimum number of worker nodes.")
+	cmd.PersistentFlags().IntVar(&estimateMaxNodes, "max-nodes", 5, "Maximum number of worker nodes.")
+	cmd.PersistentFlags().IntVar(&estimateNodeDiskGiB, "node-disk-gib", 80, "Root volume size per node in GiB (gp3).")
+	cmd.PersistentFlags().IntVar(&estimateNatGateways, "nat-gateways", 3, "Number of NAT gateways to include in the estimate.")
+	cmd.PersistentFlags().StringVarP(&estimateOutput, "output", "o", "table", "Output format: \"table\" (default) or \"json\".")
+	cmd.PersistentFlags().StringVar(&estimatePricingRegion, "pricing-region", "us-east-1", "AWS region used for the Pricing API (defaults to us-east-1).")
 }

@@ -1,6 +1,6 @@
 ---
-id: a9s-cli-klutch
-title: a9s CLI Klutch
+id: local-klutch-stack-stack-kind-minikube
+title: Local Klutch Stack (kind/minikube)
 tags:
   - a9s cli
   - a9s hub
@@ -30,19 +30,17 @@ keywords:
   - kind
   - klutch
 ---
-
-# klutch Stack
-
 Create a local Klutch Control Plane Cluster using `Kind`, including the `a8s` stack. Deploy an App Cluster and **bind** resources to the Control Plane Cluster.
 This will allow you to use `a8s` resource instances such as `postgresql` on the App Cluster, which will run on the Control Plane Cluster.
 
 ## Prerequisites
-- [General prerequisites](./a9s-cli-index.md#prerequisites) are met.
+
+- [General prerequisites](./index.md#prerequisites) are met.
 - Install [Helm](https://helm.sh/docs/intro/install/).
 - Install `kubectl-bind` plugin version v1.5.0 or higher (see below).
 - On **linux**, docker must be runnable without sudo. See the [docker documentation](https://docs.docker.com/engine/install/linux-postinstall/#manage-docker-as-a-non-root-user) for further details.
 
-### Installing the `kubectl-bind` plugin:
+### Installing the kubectl-bind plugin
 
 Download a binary for your platform with the following URL, make it executable and place it in a location in your `PATH`:
 
@@ -64,24 +62,27 @@ To avoid issues with `Kind` on Linux, increase the `inotify` resource limits as 
 
 ## Commands
 
-### 1. `deploy`
+### 1. deploy
 
 **Usage**:
+
 ```bash
 a9s klutch deploy [options]
 ```
 
 **Options**:
-|Flag|Description|Example|
-|----|-----------|-------|
-|`-y`, `--yes`| Skip confirmation prompts | `a9s klutch deploy --yes` |
-|`--port`| The port to expose the Control Plane Cluster on. Defaults to `8080`. | `a9s klutch deploy --port 8080` |
-|`-l`, `--loopback-mode`| By default the Control Plane and App Cluster are exposed on the host machine's LAN IP. Setting this flag exposes them via the host machine's loopback device (i.e. `localhost`) instead | `a9s klutch deploy --loopback-mode` |
+
+| Flag | Description | Example |
+| --- | --- | --- |
+| `-y`, `--yes` | Skip confirmation prompts | `a9s klutch deploy --yes` |
+| `--port` | The port to expose the Control Plane Cluster on. Defaults to `8080`. | `a9s klutch deploy --port 8080` |
+| `-l`, `--loopback-mode` | By default the Control Plane and App Cluster are exposed on the host machine's LAN IP. Setting this flag exposes them via the host machine's loopback device (i.e. `localhost`) instead | `a9s klutch deploy --loopback-mode` |
 
 **Description**:
 
 This command deploys a `Kind` cluster named `klutch-control-plane` and installs the required
 components for Klutch. These components include:
+
 - The `klutch-bind` backend and [Dex Idp](https://dexidp.io/) as a dummy OICD provider.
 - Crossplane and the anynines configuration packages.
 - The complete `a8s` stack including `Postgresql` operator, backup, restore and service binding capabilities.
@@ -97,17 +98,19 @@ The Control Plane Cluster exports the following resources for binding:
 
 **Important**: For technical reasons, the Control Plane Cluster is exposed on the local network using the local IP address. If your IP or network changes, the Control Plane Cluster may become unreachable and will have to be redeployed.
 
-### 2. `bind`
+### 2. bind
 
 **Usage**:
-```
+
+```bash
 a9s klutch bind [options]
 ```
 
 **Options**:
-|Flag|Description|Example|
-|----|-----------|-------|
-|`-y`, `--yes`| Skip confirmation prompts | `a9s klutch bind --yes` |
+
+| Flag | Description | Example |
+| ---- | ----------- | ------- |
+| `-y`, `--yes` | Skip confirmation prompts | `a9s klutch bind --yes` |
 
 **Description**:
 
@@ -127,7 +130,7 @@ kubectl apply -f - <<EOF
 EOF
 ```
 
-### 3. `delete`
+### 3. delete
 
 **Usage**:
 
@@ -137,9 +140,9 @@ a9s klutch delete [options]
 
 **Options**:
 
-|Flag|Description|Example|
-|----|-----------|-------|
-|`-y`, `--yes`| Skip confirmation prompts | `a9s klutch delete --yes` |
+| Flag | Description | Example |
+| ---- | ----------- | ------- |
+| `-y`, `--yes` | Skip confirmation prompts | `a9s klutch delete --yes` |
 
 **Description**:
 

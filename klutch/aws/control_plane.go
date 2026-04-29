@@ -73,6 +73,8 @@ type CreateOptions struct {
 	ClusterName string
 	// ControlPlaneToBindTo contains the name of the Control Plane to bind to when creating a Workload Cluster
 	ControlPlaneToBindTo string
+	// Region overrides the default AWS region (eu-central-1) for cluster provisioning.
+	Region string
 	// Node overrides for control-plane/workload clusters.
 	NodeInstanceTypes string
 	NodeCount         int
@@ -374,6 +376,9 @@ func mustRun(ctx context.Context, name string, args ...string) string {
 
 func CreateControlPlaneCluster(ctx context.Context, opts CreateOptions) {
 	cfg := newConfig(opts.ClusterName, clusterRoleControlPlane)
+	if opts.Region != "" {
+		cfg.Region = opts.Region
+	}
 
 	if opts.NodeInstanceTypes != "" {
 		cfg.NodeInstanceTypes = opts.NodeInstanceTypes
@@ -410,6 +415,9 @@ func CreateControlPlaneCluster(ctx context.Context, opts CreateOptions) {
 
 func CreateWorkloadCluster(ctx context.Context, opts CreateOptions) {
 	cfg := newConfig(opts.ClusterName, clusterRoleWorkload)
+	if opts.Region != "" {
+		cfg.Region = opts.Region
+	}
 	if opts.NodeInstanceTypes != "" {
 		cfg.NodeInstanceTypes = opts.NodeInstanceTypes
 	}
@@ -1021,6 +1029,9 @@ func resolveKubectlContextForCluster(ctx context.Context, cfg Config) string {
 // It assumes the EKS cluster already exists and that ALB/etc. are in place.
 func ApplyControlPlaneAddons(ctx context.Context, opts CreateOptions) {
 	cfg := newConfig(opts.ClusterName, clusterRoleControlPlane)
+	if opts.Region != "" {
+		cfg.Region = opts.Region
+	}
 	if opts.TenantOperatorImage != "" {
 		cfg.TenantOperatorImage = opts.TenantOperatorImage
 	}
