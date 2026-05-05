@@ -12,6 +12,8 @@ import (
 	"github.com/anynines/a9s-cli-v2/makeup"
 )
 
+const KlutchTenantNameTagKey = "KlutchTenantName"
+
 // OIDCConnection holds the issuer and client credentials for Cognito.
 type OIDCConnection struct {
 	IssuerURL    string `json:"issuer"`
@@ -31,7 +33,7 @@ type OIDCConnection struct {
 // - resource server with scope klutch/bind
 // - app client with secret and client_credentials flow
 // - Amazon-hosted domain
-func EnsureCognitoOIDC(ctx context.Context, region string, namePrefix string, userPoolID string, tenantUUID string) (OIDCConnection, error) {
+func EnsureCognitoOIDC(ctx context.Context, region, namePrefix, userPoolID, tenantUUID, clusterName string) (OIDCConnection, error) {
 	prefix := strings.ToLower(strings.TrimSpace(namePrefix))
 	if prefix == "" {
 		prefix = "klutch"
@@ -41,7 +43,10 @@ func EnsureCognitoOIDC(ctx context.Context, region string, namePrefix string, us
 		return OIDCConnection{}, err
 	}
 
-	userPoolName := fmt.Sprintf("%s-klutch", prefix)
+	userPoolName := "userpool-" + clusterName
+	if clusterName == "" {
+		userPoolName = fmt.Sprintf("%s-klutch", prefix)
+	}
 	resourceServerID := "klutch"
 	resourceScope := "klutch/bind"
 	clientName := fmt.Sprintf("%s-konnector-%s", prefix, tenantUUID)
@@ -336,7 +341,7 @@ func buildTenantUserPoolTags(ctx context.Context, region, tenantUUID, tenantName
 	// For Cognito CLI, user-pool-tags expects a single comma-separated map string.
 	tagMap := []string{
 		"Klutch=ControlPlane",
-		fmt.Sprintf("KlutchTenantName=%s", tenantName),
+		fmt.Sprintf("%s=%s", KlutchTenantNameTagKey, tenantName),
 		fmt.Sprintf("KlutchTenantUUID=%s", tenantUUID),
 		fmt.Sprintf("Name=%s", resourceName),
 		fmt.Sprintf("eks.cluster/name=%s", clusterName),

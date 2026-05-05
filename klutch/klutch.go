@@ -176,7 +176,7 @@ func ApplyKlutchControlPlane(host string, ingressPort int, acmCertificateARN str
 	}
 
 	manager := NewKlutchManagerWithContexts(cpCtx, "")
-	manager.applyControlPlaneToContext(baseDomain, dexHost, backendHost, hostedZoneName, provisioner, strconv.Itoa(ingressPort), acmCertificateARN)
+	manager.applyControlPlaneToContext(provisioner, baseDomain, dexHost, backendHost, hostedZoneName, strconv.Itoa(ingressPort), acmCertificateARN, clusterName)
 	printControlPlaneSummary(demo.DemoConfig.WorkingDir)
 }
 
@@ -238,7 +238,7 @@ func printSummary() {
 	makeup.PrintSuccessSummary("You are now ready to bind APIs from the App Cluster using the `a9s klutch bind` command.")
 }
 
-func (k *KlutchManager) applyControlPlaneToContext(baseDomain string, dexHost string, backendHost string, hostedZoneName string, provisioner CertificateProvisioner, ingressPort string, acmCertificateARN string) {
+func (k *KlutchManager) applyControlPlaneToContext(provisioner CertificateProvisioner, baseDomain, dexHost, backendHost, hostedZoneName, ingressPort, acmCertificateARN, clusterName string) {
 	ctx := context.Background()
 	ingressClass := detectIngressClass(k.cpK8s)
 	tlsEnabled := acmCertificateARN != "" && ingressClass == "alb"
@@ -300,7 +300,7 @@ func (k *KlutchManager) applyControlPlaneToContext(baseDomain string, dexHost st
 		}
 		makeup.PrintInfo(fmt.Sprintf("No Cognito settings provided. Provisioning Cognito (region: %s, prefix: %s)...", region, prefix))
 		tenantUUID := uuid.New().String()
-		oidcConn, err := klutchaws.EnsureCognitoOIDC(context.Background(), region, prefix, "", tenantUUID)
+		oidcConn, err := klutchaws.EnsureCognitoOIDC(context.Background(), region, prefix, "", tenantUUID, clusterName)
 		if err != nil {
 			makeup.ExitDueToFatalError(err, "Failed to provision Cognito for Klutch OIDC.")
 		}
