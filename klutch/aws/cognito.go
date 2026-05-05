@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/anynines/a9s-cli-v2/demo"
 	"github.com/anynines/a9s-cli-v2/makeup"
 )
 
@@ -59,7 +58,7 @@ func EnsureCognitoOIDC(ctx context.Context, region, namePrefix, userPoolID, tena
 			poolID = discoverUserPool(ctx, region, userPoolName)
 		}
 		if poolID == "" {
-			tagArg := buildTenantUserPoolTags(ctx, region, tenantUUID, prefix, userPoolName)
+			tagArg := buildTenantUserPoolTags(ctx, region, tenantUUID, prefix, userPoolName, clusterName)
 			args := []string{
 				"cognito-idp", "create-user-pool",
 				"--region", region,
@@ -80,7 +79,7 @@ func EnsureCognitoOIDC(ctx context.Context, region, namePrefix, userPoolID, tena
 		}
 	}
 	if tenantUUID != "" {
-		if err := tagUserPool(ctx, region, poolID, buildTenantUserPoolTags(ctx, region, tenantUUID, prefix, userPoolName)); err != nil {
+		if err := tagUserPool(ctx, region, poolID, buildTenantUserPoolTags(ctx, region, tenantUUID, prefix, userPoolName, clusterName)); err != nil {
 			return OIDCConnection{}, err
 		}
 	}
@@ -330,9 +329,8 @@ func ensureCognitoOAuthSupport(ctx context.Context) error {
 	return nil
 }
 
-func buildTenantUserPoolTags(ctx context.Context, region, tenantUUID, tenantName, resourceName string) []string {
+func buildTenantUserPoolTags(ctx context.Context, region, tenantUUID, tenantName, resourceName, clusterName string) []string {
 	accountID, _ := getAccountID(ctx)
-	clusterName := strings.TrimSpace(demo.DemoClusterName)
 	if clusterName == "" {
 		clusterName = "klutch-control-plane"
 	}
