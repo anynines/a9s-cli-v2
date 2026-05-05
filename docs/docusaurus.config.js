@@ -134,7 +134,7 @@ const config = {
             items: [
               {
                 label: "a9s CLI",
-                to: "/docs/develop/a9s-cli"
+                to: "/docs/a9s-cli-reference"
               },
               {
                 label: "a9s Data Services",
