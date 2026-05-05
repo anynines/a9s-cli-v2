@@ -459,5 +459,5 @@ You have completed the full Klutch-on-AWS lifecycle:
 ### Further reading
 
 * [a9s CLI source and documentation](https://github.com/anynines/a9s-cli-v2)
-* [Klutch concepts](/docs/a9s-cli-klutch)
-* [Local a8s PostgreSQL tutorial](/docs/hands-on-tutorials/hands-on-tutorial-a8s-pg-a9s-cli)
+* [Klutch stack reference](../a9s-cli-reference/a9s-cli-remote-klutch.md)
+* [Local a8s PostgreSQL tutorial](./a9s-cli-a8s-postgresql.md)

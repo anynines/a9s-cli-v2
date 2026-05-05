@@ -3,7 +3,7 @@ id: a9s-cli
 title: a9s CLI
 tags:
   - a9s cli
-  - a9s hub  
+  - a9s hub
   - a9s data services
   - a8s data services
   - a9s postgres
@@ -24,7 +24,7 @@ keywords:
   - a8s postgres
   - data service
   - introduction
-  - postgresql  
+  - postgresql
   - kubernetes
   - minikube
   - kind
@@ -74,18 +74,18 @@ The `a9s` CLI can be used to install and use the following stacks:
 * Install the [cert-manager](https://cert-manager.io/).
 * Install a local Minio object store for storing Backups.
 * Install the a8s PostgreSQL Operator PostgreSQL supporting
-    * creating dedicated PostgreSQL clusters with 
+    * creating dedicated PostgreSQL clusters with
         * synchronous and asynchronous streaming replication.
         * automatic failure detection and automatic failover.
     * backup and restore capabilities storing backups in an S3 compatible object store such as AWS S3 or Minio.
     * ability to easily create database users and Kubernetes Secrets by using the Service Bindings abstraction
 * Easily apply `.sql` files and SQL commands to PostgreSQL clusters.
 
-### [Go to the a8s Stack documentation](/docs/a9s-cli-a8s/)
+### [Go to the a8s Stack documentation](./a9s-cli-a8s.md)
 
 ### `klutch` Stack
 * Install a local Klutch Control Plane Cluster using `kind`
 * Install Crossplane and the a8s stack on the Control Plane Cluster
 * Bind resources from an App Cluster to the Control Plane Cluster
 
-### [Go to the klutch Stack documentation](/docs/a9s-cli-klutch/)
+### [Go to the klutch Stack documentation](./a9s-cli-klutch.md)

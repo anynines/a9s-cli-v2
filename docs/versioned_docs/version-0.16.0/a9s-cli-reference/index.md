@@ -83,7 +83,7 @@ The `a9s` CLI can be used to install and use the following stacks:
   * ability to easily create database users and Kubernetes Secrets by using the Service Bindings abstraction
 * Easily apply `.sql` files and SQL commands to PostgreSQL clusters.
 
-### [Go to the a8s Stack documentation](/docs/a9s-cli-reference/a9s-cli-local-a8s/)
+### [Go to the a8s Stack documentation](./a9s-cli-local-a8s.md)
 
 ### `klutch` Stack (Local)
 
@@ -91,7 +91,7 @@ The `a9s` CLI can be used to install and use the following stacks:
 * Install Crossplane and the a8s stack on the Control Plane Cluster
 * Bind resources from an App Cluster to the Control Plane Cluster
 
-### [Go to the local klutch Stack documentation](/docs/a9s-cli-reference/a9s-cli-local-klutch/)
+### [Go to the local klutch Stack documentation](./a9s-cli-local-klutch.md)
 
 ### `klutch` Stack (AWS)
 
@@ -100,7 +100,7 @@ The `a9s` CLI can be used to install and use the following stacks:
 * Manage tenants with Cognito app clients and Secrets Manager credentials.
 * Provision and manage PostgreSQL instances, backups, restores, and service bindings declaratively from workload clusters.
 
-### [Go to the remote klutch Stack (AWS) documentation](/docs/a9s-cli-reference/a9s-cli-remote-klutch/)
+### [Go to the remote klutch Stack (AWS) documentation](./a9s-cli-remote-klutch.md)
 
 ## General Klutch Commands
 
