@@ -238,6 +238,7 @@ var cmdDeleteKlutchTenant = &cobra.Command{
 			makeup.ExitDueToFatalError(err, "Failed to delete tenant secret.")
 		}
 		makeup.PrintSuccessSummary(fmt.Sprintf("Deleted tenant secret %s in %s.", secretName, region))
+		klutchaws.DeleteUserPoolsByTags(context.Background(), false, region, klutchaws.KlutchTenantNameTagKey, tenantName)
 	},
 }
 

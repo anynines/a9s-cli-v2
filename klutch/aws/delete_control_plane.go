@@ -131,6 +131,8 @@ func deleteCluster(ctx context.Context, cfg Config, opts DeleteOptions) {
 	vpcCleanup(ctx, cfg, opts, findKlutchVPC(cfg, ctx, opts.Region))
 
 	klutchKmsKeyCleanup(cfg, ctx, opts)
+
+	DeleteUserPoolsByTags(ctx, opts.DryRun, cfg.Region, "Name", "userpool-"+cfg.ClusterName)
 }
 
 func vpcCleanup(ctx context.Context, cfg Config, opts DeleteOptions, vpcID string) {
@@ -1269,4 +1271,94 @@ func appendRegion(args []string, region string) []string {
 // execLookPath is separated for testability.
 var execLookPath = func(file string) (string, error) {
 	return exec.LookPath(file)
+}
+
+// DeleteUserPoolsByTags finds and deletes all Cognito User Pools where a specific
+// tag's value is in the given set of values. It uses the Resource Groups Tagging
+// API for discovery to avoid iterating and querying the tags of each pool individually.
+func DeleteUserPoolsByTags(ctx context.Context, dryRun bool, region, key string, values ...string) {
+	awsLogger.Section("Delete Cognito User Pools")
+
+	args := appendRegion([]string{
+		"resourcegroupstaggingapi", "get-resources",
+		"--tag-filters", "Key=" + key + ",Values=" + strings.Join(values, ","),
+		"--resource-type-filters", "cognito-idp:userpool",
+		"--query", "ResourceTagMappingList[].ResourceARN",
+		"--output", "text",
+	}, region)
+
+	output, err := runCmd(ctx, false, false, "aws", args...)
+	if err != nil {
+		awsLogger.Warningf("Failed to discover Cognito User Pools by tag: %v\n%s", err, output)
+		return
+	}
+
+	arns := strings.Fields(output)
+	if len(arns) == 0 {
+		awsLogger.Infof("No Cognito User Pools found with tag %s value in {'%s'}.", key, strings.Join(values, "','"))
+		return
+	}
+
+	awsLogger.Infof("Found %d Cognito User Pool(s) with tag %s value in {'%s'}.", len(arns), key, strings.Join(values, "','"))
+
+	for _, arn := range arns {
+		err := deleteUserPoolByArn(ctx, arn, region, dryRun)
+		if err != nil {
+			awsLogger.Warningf("Failed to delete Cognito User Pool %s:\n%v", arn, err)
+		}
+	}
+}
+
+func deleteUserPoolByArn(ctx context.Context, arn string, region string, dryRun bool) error {
+	parts := strings.SplitN(arn, "/", 2)
+	if len(parts) < 2 {
+		return fmt.Errorf("malformed user pool arn %q", arn)
+	}
+	poolID := parts[1]
+
+	// Extract pool domain first (required before deleting the pool).
+	domainOutput, err := runCmd(ctx, false, true, "aws",
+		"cognito-idp", "describe-user-pool",
+		"--region", region,
+		"--user-pool-id", poolID,
+		"--query", "UserPool.Domain",
+		"--output", "text")
+
+	if err != nil {
+		if strings.Contains(domainOutput, "ResourceNotFoundException") && strings.Contains(domainOutput, "User pool "+poolID+" does not exist") {
+			makeup.PrintCheckmark("User pool " + poolID + " is already gone.")
+			return nil
+		}
+		return fmt.Errorf("could not describe user pool %s for retrieving its domain: %w", poolID, err)
+	}
+
+	if dryRun {
+		awsLogger.Infof("Dry-run: would delete Cognito User Pool %s", poolID)
+		return nil
+	}
+
+	domain := strings.TrimSpace(domainOutput)
+	// Extract pool domain first if it exists (required before deleting the pool).
+	if domain != "" && strings.ToLower(domain) != "none" && strings.ToLower(domain) != "null" {
+		awsLogger.Infof("Deleting domain %q from user pool %s...", domain, poolID)
+		if _, err := runCmd(ctx, true, false, "aws",
+			"cognito-idp", "delete-user-pool-domain",
+			"--region", region,
+			"--user-pool-id", poolID,
+			"--domain", domain); err != nil {
+			return fmt.Errorf("could not delete domain %q for pool %s: %w", domain, poolID, err)
+		}
+	}
+
+	// Delete the user pool.
+	awsLogger.Infof("Deleting Cognito User Pool %s...", poolID)
+	if _, err := runCmd(ctx, true, false, "aws",
+		"cognito-idp", "delete-user-pool",
+		"--region", region,
+		"--user-pool-id", poolID); err != nil {
+		return fmt.Errorf("could not delete Cognito user pool %s: %w", poolID, err)
+	}
+
+	awsLogger.Successf("Deleted Cognito User Pool %s.", poolID)
+	return nil
 }
