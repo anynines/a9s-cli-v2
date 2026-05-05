@@ -1,7 +1,7 @@
 // @ts-check
 // Note: type annotations allow type checking and IDEs autocompletion
 
-const {themes} = require('prism-react-renderer');
+const { themes } = require('prism-react-renderer');
 const lightTheme = themes.github;
 const darkTheme = themes.dracula;
 
@@ -30,8 +30,12 @@ const config = {
   url: "https://docs.a9s-cli.anynines.com",
   baseUrl: "/",
   trailingSlash: true,
-  onBrokenLinks: "warn",
-  onBrokenMarkdownLinks: "warn",
+  onBrokenLinks: "throw",
+  markdown: {
+    hooks: {
+      onBrokenMarkdownLinks: "throw",
+    },
+  },
   favicon: "/img/favicon.ico",
   organizationName: "anynines", // Usually your GitHub org/user name.
   projectName: "a9s-cli-v2", // Usually your repo name.
