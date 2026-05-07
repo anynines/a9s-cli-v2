@@ -117,7 +117,7 @@ Set `DEBUG=1` environment variable to enable verbose logging (checked in `main.g
 
 ### External Tools (checked via `prerequisites` package)
 - **Required by a8s commands**: `kubectl`, `helm`, `git`, `kind`/`minikube`
-- **Required by klutch commands**: `kind`, `kubectl`, `helm`, `git`, `kubectl-bind` (v1.4.1)
+- **Required by klutch commands**: `kind`, `kubectl`, `helm`, `git`, `kubectl-bind` (v1.5.0)
 - Install checks use `RequiredTool` struct with OS-specific help commands
 
 ### Go Dependencies

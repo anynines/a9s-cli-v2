@@ -25,6 +25,7 @@ var deleteKlutchReally bool
 var deleteKlutchScheduleKmsDeletion bool
 var deleteKlutchTenantRegion string
 var deleteKlutchTenantSecretName string
+var deleteKlutchRegion string
 
 var cmdDelete = &cobra.Command{
 	Use:   "delete",
@@ -41,7 +42,7 @@ var cmdDelete = &cobra.Command{
 	},
 }
 
-var cmdDeleteDemo = &cobra.Command{
+var cmdDeleteCluster = &cobra.Command{
 	Use:   "cluster",
 	Short: "Delete resources.",
 	Long:  `Delete given resources. Use sub-commands to chose the resource to delete.`,
@@ -55,7 +56,7 @@ var cmdDeleteDemo = &cobra.Command{
 	},
 }
 
-var cmdDeleteDemoA8s = &cobra.Command{
+var cmdDeleteClusterA8s = &cobra.Command{
 	Use:   "a8s",
 	Short: "Delete the given a8s Data Service Kubernetes cluster.",
 	Long: `Delete the given a8s Data Service Kubernetes cluster in order to free corresponding
@@ -160,6 +161,7 @@ var cmdDeleteClusterKlutchControlPlane = &cobra.Command{
 
 		opts := klutchaws.DeleteOptions{
 			DryRun:                deleteKlutchDryRun,
+			Region:                strings.TrimSpace(deleteKlutchRegion),
 			IncludeDNSRecords:     deleteKlutchCleanupDNSACM || deleteKlutchDeleteDNSZone,
 			IncludeHostedZone:     deleteKlutchCleanupDNSACM || deleteKlutchDeleteDNSZone,
 			IncludeSSLCertificate: deleteKlutchCleanupDNSACM || deleteKlutchDeleteACMCertificate,
@@ -183,20 +185,13 @@ var cmdDeleteClusterKlutchControlPlane = &cobra.Command{
 var cmdDeleteClusterKlutchWorkload = &cobra.Command{
 	Use:   "workload",
 	Short: "Delete the Klutch workload cluster (AWS).",
-	Long:  `Deletes the Klutch workload EKS cluster and tagged AWS infrastructure (VPC, subnets, NAT, ALB, IAM).`,
+	Long:  `Deletes the Klutch workload EKS cluster and tagged AWS infrastructure (VPC, subnets, NAT, IAM).`,
 	Run: func(cmd *cobra.Command, args []string) {
-		if (deleteKlutchCleanupDNSACM || deleteKlutchDeleteDNSZone) && strings.TrimSpace(deleteKlutchHostedZoneName) == "" {
-			makeup.ExitDueToFatalError(nil, "Hosted zone name is required when using --cleanup-dns-acm or --delete-dns-zone.")
-		}
-
 		opts := klutchaws.DeleteOptions{
-			DryRun:                deleteKlutchDryRun,
-			IncludeDNSRecords:     deleteKlutchCleanupDNSACM || deleteKlutchDeleteDNSZone,
-			IncludeHostedZone:     deleteKlutchCleanupDNSACM || deleteKlutchDeleteDNSZone,
-			IncludeSSLCertificate: deleteKlutchCleanupDNSACM || deleteKlutchDeleteACMCertificate,
-			HostedZoneName:        deleteKlutchHostedZoneName,
-			ACMCertificateARN:     deleteKlutchACMCertificateARN,
-			SkipPrompt:            makeup.UnattendedMode && deleteKlutchReally,
+			DryRun:         deleteKlutchDryRun,
+			Region:         strings.TrimSpace(deleteKlutchRegion),
+			CleanupOrphans: deleteKlutchCleanupOrphans,
+			SkipPrompt:     makeup.UnattendedMode && deleteKlutchReally,
 		}
 
 		if cmd.Flags().Changed("cluster-name") {
@@ -242,60 +237,71 @@ var cmdDeleteKlutchTenant = &cobra.Command{
 }
 
 func init() {
-
-	cmdDeletePGInstance.PersistentFlags().StringVar(&ServiceInstanceName, "name", "a8s-pg-instance", "name of the pg service instance to be deleted.")
-	cmdDeletePGInstance.PersistentFlags().StringVarP(&Namespace, "namespace", "n", "default", "namespace of the pg service instance to be deleted.")
-	cmdDeletePG.AddCommand(cmdDeletePGInstance)
+	initFlagsDeletePG(cmdDeletePG)
 	cmdDelete.AddCommand(cmdDeletePG)
-	cmdDelete.AddCommand(cmdDeleteDemo)
 
-	// Service Bindings
-	cmdDeletePG.PersistentFlags().StringVar(&demo.A8sPGServiceBinding.Name, "name", "example-pg-1", "name of the PG service binding. NOT the name of the PG service instance.")
-	cmdDeletePGBinding.Flags().StringVarP(&demo.A8sPGServiceBinding.Namespace, "namespace", "n", "default", "namespace of the PG service binding.")
+	initFlagsDeleteCluster(cmdDeleteCluster)
+	cmdDelete.AddCommand(cmdDeleteCluster)
 
-	cmdDeletePG.AddCommand(cmdDeletePGBinding)
-
-	cmdDeleteDemo.PersistentFlags().StringVarP(&demo.KubernetesTool, "provider", "p", "", "provider for the Kubernetes cluster. Valid options are \"minikube\", \"kind\", and \"aws\" (for Klutch).")
-	cmdDeleteDemo.PersistentFlags().BoolVar(&deleteKlutchDryRun, "dry-run", false, "Show planned AWS deletions for Klutch without making changes.")
-	addKlutchControlPlaneFlags(cmdDeleteClusterKlutchControlPlane)
-	addKlutchWorkloadFlags(cmdDeleteClusterKlutchWorkload)
 	cmdDeleteKlutchTenant.Flags().StringVar(&deleteKlutchTenantRegion, "region", "", "AWS region for Cognito/Secrets Manager (defaults to CONTROL_PLANE_CLUSTER_REGION or eu-central-1).")
 	cmdDeleteKlutchTenant.Flags().StringVar(&deleteKlutchTenantSecretName, "secret-name", "", "Secrets Manager name that holds the tenant credentials (defaults to klutch/<tenant>/oidc-client).")
-	cmdDeleteDemo.PersistentFlags().StringVarP(&demo.DemoClusterName, "cluster-name", "c", "a8s-demo", "name of the demo Kubernetes cluster.")
-	cmdDeleteDemo.PersistentFlags().BoolVarP(&makeup.UnattendedMode, "yes", "y", false, "skip yes-no questions by answering with \"yes\".")
+	cmdDeleteKlutch.AddCommand(cmdDeleteKlutchTenant)
 
-	cmdDeleteDemo.AddCommand(cmdDeleteDemoA8s)
-	cmdDeleteDemo.AddCommand(cmdDeleteClusterKlutch)
-	cmdDeleteClusterKlutch.AddCommand(cmdDeleteClusterKlutchControlPlane)
-	cmdDeleteClusterKlutch.AddCommand(cmdDeleteClusterKlutchWorkload)
 	cmdDeleteKlutch.AddCommand(cmdDeleteKlutchControlPlane)
 	cmdDelete.AddCommand(cmdDeleteKlutch)
-	cmdDelete.AddCommand(cmdDeleteKlutchTenant)
+
 	rootCmd.AddCommand(cmdDelete)
 }
 
-func addKlutchControlPlaneFlags(cmd *cobra.Command) {
+func initFlagsDeleteCluster(cmd *cobra.Command) {
+	cmd.PersistentFlags().StringVarP(&demo.KubernetesTool, "provider", "p", "", "provider for the Kubernetes cluster. Valid options are \"minikube\", \"kind\", and \"aws\" (for Klutch).")
+	cmd.PersistentFlags().BoolVar(&deleteKlutchDryRun, "dry-run", false, "Show planned AWS deletions for Klutch without making changes.")
+	cmd.PersistentFlags().StringVarP(&demo.DemoClusterName, "cluster-name", "c", "a8s-demo", "name of the demo Kubernetes cluster.")
+	cmd.PersistentFlags().BoolVarP(&makeup.UnattendedMode, "yes", "y", false, "skip yes-no questions by answering with \"yes\".")
+
+	initFlagsDeleteClusterKlutch(cmdDeleteClusterKlutch)
+	cmd.AddCommand(cmdDeleteClusterKlutch)
+
+	cmd.AddCommand(cmdDeleteClusterA8s)
+}
+
+func initFlagsDeleteClusterKlutch(cmd *cobra.Command) {
+	cmd.PersistentFlags().BoolVar(&deleteKlutchScheduleKmsDeletion, "schedule-kms-deletion", false, "Attempt to schedule any Klutch-tagged KMS keys for deletion after 7 days.")
+	cmd.PersistentFlags().StringVar(&deleteKlutchRegion, "region", "", "AWS region for the EKS cluster (defaults to eu-central-1).")
+	initFlagsDeleteClusterKlutchControlPlane(cmdDeleteClusterKlutchControlPlane)
+	cmd.AddCommand(cmdDeleteClusterKlutchControlPlane)
+
+	initFlagsDeleteClusterKlutchWorkload(cmdDeleteClusterKlutchWorkload)
+	cmd.AddCommand(cmdDeleteClusterKlutchWorkload)
+}
+
+func initFlagsDeletePG(cmd *cobra.Command) {
+	cmdDeletePG.PersistentFlags().StringVar(&demo.A8sPGServiceBinding.Name, "name", "example-pg-1", "name of the PG service binding. NOT the name of the PG service instance.")
+
+	cmdDeletePGInstance.PersistentFlags().StringVar(&ServiceInstanceName, "name", "a8s-pg-instance", "name of the pg service instance to be deleted.")
+	cmdDeletePGInstance.PersistentFlags().StringVarP(&Namespace, "namespace", "n", "default", "namespace of the pg service instance to be deleted.")
+	cmd.AddCommand(cmdDeletePGInstance)
+
+	// Service Bindings
+	cmdDeletePGBinding.Flags().StringVarP(&demo.A8sPGServiceBinding.Namespace, "namespace", "n", "default", "namespace of the PG service binding.")
+	cmdDeletePG.AddCommand(cmdDeletePGBinding)
+}
+
+func initFlagsDeleteClusterKlutchControlPlane(cmd *cobra.Command) {
 	initRequiredStringFlagP(cmd, &demo.KubernetesTool, "provider", "p", "aws", "provider for deleting the Kubernetes cluster. Currently the only valid option for Klutch is \"aws\".")
 	cmd.Flags().BoolVar(&deleteKlutchCleanupDNSACM, "cleanup-dns-acm", false, "Delete Klutch Route53 DNS records/hosted zone and ACM certificate (opt-in; destructive).")
 	cmd.Flags().BoolVar(&deleteKlutchDeleteDNSZone, "delete-dns-zone", false, "Delete Klutch Route53 hosted zone (and its records).")
 	cmd.Flags().BoolVar(&deleteKlutchDeleteACMCertificate, "delete-acm-certificate", false, "Delete Klutch ACM certificate.")
-	initRequiredStringFlagWithDependency(&deleteKlutchCleanupDNSACM, "cleanup-dns-acm", true, cmd, &deleteKlutchHostedZoneName, "hosted-zone-name", "", "Hosted zone name to clean up when using DNS deletion flags.")
+	initRequiredStringFlagWithDependency(cmd, &deleteKlutchHostedZoneName, "hosted-zone-name", "", "Hosted zone name to clean up when using DNS deletion flags.", &deleteKlutchCleanupDNSACM, "cleanup-dns-acm", true)
 	setStringFlagDependency(&deleteKlutchDeleteDNSZone, "delete-dns-zone", true, cmd, &deleteKlutchHostedZoneName, "hosted-zone-name")
 	cmd.Flags().StringVar(&deleteKlutchACMCertificateARN, "acm-certificate-arn", "", "ACM certificate ARN to delete (falls back to discovering a tagged Klutch certificate).")
 	cmd.Flags().BoolVar(&deleteKlutchCleanupOrphans, "cleanup-orphans", false, "Attempt to remove Klutch-tagged orphaned AWS resources (e.g., EIPs) after cluster deletion.")
 	cmd.Flags().BoolVar(&deleteKlutchReally, "really", false, "Confirm destructive Klutch cluster deletion (requires --yes to skip the prompt).")
-	cmd.Flags().BoolVar(&deleteKlutchScheduleKmsDeletion, "schedule-kms-deletion", false, "Attempt to schedule any Klutch-tagged KMS keys for deletion after 7 days.")
 }
 
-func addKlutchWorkloadFlags(cmd *cobra.Command) {
+func initFlagsDeleteClusterKlutchWorkload(cmd *cobra.Command) {
 	initRequiredStringFlagP(cmd, &demo.KubernetesTool, "provider", "p", "aws", "provider for deleting the Kubernetes cluster. Currently the only valid option for Klutch is \"aws\".")
 	initRequiredStringFlagP(cmd, &demo.DemoClusterName, "cluster-name", "c", "", "name of the Workload cluster to delete.")
-	cmd.Flags().BoolVar(&deleteKlutchCleanupDNSACM, "cleanup-dns-acm", false, "Delete Klutch Route53 DNS records/hosted zone and ACM certificate (opt-in; destructive).")
-	cmd.Flags().BoolVar(&deleteKlutchDeleteDNSZone, "delete-dns-zone", false, "Delete Klutch Route53 hosted zone (and its records).")
-	cmd.Flags().BoolVar(&deleteKlutchDeleteACMCertificate, "delete-acm-certificate", false, "Delete Klutch ACM certificate.")
-	initRequiredStringFlagWithDependency(&deleteKlutchCleanupDNSACM, "cleanup-dns-acm", true, cmd, &deleteKlutchHostedZoneName, "hosted-zone-name", "", "Hosted zone name to clean up when using DNS deletion flags.")
-	setStringFlagDependency(&deleteKlutchDeleteDNSZone, "delete-dns-zone", true, cmd, &deleteKlutchHostedZoneName, "hosted-zone-name")
-	cmd.Flags().StringVar(&deleteKlutchACMCertificateARN, "acm-certificate-arn", "", "ACM certificate ARN to delete (falls back to discovering a tagged Klutch certificate).")
 	cmd.Flags().BoolVar(&deleteKlutchCleanupOrphans, "cleanup-orphans", false, "Attempt to remove Klutch-tagged orphaned AWS resources (e.g., EIPs) after cluster deletion.")
 	cmd.Flags().BoolVar(&deleteKlutchReally, "really", false, "Confirm destructive Klutch cluster deletion (requires --yes to skip the prompt).")
 }

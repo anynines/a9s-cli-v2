@@ -23,27 +23,15 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-var createKlutchDryRun bool
+var createClusterKlutchDryRun bool
 var createKlutchControlPlane = klutchaws.CreateControlPlaneCluster
 var createKlutchWorkload = klutchaws.CreateWorkloadCluster
-var createKlutchSkipApply bool
-var createKlutchApplyHost string
-var createKlutchApplyIngressPort int
-var createKlutchApplyACMCertificateARN string
-var createKlutchApplyHostedZone string
-var createKlutchOIDCProvider string
-var createKlutchOIDCIssuerURL string
-var createKlutchOIDCClientID string
-var createKlutchOIDCClientSecret string
-var createKlutchOIDCCallbackURL string
+var createClusterKlutchControlPlaneSkipApply bool
 var createKlutchTenantName string
 var createKlutchTenantRegion string
-var createKlutchTenantUserPoolID string
 var createKlutchTenantStoreSecret bool = true
 var createKlutchTenantSecretName string
 var createKlutchTenantForce bool
-var createKlutchTenantTokenURL string
-var createKlutchTenantBindURL string
 var createKlutchTenantBindRequestFile string
 var createKlutchWorkloadAutobindControlPlaneName string
 
@@ -53,16 +41,7 @@ var createKlutchWorkloadTenantRegion string
 var createKlutchWorkloadBindRequestFile string
 var createKlutchNodeType string
 var createKlutchNodes int
-var createKlutchTenantOperatorImage string
-var createKlutchTenantOperatorChart string
-var createKlutchTenantOperatorChartVersion string
-var createKlutchTenantOperatorRoleARN string
-var createKlutchTenantOperatorRegion string
-var createKlutchTenantOperatorBindURL string
-var createKlutchTenantOperatorBindRequest string
-var createKlutchBackendImageRef string
-var createKlutchBackendImageURL string
-var createKlutchBackendImageTag string
+var createKlutchRegion string
 
 // controlPlaneCognitoPoolFromCluster tries to read the control-plane Cognito issuer
 // from the in-cluster oidc-config secret and derives the user pool ID (and region).
@@ -299,36 +278,37 @@ var cmdCreateClusterKlutchControlPlane = &cobra.Command{
 	Long: `Creates the Klutch control plane cluster on the selected provider and installs the Klutch control plane components.
 Use --no-apply to only provision the cluster. Currently only AWS is supported.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		options := klutchaws.CreateOptions{DryRun: createKlutchDryRun}
+		options := klutchaws.CreateOptions{DryRun: createClusterKlutchDryRun}
 		if cmd.Flags().Changed("cluster-name") {
 			options.ClusterName = strings.TrimSpace(demo.DemoClusterName)
 		}
+		options.Region = strings.TrimSpace(createKlutchRegion)
 		options.NodeInstanceTypes = strings.TrimSpace(createKlutchNodeType)
 		options.NodeCount = createKlutchNodes
-		options.TenantOperatorImage = strings.TrimSpace(createKlutchTenantOperatorImage)
-		options.TenantOperatorChart = strings.TrimSpace(createKlutchTenantOperatorChart)
-		options.TenantOperatorChartVersion = strings.TrimSpace(createKlutchTenantOperatorChartVersion)
-		options.TenantOperatorRoleARN = strings.TrimSpace(createKlutchTenantOperatorRoleARN)
-		options.TenantOperatorRegion = strings.TrimSpace(createKlutchTenantOperatorRegion)
-		options.TenantOperatorBindURL = strings.TrimSpace(createKlutchTenantOperatorBindURL)
-		options.TenantOperatorBindRequest = strings.TrimSpace(createKlutchTenantOperatorBindRequest)
-		options.HostedZoneName = strings.TrimSpace(createKlutchApplyHostedZone)
+		options.TenantOperatorImage = strings.TrimSpace(sharedKlutchTenantOperatorImage)
+		options.TenantOperatorChart = strings.TrimSpace(sharedKlutchTenantOperatorChart)
+		options.TenantOperatorChartVersion = strings.TrimSpace(sharedKlutchTenantOperatorChartVersion)
+		options.TenantOperatorRoleARN = strings.TrimSpace(sharedKlutchTenantOperatorRoleARN)
+		options.TenantOperatorRegion = strings.TrimSpace(sharedKlutchTenantOperatorRegion)
+		options.TenantOperatorBindURL = strings.TrimSpace(sharedKlutchTenantOperatorBindURL)
+		options.TenantOperatorBindRequest = strings.TrimSpace(sharedKlutchTenantOperatorBindRequest)
+		options.HostedZoneName = strings.TrimSpace(sharedKlutchControlPlaneHostedZone)
 
-		if createKlutchDryRun {
+		if createClusterKlutchDryRun {
 			makeup.PrintInfo("Skipping Klutch control plane install because --dry-run was provided.")
 			return
 		}
 
-		if createKlutchSkipApply {
+		if createClusterKlutchControlPlaneSkipApply {
 			makeup.PrintInfo("Skipping Klutch control plane install because --no-apply was provided.")
 			return
 		}
 
-		if createKlutchApplyHostedZone == "" {
+		if sharedKlutchControlPlaneHostedZone == "" {
 			makeup.ExitDueToFatalError(nil, "The --hosted-zone-name flag is required to install the Klutch control plane. Use --no-apply to provision only.")
 		}
 
-		if createKlutchApplyIngressPort < 1 || createKlutchApplyIngressPort > 65535 {
+		if sharedKlutchControlPlanePort < 1 || sharedKlutchControlPlanePort > 65535 {
 			makeup.ExitDueToFatalError(nil, "Invalid ingress port. Must be between 1 and 65535.")
 		}
 
@@ -336,22 +316,22 @@ Use --no-apply to only provision the cluster. Currently only AWS is supported.`,
 			makeup.ExitDueToFatalError(nil, err.Error())
 		}
 
-		imgURL, imgTag := resolveBackendImageRef(createKlutchBackendImageRef, createKlutchBackendImageURL, createKlutchBackendImageTag)
+		imgURL, imgTag := resolveBackendImageRef(sharedKlutchBackendImageRef, sharedKlutchBackendImageURL, sharedKlutchBackendImageTag)
 		klutch.SetBindBackendImage(imgURL, imgTag)
 
 		klutch.SetControlPlaneOIDCOptions(klutch.OIDCOptions{
-			Provider:     klutch.OIDCProvider(createKlutchOIDCProvider),
-			IssuerURL:    createKlutchOIDCIssuerURL,
-			ClientID:     createKlutchOIDCClientID,
-			ClientSecret: createKlutchOIDCClientSecret,
-			CallbackURL:  createKlutchOIDCCallbackURL,
+			Provider:     klutch.OIDCProvider(sharedKlutchOIDCProvider),
+			IssuerURL:    sharedKlutchOIDCIssuerURL,
+			ClientID:     sharedKlutchOIDCClientID,
+			ClientSecret: sharedKlutchOIDCClientSecret,
+			CallbackURL:  sharedKlutchOIDCCallbackURL,
 		})
 
-		klutch.ApplyKlutchControlPlane(createKlutchApplyHost, createKlutchApplyIngressPort, createKlutchApplyACMCertificateARN, createKlutchApplyHostedZone, options.ClusterName)
+		klutch.ApplyKlutchControlPlane(sharedKlutchControlPlaneHost, sharedKlutchControlPlanePort, sharedKlutchControlPlaneACMCertARN, sharedKlutchControlPlaneHostedZone, options.ClusterName)
 	},
 }
 
-var cmdCreateClusterKlutchTenant = &cobra.Command{
+var cmdCreateKlutchTenant = &cobra.Command{
 	Use:   "tenant",
 	Short: "Create a Klutch tenant (Cognito app client) for workload bindings.",
 	Long:  `Creates a Klutch tenant by applying a Tenant CR to the control-plane cluster (reconciled by the tenant operator).`,
@@ -396,16 +376,6 @@ var cmdCreateClusterKlutchTenant = &cobra.Command{
 
 		ns := "a9s-tenants-operator-system"
 		tenantUUID := uuid.New().String()
-		if createKlutchTenantUserPoolID != "" {
-			makeup.PrintWarning("Ignoring --user-pool-id; tenant operator manages user pools.")
-		}
-		if strings.TrimSpace(createKlutchTenantBindURL) != "" {
-			makeup.PrintWarning("Ignoring --bind-url; tenant operator config map provides bind URL.")
-		}
-		if strings.TrimSpace(createKlutchTenantTokenURL) != "" {
-			makeup.PrintWarning("Ignoring --token-url; tenant operator discovers token URL.")
-		}
-
 		tenantCR := map[string]interface{}{
 			"apiVersion": "klutch.anynines.com/v1alpha1",
 			"kind":       "Tenant",
@@ -443,7 +413,8 @@ var cmdCreateClusterKlutchWorkload = &cobra.Command{
 	Long:  `Creates a Klutch workload cluster on the selected provider. Currently only AWS is supported.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		opts := klutchaws.CreateOptions{
-			DryRun:               createKlutchDryRun,
+			DryRun:               createClusterKlutchDryRun,
+			Region:               strings.TrimSpace(createKlutchRegion),
 			NodeInstanceTypes:    strings.TrimSpace(createKlutchNodeType),
 			NodeCount:            createKlutchNodes,
 			ControlPlaneToBindTo: createKlutchWorkloadAutobindControlPlaneName,
@@ -579,129 +550,152 @@ func init() {
 
 	*/
 
-	// create pg instance
-	cmdPGInstance.PersistentFlags().StringVar(&demo.A8sPGServiceInstance.ApiVersion, "api-version", pg.DefaultPGAPIVersion, "api version of thePGservice instance.")
-	cmdPGInstance.PersistentFlags().StringVar(&demo.A8sPGServiceInstance.Name, "name", "example-pg", "name of the PG service instance.")
-	cmdPGInstance.PersistentFlags().StringVarP(&demo.A8sPGServiceInstance.Namespace, "namespace", "n", "default", "namespace of the PG service instance.")
-	cmdPGInstance.PersistentFlags().IntVar(&demo.A8sPGServiceInstance.Replicas, "replicas", 1, "number of Pods (replicas) the service instance's statefulset will have.")
-	cmdPGInstance.PersistentFlags().StringVar(&demo.A8sPGServiceInstance.VolumeSize, "volume-size", "1Gi", "Volume size of the persistent volume claim(s)d of the service instance's statefulset.")
-	cmdPGInstance.PersistentFlags().StringVar(&demo.A8sPGServiceInstance.Version, "service-version", "14", "Postgres version. The given version must be supported by the automation.")
-	cmdPGInstance.PersistentFlags().StringVar(&demo.A8sPGServiceInstance.RequestsCPU, "requests-cpu", "100m", "Resources -> requests -> cpu of the service instance's statefulset.")
-	cmdPGInstance.PersistentFlags().StringVar(&demo.A8sPGServiceInstance.LimitsMemory, "limits-memory", "100Mi", "Resources -> limits -> memory  of the service instance's statefulset.")
-	cmdPGInstance.PersistentFlags().BoolVar(&demo.DoNotApply, "no-apply", false, "If this flag is set, the service instance YAML spec is not applied (kubectl apply -f).")
-
-	// cmdPG.PersistentFlags().StringVarP(&demo.OutputFormat, "output", "o", "", "Output format. Options: \"yaml\".")
-
-	cmdCreatePG.AddCommand(cmdPGInstance)
-
-	cmdPGBackup.PersistentFlags().StringVar(&demo.A8sPGBackup.ApiVersion, "api-version", pg.DefaultPGAPIVersion, "api version of the PG backup.")
-	cmdPGBackup.PersistentFlags().StringVar(&demo.A8sPGBackup.Name, "name", "example-pg-1", "name of the PG backup. Not the name of the service instance.")
-	cmdPGBackup.PersistentFlags().StringVarP(&demo.A8sPGBackup.ServiceInstanceName, "service-instance", "i", "example-pg", "name of the PG service instance to be backed up.")
-	cmdPGBackup.PersistentFlags().StringVarP(&demo.A8sPGBackup.Namespace, "namespace", "n", "default", "namespace of the PG service instance.")
-	cmdCreatePG.AddCommand(cmdPGBackup)
-
-	// Should the restore act on the backup resource or should there be a separate object for it?
-	cmdPGRestore.PersistentFlags().StringVar(&demo.A8sPGRestore.ApiVersion, "api-version", pg.DefaultPGAPIVersion, "api version of the PG backup.")
-	cmdPGRestore.PersistentFlags().StringVar(&demo.A8sPGRestore.Name, "name", "example-pg-1", "name of the PG restore. Not the name of the service instance or the backup.")
-	cmdPGRestore.PersistentFlags().StringVarP(&demo.A8sPGRestore.BackupName, "backup", "b", "example-pg-backup", "name of the PG backup to be restored.")
-	cmdPGRestore.PersistentFlags().StringVarP(&demo.A8sPGRestore.ServiceInstanceName, "service-instance", "i", "example-pg", "name of the PG service instance to be restored.")
-	cmdPGRestore.PersistentFlags().StringVarP(&demo.A8sPGRestore.Namespace, "namespace", "n", "default", "namespace of the PG service instance.")
-	cmdCreatePG.AddCommand(cmdPGRestore)
-
-	cmdCreate.AddCommand(cmdCreatePG)
-
-	// create pg binding
-	// cmdCreatePGBinding.
-	cmdCreatePGBinding.PersistentFlags().StringVar(&demo.A8sPGServiceBinding.ApiVersion, "api-version", pg.DefaultPGAPIVersion, "api version of the PG service binding.")
-	cmdCreatePGBinding.PersistentFlags().StringVar(&demo.A8sPGServiceBinding.Name, "name", "example-pg-1", "name of the PG service binding. NOT the name of the PG service instance.")
-	cmdCreatePGBinding.PersistentFlags().StringVarP(&demo.A8sPGServiceBinding.Namespace, "namespace", "n", "default", "namespace of the PG service instance. NOT the app's namespace.")
-	cmdCreatePGBinding.PersistentFlags().StringVarP(&demo.A8sPGServiceBinding.ServiceInstanceName, "service-instance", "i", "example-pg", "name of the PG service instance to bind to.")
-	cmdCreatePG.AddCommand(cmdCreatePGBinding)
-
-	// create cluster a8s
-	cmdCreateClusterA8s.PersistentFlags().StringVar(&demo.BackupInfrastructureRegion, "backup-region", "us-east-1", "specify the infrastructure region to store backups such as \"us-east-1\".")
-	cmdCreateClusterA8s.PersistentFlags().StringVar(&demo.BackupInfrastructureBucket, "backup-bucket", "a8s-backups", "specify the infrastructure object store bucket name.")
-	cmdCreateClusterA8s.PersistentFlags().StringVar(&demo.BackupInfrastructureProvider, "backup-provider", "minio", "specify the infrastructure provider as supported by the a8s Backup Manager. Valid options are: minio and AWS.")
-	cmdCreateClusterA8s.PersistentFlags().StringVar(&demo.BackupInfrastructureEndpoint, "backup-store-endpoint", "", "the endpoint of the S3 compatible backup object storage. When minio is selected, the default is set to http://minio.minio-dev.svc.cluster.local:9000.")
-	cmdCreateClusterA8s.PersistentFlags().BoolVar(&demo.BackupInfrastructurePathStyle, "backup-store-pathstyle", false, "influences the URI schema used to talk to the S3 compatible backup object store. Default is false but is set to true when minio is selected as backup-provider.")
-	cmdCreateClusterA8s.PersistentFlags().StringVar(&demo.BackupStoreAccessKey, "backup-store-accesskey", "a8s-user", "the access key id for the backup store.")
-	cmdCreateClusterA8s.PersistentFlags().StringVar(&demo.BackupStoreSecretKey, "backup-store-secretkey", "a8s-password", "the secret key for the backup store.")
-	cmdCreateClusterA8s.PersistentFlags().StringVar(&demo.DeploymentVersion, "deployment-version", demo.DefaultDeploymentVersion, "specify the version corresponding to the a8s-deployment git version tag. Use \"latest\" to get the untagged version.")
-	cmdCreateClusterA8s.PersistentFlags().StringVar(&demo.ClusterNrOfNodes, "cluster-nr-of-nodes", "3", "specify number of Kubernetes nodes.")
-	cmdCreateClusterA8s.PersistentFlags().StringVar(&demo.ClusterMemory, "cluster-memory", "4gb", "specify memory of the Kubernetes cluster.")
-	cmdCreateClusterA8s.PersistentFlags().BoolVar(&demo.NoPreCheck, "no-precheck", false, "skip the verification of prerequisites.")
-
-	//TODO Remove duplicate code in default values between cluster and stack.
-	// create stack a8s
-	cmdCreateStackA8s.PersistentFlags().StringVar(&demo.BackupInfrastructureRegion, "backup-region", "eu-central-1", "specify the infrastructure region to store backups such as \"us-east-1\".")
-	cmdCreateStackA8s.PersistentFlags().StringVar(&demo.BackupInfrastructureBucket, "backup-bucket", "a8s-backups", "specify the infrastructure object store bucket name.")
-	cmdCreateStackA8s.PersistentFlags().StringVar(&demo.BackupInfrastructureProvider, "backup-provider", "minio", "specify the infrastructure provider as supported by the a8s Backup Manager. Valid options are: minio and AWS.")
-	cmdCreateStackA8s.PersistentFlags().StringVar(&demo.BackupInfrastructureEndpoint, "backup-store-endpoint", "", "the endpoint of the S3 compatible backup object storage. When minio is selected, the default is set to http://minio.minio-dev.svc.cluster.local:9000.")
-	cmdCreateStackA8s.PersistentFlags().BoolVar(&demo.BackupInfrastructurePathStyle, "backup-store-pathstyle", false, "influences the URI schema used to talk to the S3 compatible backup object store. Default is false but is set to true when minio is selected as backup-provider.")
-	cmdCreateStackA8s.PersistentFlags().StringVar(&demo.BackupStoreAccessKey, "backup-store-accesskey", "a8s-user", "the access key id for the backup store.")
-	cmdCreateStackA8s.PersistentFlags().StringVar(&demo.BackupStoreSecretKey, "backup-store-secretkey", "a8s-password", "the secret key for the backup store.")
-	cmdCreateStackA8s.PersistentFlags().StringVar(&demo.DeploymentVersion, "deployment-version", demo.DefaultDeploymentVersion, "specify the version corresponding to the a8s-deployment git version tag. Use \"latest\" to get the untagged version.")
-	cmdCreateStackA8s.PersistentFlags().BoolVar(&demo.NoPreCheck, "no-precheck", false, "skip the verification of prerequisites.")
-
-	// create demo
-	cmdCreateClusterKlutchControlPlane.Flags().BoolVar(&createKlutchSkipApply, "no-apply", false, "Create the Klutch control plane cluster without installing the Klutch control plane components.")
-	initRequiredStringFlagWithDependency(&createKlutchSkipApply, "no-apply", false, cmdCreateClusterKlutchControlPlane, &createKlutchApplyHostedZone, "hosted-zone-name", "", "Route53 hosted zone name (FQDN). Required unless --no-apply is set. If provided and no ACM ARN is supplied, the CLI will request an ACM cert and create DNS validation records automatically.")
-	cmdCreateCluster.PersistentFlags().StringVarP(&demo.KubernetesTool, "provider", "p", "", "provider for creating the Kubernetes cluster. Valid options are \"minikube\" and \"kind\" for local demos, as well as \"aws\" for Klutch.")
-	cmdCreateCluster.PersistentFlags().StringVarP(&demo.DemoClusterName, "cluster-name", "c", "a8s-demo", "name of the demo Kubernetes cluster.")
-	cmdCreateClusterKlutchControlPlane.Flags().BoolVar(&createKlutchDryRun, "dry-run", false, "Show planned AWS resources and commands for Klutch without creating them.")
-	cmdCreateClusterKlutchWorkload.Flags().BoolVar(&createKlutchDryRun, "dry-run", false, "Show planned AWS resources and commands for Klutch without creating them.")
-	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchApplyHost, "host", "", "Host (IP or DNS name) to reach the ingress when applying the control plane. Defaults to the Kubernetes API server host of the current kube context.")
-	cmdCreateClusterKlutchControlPlane.Flags().IntVar(&createKlutchApplyIngressPort, "ingress-port", 443, "Port the ingress should listen on when applying the control plane.")
-	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchApplyACMCertificateARN, "acm-certificate-arn", "", "ACM certificate ARN to enable HTTPS on the ALB ingress when applying the control plane.")
-	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchOIDCProvider, "oidc-provider", "", "OIDC provider to use for the Klutch control plane. Defaults to cognito when --provider=aws, otherwise dex.")
-	initRequiredStringFlagWithDependency(&createKlutchOIDCProvider, "oidc-provider", "cognito", cmdCreateClusterKlutchControlPlane, &createKlutchOIDCIssuerURL, "oidc-issuer-url", "", "OIDC issuer URL (required for oidc-provider=cognito).")
-	initRequiredStringFlagWithDependency(&createKlutchOIDCProvider, "oidc-provider", "cognito", cmdCreateClusterKlutchControlPlane, &createKlutchOIDCClientID, "oidc-client-id", "", "OIDC client ID (required for oidc-provider=cognito).")
-	initRequiredStringFlagWithDependency(&createKlutchOIDCProvider, "oidc-provider", "cognito", cmdCreateClusterKlutchControlPlane, &createKlutchOIDCClientSecret, "oidc-client-secret", "", "OIDC client secret (required for oidc-provider=cognito).")
-	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchOIDCCallbackURL, "oidc-callback-url", "", "OIDC callback URL to configure on the backend. Defaults to https://<host>/callback when not provided.")
-	initRequiredStringFlagP(cmdCreateClusterKlutchControlPlane, &demo.KubernetesTool, "provider", "p", "aws", "provider for creating the Kubernetes cluster. Currently the only valid option for Klutch is \"aws\".")
-	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchTenantOperatorImage, "tenant-operator-image", "", "Tenant operator container image (defaults to built-in ECR dev image).")
-	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchTenantOperatorChart, "tenant-operator-chart", "", "Tenant operator Helm chart (OCI URL).")
-	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchTenantOperatorRoleARN, "tenant-operator-role-arn", "", "IAM role ARN for the tenant operator service account (IRSA).")
-	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchTenantOperatorRegion, "tenant-operator-region", "", "Region for tenant operator AWS calls (defaults to control-plane region).")
-	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchTenantOperatorBindURL, "tenant-operator-bind-url", "", "Bind URL to pass to the tenant operator config (override default derived bind URL).")
-	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchTenantOperatorBindRequest, "tenant-operator-bind-request", "", "Bind request JSON to pass to the tenant operator config (defaults to all exported services).")
-	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchNodeType, "eks-node-type", "t3a.xlarge", "Instance type for EKS nodegroups.")
-	cmdCreateClusterKlutchControlPlane.Flags().IntVar(&createKlutchNodes, "eks-nodes", 3, "Number of worker nodes (sets min/max/desired to this value).")
-	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchBackendImageRef, "klutch-bind-backend-img", "", "Override the klutch-bind backend image as <repo>:<tag>.")
-	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchBackendImageURL, "klutch-bind-backend-img-url", "", "Override the klutch-bind backend image URL (repository).")
-	cmdCreateClusterKlutchControlPlane.Flags().StringVar(&createKlutchBackendImageTag, "klutch-bind-backend-img-tag", "", "Override the klutch-bind backend image tag.")
-	initRequiredStringFlag(cmdCreateClusterKlutchTenant, &createKlutchTenantName, "tenant-name", "", "Name/prefix for the tenant (used to name the Cognito app client).")
-	cmdCreateClusterKlutchTenant.Flags().StringVar(&createKlutchTenantRegion, "region", "", "AWS region for Cognito (defaults to CONTROL_PLANE_CLUSTER_REGION or eu-central-1).")
-	cmdCreateClusterKlutchTenant.Flags().StringVar(&createKlutchTenantUserPoolID, "user-pool-id", "", "Existing Cognito user pool ID to reuse. If omitted, a pool named <tenant>-klutch is created or reused.")
-	cmdCreateClusterKlutchTenant.Flags().BoolVar(&createKlutchTenantStoreSecret, "store-secret", true, "Store the tenant credentials in AWS Secrets Manager.")
-	cmdCreateClusterKlutchTenant.Flags().StringVar(&createKlutchTenantSecretName, "secret-name", "", "Secrets Manager name to store the tenant credentials (defaults to klutch/<tenant>/oidc-client).")
-	cmdCreateClusterKlutchTenant.Flags().BoolVar(&createKlutchTenantForce, "force", false, "Overwrite an existing tenant secret if it already exists.")
-	cmdCreateClusterKlutchTenant.Flags().StringVar(&createKlutchTenantTokenURL, "token-url", "", "Override the OAuth2 token URL (defaults to Cognito hosted domain token endpoint).")
-	cmdCreateClusterKlutchTenant.Flags().StringVar(&createKlutchTenantBindURL, "bind-url", "", "Control-plane bind URL to store with the tenant (e.g. https://klutch-bind.example.com/bind-noninteractive).")
-	cmdCreateClusterKlutchTenant.Flags().StringVar(&createKlutchTenantBindRequestFile, "bind-request-file", "", "Path to bind request JSON to store with the tenant (defaults to all exported services).")
-	initRequiredStringFlagP(cmdCreateClusterKlutchWorkload, &demo.KubernetesTool, "provider", "p", "aws", "provider for creating the Kubernetes cluster. Currently the only valid option for Klutch is \"aws\".")
-	cmdCreateClusterKlutchWorkload.Flags().StringVar(&createKlutchWorkloadTenantName, "tenant-name", "", "Tenant name to auto-bind with.")
-	cmdCreateClusterKlutchWorkload.Flags().StringVar(&createKlutchWorkloadTenantSecretName, "tenant-secret-name", "", "Explicit tenant secret name (defaults to klutch/<tenant>/oidc-client).")
-	cmdCreateClusterKlutchWorkload.Flags().StringVar(&createKlutchWorkloadTenantRegion, "tenant-region", "", "AWS region for the tenant secret (defaults to CONTROL_PLANE_CLUSTER_REGION or eu-central-1).")
-	cmdCreateClusterKlutchWorkload.Flags().StringVar(&createKlutchWorkloadBindRequestFile, "bind-request-file", "", "Optional bind request JSON to override the tenant's stored bind request.")
-	cmdCreateClusterKlutchWorkload.Flags().StringVar(&createKlutchNodeType, "eks-node-type", "t3a.xlarge", "Instance type for EKS nodegroups.")
-	cmdCreateClusterKlutchWorkload.Flags().StringVar(&createKlutchWorkloadAutobindControlPlaneName, "control-plane-cluster", "", "Control plane cluster name for CA lookup (defaults to klutch-control-plane).")
-	cmdCreateClusterKlutchWorkload.Flags().IntVar(&createKlutchNodes, "eks-nodes", 3, "Number of worker nodes (sets min/max/desired to this value).")
-
-	cmdCreateCluster.AddCommand(cmdCreateClusterA8s)
-	cmdCreateClusterKlutch.AddCommand(cmdCreateClusterKlutchControlPlane)
-	cmdCreateClusterKlutch.AddCommand(cmdCreateClusterKlutchWorkload)
-	cmdCreateClusterKlutch.AddCommand(cmdCreateClusterKlutchTenant)
-	cmdCreateCluster.AddCommand(cmdCreateClusterKlutch)
-	cmdCreateKlutch.AddCommand(cmdCreateClusterKlutchTenant)
-	cmdCreateStack.AddCommand(cmdCreateStackA8s)
-	cmdCreateStack.PersistentFlags().StringVarP(&demo.DemoClusterName, "cluster-name", "c", "a8s-demo", "name of the demo Kubernetes cluster.")
-
-	cmdCreate.AddCommand(cmdCreateCluster)
-	cmdCreate.AddCommand(cmdCreateKlutch)
-	cmdCreate.AddCommand(cmdCreateStack)
 	rootCmd.PersistentFlags().BoolVarP(&makeup.UnattendedMode, "yes", "y", false, "skip yes-no questions by answering with \"yes\".")
 	rootCmd.PersistentFlags().BoolVarP(&makeup.Verbose, "verbose", "v", false, "enable verbose output?")
 	rootCmd.PersistentFlags().BoolVar(&makeup.ShowCommands, "show-commands", false, "output shell commands when they are executed")
+
+	initFlagsCreate(cmdCreate)
 	rootCmd.AddCommand(cmdCreate)
+}
+
+func initFlagsCreate(cmd *cobra.Command) {
+	initFlagsCreatePG(cmdCreatePG)
+	cmd.AddCommand(cmdCreatePG)
+
+	initFlagsCreateCluster(cmdCreateCluster)
+	cmd.AddCommand(cmdCreateCluster)
+
+	initFlagsCreateKlutchTenant(cmdCreateKlutchTenant)
+	cmdCreateKlutch.AddCommand(cmdCreateKlutchTenant)
+	cmd.AddCommand(cmdCreateKlutch)
+
+	initFlagsCreateStack(cmdCreateStack)
+	cmd.AddCommand(cmdCreateStack)
+}
+
+func initFlagsCreateStack(cmdCreateStack *cobra.Command) {
+	cmdCreateStack.PersistentFlags().StringVarP(&demo.DemoClusterName, "cluster-name", "c", "a8s-demo", "name of the demo Kubernetes cluster.")
+
+	initFlagsCreateStackA8s(cmdCreateStackA8s)
+	cmdCreateStack.AddCommand(cmdCreateStackA8s)
+}
+
+func initFlagsCreateCluster(cmd *cobra.Command) {
+	cmd.PersistentFlags().StringVarP(&demo.KubernetesTool, "provider", "p", "", "provider for creating the Kubernetes cluster. Valid options are \"minikube\" and \"kind\" for local demos, as well as \"aws\" for Klutch.")
+	cmd.PersistentFlags().StringVarP(&demo.DemoClusterName, "cluster-name", "c", "a8s-demo", "name of the demo Kubernetes cluster.")
+
+	initFlagsCreateClusterA8s(cmdCreateClusterA8s)
+	cmd.AddCommand(cmdCreateClusterA8s)
+
+	initFlagsCreateClusterKlutch(cmdCreateClusterKlutch)
+	cmd.AddCommand(cmdCreateClusterKlutch)
+}
+
+func initFlagsCreateClusterKlutch(cmd *cobra.Command) {
+	initRequiredPersistentStringFlagP(cmd, &demo.KubernetesTool, "provider", "p", "aws", "provider for creating the Kubernetes cluster. Currently the only valid option for Klutch is \"aws\".")
+	cmd.PersistentFlags().StringVar(&createKlutchRegion, "region", "", "AWS region for the EKS cluster (defaults to eu-central-1).")
+	cmd.PersistentFlags().StringVar(&createKlutchNodeType, "eks-node-type", "t3a.xlarge", "Instance type for EKS nodegroups.")
+	cmd.PersistentFlags().IntVar(&createKlutchNodes, "eks-nodes", 3, "Number of worker nodes (sets min/max/desired to this value).")
+	cmd.PersistentFlags().BoolVar(&createClusterKlutchDryRun, "dry-run", false, "Show planned AWS resources and commands for Klutch without creating them.")
+
+	initFlagsCreateClusterKlutchControlPlane(cmdCreateClusterKlutchControlPlane)
+	cmd.AddCommand(cmdCreateClusterKlutchControlPlane)
+
+	initFlagsCreateClusterKlutchWorkload(cmdCreateClusterKlutchWorkload)
+	cmd.AddCommand(cmdCreateClusterKlutchWorkload)
+}
+
+func initFlagsCreatePG(cmd *cobra.Command) {
+	// create pg instance
+	initFlagsPgInstance(cmdPGInstance)
+	cmd.AddCommand(cmdPGInstance)
+
+	initFlagsPgBackup(cmdPGBackup)
+	cmd.AddCommand(cmdPGBackup)
+
+	initFlagsPgRestore(cmdPGRestore)
+	cmd.AddCommand(cmdPGRestore)
+
+	initFlagsCreatePgBinding(cmdCreatePGBinding)
+	cmd.AddCommand(cmdCreatePGBinding)
+}
+
+func initFlagsCreateClusterKlutchWorkload(cmd *cobra.Command) {
+	cmd.Flags().StringVarP(&demo.DemoClusterName, "cluster-name", "c", "", "name of the demo Kubernetes cluster.")
+	cmd.Flags().StringVar(&createKlutchWorkloadTenantName, "tenant-name", "", "Tenant name to auto-bind with.")
+	cmd.Flags().StringVar(&createKlutchWorkloadTenantSecretName, "tenant-secret-name", "", "Explicit tenant secret name (defaults to klutch/<tenant>/oidc-client).")
+	cmd.Flags().StringVar(&createKlutchWorkloadTenantRegion, "tenant-region", "", "AWS region for the tenant secret (defaults to CONTROL_PLANE_CLUSTER_REGION or eu-central-1).")
+	cmd.Flags().StringVar(&createKlutchWorkloadBindRequestFile, "bind-request-file", "", "Optional bind request JSON to override the tenant's stored bind request.")
+	cmd.Flags().StringVar(&createKlutchWorkloadAutobindControlPlaneName, "control-plane-cluster", "", "Control plane cluster name for CA lookup (defaults to klutch-control-plane).")
+}
+
+func initFlagsCreateKlutchTenant(cmd *cobra.Command) {
+	initRequiredStringFlag(cmd, &createKlutchTenantName, "tenant-name", "", "Name/prefix for the tenant (used to name the Cognito app client).")
+	cmd.Flags().StringVar(&createKlutchTenantRegion, "region", "", "AWS region for Cognito (defaults to CONTROL_PLANE_CLUSTER_REGION or eu-central-1).")
+	cmd.Flags().BoolVar(&createKlutchTenantStoreSecret, "store-secret", true, "Store the tenant credentials in AWS Secrets Manager.")
+	cmd.Flags().StringVar(&createKlutchTenantSecretName, "secret-name", "", "Secrets Manager name to store the tenant credentials (defaults to klutch/<tenant>/oidc-client).")
+	cmd.Flags().BoolVar(&createKlutchTenantForce, "force", false, "Overwrite an existing tenant secret if it already exists.")
+	cmd.Flags().StringVar(&createKlutchTenantBindRequestFile, "bind-request-file", "", "Path to bind request JSON to store with the tenant (defaults to all exported services).")
+}
+
+func initFlagsCreateClusterKlutchControlPlane(cmd *cobra.Command) {
+	// flags shared with 'create cluster klutch workload' and 'apply klutch control-plane' command
+	cmd.Flags().StringVarP(&demo.DemoClusterName, "cluster-name", "c", "klutch-control-plane", "name of the demo Kubernetes cluster.")
+	cmd.Flags().BoolVar(&createClusterKlutchControlPlaneSkipApply, "no-apply", false, "Create the Klutch control plane cluster without installing the Klutch control plane components.")
+
+	// init flags shared with 'apply klutch control-plane' command
+	initSharedFlagsKlutchControlPlaneStack(cmd)
+}
+
+func initFlagsCreateStackA8s(cmd *cobra.Command) {
+	cmd.PersistentFlags().StringVar(&demo.BackupInfrastructureRegion, "backup-region", "eu-central-1", "specify the infrastructure region to store backups such as \"eu-central-1\".")
+	cmd.PersistentFlags().StringVar(&demo.BackupInfrastructureBucket, "backup-bucket", "a8s-backups", "specify the infrastructure object store bucket name.")
+	cmd.PersistentFlags().StringVar(&demo.BackupInfrastructureProvider, "backup-provider", "minio", "specify the infrastructure provider as supported by the a8s Backup Manager. Valid options are: minio and AWS.")
+	cmd.PersistentFlags().StringVar(&demo.BackupInfrastructureEndpoint, "backup-store-endpoint", "", "the endpoint of the S3 compatible backup object storage. When minio is selected, the default is set to http://minio.minio-dev.svc.cluster.local:9000.")
+	cmd.PersistentFlags().BoolVar(&demo.BackupInfrastructurePathStyle, "backup-store-pathstyle", false, "influences the URI schema used to talk to the S3 compatible backup object store. Default is false but is set to true when minio is selected as backup-provider.")
+	cmd.PersistentFlags().StringVar(&demo.BackupStoreAccessKey, "backup-store-accesskey", "a8s-user", "the access key id for the backup store.")
+	cmd.PersistentFlags().StringVar(&demo.BackupStoreSecretKey, "backup-store-secretkey", "a8s-password", "the secret key for the backup store.")
+	cmd.PersistentFlags().StringVar(&demo.DeploymentVersion, "deployment-version", demo.DefaultDeploymentVersion, "specify the version corresponding to the a8s-deployment git version tag. Use \"latest\" to get the untagged version.")
+	cmd.PersistentFlags().BoolVar(&demo.NoPreCheck, "no-precheck", false, "skip the verification of prerequisites.")
+}
+
+func initFlagsCreateClusterA8s(cmd *cobra.Command) {
+	// create cluster a8s
+	initFlagsCreateStackA8s(cmd)
+	cmd.PersistentFlags().StringVar(&demo.ClusterNrOfNodes, "cluster-nr-of-nodes", "3", "specify number of Kubernetes nodes.")
+	cmd.PersistentFlags().StringVar(&demo.ClusterMemory, "cluster-memory", "4gb", "specify memory of the Kubernetes cluster.")
+}
+
+func initFlagsCreatePgBinding(cmd *cobra.Command) {
+	cmd.PersistentFlags().StringVar(&demo.A8sPGServiceBinding.ApiVersion, "api-version", pg.DefaultPGAPIVersion, "api version of the PG service binding.")
+	cmd.PersistentFlags().StringVar(&demo.A8sPGServiceBinding.Name, "name", "example-pg-1", "name of the PG service binding. NOT the name of the PG service instance.")
+	cmd.PersistentFlags().StringVarP(&demo.A8sPGServiceBinding.Namespace, "namespace", "n", "default", "namespace of the PG service instance. NOT the app's namespace.")
+	cmd.PersistentFlags().StringVarP(&demo.A8sPGServiceBinding.ServiceInstanceName, "service-instance", "i", "example-pg", "name of the PG service instance to bind to.")
+}
+
+func initFlagsPgRestore(cmd *cobra.Command) {
+	cmd.PersistentFlags().StringVar(&demo.A8sPGRestore.ApiVersion, "api-version", pg.DefaultPGAPIVersion, "api version of the PG backup.")
+	cmd.PersistentFlags().StringVar(&demo.A8sPGRestore.Name, "name", "example-pg-1", "name of the PG restore. Not the name of the service instance or the backup.")
+	cmd.PersistentFlags().StringVarP(&demo.A8sPGRestore.BackupName, "backup", "b", "example-pg-backup", "name of the PG backup to be restored.")
+	cmd.PersistentFlags().StringVarP(&demo.A8sPGRestore.ServiceInstanceName, "service-instance", "i", "example-pg", "name of the PG service instance to be restored.")
+	cmd.PersistentFlags().StringVarP(&demo.A8sPGRestore.Namespace, "namespace", "n", "default", "namespace of the PG service instance.")
+}
+
+func initFlagsPgBackup(cmd *cobra.Command) {
+	cmd.PersistentFlags().StringVar(&demo.A8sPGBackup.ApiVersion, "api-version", pg.DefaultPGAPIVersion, "api version of the PG backup.")
+	cmd.PersistentFlags().StringVar(&demo.A8sPGBackup.Name, "name", "example-pg-1", "name of the PG backup. Not the name of the service instance.")
+	cmd.PersistentFlags().StringVarP(&demo.A8sPGBackup.ServiceInstanceName, "service-instance", "i", "example-pg", "name of the PG service instance to be backed up.")
+	cmd.PersistentFlags().StringVarP(&demo.A8sPGBackup.Namespace, "namespace", "n", "default", "namespace of the PG service instance.")
+}
+
+func initFlagsPgInstance(cmd *cobra.Command) {
+	cmd.PersistentFlags().StringVar(&demo.A8sPGServiceInstance.ApiVersion, "api-version", pg.DefaultPGAPIVersion, "api version of thePGservice instance.")
+	cmd.PersistentFlags().StringVar(&demo.A8sPGServiceInstance.Name, "name", "example-pg", "name of the PG service instance.")
+	cmd.PersistentFlags().StringVarP(&demo.A8sPGServiceInstance.Namespace, "namespace", "n", "default", "namespace of the PG service instance.")
+	cmd.PersistentFlags().IntVar(&demo.A8sPGServiceInstance.Replicas, "replicas", 1, "number of Pods (replicas) the service instance's statefulset will have.")
+	cmd.PersistentFlags().StringVar(&demo.A8sPGServiceInstance.VolumeSize, "volume-size", "1Gi", "Volume size of the persistent volume claim(s)d of the service instance's statefulset.")
+	cmd.PersistentFlags().StringVar(&demo.A8sPGServiceInstance.Version, "service-version", "14", "Postgres version. The given version must be supported by the automation.")
+	cmd.PersistentFlags().StringVar(&demo.A8sPGServiceInstance.RequestsCPU, "requests-cpu", "100m", "Resources -> requests -> cpu of the service instance's statefulset.")
+	cmd.PersistentFlags().StringVar(&demo.A8sPGServiceInstance.LimitsMemory, "limits-memory", "100Mi", "Resources -> limits -> memory  of the service instance's statefulset.")
+	cmd.PersistentFlags().BoolVar(&demo.DoNotApply, "no-apply", false, "If this flag is set, the service instance YAML spec is not applied (kubectl apply -f).")
 }

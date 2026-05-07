@@ -2,7 +2,7 @@
 id: hands-on-tutorial-a8s-pg-a9s-cli
 title: "Deploying a Demo App using a8s PostgreSQL"
 tags:
-  - a9s hub
+  - a9s hub  
   - a9s cli
   - a8s data services
   - a8s postgres
@@ -12,7 +12,7 @@ tags:
   - minikube
   - kind
 keywords:
-  - a9s hub
+  - a9s hub  
   - a9s cli
   - a8s data services
   - a8s postgres
@@ -25,13 +25,15 @@ keywords:
   - web app
 ---
 
-## Overview
+# Overview
 
-### What you will accomplish
+
+
+## What you will accomplish
 
 In this tutorial you will learn how to **create a local Kubernetes cluster**, fully equipped **with a PostgreSQL** operator, ready for you to deploy a PostgreSQL database instance for **developing your application**.
 
-### What you will learn
+## What you will learn
 
 * Install the [a9s CLI](https://github.com/anynines/a9s-cli-v2)
 * Create a local Kubernetes cluster
@@ -45,23 +47,23 @@ In this tutorial you will learn how to **create a local Kubernetes cluster**, fu
 * Create a backup
 * Restore a backup
 
-### Prerequisites
+## Prerequisites
 
-* MacOS / Linux
-  * Other platforms, including Windows, may work but are currently untested.
+* MacOS / Linux 
+    * Other platforms, including Windows, may work but are currently untested.
 * [Docker](https://www.docker.com/)
 * [Minikube](https://minikube.sigs.k8s.io/docs/start/) or [Kind](https://kind.sigs.k8s.io/)
 * [a9s CLI](https://github.com/anynines/a9s-cli-v2)
 * [Kubectl](https://kubernetes.io/docs/reference/kubectl/)
 * Optional for backup/restore: AWS S3 Bucket with credentials
 
-## Implementation
+# Implementation
 
-In this tutorial you will be using the `a9s` CLI to facilitate the creation of both a local Kubernetes cluster and a PostgreSQL database instance.
+In this tutorial you will be using the `a9s` CLI to facilitate the creation of both a local Kubernetes cluster and a PostgreSQL database instance. 
 
 The `a9s` CLI will guide you through the process while providing you with transparency and ability to set your own pace. Transparency means that you will see the exact commands to be executed. By default, the commands are executed only after you have confirmed the execution by pressing the `ENTER` key. This allows you to have a closer look at the command and/or the YAML specifications to understand what the current step in the tutorial is about. If all you care about is the result, the `--yes` option will answer all yes-no questions with yes. See [[1]](https://github.com/anynines/a9s-cli-v2) for documentation and source code of the `a9s` CLI.
 
-### Step 1: Creating a Kubernetes Cluster with a8s PostgreSQL
+## Step 1: Creating a Kubernetes Cluster with a8s PostgreSQL
 
 In this section you will create a Kubernetes cluster with a8s PostgreSQL and all its dependencies:
 
@@ -77,7 +79,7 @@ a9s create cluster a8s --provider kind
 
 The remainder of the tutorial works equally for both `minikube` and `kind`.
 
-#### Step 1.1: Initial Configuration on the First a9s create cluster Execution
+### Step 1.1: Initial Configuration on the First a9s create cluster Execution
 
 When creating a cluster for the first time, a few setup steps will have to be taken which need to be performed only once:
 
@@ -85,17 +87,17 @@ When creating a cluster for the first time, a few setup steps will have to be ta
 2. Configuring the access credentials for the S3 compatible object store which is needed to use the backup/restore feature of a8s Postgres. This step is performed automatically.
 3. Cloning deployment resources required by the `a9s` CLI to create a cluster. This step is performed automatically.
 
-#### What's Happening During the Installation
+### What's Happening During the Installation
 
 After the initial configuration, the Kubernetes cluster is being created.
 
-##### Cert-Manager
+#### Cert-Manager
 
 Once the Kubernetes cluster is ready, the `a9s` CLI proceeds with the installation of the [cert-manager](https://cert-manager.io/docs/). The cert-manager is a Kubernetes extension handling TLS certificates. Among others, in a8s PostgreSQL TSL certificates are used for securing the communication between Kubernetes and the operator.
 
-##### a8s PostgreSQL
+#### a8s PostgreSQL
 
-With the cert-manager being ready, the `a9s` CLI continues and installs the a8s PostgreSQL components. Namely, this is
+With the cert-manager being ready, the `a9s` CLI continues and installs the a8s PostgreSQL components. Namely, this is 
 
 * The PostgreSQL operator
 * The Service Binding controller
@@ -109,7 +111,7 @@ The **Backup Manager** is responsible for managing backup and restore requests a
 
 After *waiting for a8s Postgres Control Plane to become ready* the message `🎉 The a8s Postgres Control Plane appears to be ready. All expected pods are running.` indicates that **the installation of a8s PostgreSQL was successful**.
 
-### Step 2: Creating a PostgreSQL Cluster
+## Step 2: Creating a PostgreSQL Cluster
 
 In order to keep all tutorial resources in one place, create a Kubernetes `tutorial` namespace:
 
@@ -133,7 +135,7 @@ This creates a clustered PostgreSQL instance named `clustered-instance` represen
 ls $(a9s cluster pwd)/usermanifests
 ```
 
-#### Inspecting the Service Instance
+### Inspecting the Service Instance
 
 It's worth inspecting the PostgreSQL Service Instance to see what the a8s PostgreSQL Operator has created:
 
@@ -220,13 +222,14 @@ clustered-instance-master   ClusterIP   10.105.7.211   <none>        5432/TCP,80
 
 **Congratulations 🎉**, you've managed to create yourself a highly available PostgreSQL cluster using asynchronous streaming replication.
 
-### Step 3: Creating a Service Binding
+## Step 3: Creating a Service Binding
 
 In order to prepare the deployment of an application, the database need to be configured to **grant the application access to the PostgreSQL service instance**. Granting an application running in Kubernetes access to a PostgreSQL database involves the following steps:
 
-1. Create a unique set of access credentials including a database role as well as a corresponding password.
+1. Create a unique set of access credentials including a database role as well as a corresponding password. 
 
 2. Creating a Kubernetes Secret containing the credentials.
+
 
 The credential set should be unique to the application and the data service instance. So if a second application, such as a worker process, needs access, a separate credential set and Kubernetes Secret is to be created.
 
@@ -323,7 +326,7 @@ clustered-instance-master.tutorial
 
 Given a Service name, the generic naming pattern in Kubernetes to derive its DNS entry is: `{service-name}.{namespace}.svc.{cluster-domain:cluster.local}`.
 
-Assuming that your Kubernetes' cluster domain is the default `cluster.local`, this means that the primary (formerly master) node of your PostgreSQL cluster is reachable via the DNS entry: **`clustered-instance-master.tutorial.svc.cluster.local`**.
+Assuming that your Kubernetes' cluster domain is the default `cluster.local`, this means that the primary (formerly master) node of your PostgreSQL cluster is reachable via the DNS entry: **`clustered-instance-master.tutorial.svc.cluster.local`**. 
 
 `username:`
 
@@ -341,9 +344,9 @@ nMp4b6XwLyu0aY3ZaxzA1KUTE3s3lajn
 
 As you can see, the secret `sb-sample-service-binding` contains all relevant information required by an application to connect to your PostgreSQL instance.
 
-### Step 4: Deploying a Demo Application
+## Step 4: Deploying a Demo Application
 
-With the PostgreSQL database at hand, an exemplary application can be deployed.
+With the PostgreSQL database at hand, an exemplary application can be deployed. 
 
 Simply run the following commands to install the demo app:
 
@@ -383,13 +386,13 @@ kubectl port-forward service/demo-app -n tutorial 8080:3000
 
 Then navigate your browser to: [http://localhost:8080](http://localhost:8080)
 
-### Step 5: Interacting with PostgreSQL
+## Step 5: Interacting with PostgreSQL
 
 Once you've created a PostgreSQL Service Instance, you can use the `a9s CLI` to interact with it.
 
-#### Applying a Local SQL File
+### Applying a Local SQL File
 
-Although not the preferred way to load seed data into a production database, during development it might be handy to execute a SQL file to a PostgreSQL instance. This allows executing one or multiple SQL statements conveniently.
+Although not the preferred way to load seed data into a production database, during development it might be handy to execute a SQL file to a PostgreSQL instance. This allows executing one or multiple SQL statements conveniently. 
 
 Download an exemplary SQL file:
 
@@ -403,7 +406,7 @@ Executing an SQL file is as simple as using the `--file` option:
 a9s pg apply --file demo_data.sql -i clustered-instance -n tutorial
 ```
 
-The `a9s CLI` will determine the replication leader, upload, execute and delete the SQL file.
+The `a9s CLI` will determine the replication leader, upload, execute and delete the SQL file. 
 
 The `--no-delete` option can be used during debugging of erroneous SQL statements
 as the SQL file remains in the PostgreSQL Leader's Pod.
@@ -414,7 +417,7 @@ a9s pg apply --file demo_data.sql -i clustered-instance -n tutorial --no-delete
 
 With the SQL file still available in the Pod, statements can be quickly altered and re-tested.
 
-#### Applying an SQL String
+### Applying an SQL String
 
 It is also possible to execute a SQL string containing one or several SQL statements by using the `--sql` option:
 
@@ -426,10 +429,10 @@ The output of the command will be printed on the screen, for example:
 
 ```
 Output from the Pod:
-
-count
+    
+count 
 -------
-    10
+    10 
 (1 row)
 ```
 
@@ -437,11 +440,11 @@ Again, the `pg apply` commands are not meant to interact with production databas
 
 Be aware that these commands are executed by the privileged `postgres` user. Schemas (tables) created by the `postgres` user may not be accessible by roles (users) created in conjunction with Service Bindings. You will then have to grant access privileges to the Service Binding role.
 
-### Step 6: Creating and Restoring a Backup
+## Step 6: Creating and Restoring a Backup
 
 Assuming you have configured the backup store and provided access credentials to an AWS S3 compatible object store, try creating and restoring a backup for your application.
 
-#### Creating a Backup
+### Creating a Backup
 
 Creating a backup can be achieved with a single command:
 
@@ -466,7 +469,7 @@ spec:
 
 The a8s Backup Manager is the responsible for making the backup happen. It does that by locating the Service Instance `clustered-instance` which also runs the `a8s Backup Agent`. This agent is then executing the PostgreSQL backup command and, depending on its configuration, compressing, encrypting and streaming the backup to the backup object store (S3).
 
-#### Restoring a Backup
+### Restoring a Backup
 
 In order to experience the value of a backup, simulate a data loss by issueing the following `DELETE` statement:
 
@@ -496,21 +499,21 @@ a9s pg apply -i clustered-instance -n tutorial --sql "SELECT COUNT(*) FROM posts
 
 Some engineers say that a convenient backup/restore functionality at your disposal improves the quality of sleep by 37% 😉.
 
-### Congratulations
+## Congratulations
 
 With just a few commands, you have created a local Kubernetes cluster, installed the a8s PostgreSQL Control Plane including all its dependencies. Furthermore, you have provisioned an PostgreSQL cluster consisting of three Pods providing you with an asynchronous streaming cluster supporting automatic failure detection, lead-election and failover. Deploying the demo application you've also experienced the convenience of Service Bindings and their automatic creation of Kubernetes Secrets. The backup and restore experiment then illustrated how effortless handling a production database can be.
 
 Did you every think that running a production database as an application developer with full self-service could be so easy?
 
-### What to do next?
+## What to do next?
 
 Wait, there's more to it! This hands-on tutorial merely scratched the surface. Did you see that the `a9s CLI` has created many YAML manifests stored in the `usermanifests` folder of your working directory? This is a good place to start tweaking your manifests and start your own experiments.
 
 If you want to learn more about a8s PostgreSQL feel free to have a look at the documentation at TODO.
 
-For more about the `a9s CLI` have a look at [our GitHub repository](https://github.com/anynines/a9s-cli-v2).
+For more about the `a9s CLI` have a look at https://github.com/anynines/a9s-cli-v2.
 
-### Links
+## Links
 
-1. [a9s CLI documentation and source](https://github.com/anynines/a9s-cli-v2)
-2. [PostgreSQL documentation, Log-Shipping Standby Servers](https://www.postgresql.org/docs/current/warm-standby.html)
+1. a9s CLI documentation and source, https://github.com/anynines/a9s-cli-v2 
+2. PostgreSQL documentation, Log-Shipping Standby Servers, https://www.postgresql.org/docs/current/warm-standby.html

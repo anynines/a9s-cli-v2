@@ -1,21 +1,3 @@
----
-id: hands-on-tutorial-klutch-aws-release-qa
-title: Manual QA Tutorial - Klutch AWS Release Gate
-tags:
-  - a9s CLI
-  - klutch
-  - aws
-  - qa
-  - release
-
-keywords:
-  - a9s cli
-  - klutch
-  - aws
-  - release gate
-  - manual qa
----
-
 # Manual QA Tutorial - Klutch AWS Release Gate
 
 This tutorial is the final manual quality gate before releasing `a9s` CLI changes for the AWS Klutch flow.

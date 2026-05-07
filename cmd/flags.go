@@ -36,14 +36,30 @@ func initRequiredStringFlag(cmd *cobra.Command, p *string, name string, value, u
 }
 
 func initRequiredStringFlagP(cmd *cobra.Command, p *string, name, shorthand, value, usage string) {
-	if shorthand == "" {
-		cmd.Flags().StringVar(p, name, value, usage)
-	} else {
-		cmd.Flags().StringVarP(p, name, shorthand, value, usage)
+	initRequiredPersistentStringFlagWithPersistenceWithP(cmd, p, name, shorthand, value, usage, false)
+}
+func initRequiredPersistentStringFlagP(cmd *cobra.Command, p *string, name, shorthand, value, usage string) {
+	initRequiredPersistentStringFlagWithPersistenceWithP(cmd, p, name, shorthand, value, usage, true)
+}
+func initRequiredPersistentStringFlagWithPersistenceWithP(cmd *cobra.Command, p *string, name, shorthand, value, usage string, isPersistent bool) {
+	flagPool := cmd.Flags()
+	markRequiredFunc := cmd.MarkFlagRequired
+
+	if isPersistent {
+		flagPool = cmd.PersistentFlags()
+		markRequiredFunc = cmd.MarkPersistentFlagRequired
 	}
-	if err := cmd.MarkFlagRequired(name); err != nil {
+
+	if shorthand == "" {
+		flagPool.StringVar(p, name, value, usage)
+	} else {
+		flagPool.StringVarP(p, name, shorthand, value, usage)
+	}
+
+	if err := markRequiredFunc(name); err != nil {
 		makeup.ExitDueToFatalError(err, "Failed to mark flag "+name+" as required")
 	}
+
 	prependToRun(cmd, func(funcCmd *cobra.Command, args []string) error {
 		if *p == "" {
 			return fmt.Errorf("required flag %s must not be empty", name)
@@ -52,7 +68,7 @@ func initRequiredStringFlagP(cmd *cobra.Command, p *string, name, shorthand, val
 	})
 }
 
-func initRequiredStringFlagWithDependency[T any](otherFlagValue *T, otherFlagName string, otherFlagExpectedValue T, cmd *cobra.Command, p *string, name string, value, usage string) {
+func initRequiredStringFlagWithDependency[T any](cmd *cobra.Command, p *string, name string, value, usage string, otherFlagValue *T, otherFlagName string, otherFlagExpectedValue T) {
 	cmd.Flags().StringVar(p, name, value, usage)
 	setStringFlagDependency(otherFlagValue, otherFlagName, otherFlagExpectedValue, cmd, p, name)
 }

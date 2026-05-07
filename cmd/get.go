@@ -28,6 +28,15 @@ var getKlutchClustersCmd = &cobra.Command{
 	},
 }
 
+var cmdGetClusters = &cobra.Command{
+	Use:   "clusters",
+	Short: "List clusters",
+	Run: func(cmd *cobra.Command, args []string) {
+		makeup.PrintWarning(" " + "Please select a subcommand from the list below.")
+		_ = cmd.Help()
+	},
+}
+
 // a9s get clusters klutch
 var getClustersKlutchCmd = &cobra.Command{
 	Use:   "klutch",
@@ -37,7 +46,7 @@ var getClustersKlutchCmd = &cobra.Command{
 	},
 }
 
-var getCmd = &cobra.Command{
+var cmdGet = &cobra.Command{
 	Use:   "get",
 	Short: "Get resources managed by the CLI.",
 	Run: func(cmd *cobra.Command, args []string) {
@@ -48,7 +57,7 @@ var getCmd = &cobra.Command{
 	},
 }
 
-var getKlutchCmd = &cobra.Command{
+var cmdGetKlutch = &cobra.Command{
 	Use:   "klutch",
 	Short: "Get Klutch resources.",
 	Run: func(cmd *cobra.Command, args []string) {
@@ -59,7 +68,7 @@ var getKlutchCmd = &cobra.Command{
 	},
 }
 
-var getKlutchTenantsCmd = &cobra.Command{
+var cmdGetKlutchTenants = &cobra.Command{
 	Use:   "tenants",
 	Short: "List Klutch tenants (Cognito credentials in Secrets Manager).",
 	Run: func(cmd *cobra.Command, args []string) {
@@ -91,7 +100,7 @@ var getKlutchTenantsCmd = &cobra.Command{
 	},
 }
 
-var getKlutchTenantCmd = &cobra.Command{
+var cmdGetKlutchTenant = &cobra.Command{
 	Use:   "tenant",
 	Short: "Get Klutch tenant credentials.",
 	Args:  cobra.ExactArgs(1),
@@ -122,30 +131,29 @@ var getKlutchTenantCmd = &cobra.Command{
 }
 
 func init() {
-	getKlutchTenantsCmd.Flags().StringVar(&getKlutchTenantRegion, "region", "", "AWS region for Cognito/Secrets Manager (defaults to CONTROL_PLANE_CLUSTER_REGION or eu-central-1).")
-	getKlutchTenantsCmd.Flags().StringVar(&getKlutchTenantPrefix, "prefix", "klutch/", "Secret name prefix to filter tenants.")
-	getKlutchTenantCmd.Flags().StringVar(&getKlutchTenantRegion, "region", "", "AWS region for Cognito/Secrets Manager (defaults to CONTROL_PLANE_CLUSTER_REGION or eu-central-1).")
-	getKlutchTenantCmd.Flags().StringVar(&getKlutchTenantSecretName, "secret-name", "", "Secrets Manager name that holds the tenant credentials (defaults to klutch/<tenant>/oidc-client).")
+	initFlagsGet(cmdGet)
+	rootCmd.AddCommand(cmdGet)
+}
 
-	getKlutchCmd.AddCommand(getKlutchTenantsCmd)
-	getKlutchCmd.AddCommand(getKlutchTenantCmd)
-	getKlutchCmd.AddCommand(getKlutchClustersCmd)
-	getCmd.AddCommand(getKlutchCmd)
+func initFlagsGet(cmd *cobra.Command) {
+	cmdGetKlutchTenants.Flags().StringVar(&getKlutchTenantRegion, "region", "", "AWS region for Cognito/Secrets Manager (defaults to CONTROL_PLANE_CLUSTER_REGION or eu-central-1).")
+	cmdGetKlutchTenants.Flags().StringVar(&getKlutchTenantPrefix, "prefix", "klutch/", "Secret name prefix to filter tenants.")
+	cmdGetKlutch.AddCommand(cmdGetKlutchTenants)
+
+	cmdGetKlutchTenant.Flags().StringVar(&getKlutchTenantRegion, "region", "", "AWS region for Cognito/Secrets Manager (defaults to CONTROL_PLANE_CLUSTER_REGION or eu-central-1).")
+	cmdGetKlutchTenant.Flags().StringVar(&getKlutchTenantSecretName, "secret-name", "", "Secrets Manager name that holds the tenant credentials (defaults to klutch/<tenant>/oidc-client).")
+	cmdGetKlutch.AddCommand(cmdGetKlutchTenant)
+
+	cmdGetKlutch.AddCommand(getKlutchClustersCmd)
+	cmd.AddCommand(cmdGetKlutch)
+
 	// synonym: a9s get clusters klutch
-	getClustersCmd := &cobra.Command{
-		Use:   "clusters",
-		Short: "List clusters",
-		Run: func(cmd *cobra.Command, args []string) {
-			makeup.PrintWarning(" " + "Please select a subcommand from the list below.")
-			_ = cmd.Help()
-		},
-	}
-	getClustersCmd.AddCommand(getClustersKlutchCmd)
-	getCmd.AddCommand(getClustersCmd)
-	rootCmd.AddCommand(getCmd)
+	cmdGetClusters.AddCommand(getClustersKlutchCmd)
+	cmd.AddCommand(cmdGetClusters)
 }
 
 func printKlutchClusters() error {
+	makeup.UnattendedMode = true
 	makeup.PrintInfo("Detecting Klutch clusters...")
 
 	contexts, err := k8s.Contexts("klutch")

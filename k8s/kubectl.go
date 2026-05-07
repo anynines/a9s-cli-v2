@@ -504,8 +504,9 @@ func trimAndFilter(input []byte, filter string) []string {
 
 func ClusterInfo(ctx context.Context, kubeContext string) (string, error) {
 	opts := KubectlOpts{
-		command: "cluster-info",
-		context: kubeContext,
+		command:        "cluster-info",
+		context:        kubeContext,
+		suppressOutput: true,
 	}
 	_, out, err := runKubeCtlCommand(opts)
 	return string(out), err
@@ -615,6 +616,7 @@ type KubectlOpts struct {
 	additionalArgs        []string
 	ignoreNotFound        bool
 	avoidDuplicateLogging bool
+	suppressOutput        bool
 }
 
 func (opts KubectlOpts) withContextFrom(k *KubeClient) KubectlOpts {
@@ -659,11 +661,12 @@ func runKubeCtlCommand(opts KubectlOpts) (string, []byte, error) {
 	} else {
 		cmd.NoPrompt()
 	}
-	output, err := cmd.Run()
 
-	if makeup.Verbose || err != nil {
-		fmt.Println(string(output))
+	if opts.suppressOutput {
+		cmd.SuppressOutput()
 	}
+
+	output, err := cmd.Run()
 
 	return "kubectl " + strings.Join(args, " "), output, err
 }
