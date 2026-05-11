@@ -8,9 +8,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/anynines/a9s-cli-v2/demo"
 	"github.com/anynines/a9s-cli-v2/makeup"
 )
+
+const KlutchTenantNameTagKey = "KlutchTenantName"
 
 // OIDCConnection holds the issuer and client credentials for Cognito.
 type OIDCConnection struct {
@@ -31,7 +32,7 @@ type OIDCConnection struct {
 // - resource server with scope klutch/bind
 // - app client with secret and client_credentials flow
 // - Amazon-hosted domain
-func EnsureCognitoOIDC(ctx context.Context, region string, namePrefix string, userPoolID string, tenantUUID string) (OIDCConnection, error) {
+func EnsureCognitoOIDC(ctx context.Context, region, namePrefix, userPoolID, tenantUUID, clusterName string) (OIDCConnection, error) {
 	prefix := strings.ToLower(strings.TrimSpace(namePrefix))
 	if prefix == "" {
 		prefix = "klutch"
@@ -41,7 +42,10 @@ func EnsureCognitoOIDC(ctx context.Context, region string, namePrefix string, us
 		return OIDCConnection{}, err
 	}
 
-	userPoolName := fmt.Sprintf("%s-klutch", prefix)
+	userPoolName := "userpool-" + clusterName
+	if clusterName == "" {
+		userPoolName = fmt.Sprintf("%s-klutch", prefix)
+	}
 	resourceServerID := "klutch"
 	resourceScope := "klutch/bind"
 	clientName := fmt.Sprintf("%s-konnector-%s", prefix, tenantUUID)
@@ -54,7 +58,7 @@ func EnsureCognitoOIDC(ctx context.Context, region string, namePrefix string, us
 			poolID = discoverUserPool(ctx, region, userPoolName)
 		}
 		if poolID == "" {
-			tagArg := buildTenantUserPoolTags(ctx, region, tenantUUID, prefix, userPoolName)
+			tagArg := buildTenantUserPoolTags(ctx, region, tenantUUID, prefix, userPoolName, clusterName)
 			args := []string{
 				"cognito-idp", "create-user-pool",
 				"--region", region,
@@ -75,7 +79,7 @@ func EnsureCognitoOIDC(ctx context.Context, region string, namePrefix string, us
 		}
 	}
 	if tenantUUID != "" {
-		if err := tagUserPool(ctx, region, poolID, buildTenantUserPoolTags(ctx, region, tenantUUID, prefix, userPoolName)); err != nil {
+		if err := tagUserPool(ctx, region, poolID, buildTenantUserPoolTags(ctx, region, tenantUUID, prefix, userPoolName, clusterName)); err != nil {
 			return OIDCConnection{}, err
 		}
 	}
@@ -325,9 +329,8 @@ func ensureCognitoOAuthSupport(ctx context.Context) error {
 	return nil
 }
 
-func buildTenantUserPoolTags(ctx context.Context, region, tenantUUID, tenantName, resourceName string) []string {
+func buildTenantUserPoolTags(ctx context.Context, region, tenantUUID, tenantName, resourceName, clusterName string) []string {
 	accountID, _ := getAccountID(ctx)
-	clusterName := strings.TrimSpace(demo.DemoClusterName)
 	if clusterName == "" {
 		clusterName = "klutch-control-plane"
 	}
@@ -336,7 +339,7 @@ func buildTenantUserPoolTags(ctx context.Context, region, tenantUUID, tenantName
 	// For Cognito CLI, user-pool-tags expects a single comma-separated map string.
 	tagMap := []string{
 		"Klutch=ControlPlane",
-		fmt.Sprintf("KlutchTenantName=%s", tenantName),
+		fmt.Sprintf("%s=%s", KlutchTenantNameTagKey, tenantName),
 		fmt.Sprintf("KlutchTenantUUID=%s", tenantUUID),
 		fmt.Sprintf("Name=%s", resourceName),
 		fmt.Sprintf("eks.cluster/name=%s", clusterName),

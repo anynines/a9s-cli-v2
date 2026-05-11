@@ -233,6 +233,9 @@ var cmdDeleteKlutchTenant = &cobra.Command{
 			makeup.ExitDueToFatalError(err, "Failed to delete tenant secret.")
 		}
 		makeup.PrintSuccessSummary(fmt.Sprintf("Deleted tenant secret %s in %s.", secretName, region))
+		if err := klutchaws.DeleteUserPoolsByTags(context.Background(), false, region, klutchaws.KlutchTenantNameTagKey, tenantName); err != nil {
+			makeup.ExitDueToFatalError(err, "Could not clean up Cognito User Pool for tenant "+tenantName)
+		}
 	},
 }
 
