@@ -193,7 +193,7 @@ func verifyTenantOperatorImage(ctx context.Context, cfg Config) error {
 	if ref.repository == "" {
 		return fmt.Errorf("Tenant operator image reference %q is invalid (missing repository).", ref.original)
 	}
-	if ref.awsCommand == "" {
+	if ref.awsCommand == "" || ref.awsCommand == "ecr-public" {
 		if _, err := execLookPath("docker"); err != nil {
 			return fmt.Errorf("Unable to verify tenant operator image %q because Docker is not installed. Install Docker or use an ECR image so the CLI can verify it.", ref.original)
 		}
