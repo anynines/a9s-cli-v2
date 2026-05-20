@@ -1655,7 +1655,9 @@ func waitForNodesReady(ctx context.Context) {
 	k8sClient := k8s.NewKubeClient("")
 	for {
 		out, err := k8sClient.Get("nodes", "", "", "", true)
-		makeup.PrintInfo(fmt.Sprintf("out='%s', err='%s'", out, err))
+		if err != nil {
+			makeup.PrintWarning(fmt.Sprintf("Got error while trying to retrieve nodes: out='%s', err='%v'", out, err))
+		}
 		if err == nil && strings.Contains(out, " Ready") {
 			awsLogger.Successf("Nodes are Ready:")
 			makeup.Print(out)

@@ -199,3 +199,19 @@ artifacts.
 * Tenant Cognito user pools and Secrets Manager tenant secrets may remain after control-plane
   deletion. While the secrets can be deleted using `a9s delete "<tenant-name>">`, the Cognito user
   pools have to be deleted manually.
+* the functionality for exposing an a8s PG instance by setting its `spec.expose` field to
+  `LoadBalancer` currently does not work
+* the CLI uses tags to identify AWS resources for reuse, so if the CLI fails while/before tagging
+  certain resources (e.g. VPCs, EKSClusterRole), then re-running the CLI will provision a new
+  resource of that type instead of reusing the existing one.
+* if the CLI fails while/before tagging the `AWSLoadBalancerControllerIAMPolicy` then the policy
+  will need to be deleted manually before the CLI can be rerun.
+* the default Elastic-IP-Quota of an AWS account is 5 IPs but provisioning a Control Plane and a
+  Workload cluster requires 3 IPs each, i.e. 6 IPs in total. So if the Elastic IP quota of an AWS
+  account is still at its default value, then it will need to be increased before provisioning a
+  Workload cluster at the latest.
+* the `a9s create klutch cluster control-plane` command might fail when trying to wait for the
+  deployed Crossplane components to become ready due to the pod running the Crossplane Controller
+  not existing yet when `kubectl wait` is called. Once the pod has been created (observable e.g. via
+  `kubectl get pods -l app=crossplane -n crossplane-system`), the `a9s create klutch cluster
+  control-plane` command can be rerun to finish the provisioning process.

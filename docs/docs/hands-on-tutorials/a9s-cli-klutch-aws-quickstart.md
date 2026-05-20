@@ -65,6 +65,7 @@ wall-clock time.
 |------|-----------------|---------------|
 | [a9s CLI](https://github.com/anynines/a9s-cli-v2) | v0.16.0 (currently only available as pre-release) | [Releases](https://github.com/anynines/a9s-cli-v2/releases) |
 | [aws](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) | v2.24.20 | AWS docs |
+| [docker](https://docs.docker.com/get-started/get-docker/) | - | Docker docs |
 | [kubectl](https://kubernetes.io/docs/tasks/tools/#kubectl) | v1.27.0 | Kubernetes docs |
 | [helm](https://helm.sh/docs/intro/install/) | - | Helm docs |
 | [eksctl](https://docs.aws.amazon.com/eks/latest/eksctl/installation.html) | - | AWS docs |
@@ -433,15 +434,30 @@ summarises what each flag does:
 | `--schedule-kms-deletion` | Also schedules KMS keys for deletion after 7 days. |
 | `--delete-acm-certificate` | Also deletes the ACM certificate. |
 | `--delete-dns-zone --hosted-zone-name "${HOSTED_ZONE}"` | Also deletes the hosted zone. |
-| `--cleanup-dns-acm --hosted-zone-name "${HOSTED_ZONE}"` | Also deletes the ACM certificate and the hosted zone. |
+| `--cleanup-dns-acm --hosted-zone-name "${HOSTED_ZONE}"` | Also deletes the ACM certificate and the hosted zone. **Note**: for clarity it is recommended to use `--delete-dns-zone` and `delete-acm-certificate` explicitly instead of the combined `--cleanup-dns-acm` flag |
 
-**Recommended - full cleanup:**
+**Cleanup that preserves the Hosted Zone and its HTTPS Certificate:**
+
+```bash
+a9s delete cluster klutch control-plane -p aws \
+  --cluster-name "${CP_CLUSTER}" \
+  --schedule-kms-deletion
+```
+
+**Cleanup that deletes the Hosted Zone and its HTTPS Certificate:**
+
+> [!WARNING] Deleting the Hosted Zone
+>
+> If the Hosted Zone used by you Control Plane cluster does not have a parent Hosted Zone in the
+> same AWS account, then deleting a Hosted Zone by setting
+> `--delete-dns-zone` might require you to perform manual steps to recreate the Hosted Zone in the future.
 
 ```bash
 a9s delete cluster klutch control-plane -p aws \
   --cluster-name "${CP_CLUSTER}" \
   --schedule-kms-deletion \
-  --cleanup-dns-acm \
+  --delete-dns-zone \
+  --delete-acm-certificate \
   --hosted-zone-name "${HOSTED_ZONE}"
 ```
 
