@@ -16,14 +16,15 @@
   "dependencies": {
     "@algolia/client-search": "^4.9.1",
     "@cmfcmf/docusaurus-search-local": "^2.0.1",
-    "@docusaurus/core": "^3.10.0",
-    "@docusaurus/preset-classic": "^3.10.0",
+    "@docusaurus/core": "^3.10.1",
+    "@docusaurus/module-type-aliases": "^3.10.1",
+    "@docusaurus/preset-classic": "^3.10.1",
     "@mdx-js/react": "^3.0.0",
     "acorn": "^8",
     "react": "19.2.5",
     "react-dom": "19.2.5",
-    "search-insights": "^2.17.0",
-    "react-loadable": "^5.5.0" 
+    "react-loadable": "^5.5.0",
+    "search-insights": "^2.17.0"
   },
   "devDependencies": {
     "@babel/core": "^7.0.0",
@@ -31,7 +32,10 @@
     "@types/react": "18"
   },
   "engines": {
-    "node": ">=18.0"
+    "node": ">=20.0"
+  },
+  "overrides":{
+    "serialize-javascript": "7.0.4"
   },
   "browserslist": {
     "production": [
