@@ -59,8 +59,7 @@ var cmdDeleteCluster = &cobra.Command{
 var cmdDeleteClusterA8s = &cobra.Command{
 	Use:   "a8s",
 	Short: "Delete the given a8s Data Service Kubernetes cluster.",
-	Long: `Delete the given a8s Data Service Kubernetes cluster in order to free corresponding
-	resources.`,
+	Long:  `Delete the given a8s Data Service Kubernetes cluster in order to free corresponding resources.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		demo.SelectClusterProvider()
 		clusterManager := demo.BuildKubernetesClusterManager()
