@@ -3,6 +3,7 @@ package cmd
 import (
 	"os"
 
+	"github.com/anynines/a9s-cli-v2/demo"
 	"github.com/anynines/a9s-cli-v2/klutch"
 	"github.com/anynines/a9s-cli-v2/makeup"
 	"github.com/spf13/cobra"
@@ -14,7 +15,9 @@ var klutchCmd = &cobra.Command{
 	Long:  "Commands for deploying and interacting with Klutch",
 	Run: func(cmd *cobra.Command, args []string) {
 		makeup.PrintWarning(" " + "Please select a subcommand from the list below.")
-		cmd.Help()
+		if err := cmd.Help(); err != nil {
+			makeup.ExitDueToFatalError(err, "")
+		}
 	},
 }
 
@@ -55,6 +58,7 @@ var deleteKlutchCmd = &cobra.Command{
 
 func init() {
 	deployKlutchCmd.Flags().IntVar(&klutch.PortFlag, "port", 8080, "Port the Control Plane Cluster backend should listen on")
+	deployKlutchCmd.Flags().StringVar(&demo.DeploymentVersion, "deployment-version", demo.DefaultDeploymentVersion, "specify the version corresponding to the a8s-deployment git version tag. Use \"latest\" to get the untagged version.")
 	klutchCmd.AddCommand(deployKlutchCmd)
 
 	klutchCmd.AddCommand(bindKlutchCmd)

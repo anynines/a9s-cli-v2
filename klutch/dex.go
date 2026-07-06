@@ -2,9 +2,11 @@ package klutch
 
 import (
 	"context"
+	"crypto/sha256"
 	_ "embed"
+	"encoding/hex"
+	"fmt"
 
-	"github.com/anynines/a9s-cli-v2/demo"
 	"github.com/anynines/a9s-cli-v2/makeup"
 	"k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -15,12 +17,20 @@ import (
 var dexManifestsTemplate string
 
 type dexTemplateVars struct {
-	Host            string
-	IngressPort     string
-	DexClientSecret string
+	Host              string
+	HostPort          string
+	IngressPort       string
+	DexClientSecret   string
+	IngressClass      string
+	Scheme            string
+	ServiceType       string
+	NodePort          int
+	ACMCertificateARN string
+	EnableTLS         bool
+	ConfigChecksum    string
 }
 
-func (k *KlutchManager) DeployDex(hostIP string, ingressPort string) {
+func (k *KlutchManager) DeployDex(hostIP string, ingressPort string, ingressClass string, scheme string, acmCertificateARN string) {
 	makeup.PrintH1("Deploying Dex Idp...")
 
 	client := k.cpK8s.GetKubernetesClientSet()
@@ -28,9 +38,23 @@ func (k *KlutchManager) DeployDex(hostIP string, ingressPort string) {
 	dexClientSecret := k.getOIDCIssuerClientSecret(client, bg)
 
 	templateVars := &dexTemplateVars{
-		Host:            hostIP,
-		IngressPort:     ingressPort,
-		DexClientSecret: dexClientSecret,
+		Host:              hostIP,
+		HostPort:          formatHostWithPort(scheme, hostIP, ingressPort),
+		IngressPort:       ingressPort,
+		DexClientSecret:   dexClientSecret,
+		IngressClass:      ingressClass,
+		Scheme:            scheme,
+		ACMCertificateARN: acmCertificateARN,
+		EnableTLS:         acmCertificateARN != "" && ingressClass == "alb",
+		ConfigChecksum:    dexConfigChecksum(hostIP, scheme, ingressPort, acmCertificateARN),
+	}
+
+	// ALB requires NodePort when using instance targets; keep ClusterIP for local/demo (nginx).
+	if ingressClass == "alb" {
+		templateVars.ServiceType = "NodePort"
+		templateVars.NodePort = 32556
+	} else {
+		templateVars.ServiceType = "ClusterIP"
 	}
 
 	manifests, err := renderTemplate(dexManifestsTemplate, templateVars)
@@ -38,13 +62,19 @@ func (k *KlutchManager) DeployDex(hostIP string, ingressPort string) {
 		makeup.ExitDueToFatalError(err, "Could not render the dex manifests.")
 	}
 
-	makeup.PrintH2("Applying the following manifests: ")
-	makeup.PrintYAML(manifests.Bytes(), false)
-	makeup.WaitForUser(demo.UnattendedMode)
-
-	k.cpK8s.KubectlApplyStdin(manifests)
+	// Note: Manifest display and waiting are handled by KubectlApplyWithPrompt
+	if _, err := k.cpK8s.ApplyWithPrompt(manifests.Bytes(), "dex manifests"); err != nil {
+		makeup.ExitDueToFatalError(err, "Failed to apply dex manifests")
+	}
 
 	makeup.Print("Done applying the dex manifests.")
+}
+
+// dexConfigChecksum produces a hash so changes trigger a rollout via pod annotations.
+func dexConfigChecksum(host, scheme, port, certARN string) string {
+	src := fmt.Sprintf("%s|%s|%s|%s", host, scheme, port, certARN)
+	sum := sha256.Sum256([]byte(src))
+	return hex.EncodeToString(sum[:])
 }
 
 // Waits for the dex deployment to be ready.
@@ -54,7 +84,7 @@ func (k *KlutchManager) WaitForDex() {
 	k.cpK8s.KubectlWaitForRollout("deployment", "dex", "default")
 
 	makeup.PrintCheckmark("Dex appears to be ready.")
-	makeup.WaitForUser(demo.UnattendedMode)
+	makeup.WaitForUser()
 }
 
 // getOIDCIssuerClientSecret checks if the dex oidc-config secret exists and returns the oidc-issuer-client-secret if set.

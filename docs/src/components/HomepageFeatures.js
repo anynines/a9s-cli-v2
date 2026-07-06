@@ -14,20 +14,20 @@ const FeatureList = [
     ),
     button: {
       label: "a9s CLI Docs",
-      link: "/docs/a9s-cli"
+      link: "/docs/a9s-cli-reference"
     }
   },
   {
-    title: "Tutorial: Demo App + a8s PostgreSQL",
+    title: "Hands-On Tutorials",
     Svg: require("../../static/img/Operator.svg").default,
     description: (
       <>
-        Provision a local Kubernetes cluster using Kind or Minikube, install a PostgreSQL operator, deploy a demo application, load data into the database as well as perform backup and restore operations.
+        Learn how to deploy and use the a8s Stack for local clusters and the Klutch stack for remote clusters.
       </>
     ),
     button: {
-      label: "Hands-On Tutorial",
-      link: "/docs/hands-on-tutorials/hands-on-tutorial-a8s-pg-a9s-cli/"
+      label: "Tutorials",
+      link: "/docs/hands-on-tutorials/"
     }
   }
 ];

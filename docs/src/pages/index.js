@@ -17,7 +17,7 @@ function HomepageHeader() {
         <div className={styles.buttons}>
           <Link
             className="button button--secondary button--lg"
-            to="/docs/a9s-cli"
+            to="/docs/a9s-cli-reference"
           >
             Get Started
           </Link>
