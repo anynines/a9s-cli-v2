@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -23,6 +24,8 @@ const (
 var bindBackendManifestsTemplate string
 
 type backendTemplateVars struct {
+	Host                string
+	K8sApiPort          string
 	CookieEncryptionKey string
 	CookieSigningKey    string
 	BackendImageURL     string
@@ -148,7 +151,11 @@ func (k *KlutchManager) DeployBindBackend(host string, ingressPort string, ingre
 		}
 	}
 
+	clusterPort := getClusterExternalPort(contextControlPlane)
+
 	templateVars := &backendTemplateVars{
+		Host:                host,
+		K8sApiPort:          clusterPort,
 		CookieEncryptionKey: cookieEncryptionKey,
 		CookieSigningKey:    cookieSigningKey,
 		BackendImageURL:     bindBackendImageURL,
@@ -175,6 +182,10 @@ func (k *KlutchManager) DeployBindBackend(host string, ingressPort string, ingre
 		makeup.ExitDueToFatalError(err, "Could not render the klutch-bind backend manifests.")
 	}
 
+	if LoopbackMode {
+		k.addLoopbackProxyToDeployment(k.cpK8s, "default", "anynines-backend", "external-exposure-proxy", strconv.Itoa(PortFlag))
+		k.addLoopbackProxyToDeployment(k.cpK8s, "default", "anynines-backend", "k8s-api-proxy", clusterPort)
+	}
 	// Note: Manifest display and waiting are handled by KubectlApplyWithPrompt
 	if _, err = k.cpK8s.ApplyWithPrompt(manifests.Bytes(), "klutch-bind backend"); err != nil {
 		makeup.ExitDueToFatalError(err, "Failed to apply klutch-bind backend manifests")

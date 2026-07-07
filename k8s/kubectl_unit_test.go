@@ -623,7 +623,7 @@ func TestUnitDeleteFromManifest_Success(t *testing.T) {
 	k := NewKubeClient("")
 	// DeleteFromManifest calls os.Exit on error, so we only test the happy path
 	// unit-safely by ensuring no panic/exit occurs (the fake returns exit 0).
-	k.DeleteFromManifest(minimalDeleteManifest)
+	k.DeleteFromManifest(minimalDeleteManifest, false)
 }
 
 // ---------------------------------------------------------------------------

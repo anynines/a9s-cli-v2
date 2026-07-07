@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"os"
 	"path/filepath"
 	"text/template"
 
@@ -49,7 +50,9 @@ func getClusterCert(k8s *k8s.KubeClient) []byte {
 // When kubeContext is empty, it uses the current context.
 func getClusterURLFromKubeconfig(kubeContext string) *url.URL {
 	var kubeconfig string
-	if home := homedir.HomeDir(); home != "" {
+	if _, err := os.Stat(os.Getenv("KUBECONFIG")); err == nil {
+		kubeconfig = os.Getenv("KUBECONFIG")
+	} else if home := homedir.HomeDir(); home != "" {
 		kubeconfig = filepath.Join(home, ".kube", "config")
 	}
 

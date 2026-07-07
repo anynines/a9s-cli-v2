@@ -25,7 +25,7 @@ This command uses `kind` to deploy the Control Plane Cluster with all required c
 
 It has the following command line flags:
 - `yes` : skips "Wait" prompts, this is inherited from the root command.
-- `port`: the cluster's ingress will listen on this port. It defaults to `8080`.
+- `port`: the cluster's gateway will listen on this port. It defaults to `8080`.
 
 This command writes a files to the user's configured workspace which contains the IP and port of the Control Plane Cluster.
 This allows subsequent commands such as `bind` to correctly connect to the Control Plane Cluster.

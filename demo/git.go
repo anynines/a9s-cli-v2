@@ -1,10 +1,8 @@
 package demo
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/anynines/a9s-cli-v2/makeup"
 )
@@ -20,65 +18,30 @@ func CheckoutDeploymentGitRepository() {
 }
 
 func CheckoutGitRepository(repositoryURL, localDirectory string, tag string) {
-	if !repoExists(localDirectory) {
-		// No existing repo – clone fresh.
-		if err := os.MkdirAll(localDirectory, os.ModePerm); err != nil {
-			makeup.ExitDueToFatalError(err, "Couldn't create local directory to clone repository at "+localDirectory+".")
-		}
-
-		args := []string{"clone"}
-		if tag != "latest" {
-			args = append(args, "--branch", tag)
-		}
-		args = append(args, repositoryURL, localDirectory)
-
-		output, err := makeup.NewCommand("git", args...).WithPrompt().Run()
+	// Check if the local directory already exists and remove it to ensure we have the correct version
+	if repoExists(localDirectory) {
+		makeup.PrintInfo("Removing existing a8s-deployment directory to ensure correct version is checked out...")
+		err := os.RemoveAll(localDirectory)
 		if err != nil {
-			makeup.ExitDueToFatalError(err, "Failed to clone the git repository:\n"+string(output))
+			makeup.ExitDueToFatalError(err, "Failed to remove existing directory")
 		}
-
-		return
+	}
+	// clone fresh
+	if err := os.MkdirAll(localDirectory, os.ModePerm); err != nil {
+		makeup.ExitDueToFatalError(err, "Couldn't create local directory to clone repository at "+localDirectory+".")
 	}
 
-	makeup.PrintInfo("Found existing repository at " + localDirectory + ", checking for local changes...")
+	args := []string{"clone"}
+	if tag != "latest" {
+		args = append(args, "--branch", tag)
+	}
+	args = append(args, repositoryURL, localDirectory)
 
-	// Fail fast if the working tree is dirty to avoid silently discarding user changes.
-	output, err := makeup.NewCommand("git", "-C", localDirectory, "status", "--porcelain").Run()
+	output, err := makeup.NewCommand("git", args...).WithPrompt().Run()
 	if err != nil {
-		makeup.ExitDueToFatalError(err, "Failed to check git status of "+localDirectory)
+		makeup.ExitDueToFatalError(err, "Failed to clone the git repository:\n"+string(output))
 	}
-	if strings.TrimSpace(string(output)) != "" {
-		makeup.ExitDueToFatalError(
-			fmt.Errorf("uncommitted changes detected"),
-			"The repository at "+localDirectory+" has local modifications. "+
-				"Please commit, stash, or discard your changes before proceeding:\n"+string(output),
-		)
-	}
-
-	makeup.PrintInfo("Fetching latest refs from remote...")
-	if output, err := makeup.NewCommand("git", "-C", localDirectory, "fetch", "--tags", "--force", "origin").WithPrompt().Run(); err != nil {
-		makeup.ExitDueToFatalError(err, "Failed to fetch from remote:\n"+string(output))
-	}
-
-	// Resolve the desired ref: for "latest" use the default remote branch HEAD.
-	ref := tag
-	if ref == "latest" {
-		ref = "origin/HEAD"
-	}
-
-	makeup.PrintInfo("Checking out " + ref + "...")
-	if output, err := makeup.NewCommand("git", "-C", localDirectory, "checkout", ref).WithPrompt().Run(); err != nil {
-		makeup.ExitDueToFatalError(err, "Failed to checkout "+ref+":\n"+string(output))
-	}
-
-	// If we are on a branch (not detached HEAD), pull to fast-forward.
-	branchOut, err := makeup.NewCommand("git", "-C", localDirectory, "symbolic-ref", "--short", "HEAD").Run()
-	if err == nil && strings.TrimSpace(string(branchOut)) != "" {
-		makeup.PrintInfo("Pulling latest changes for branch " + strings.TrimSpace(string(branchOut)) + "...")
-		if output, err := makeup.NewCommand("git", "-C", localDirectory, "pull", "--ff-only").WithPrompt().Run(); err != nil {
-			makeup.ExitDueToFatalError(err, "Failed to pull latest changes:\n"+string(output))
-		}
-	}
+	makeup.PrintInfo("Successfully initialized git repository")
 }
 
 // repoExists returns true when localDirectory contains a git repository.

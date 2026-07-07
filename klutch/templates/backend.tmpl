@@ -33,7 +33,7 @@ spec:
 {{- end }}
       containers:
       - name: anynines-backend
-        image: {{ .BackendImageURL }}:{{ .BackendImageTag }}
+        image: {{ .BackendImageURL | default "public.ecr.aws/w5n9a2g2/anynines/kubebind-backend" }}:{{ .BackendImageTag | default "v1.5.0" }}
         args:
         - --namespace-prefix=kube-bind-
         - --pretty-name=anynines
@@ -132,17 +132,17 @@ kind: Service
 metadata:
   name: anynines-backend
 spec:
-  type: {{ .ServiceType }}
+  type: {{ .ServiceType | default "ClusterIP" }}
   ports:
   - protocol: TCP
     name: anynines-backend
-    port: 80
+    port: 8080
     targetPort: 9443
   selector:
     app: anynines-backend
 ---
-apiVersion: networking.k8s.io/v1
-kind: Ingress
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
 metadata:
   name: anynines-backend
 {{- if and .EnableTLS .ACMCertificateARN }}
@@ -166,17 +166,16 @@ metadata:
     alb.ingress.kubernetes.io/success-codes: "200-399"
 {{- end }}
 spec:
-  ingressClassName: {{ .IngressClass }}
+  parentRefs:
+  - name: anynines-backend-gateway
   rules:
-  - http:
-      paths:
-      - pathType: Prefix
-        path: "/"
-        backend:
-          service:
-            name: anynines-backend
-            port:
-              number: 80
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /
+    backendRefs:
+    - name: anynines-backend
+      port: 8080
 ---
 apiVersion: v1
 kind: ServiceAccount

@@ -52,7 +52,7 @@ func checkKindClusterRunning(t *testing.T, clusterName string) {
 }
 
 func checkBackendRunning(t *testing.T, info ControlPlaneClusterInfo) {
-	resp, err := http.Get(fmt.Sprintf("http://%s:%s", info.Host, info.IngressPort))
+	resp, err := http.Get(fmt.Sprintf("http://%s:%s", info.Host, info.BackendExposurePort))
 	if err != nil {
 		t.Fatalf("expected backend to be reachable, got error %v", err)
 	}
@@ -86,5 +86,5 @@ spec:
 
 	k8sClient.KubectlWaitForResourceCondition("ready", "postgresqlinstances", "klutch-test-pg", "-A", "--timeout=120s")
 
-	k8sClient.DeleteFromManifest(claim)
+	k8sClient.DeleteFromManifest(claim, false)
 }

@@ -433,17 +433,25 @@ func (k *KubeClient) DeleteFromFile(yamlFilepath string) {
 	if err != nil {
 		makeup.ExitDueToFatalError(err, "failed to read manifest file "+yamlFilepath)
 	}
-	k.DeleteFromManifest(string(manifestBytes))
+	k.DeleteFromManifest(string(manifestBytes), false)
 }
 
-func (k *KubeClient) DeleteFromManifest(manifest string) {
+func (k *KubeClient) DeleteKustomize(kustomizeFilepath string, ignoreNotFound bool) {
+	manifestBytes, err := os.ReadFile(kustomizeFilepath)
+	if err != nil {
+		makeup.ExitDueToFatalError(err, "failed to read manifest file "+kustomizeFilepath)
+	}
+	k.DeleteFromManifest(string(manifestBytes), ignoreNotFound)
+}
+
+func (k *KubeClient) DeleteFromManifest(manifest string, ignoreNotFound bool) {
 	obj, err := yaml.Parse(string(manifest))
 	if err != nil {
 		makeup.ExitDueToFatalError(err, "failed to parse manifest:\n"+string(manifest))
 	}
 
 	// Use the unified delete wrapper
-	if _, err := k.Delete(obj.GetKind(), obj.GetName(), obj.GetNamespace(), "", false); err != nil {
+	if _, err := k.Delete(obj.GetKind(), obj.GetName(), obj.GetNamespace(), "", ignoreNotFound); err != nil {
 		makeup.ExitDueToFatalError(err, fmt.Sprintf("failed to delete resource %s/%s in namespace %s (manifest: %s):\n ", obj.GetKind(), obj.GetName(), obj.GetNamespace(), manifest))
 	}
 }

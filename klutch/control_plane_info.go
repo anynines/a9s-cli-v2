@@ -42,8 +42,8 @@ func LoadControlPlaneInfoFromCluster(kubeContext string) (ControlPlaneClusterInf
 		return ControlPlaneClusterInfo{}, err
 	}
 	info := ControlPlaneClusterInfo{
-		Host:        cm.Data["host"],
-		IngressPort: cm.Data["ingressPort"],
+		Host:                cm.Data["host"],
+		BackendExposurePort: cm.Data["ingressPort"],
 	}
 	return info, nil
 }
@@ -59,7 +59,7 @@ func SaveControlPlaneInfoToCluster(kubeContext string, info ControlPlaneClusterI
 		},
 		Data: map[string]string{
 			"host":        info.Host,
-			"ingressPort": info.IngressPort,
+			"ingressPort": info.BackendExposurePort,
 		},
 	}
 	_, err := clientset.CoreV1().ConfigMaps(controlPlaneInfoConfigMapNamespace).Update(context.Background(), cm, metav1.UpdateOptions{})
@@ -73,7 +73,7 @@ func SaveControlPlaneInfoToCluster(kubeContext string, info ControlPlaneClusterI
 // It assumes https unless the port is explicitly 80.
 func DefaultBindURLFromInfo(info ControlPlaneClusterInfo) string {
 	host := info.Host
-	port := info.IngressPort
+	port := info.BackendExposurePort
 	if host == "" {
 		return ""
 	}

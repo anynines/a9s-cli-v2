@@ -13,9 +13,13 @@ var (
 // It only considers ipv4 IPs from private ranges.
 // TODO: is a ipv4 address always guaranteed in the local network?
 // TODO: inform users that a network change will cause their demo to break
-// TODO: listening on this IP implies that the kind cluster and ingress will be reachable by anyone in the user's local network.
+// TODO: listening on this IP implies that the kind cluster and bind backend will be reachable by anyone in the user's local network.
 // Find/review alternative solutions to avoid this security risk
 func determineHostLocalIP() (string, error) {
+	if LoopbackMode {
+		return "127.0.0.1", nil
+	}
+
 	ifAddrs, err := net.InterfaceAddrs()
 	if err != nil {
 		return "", err

@@ -17,20 +17,20 @@ import (
 var dexManifestsTemplate string
 
 type dexTemplateVars struct {
-	Host              string
-	HostPort          string
-	IngressPort       string
-	DexClientSecret   string
-	IngressClass      string
-	Scheme            string
-	ServiceType       string
-	NodePort          int
-	ACMCertificateARN string
-	EnableTLS         bool
-	ConfigChecksum    string
+	Host                string
+	HostPort            string
+	BackendExposurePort string
+	DexClientSecret     string
+	IngressClass        string
+	Scheme              string
+	ServiceType         string
+	NodePort            int
+	ACMCertificateARN   string
+	EnableTLS           bool
+	ConfigChecksum      string
 }
 
-func (k *KlutchManager) DeployDex(hostIP string, ingressPort string, ingressClass string, scheme string, acmCertificateARN string) {
+func (k *KlutchManager) DeployDex(hostIP string, backendExposurePort string, ingressClass string, scheme string, acmCertificateARN string) {
 	makeup.PrintH1("Deploying Dex Idp...")
 
 	client := k.cpK8s.GetKubernetesClientSet()
@@ -38,15 +38,15 @@ func (k *KlutchManager) DeployDex(hostIP string, ingressPort string, ingressClas
 	dexClientSecret := k.getOIDCIssuerClientSecret(client, bg)
 
 	templateVars := &dexTemplateVars{
-		Host:              hostIP,
-		HostPort:          formatHostWithPort(scheme, hostIP, ingressPort),
-		IngressPort:       ingressPort,
-		DexClientSecret:   dexClientSecret,
-		IngressClass:      ingressClass,
-		Scheme:            scheme,
-		ACMCertificateARN: acmCertificateARN,
-		EnableTLS:         acmCertificateARN != "" && ingressClass == "alb",
-		ConfigChecksum:    dexConfigChecksum(hostIP, scheme, ingressPort, acmCertificateARN),
+		Host:                hostIP,
+		HostPort:            formatHostWithPort(scheme, hostIP, backendExposurePort),
+		BackendExposurePort: backendExposurePort,
+		DexClientSecret:     dexClientSecret,
+		IngressClass:        ingressClass,
+		Scheme:              scheme,
+		ACMCertificateARN:   acmCertificateARN,
+		EnableTLS:           acmCertificateARN != "" && ingressClass == "alb",
+		ConfigChecksum:      dexConfigChecksum(hostIP, scheme, backendExposurePort, acmCertificateARN),
 	}
 
 	// ALB requires NodePort when using instance targets; keep ClusterIP for local/demo (nginx).

@@ -14,13 +14,15 @@ import (
 
 	"github.com/anynines/a9s-cli-v2/demo"
 	"github.com/anynines/a9s-cli-v2/k8s"
-	klutchaws "github.com/anynines/a9s-cli-v2/klutch/aws"
 	"github.com/anynines/a9s-cli-v2/makeup"
 	prereq "github.com/anynines/a9s-cli-v2/prerequisites"
 	"github.com/anynines/klutchio/bind/deploy/crd"
 	"github.com/google/uuid"
 	"gopkg.in/yaml.v2"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	sigyaml "sigs.k8s.io/yaml"
+
+	klutchaws "github.com/anynines/a9s-cli-v2/klutch/aws"
 )
 
 const (
@@ -35,14 +37,18 @@ const (
 )
 
 var (
-	PortFlag        int = 8080
-	publicResolvers     = []string{"8.8.8.8:53", "1.1.1.1:53"}
+	PortFlag        int  = 8080
+	LoopbackMode    bool = false
+	publicResolvers      = []string{"8.8.8.8:53", "1.1.1.1:53"}
+
+	//go:embed templates/proxySidecarPatch.tmpl
+	proxySidecarPatch string
 )
 
 // ControlPlaneClusterInfo contains information about the created Control Plane Cluster.
 type ControlPlaneClusterInfo struct {
-	Host        string `yaml:"host"`
-	IngressPort string `yaml:"ingressPort"`
+	Host                string `yaml:"host"`
+	BackendExposurePort string `yaml:"backendExposurePort"`
 }
 
 type KlutchManager struct {
@@ -91,7 +97,7 @@ func DeployKlutchClusters() {
 	checkDeployPrerequisites()
 
 	klutch := NewKlutchManager()
-	klutch.deployControlPlaneCluster()
+	klutch.deployKindControlPlaneCluster()
 	klutch.deployAppCluster()
 	printSummary()
 }
@@ -181,6 +187,10 @@ func ApplyKlutchControlPlane(host string, ingressPort int, acmCertificateARN str
 }
 
 func (k *KlutchManager) deployControlPlaneCluster() {
+	k.deployKindControlPlaneCluster()
+}
+
+func (k *KlutchManager) deployKindControlPlaneCluster() {
 	hostIP, err := determineHostLocalIP()
 	if err != nil {
 		makeup.ExitDueToFatalError(err, "Couldn't obtain the host's local IP address. Aborting...")
@@ -199,6 +209,10 @@ func (k *KlutchManager) deployControlPlaneCluster() {
 	k.WaitForIngressNginx()
 
 	scheme := determineIngressScheme(ingressClass, false)
+
+	// TODO(jlu) fix this after the merge conflicts have been resolved
+	// k.DeployEnvoyGateway()
+	// k.WaitForEnvoyGateway()
 
 	k.DeployDex(hostIP, port, ingressClass, scheme, "")
 	k.WaitForDex()
@@ -822,11 +836,11 @@ func printControlPlaneSummary(workDir string) {
 	makeup.PrintSuccessSummary("You are now ready to bind APIs from an App Cluster using the `a9s klutch bind` command.")
 }
 
-// Writes information about the Control Plane Cluster to a file and ConfigMap, to give other commands such as `bind` the information they need.
-func writeControlPlaneClusterInfoToFile(workDir string, hostIP string, ingressPort string) {
+// Writes information about the Control Plane Cluster to a file, to give other commands such as `bind` the information they need.
+func writeControlPlaneClusterInfoToFile(workDir string, hostIP string, backendExposurePort string) {
 	info := &ControlPlaneClusterInfo{
-		Host:        hostIP,
-		IngressPort: ingressPort,
+		Host:                hostIP,
+		BackendExposurePort: backendExposurePort,
 	}
 
 	data, err := yaml.Marshal(info)
@@ -873,6 +887,37 @@ func checkDeployPrerequisites() {
 	prereq.CheckRequiredTools(requiredTools)
 
 	prereq.CheckDockerRunning()
+}
+
+func (k *KlutchManager) addLoopbackProxyToDeployment(k8sClient *k8s.KubeClient, deploymentNamespace, deploymentName, proxyName, port string) {
+	makeup.PrintWait(`Loopback Mode is active, checking for proxy "` + proxyName + `" for port ` + port + ` to Host Loopback Device to Deployment "` +
+		deploymentName + `" in namespace "` + deploymentNamespace + `"`)
+	templateVars := struct{ Name, Port, Operation, ContainerIndex string }{proxyName, port, "add", "-"}
+	deployment, err := k8sClient.GetKubernetesClientSet().AppsV1().Deployments(deploymentNamespace).Get(context.Background(), deploymentName, metav1.GetOptions{})
+	if err != nil {
+		makeup.ExitDueToFatalError(err, `Failed to retrieve Deployment "`+deploymentNamespace+"/"+deploymentName+`" to check for existing proxy`)
+	}
+
+	for i, container := range deployment.Spec.Template.Spec.Containers {
+		if container.Name == proxyName {
+			makeup.PrintWait("Proxy container already exists, switching patch operation to 'replace'")
+			templateVars.Operation = "replace"
+			templateVars.ContainerIndex = fmt.Sprintf("%d", i)
+			break
+		}
+	}
+
+	// TODO(jlu) fix this after the merge conflicts have been resolved
+	// deploymentPatch, err := renderTemplate(proxySidecarPatch, templateVars)
+	// if err != nil {
+	// 	makeup.ExitDueToFatalError(err, `Failed to render the template for patching the Deployment "`+deploymentNamespace+"/"+deploymentName+`"`)
+	// }
+	// _, output, err := k8sClient.Kubectl(demo.UnattendedMode, "patch", "deployment", "-n", deploymentNamespace, deploymentName,
+	// 	"--type=json", "-p="+deploymentPatch.String(),
+	// )
+	// if err != nil {
+	// 	makeup.ExitDueToFatalError(err, `Failed to apply prox patch for Deployment "`+deploymentNamespace+"/"+deploymentName+`": `+string(output))
+	// }
 }
 
 // Checks if prerequisites of the control plane install command are met.

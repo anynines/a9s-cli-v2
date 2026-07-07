@@ -168,8 +168,12 @@ func (m *A8sDemoManager) ApplyA8sManifests() {
 
 	kustomizePath := filepath.Join(DemoConfig.WorkingDir, demoA8sDeploymentLocalDir, "deploy", "a8s", "manifests")
 
-	if _, err := m.K8s.ApplyKustomize(kustomizePath); err != nil {
-		makeup.ExitDueToFatalError(err, fmt.Sprintf("Failed to apply kustomize from: %s", kustomizePath))
+	if out, err := m.K8s.ApplyKustomize(kustomizePath); err != nil {
+		makeup.PrintWarning(fmt.Sprintf("Apply failed, attempting delete and re-apply: %s", string(out)))
+		m.K8s.DeleteKustomize(kustomizePath, true)
+		if out, err := m.K8s.ApplyKustomize(kustomizePath); err != nil {
+			makeup.ExitDueToFatalError(err, fmt.Sprintf("Failed to apply kustomize from %s: %s", kustomizePath, string(out)))
+		}
 	}
 
 	makeup.PrintCheckmark("Done applying a8s manifests.")
