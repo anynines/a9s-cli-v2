@@ -1,0 +1,24 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: dex-ingress
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+{{- if and .EnableTLS .ACMCertificateARN }}
+    alb.ingress.kubernetes.io/certificate-arn: "{{ .ACMCertificateARN }}"
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443},{"HTTP":80}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    alb.ingress.kubernetes.io/backend-protocol: HTTP
+{{- end }}
+spec:
+  ingressClassName: {{ .IngressClass }}
+  rules:
+  - http:
+      paths:
+      - pathType: Prefix
+        path: "/dex"
+        backend:
+          service:
+            name: dex
+            port:
+              number: 5556

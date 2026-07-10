@@ -43,7 +43,13 @@ func DeployControlPlaneKindCluster(clusterName string, hostIP string, backendExp
 		makeup.ExitDueToFatalError(err, fmt.Sprintf("Failed to render template with parameters %+v.", templateVars))
 	}
 
+	if renderedTemplate.Len() == 0 {
+		makeup.ExitDueToFatalError(fmt.Errorf("rendered template is empty"), fmt.Sprintf("Failed to render template with parameters %+v.", templateVars))
+	}
+
 	makeup.PrintH2("Creating a kind cluster with following config: ")
+
+	makeup.Print(renderedTemplate.String())
 
 	if out, err := makeup.NewCommand("kind", "create", "cluster", "--config", "-").Stdin(renderedTemplate.Bytes()).WithPrompt().Run(); err != nil {
 		makeup.ExitDueToFatalError(err, "An error occurred while executing the command 'kind create cluster':\n"+string(out))

@@ -16,6 +16,12 @@ import (
 //go:embed templates/dex.tmpl
 var dexManifestsTemplate string
 
+//go:embed manifests/gatewayNetworkingResourcesDex.yaml
+var dexNetworkingResourcesGatewayManifest string
+
+//go:embed templates/ingressNetworkingResourcesDex.tmpl
+var dexNetworkingResourcesIngressTemplate string
+
 type dexTemplateVars struct {
 	Host                string
 	HostPort            string
@@ -47,14 +53,20 @@ func (k *KlutchManager) DeployDex(hostIP string, backendExposurePort string, ing
 		ACMCertificateARN:   acmCertificateARN,
 		EnableTLS:           acmCertificateARN != "" && ingressClass == "alb",
 		ConfigChecksum:      dexConfigChecksum(hostIP, scheme, backendExposurePort, acmCertificateARN),
+		ServiceType:         "ClusterIP",
 	}
+
+	networkingResourcesManifests := []byte(dexNetworkingResourcesGatewayManifest)
 
 	// ALB requires NodePort when using instance targets; keep ClusterIP for local/demo (nginx).
 	if ingressClass == "alb" {
 		templateVars.ServiceType = "NodePort"
 		templateVars.NodePort = 32556
-	} else {
-		templateVars.ServiceType = "ClusterIP"
+		manifests, err := renderTemplate(dexNetworkingResourcesIngressTemplate, templateVars)
+		if err != nil {
+			makeup.ExitDueToFatalError(err, "Could not render the dex ingress networking resources manifests.")
+		}
+		networkingResourcesManifests = manifests.Bytes()
 	}
 
 	manifests, err := renderTemplate(dexManifestsTemplate, templateVars)
@@ -65,6 +77,10 @@ func (k *KlutchManager) DeployDex(hostIP string, backendExposurePort string, ing
 	// Note: Manifest display and waiting are handled by KubectlApplyWithPrompt
 	if _, err := k.cpK8s.ApplyWithPrompt(manifests.Bytes(), "dex manifests"); err != nil {
 		makeup.ExitDueToFatalError(err, "Failed to apply dex manifests")
+	}
+
+	if _, err := k.cpK8s.ApplyWithPrompt(networkingResourcesManifests, "dex networking resources"); err != nil {
+		makeup.ExitDueToFatalError(err, "Failed to apply dex networking resources")
 	}
 
 	makeup.Print("Done applying the dex manifests.")

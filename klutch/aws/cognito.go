@@ -339,9 +339,9 @@ func buildTenantUserPoolTags(ctx context.Context, region, tenantUUID, tenantName
 	// For Cognito CLI, user-pool-tags expects a single comma-separated map string.
 	tagMap := []string{
 		"Klutch=ControlPlane",
-		fmt.Sprintf("%s=%s", KlutchTenantNameTagKey, tenantName),
+		fmt.Sprintf("%s=%s", KlutchTenantNameTagKey, resourceName),
 		fmt.Sprintf("KlutchTenantUUID=%s", tenantUUID),
-		fmt.Sprintf("Name=%s", resourceName),
+		fmt.Sprintf("Name=%s", tenantName),
 		fmt.Sprintf("eks.cluster/name=%s", clusterName),
 		fmt.Sprintf("eks.cluster/id=%s", clusterArn),
 	}

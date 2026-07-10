@@ -205,14 +205,11 @@ func (k *KlutchManager) deployKindControlPlaneCluster() {
 
 	ingressClass := "nginx"
 
-	k.DeployIngressNginx()
-	k.WaitForIngressNginx()
-
 	scheme := determineIngressScheme(ingressClass, false)
 
-	// TODO(jlu) fix this after the merge conflicts have been resolved
-	// k.DeployEnvoyGateway()
-	// k.WaitForEnvoyGateway()
+	k.DeployEnvoyGateway()
+	k.WaitForEnvoyGateway()
+	k.DeployEnvoyConfiguration()
 
 	k.DeployDex(hostIP, port, ingressClass, scheme, "")
 	k.WaitForDex()
@@ -290,12 +287,7 @@ func (k *KlutchManager) applyControlPlaneToContext(provisioner CertificateProvis
 		makeup.PrintInfo(fmt.Sprintf("Using host `%s` for OIDC configuration.", publicHost))
 	}
 
-	if ingressClass == "nginx" {
-		k.DeployIngressNginx()
-		k.WaitForIngressNginx()
-	} else {
-		makeup.PrintInfo(fmt.Sprintf("Ingress class `%s` detected. Skipping ingress-nginx installation.", ingressClass))
-	}
+	makeup.PrintInfo(fmt.Sprintf("Ingress class `%s` detected. Skipping ingress-nginx installation.", ingressClass))
 
 	waitHost := backendHost
 	if waitHost == "" {
@@ -360,92 +352,7 @@ func (k *KlutchManager) applyControlPlaneToContext(provisioner CertificateProvis
 	// If we're using ALB, wait for the ingress hostnames. When a hosted zone is available, create a CNAME
 	// or ALIAS to the ALB and keep using the public hosts; otherwise fall back to using the ALB hostname directly.
 	if ingressClass == "alb" {
-		dexIngressHost := ""
-		if useDex {
-			dexIngressHost = waitForIngressHost(k.cpK8s, "dex-ingress", "default")
-			if dexIngressHost == "" {
-				makeup.ExitDueToFatalError(nil, "Could not determine ingress hostname/IP for dex. Aborting instead of using the Kubernetes API server host.")
-			}
-		}
-
-		backendIngressHost := waitForIngressHost(k.cpK8s, "anynines-backend", "default")
-		if backendIngressHost == "" {
-			backendIngressHost = dexIngressHost
-		}
-		if backendIngressHost == "" {
-			makeup.ExitDueToFatalError(nil, "Could not determine ingress hostname/IP for the Klutch backend.")
-		}
-
-		defaultIngressTarget := backendIngressHost
-		if defaultIngressTarget == "" {
-			defaultIngressTarget = dexIngressHost
-		}
-
-		if provisioner != nil && hostedZoneName != "" {
-			hostSet := map[string]struct{}{}
-			if publicHost != "" {
-				hostSet[publicHost] = struct{}{}
-			}
-			if backendHost != "" {
-				hostSet[backendHost] = struct{}{}
-			}
-
-			var aliasHosts []string
-			records := map[string]string{}
-			for h := range hostSet {
-				target := defaultIngressTarget
-				if h == backendHost && backendIngressHost != "" {
-					target = backendIngressHost
-				}
-				if h == dexHost && dexIngressHost != "" {
-					target = dexIngressHost
-				}
-
-				if h == zone {
-					if target == "" {
-						makeup.ExitDueToFatalError(nil, fmt.Sprintf("No ingress target available for alias host %s", h))
-					}
-					aliasHosts = append(aliasHosts, h)
-					continue
-				}
-
-				records[h] = target
-			}
-
-			if len(aliasHosts) > 0 {
-				makeup.PrintInfo(fmt.Sprintf("Planned action: create/update ALIAS %v -> %s in hosted zone %s for ingress.", aliasHosts, defaultIngressTarget, hostedZoneName))
-				makeup.WaitForUser()
-				for _, h := range aliasHosts {
-					target := defaultIngressTarget
-					if h == backendHost && backendIngressHost != "" {
-						target = backendIngressHost
-					}
-					if h == dexHost && dexIngressHost != "" {
-						target = dexIngressHost
-					}
-					if err := provisioner.EnsureALBAliasRecord(hostedZoneName, h, target); err != nil {
-						makeup.ExitDueToFatalError(err, fmt.Sprintf("Could not create ALIAS record in hosted zone %s.", hostedZoneName))
-					}
-				}
-				makeup.PrintInfo(fmt.Sprintf("Ensured DNS ALIAS %v -> ingress hostnames in hosted zone %s.", aliasHosts, hostedZoneName))
-			}
-
-			if len(records) > 0 {
-				makeup.PrintInfo(fmt.Sprintf("Planned action: create/update CNAMEs %v -> ingress hosts in hosted zone %s.", keys(records), hostedZoneName))
-				makeup.WaitForUser()
-
-				makeup.PrintInfo("Waiting for DNS CNAME propagation; this can take several minutes depending on your registrar (up to 30m).")
-				if err := provisioner.EnsureCNAMERecords(hostedZoneName, records); err != nil {
-					makeup.ExitDueToFatalError(err, fmt.Sprintf("Could not create CNAME records in hosted zone %s.", hostedZoneName))
-				}
-				makeup.PrintInfo(fmt.Sprintf("Ensured DNS CNAMEs %v -> ingress hosts in hosted zone %s.", keys(records), hostedZoneName))
-
-				// Verify DNS reflects the expected targets.
-				for h, target := range records {
-					waitForCNAMERecord(h, target, 30*time.Minute)
-				}
-			}
-		}
+		SetupAlbDnsRecords(useDex, k, provisioner, hostedZoneName, publicHost, backendHost, dexHost, zone)
 	}
 
 	k.WaitForBindBackend(waitHost, ingressPort, scheme)
@@ -458,6 +365,104 @@ func (k *KlutchManager) applyControlPlaneToContext(provisioner CertificateProvis
 	makeup.WaitForUser()
 	a8s := demo.NewA8sDemoManager(k.cpContext)
 	a8s.DeployA8sStack()
+}
+
+func SetupAlbDnsRecords(useDex bool, k *KlutchManager, provisioner CertificateProvisioner, hostedZoneName string, publicHost string, backendHost string, dexHost string, zone string) {
+	if provisioner == nil || hostedZoneName == "" {
+		return
+	}
+
+	dexIngressHost := ""
+	if useDex {
+		dexIngressHost = waitForIngressHost(k.cpK8s, "dex-ingress", "default")
+		if dexIngressHost == "" {
+			makeup.ExitDueToFatalError(nil, "Could not determine ingress hostname/IP for dex. Aborting instead of using the Kubernetes API server host.")
+		}
+	}
+
+	backendIngressHost := waitForIngressHost(k.cpK8s, "anynines-backend", "default")
+	if backendIngressHost == "" {
+		backendIngressHost = dexIngressHost
+	}
+	if backendIngressHost == "" {
+		makeup.ExitDueToFatalError(nil, "Could not determine ingress hostname/IP for the Klutch backend.")
+	}
+
+	defaultIngressTarget := backendIngressHost
+	if defaultIngressTarget == "" {
+		defaultIngressTarget = dexIngressHost
+	}
+
+	hostSet := map[string]struct{}{}
+	if publicHost != "" {
+		hostSet[publicHost] = struct{}{}
+	}
+	if backendHost != "" {
+		hostSet[backendHost] = struct{}{}
+	}
+
+	var aliasHosts []string
+	records := map[string]string{}
+	for h := range hostSet {
+		aliasHosts = createOrUpdateDNSRecords(defaultIngressTarget, h, backendHost, backendIngressHost, dexHost, dexIngressHost, zone, aliasHosts, records, hostedZoneName, provisioner)
+	}
+}
+
+func createOrUpdateDNSRecords(defaultIngressTarget string, h string, backendHost string, backendIngressHost string, dexHost string, dexIngressHost string, zone string, aliasHosts []string, records map[string]string, hostedZoneName string, provisioner CertificateProvisioner) []string {
+	target := defaultIngressTarget
+	if h == backendHost && backendIngressHost != "" {
+		target = backendIngressHost
+	}
+	if h == dexHost && dexIngressHost != "" {
+		target = dexIngressHost
+	}
+
+	if h == zone {
+		if target == "" {
+			makeup.ExitDueToFatalError(nil, fmt.Sprintf("No ingress target available for alias host %s", h))
+		}
+		aliasHosts = append(aliasHosts, h)
+		return aliasHosts
+	}
+
+	records[h] = target
+
+	if len(aliasHosts) == 0 {
+		return aliasHosts
+	}
+	makeup.PrintInfo(fmt.Sprintf("Planned action: create/update ALIAS %v -> %s in hosted zone %s for ingress.", aliasHosts, defaultIngressTarget, hostedZoneName))
+	makeup.WaitForUser()
+	for _, h := range aliasHosts {
+		target := defaultIngressTarget
+		if h == backendHost && backendIngressHost != "" {
+			target = backendIngressHost
+		}
+		if h == dexHost && dexIngressHost != "" {
+			target = dexIngressHost
+		}
+		if err := provisioner.EnsureALBAliasRecord(hostedZoneName, h, target); err != nil {
+			makeup.ExitDueToFatalError(err, fmt.Sprintf("Could not create ALIAS record in hosted zone %s.", hostedZoneName))
+		}
+	}
+	makeup.PrintInfo(fmt.Sprintf("Ensured DNS ALIAS %v -> ingress hostnames in hosted zone %s.", aliasHosts, hostedZoneName))
+
+	if len(records) == 0 {
+		return aliasHosts
+	}
+	makeup.PrintInfo(fmt.Sprintf("Planned action: create/update CNAMEs %v -> ingress hosts in hosted zone %s.", keys(records), hostedZoneName))
+	makeup.WaitForUser()
+
+	makeup.PrintInfo("Waiting for DNS CNAME propagation; this can take several minutes depending on your registrar (up to 30m).")
+	if err := provisioner.EnsureCNAMERecords(hostedZoneName, records); err != nil {
+		makeup.ExitDueToFatalError(err, fmt.Sprintf("Could not create CNAME records in hosted zone %s.", hostedZoneName))
+	}
+	makeup.PrintInfo(fmt.Sprintf("Ensured DNS CNAMEs %v -> ingress hosts in hosted zone %s.", keys(records), hostedZoneName))
+
+	// Verify DNS reflects the expected targets.
+	for h, target := range records {
+		waitForCNAMERecord(h, target, 30*time.Minute)
+	}
+	return aliasHosts
 }
 
 func detectIngressClass(k8sClient *k8s.KubeClient) string {
@@ -907,17 +912,14 @@ func (k *KlutchManager) addLoopbackProxyToDeployment(k8sClient *k8s.KubeClient, 
 		}
 	}
 
-	// TODO(jlu) fix this after the merge conflicts have been resolved
-	// deploymentPatch, err := renderTemplate(proxySidecarPatch, templateVars)
-	// if err != nil {
-	// 	makeup.ExitDueToFatalError(err, `Failed to render the template for patching the Deployment "`+deploymentNamespace+"/"+deploymentName+`"`)
-	// }
-	// _, output, err := k8sClient.Kubectl(demo.UnattendedMode, "patch", "deployment", "-n", deploymentNamespace, deploymentName,
-	// 	"--type=json", "-p="+deploymentPatch.String(),
-	// )
-	// if err != nil {
-	// 	makeup.ExitDueToFatalError(err, `Failed to apply prox patch for Deployment "`+deploymentNamespace+"/"+deploymentName+`": `+string(output))
-	// }
+	deploymentPatch, err := renderTemplate(proxySidecarPatch, templateVars)
+	if err != nil {
+		makeup.ExitDueToFatalError(err, `Failed to render the template for patching the Deployment "`+deploymentNamespace+"/"+deploymentName+`"`)
+	}
+	output, err := k8sClient.PatchWithPrompt("deployment", deploymentName, deploymentNamespace, deploymentPatch.String(), "proxy sidecar")
+	if err != nil {
+		makeup.ExitDueToFatalError(err, `Failed to apply prox patch for Deployment "`+deploymentNamespace+"/"+deploymentName+`": `+string(output))
+	}
 }
 
 // Checks if prerequisites of the control plane install command are met.

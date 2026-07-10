@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/anynines/a9s-cli-v2/makeup"
 )
 
 const defaultTenantSecretPrefix = "klutch/"
@@ -56,14 +58,28 @@ func GetTenantCredentials(ctx context.Context, region string, secretName string)
 }
 
 // DeleteTenantSecret deletes a tenant secret from Secrets Manager.
-func DeleteTenantSecret(ctx context.Context, region string, secretName string) error {
+func DeleteTenantSecret(ctx context.Context, region string, secretName string) (bool, error) {
+	retrievalCommand := makeup.NewCommand(
+		"aws", "secretsmanager", "describe-secret",
+		"--secret-id", secretName,
+		"--region", region,
+	)
+
+	if out, err := retrievalCommand.NoPrompt().SuppressOutput().Run(); err != nil {
+		if !strings.Contains(string(out), "ResourceNotFoundException") {
+			return false, fmt.Errorf("Failed to describe secret %s in %s: %w", secretName, region, err)
+		}
+		makeup.PrintWarning(fmt.Sprintf("Secret %s not found in %s. Make sure that you provide the correct tenant name.", secretName, region))
+		return false, nil
+	}
+
 	if errOut, err := runCmd(ctx, true, false, "aws", "secretsmanager", "delete-secret",
 		"--region", region,
 		"--secret-id", secretName,
 		"--force-delete-without-recovery"); err != nil {
-		return fmt.Errorf("could not delete secret %s: %w (stderr: %s)", secretName, err, errOut)
+		return false, fmt.Errorf("could not delete secret %s: %w (stderr: %s)", secretName, err, errOut)
 	}
-	return nil
+	return true, nil
 }
 
 // TenantSecretExists returns true if the secret exists.

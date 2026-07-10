@@ -229,10 +229,15 @@ var cmdDeleteKlutchTenant = &cobra.Command{
 			makeup.PrintWarning(fmt.Sprintf("This will delete Secrets Manager secret %s in %s.", secretName, region))
 		}
 
-		if err := klutchaws.DeleteTenantSecret(context.Background(), region, secretName); err != nil {
+		deleted, err := klutchaws.DeleteTenantSecret(context.Background(), region, secretName)
+		if err != nil {
 			makeup.ExitDueToFatalError(err, "Failed to delete tenant secret.")
 		}
-		makeup.PrintSuccessSummary(fmt.Sprintf("Deleted tenant secret %s in %s.", secretName, region))
+
+		if deleted {
+			makeup.PrintSuccessSummary(fmt.Sprintf("Deleted tenant secret %s in %s.", secretName, region))
+		}
+
 		if err := klutchaws.DeleteUserPoolsByTags(context.Background(), false, region, klutchaws.KlutchTenantNameTagKey, tenantName); err != nil {
 			makeup.ExitDueToFatalError(err, "Could not clean up Cognito User Pool for tenant "+tenantName)
 		}

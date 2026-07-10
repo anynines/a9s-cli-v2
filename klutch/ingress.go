@@ -35,28 +35,38 @@ const (
 	gatewayManifestsUrl = "https://github.com/envoyproxy/gateway/releases/download/v1.7.1/install.yaml"
 )
 
-// TODO(jlu) fix this after the merge conflicts have been resolved
-// // DeployEnvoyGateway applies the Envoy Gateway manifests and an additional configMap to configure it.
-// // The config increases the request header size limit to cope with bind's header sizes becoming very large.
-// func (k *KlutchManager) DeployEnvoyGateway() {
-// 	makeup.PrintH1("Applying Envoy Gateway manifests...")
+//go:embed manifests/gatewayNetworkingEnvoyConfig.yaml
+var envoyConfigManifests string
 
-// 	if _, _, err := k.cpK8s.Kubectl(demo.UnattendedMode, "apply", "-f", gatewayManifestsUrl, "--server-side", "--force-conflicts"); err != nil {
-// 		makeup.ExitDueToFatalError(err, "could not apply Envoy Gateway Manifests")
-// 	}
+// DeployEnvoyGateway applies the Envoy Gateway manifests and an additional configMap to configure it.
+// The config increases the request header size limit to cope with bind's header sizes becoming very large.
+func (k *KlutchManager) DeployEnvoyGateway() {
+	makeup.PrintH1("Applying Envoy Gateway manifests...")
 
-// 	makeup.Print("Done applying Envoy Gateway manifests.")
-// }
+	// if _, err := k.cpK8s.ApplyFromUrlWithServerSideAndForceConflicts(gatewayCRDsUrl, "Apply Envoy Gateway CRDs"); err != nil {
+	// 	makeup.ExitDueToFatalError(err, "could not apply Gateway API CRDs")
+	// }
+	if _, err := k.cpK8s.ApplyFromUrlWithServerSideAndForceConflicts(gatewayManifestsUrl, "Apply Envoy Gateway manifests"); err != nil {
+		makeup.ExitDueToFatalError(err, "could not apply Envoy Gateway Manifests")
+	}
 
-func (k *KlutchManager) WaitForIngressNginx() {
-	makeup.PrintH1("Waiting for Ingress Nginx to become ready...")
+	makeup.Print("Done applying Envoy Gateway manifests.")
+}
 
-	k.cpK8s.KubectlWaitForRollout("deployment", "ingress-nginx-controller", "ingress-nginx")
-	k.cpK8s.KubectlWaitForResourceCondition("complete", "job", "ingress-nginx-admission-create", "ingress-nginx", "")
-	k.cpK8s.KubectlWaitForResourceCondition("complete", "job", "ingress-nginx-admission-patch", "ingress-nginx", "")
+func (k *KlutchManager) WaitForEnvoyGateway() {
+	makeup.PrintH1("Waiting for Envoy Gateway to become ready...")
 
-	// TODO(jlu) fix this after the merge conflicts have been resolved
-	// k.cpK8s.KubectlWaitForRollout("deployment", "envoy-gateway", "envoy-gateway-system")
+	k.cpK8s.KubectlWaitForRollout("deployment", "envoy-gateway", "envoy-gateway-system")
 
-	// makeup.PrintCheckmark("Envoy Gateway appears to be ready.")
+	makeup.PrintCheckmark("Envoy Gateway appears to be ready.")
+}
+
+func (k *KlutchManager) DeployEnvoyConfiguration() {
+	makeup.PrintH1("Applying Envoy Gateway configuration...")
+
+	if out, err := k.cpK8s.ApplyWithPrompt([]byte(envoyConfigManifests), "Envoy Gateway configuration"); err != nil {
+		makeup.ExitDueToFatalError(err, "Failed to apply Envoy Gateway configuration: "+string(out))
+	}
+
+	makeup.Print("Done applying Envoy Gateway configuration.")
 }

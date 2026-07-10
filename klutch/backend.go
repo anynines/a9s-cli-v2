@@ -23,6 +23,12 @@ const (
 //go:embed templates/backend.tmpl
 var bindBackendManifestsTemplate string
 
+//go:embed manifests/gatewayNetworkingResourcesBackend.yaml
+var bindBackendNetworkingResourcesGatewayManifest string
+
+//go:embed templates/ingressNetworkingResourcesBackend.tmpl
+var bindBackendNetworkingResourcesIngressTemplate string
+
 type backendTemplateVars struct {
 	Host                string
 	K8sApiPort          string
@@ -44,7 +50,7 @@ type backendTemplateVars struct {
 
 const (
 	defaultBackendImageURL = "public.ecr.aws/w5n9a2g2/anynines/kubebind-backend"
-	defaultBackendImageTag = "dev5"
+	defaultBackendImageTag = "v1.5.1-KLT-994-tenants"
 	externalCASecretName   = "klutch-bind-external-ca"
 )
 
@@ -151,7 +157,7 @@ func (k *KlutchManager) DeployBindBackend(host string, ingressPort string, ingre
 		}
 	}
 
-	clusterPort := getClusterExternalPort(contextControlPlane)
+	clusterPort := getClusterExternalPort(k.cpContext)
 
 	templateVars := &backendTemplateVars{
 		Host:                host,
@@ -169,12 +175,22 @@ func (k *KlutchManager) DeployBindBackend(host string, ingressPort string, ingre
 		ACMCertificateARN:   acmCertificateARN,
 		EnableTLS:           enableTLS,
 		WaitForDex:          waitForDex,
+		ServiceType:         "ClusterIP",
 	}
+
+	networkingResourcesManifests := []byte(bindBackendNetworkingResourcesGatewayManifest)
 
 	if ingressClass == "alb" {
 		templateVars.ServiceType = "NodePort"
+		manifests, err := renderTemplate(bindBackendNetworkingResourcesIngressTemplate, templateVars)
+		if err != nil {
+			makeup.ExitDueToFatalError(err, "Could not render the klutch-bind ingress networking resources manifests.")
+		}
+		networkingResourcesManifests = manifests.Bytes()
 	} else {
-		templateVars.ServiceType = "ClusterIP"
+		k.DeployEnvoyGateway()
+		k.WaitForEnvoyGateway()
+		k.DeployEnvoyConfiguration()
 	}
 
 	manifests, err := renderTemplate(bindBackendManifestsTemplate, templateVars)
@@ -182,13 +198,18 @@ func (k *KlutchManager) DeployBindBackend(host string, ingressPort string, ingre
 		makeup.ExitDueToFatalError(err, "Could not render the klutch-bind backend manifests.")
 	}
 
-	if LoopbackMode {
-		k.addLoopbackProxyToDeployment(k.cpK8s, "default", "anynines-backend", "external-exposure-proxy", strconv.Itoa(PortFlag))
-		k.addLoopbackProxyToDeployment(k.cpK8s, "default", "anynines-backend", "k8s-api-proxy", clusterPort)
-	}
 	// Note: Manifest display and waiting are handled by KubectlApplyWithPrompt
 	if _, err = k.cpK8s.ApplyWithPrompt(manifests.Bytes(), "klutch-bind backend"); err != nil {
 		makeup.ExitDueToFatalError(err, "Failed to apply klutch-bind backend manifests")
+	}
+
+	if _, err = k.cpK8s.ApplyWithPrompt(networkingResourcesManifests, "klutch-bind backend networking resources"); err != nil {
+		makeup.ExitDueToFatalError(err, "Failed to apply klutch-bind backend networking resources")
+	}
+
+	if LoopbackMode {
+		k.addLoopbackProxyToDeployment(k.cpK8s, "default", "anynines-backend", "external-exposure-proxy", strconv.Itoa(PortFlag))
+		k.addLoopbackProxyToDeployment(k.cpK8s, "default", "anynines-backend", "k8s-api-proxy", clusterPort)
 	}
 
 	makeup.Print("klutch-bind backend applied.")

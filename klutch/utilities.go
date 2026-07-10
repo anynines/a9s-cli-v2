@@ -8,14 +8,11 @@ import (
 	"fmt"
 	"io"
 	"net/url"
-	"os"
-	"path/filepath"
 	"text/template"
 
 	"github.com/anynines/a9s-cli-v2/k8s"
 	"github.com/anynines/a9s-cli-v2/makeup"
 	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/client-go/util/homedir"
 )
 
 // ByteGenerator is an interface for a basic random byte generator.
@@ -49,12 +46,7 @@ func getClusterCert(k8s *k8s.KubeClient) []byte {
 // getClusterURLFromKubeconfig returns the parsed server URL for the given context.
 // When kubeContext is empty, it uses the current context.
 func getClusterURLFromKubeconfig(kubeContext string) *url.URL {
-	var kubeconfig string
-	if _, err := os.Stat(os.Getenv("KUBECONFIG")); err == nil {
-		kubeconfig = os.Getenv("KUBECONFIG")
-	} else if home := homedir.HomeDir(); home != "" {
-		kubeconfig = filepath.Join(home, ".kube", "config")
-	}
+	kubeconfig := k8s.GetKubernetesConfigPath()
 
 	config, err := clientcmd.LoadFromFile(kubeconfig)
 	if err != nil {
@@ -68,7 +60,7 @@ func getClusterURLFromKubeconfig(kubeContext string) *url.URL {
 
 	ctx, exists := config.Contexts[contextToUse]
 	if !exists {
-		makeup.ExitDueToFatalError(err, fmt.Sprintf("context %s not found in kubeconfig", contextToUse))
+		makeup.ExitDueToFatalError(nil, fmt.Sprintf("context %s not found in kubeconfig", contextToUse))
 	}
 
 	cluster, exists := config.Clusters[ctx.Cluster]
@@ -92,11 +84,12 @@ func getClusterExternalPort(kubeContext string) string {
 
 	port := clusterURL.Port()
 	if port == "" {
-		if clusterURL.Scheme == "https" {
-			return "443"
-		} else if clusterURL.Scheme == "http" {
-			return "80"
-		} else {
+		switch clusterURL.Scheme {
+		case "https":
+			port = "443"
+		case "http":
+			port = "80"
+		default:
 			makeup.ExitDueToFatalError(nil, fmt.Sprintf("cannot determine port: unknown url scheme %s", clusterURL.Scheme))
 		}
 	}

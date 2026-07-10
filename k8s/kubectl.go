@@ -187,6 +187,29 @@ func promptUserForExecution(manifestBytes []byte, command string) bool {
 	}
 }
 
+// PatchWithPrompt is the unified wrapper for all kubectl patch operations.
+// It handles manifest display, user prompts, and the actual patch operation.
+// This is the ONLY function that should be used to patch manifests - all other code
+// should call this directly instead of using exec.Command or other wrappers.
+// Parameters:
+//   - manifestBytes: the YAML manifest content to patch
+//   - description: a brief description of what is being patched (for user feedback)
+func (k *KubeClient) PatchWithPrompt(resource, name, namespace, patch string, description string) (string, error) {
+	opts := KubectlOpts{
+		command:   "patch",
+		kind:      resource,
+		name:      name,
+		namespace: namespace,
+		additionalArgs: []string{
+			"--type", "json",
+			"-p", patch,
+		},
+	}
+
+	_, output, err := runKubeCtlCommand(opts.withContextFrom(k))
+	return string(output), err
+}
+
 // ApplyWithPrompt is the unified wrapper for all kubectl apply operations.
 // It handles manifest display, user prompts, and the actual apply operation.
 // This is the ONLY function that should be used to apply manifests - all other code
@@ -407,6 +430,19 @@ func (k *KubeClient) ApplyKustomize(kustomizeFilepath string) (string, error) {
 //   - manifestUrl: the URL to the manifest content to apply
 //   - description: a brief description of what is being applied (for user feedback)
 //   - unattendedMode: if true, skip all prompts and apply immediately (respects --yes flag)
+func (k *KubeClient) ApplyFromUrlWithServerSideAndForceConflicts(manifestUrl, description string) (string, error) {
+	opts := KubectlOpts{
+		command:  "apply",
+		filename: manifestUrl,
+		additionalArgs: []string{
+			"--server-side",
+			"--force-conflicts",
+		},
+	}
+	_, output, err := runKubeCtlCommand(opts.withContextFrom(k))
+	return string(output), err
+}
+
 func (k *KubeClient) ApplyFromUrl(manifestUrl, description string) (string, error) {
 	client := &http.Client{
 		Timeout: 30 * time.Second,
