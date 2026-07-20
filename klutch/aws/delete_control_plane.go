@@ -111,6 +111,7 @@ func deleteCluster(ctx context.Context, cfg Config, opts DeleteOptions) {
 		awsLogger.Fatalf(err, "Unable to determine AWS Account ID. Run 'aws configure'. stderr: %s", out)
 	}
 	awsLogger.Infof("AWS Account ID: %s", out)
+	cfg.AwsAccountId = strings.TrimSpace(out)
 
 	clusterExists, clusterReachable := discoverCluster(ctx, cfg, opts)
 
@@ -123,6 +124,18 @@ func deleteCluster(ctx context.Context, cfg Config, opts DeleteOptions) {
 		deleteNodegroupsAndCluster(ctx, cfg, opts)
 	} else {
 		awsLogger.Infof("Cluster does not exist. Skipping nodegroup/cluster deletion.")
+	}
+
+	// since we now know that the cluster does not exist anymore we can delete its Kubeconfig entry
+	contextName := fmt.Sprintf("arn:aws:eks:%s:%s:cluster/%s", cfg.Region, cfg.AwsAccountId, cfg.ClusterName)
+	out, err = runCmd(ctx, false, false, "kubectl", "config", "delete-context", contextName)
+	if err != nil {
+		if !strings.Contains(out, ", not in") {
+			awsLogger.Fatalf(err, "Failed to delete AWS context. stderr: %s", out)
+		}
+		makeup.PrintInfo("Context " + contextName + " does not exist (might already be gone).")
+	} else {
+		makeup.PrintCheckmark("Deleted AWS context " + contextName)
 	}
 
 	// Always remove the ClusterName tags all Hosted Zones
