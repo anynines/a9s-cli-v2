@@ -393,42 +393,45 @@ func SetupAlbDnsRecords(useDex bool, k *KlutchManager, provisioner CertificatePr
 		defaultIngressTarget = dexIngressHost
 	}
 
-	hostSet := map[string]struct{}{}
-	if publicHost != "" {
-		hostSet[publicHost] = struct{}{}
-	}
-	if backendHost != "" {
-		hostSet[backendHost] = struct{}{}
-	}
-
 	var aliasHosts []string
 	records := map[string]string{}
-	for h := range hostSet {
-		aliasHosts = createOrUpdateDNSRecords(defaultIngressTarget, h, backendHost, backendIngressHost, dexHost, dexIngressHost, zone, aliasHosts, records, hostedZoneName, provisioner)
+	if publicHost != "" {
+		aliasHosts, records = setTargetForHost(publicHost, defaultIngressTarget, backendHost, backendIngressHost, dexHost, dexIngressHost, zone, aliasHosts, records)
 	}
+	if backendHost != "" {
+		aliasHosts, records = setTargetForHost(backendHost, defaultIngressTarget, backendHost, backendIngressHost, dexHost, dexIngressHost, zone, aliasHosts, records)
+	}
+
+	ensureDnsAliasIngressHosts(defaultIngressTarget, backendHost, backendIngressHost, dexHost, dexIngressHost, aliasHosts, hostedZoneName, provisioner)
+	ensureDnsCnameIngressHosts(records, hostedZoneName, provisioner)
 }
 
-func createOrUpdateDNSRecords(defaultIngressTarget string, h string, backendHost string, backendIngressHost string, dexHost string, dexIngressHost string, zone string, aliasHosts []string, records map[string]string, hostedZoneName string, provisioner CertificateProvisioner) []string {
+func setTargetForHost(currentHost, defaultIngressTarget, backendHost, backendIngressHost, dexHost, dexIngressHost, zone string, aliasHosts []string, records map[string]string) ([]string, map[string]string) {
+	makeup.PrintInfo(fmt.Sprintf("Determining ingress target for host %s...", currentHost))
 	target := defaultIngressTarget
-	if h == backendHost && backendIngressHost != "" {
+	if currentHost == backendHost && backendIngressHost != "" {
 		target = backendIngressHost
 	}
-	if h == dexHost && dexIngressHost != "" {
+	if currentHost == dexHost && dexIngressHost != "" {
 		target = dexIngressHost
 	}
 
-	if h == zone {
+	if currentHost == zone {
 		if target == "" {
-			makeup.ExitDueToFatalError(nil, fmt.Sprintf("No ingress target available for alias host %s", h))
+			makeup.ExitDueToFatalError(nil, fmt.Sprintf("No ingress target available for alias host %s", currentHost))
 		}
-		aliasHosts = append(aliasHosts, h)
-		return aliasHosts
+		aliasHosts = append(aliasHosts, currentHost)
+		return aliasHosts, records
 	}
 
-	records[h] = target
+	records[currentHost] = target
+	return aliasHosts, records
+}
+
+func ensureDnsAliasIngressHosts(defaultIngressTarget string, backendHost string, backendIngressHost string, dexHost string, dexIngressHost string, aliasHosts []string, hostedZoneName string, provisioner CertificateProvisioner) {
 
 	if len(aliasHosts) == 0 {
-		return aliasHosts
+		return
 	}
 	makeup.PrintInfo(fmt.Sprintf("Planned action: create/update ALIAS %v -> %s in hosted zone %s for ingress.", aliasHosts, defaultIngressTarget, hostedZoneName))
 	makeup.WaitForUser()
@@ -445,9 +448,11 @@ func createOrUpdateDNSRecords(defaultIngressTarget string, h string, backendHost
 		}
 	}
 	makeup.PrintInfo(fmt.Sprintf("Ensured DNS ALIAS %v -> ingress hostnames in hosted zone %s.", aliasHosts, hostedZoneName))
+}
 
+func ensureDnsCnameIngressHosts(records map[string]string, hostedZoneName string, provisioner CertificateProvisioner) {
 	if len(records) == 0 {
-		return aliasHosts
+		return
 	}
 	makeup.PrintInfo(fmt.Sprintf("Planned action: create/update CNAMEs %v -> ingress hosts in hosted zone %s.", keys(records), hostedZoneName))
 	makeup.WaitForUser()
@@ -462,7 +467,6 @@ func createOrUpdateDNSRecords(defaultIngressTarget string, h string, backendHost
 	for h, target := range records {
 		waitForCNAMERecord(h, target, 30*time.Minute)
 	}
-	return aliasHosts
 }
 
 func detectIngressClass(k8sClient *k8s.KubeClient) string {
