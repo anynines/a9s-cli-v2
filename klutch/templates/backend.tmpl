@@ -33,7 +33,7 @@ spec:
 {{- end }}
       containers:
       - name: anynines-backend
-        image: {{ or .BackendImageURL "public.ecr.aws/w5n9a2g2/anynines/kubebind-backend" }}:{{ or .BackendImageTag "v1.5.0" }}
+        image: {{ or .BackendImageURL "public.ecr.aws/w5n9a2g2/anynines/kubebind-backend" }}:{{ or .BackendImageTag "v1.6.0" }}
         args:
         - --namespace-prefix=kube-bind-
         - --pretty-name=anynines

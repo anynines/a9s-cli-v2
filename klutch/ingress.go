@@ -38,14 +38,12 @@ const (
 //go:embed manifests/gatewayNetworkingEnvoyConfig.yaml
 var envoyConfigManifests string
 
-// DeployEnvoyGateway applies the Envoy Gateway manifests and an additional configMap to configure it.
-// The config increases the request header size limit to cope with bind's header sizes becoming very large.
+// DeployEnvoyGateway applies the Envoy Gateway system install manifest, which contains the
+// necessary CRDs, a Deployment for the controller and various RBAC and networking resources to make
+// the controller function properly.
 func (k *KlutchManager) DeployEnvoyGateway() {
 	makeup.PrintH1("Applying Envoy Gateway manifests...")
 
-	// if _, err := k.cpK8s.ApplyFromUrlWithServerSideAndForceConflicts(gatewayCRDsUrl, "Apply Envoy Gateway CRDs"); err != nil {
-	// 	makeup.ExitDueToFatalError(err, "could not apply Gateway API CRDs")
-	// }
 	if _, err := k.cpK8s.ApplyFromUrlWithServerSideAndForceConflicts(gatewayManifestsUrl, "Apply Envoy Gateway manifests"); err != nil {
 		makeup.ExitDueToFatalError(err, "could not apply Envoy Gateway Manifests")
 	}
@@ -61,6 +59,8 @@ func (k *KlutchManager) WaitForEnvoyGateway() {
 	makeup.PrintCheckmark("Envoy Gateway appears to be ready.")
 }
 
+// DeployEnvoyConfiguration applies the Envoy Gateway configuration, which consists of a GatewayClass, a Gateway and an
+// EnvoyProxy.
 func (k *KlutchManager) DeployEnvoyConfiguration() {
 	makeup.PrintH1("Applying Envoy Gateway configuration...")
 

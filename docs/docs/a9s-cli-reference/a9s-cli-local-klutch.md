@@ -35,19 +35,19 @@ This will allow you to use `a8s` resource instances such as `postgresql` on the 
 
 - [General prerequisites](./index.md#prerequisites) are met.
 - Install [Helm](https://helm.sh/docs/intro/install/).
-- Install `kubectl-bind` plugin version v1.5.0 or higher (see below).
+- Install `kubectl-bind` plugin version v1.6.0 or higher (see below).
 - On **linux**, docker must be runnable without sudo. See the [docker documentation](https://docs.docker.com/engine/install/linux-postinstall/#manage-docker-as-a-non-root-user) for further details.
 
 ### Installing the kubectl-bind plugin
 
 Download a binary for your platform with the following URL, make it executable and place it in a location in your `PATH`:
 
-`https://anynines-artifacts.s3.eu-central-1.amazonaws.com/central-management/v1.5.0/$OS-$ARCH/kubectl-bind`
+`https://anynines-artifacts.s3.eu-central-1.amazonaws.com/central-management/v1.6.0/$OS-$ARCH/kubectl-bind`
 
 Replace `OS` and `ARCH` with values for your platform, e.g. `darwin-arm64` or `linux-amd64`. You can also use the following script to achieve this:
 
 ```bash
-RELEASE="v1.5.0"
+RELEASE="v1.6.0"
 OS=$(go env GOOS); ARCH=$(go env GOARCH); curl -fsSL -o kubectl-bind https://anynines-artifacts.s3.eu-central-1.amazonaws.com/central-management/$RELEASE/$OS-$ARCH/kubectl-bind
 
 sudo chmod 755 kubectl-bind

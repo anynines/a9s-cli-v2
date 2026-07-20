@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	backendCRDManifestsURL = "https://anynines-artifacts.s3.eu-central-1.amazonaws.com/central-management/v1.5.0/crds.yaml"
+	backendCRDManifestsURL = "https://anynines-artifacts.s3.eu-central-1.amazonaws.com/central-management/v1.6.0/crds.yaml"
 )
 
 //go:embed templates/backend.tmpl
@@ -50,7 +50,7 @@ type backendTemplateVars struct {
 
 const (
 	defaultBackendImageURL = "public.ecr.aws/w5n9a2g2/anynines/kubebind-backend"
-	defaultBackendImageTag = "v1.5.1-KLT-994-tenants"
+	defaultBackendImageTag = "v1.6.0"
 	externalCASecretName   = "klutch-bind-external-ca"
 )
 
