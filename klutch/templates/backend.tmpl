@@ -18,6 +18,7 @@ spec:
         app: anynines-backend
     spec:
       serviceAccountName: anynines-backend
+{{- if .WaitForDex }}
       initContainers:
       - name: wait-for-dex
         image: curlimages/curl:8.9.1
@@ -29,13 +30,17 @@ spec:
               echo "Waiting for dex";
               sleep 5;
             done
+{{- end }}
       containers:
       - name: anynines-backend
-        image: public.ecr.aws/w5n9a2g2/anynines/kubebind-backend:v1.5.0
+        image: {{ or .BackendImageURL "public.ecr.aws/w5n9a2g2/anynines/kubebind-backend" }}:{{ or .BackendImageTag "v1.6.0" }}
         args:
         - --namespace-prefix=kube-bind-
         - --pretty-name=anynines
         - --consumer-scope=Namespaced
+{{- if .ExternalCASecret }}
+        - --external-ca-file=/etc/klutch/external/ca.crt
+{{- end }}
         - --oidc-issuer-client-id=$(OIDC-ISSUER-CLIENT-ID)
         - --oidc-issuer-client-secret=$(OIDC-ISSUER-CLIENT-SECRET)
         - --oidc-issuer-url=$(OIDC-ISSUER-URL)
@@ -43,8 +48,10 @@ spec:
         - --listen-address=0.0.0.0:9443
         - --cookie-signing-key=$(COOKIE-SIGNING-KEY)
         - --cookie-encryption-key=$(COOKIE-ENCRYPTION-KEY)
-        - --external-address=https://{{ .Host }}:{{ .K8sApiPort }}
-        - --external-ca-file=/certa/ca
+        - --external-address={{ .ExternalAddress }}
+{{- if eq .IngressClass "alb" }}
+        - --tenant-based-auth
+{{- end }}
         env:
         - name: OIDC-ISSUER-CLIENT-ID
           valueFrom:
@@ -84,8 +91,11 @@ spec:
             cpu: "100m"
             memory: 256Mi
         volumeMounts:
-        - name: ca
-          mountPath: /certa/
+{{- if .ExternalCASecret }}
+        - name: external-ca
+          mountPath: /etc/klutch/external
+          readOnly: true
+{{- end }}
         readinessProbe:
           httpGet:
             path: "/healthz"
@@ -97,12 +107,11 @@ spec:
       - name: cookie-config
         secret:
           secretName: cookie-config
-      - name: ca
+{{- if .ExternalCASecret }}
+      - name: external-ca
         secret:
-          secretName: k8sca
-          items:
-          - key: ca
-            path: ca
+          secretName: {{ .ExternalCASecret }}
+{{- end }}
 ---
 apiVersion: v1
 kind: Secret
@@ -126,7 +135,7 @@ kind: Service
 metadata:
   name: anynines-backend
 spec:
-  type: ClusterIP
+  type: {{ or .ServiceType "ClusterIP" }}
   ports:
   - protocol: TCP
     name: anynines-backend
@@ -134,22 +143,6 @@ spec:
     targetPort: 9443
   selector:
     app: anynines-backend
----
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
-metadata:
-  name: anynines-backend
-spec:
-  parentRefs:
-  - name: anynines-backend-gateway
-  rules:
-  - matches:
-    - path:
-        type: PathPrefix
-        value: /
-    backendRefs:
-    - name: anynines-backend
-      port: 8080
 ---
 apiVersion: v1
 kind: ServiceAccount

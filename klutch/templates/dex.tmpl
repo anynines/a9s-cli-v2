@@ -1,75 +1,17 @@
-apiVersion: gateway.envoyproxy.io/v1alpha1
-kind: EnvoyProxy
-metadata:
-  name: backend-envoy-proxy-config
-  namespace: envoy-gateway-system
-spec:
-  provider:
-    type: Kubernetes
-    kubernetes:
-      useListenerPortAsContainerPort: true
-      envoyService:
-        type: NodePort
-        patch:
-          type: StrategicMerge
-          value:
-            spec:
-              ports:
-              - name: http
-                port: 8080
-                targetPort: 8080
-                nodePort: 30080
----
-apiVersion: gateway.networking.k8s.io/v1
-kind: GatewayClass
-metadata:
-  name: anynines-backend-envoy-gateway
-spec:
-  controllerName: gateway.envoyproxy.io/gatewayclass-controller
-  parametersRef:
-    group: gateway.envoyproxy.io
-    kind: EnvoyProxy
-    name: backend-envoy-proxy-config
-    namespace: envoy-gateway-system
----
-apiVersion: gateway.networking.k8s.io/v1
-kind: Gateway
-metadata:
-  name: anynines-backend-gateway
-spec:
-  gatewayClassName: anynines-backend-envoy-gateway
-  listeners:
-  - name: http
-    protocol: HTTP
-    port: 8080
----
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
-metadata:
-  name: dex-backend
-spec:
-  parentRefs:
-  - name: anynines-backend-gateway
-  rules:
-  - matches:
-    - path:
-        type: PathPrefix
-        value: /dex
-    backendRefs:
-    - name: dex
-      port: 5556
----
 apiVersion: v1
 kind: Service
 metadata:
   name: dex
 spec:
-  type: ClusterIP
+  type: {{ .ServiceType }}
   ports:
   - protocol: TCP
     name: dex
     port: 5556
     targetPort: 5556
+{{- if .NodePort }}
+    nodePort: {{ .NodePort }}
+{{- end }}
   - protocol: TCP
     name: telemetry # Use this port for /healthz, /healthz/ready, /healthz/live
     port: 5558
@@ -85,8 +27,8 @@ type: Opaque
 stringData:
   oidc-issuer-client-id: "kube-bind"
   oidc-issuer-client-secret: "{{ .DexClientSecret }}"
-  oidc-issuer-url: "http://{{ .Host }}:{{ .BackendExposurePort }}/dex"
-  oidc-callback-url: "http://{{ .Host }}:{{ .BackendExposurePort }}/callback"
+  oidc-issuer-url: "{{ or .Scheme "http" }}://{{ .Host }}{{ if .BackendExposurePort }}:{{ .BackendExposurePort }}{{ end }}/dex"
+  oidc-callback-url: "{{ or .Scheme "http" }}://{{ .Host }}{{ if .BackendExposurePort }}:{{ .BackendExposurePort }}{{ end }}/callback"
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -94,7 +36,7 @@ metadata:
   name: dex-config
 data:
   config: |
-    issuer: http://{{ .Host }}:{{ .BackendExposurePort }}/dex
+    issuer: {{ or .Scheme "http" }}://{{ .Host }}{{ if .BackendExposurePort }}:{{ .BackendExposurePort }}{{ end }}/dex
 
     storage:
       type: memory
@@ -111,7 +53,7 @@ data:
     staticClients:
       - idEnv: DEX_ISSUER_CLIENT_ID
         redirectURIs:
-        - 'http://{{ .Host }}:{{ .BackendExposurePort }}/callback'
+        - '{{ or .Scheme "http" }}://{{ .Host }}{{ if .BackendExposurePort }}:{{ .BackendExposurePort }}{{ end }}/callback'
         name: 'Kube Bind'
         secretEnv: DEX_ISSUER_CLIENT_SECRET
 
@@ -136,6 +78,8 @@ spec:
     metadata:
       labels:
         app: dex
+      annotations:
+        checksum/dex-config: {{ .ConfigChecksum }}
     spec:
       containers:
       - name: dex

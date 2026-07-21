@@ -21,4 +21,4 @@ The hands-on tutorials guide you through practical experiments using the `a9s` C
 
 In this tutorial you will use the `a9s` CLI to provision a local Kubernetes cluster using Kind or Minikube, install a PostgreSQL operator, deploy a demo application, load data into the database as well as perform backup and restore operations.
 
-[Go to the PostgreSQL Tutorial](/docs/hands-on-tutorials/hands-on-tutorial-a8s-pg-a9s-cli/)
+[Go to the PostgreSQL Tutorial](./a9s-cli-a8s-postgresql.md)

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/anynines/a9s-cli-v2/makeup"
 	"github.com/spf13/cobra"
 )
 
@@ -15,7 +16,9 @@ var rootCmd = &cobra.Command{
 	Long:  `A tool to make the use of a9s Platform modules more enjoyable.`,
 	Run: func(cmd *cobra.Command, args []string) {
 
-		cmd.Help()
+		if err := cmd.Help(); err != nil {
+			makeup.ExitDueToFatalError(err, "")
+		}
 		// // Do Stuff Here
 		// demo.PrintWelcomeScreen()
 	},

@@ -1,3 +1,6 @@
+//go:build integration
+// +build integration
+
 package creator
 
 /*
@@ -41,6 +44,8 @@ func TestMinikubeCreate(t *testing.T) {
 		if !c.Exists(spec.Name) {
 			t.Fatal("Cluster with name " + spec.Name + " should exist but doesn't.")
 		}
+
+		time.Sleep(30 * time.Second)
 
 		if !c.Running(spec.Name) {
 			t.Fatal("Cluster with name " + spec.Name + " should be running but isn't.")

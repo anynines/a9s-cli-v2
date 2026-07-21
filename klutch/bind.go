@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -35,7 +34,7 @@ var backupExample string
 var restoreExample string
 
 const (
-	konnectorImage = "public.ecr.aws/w5n9a2g2/anynines/konnector:v1.5.0"
+	konnectorImage = "public.ecr.aws/w5n9a2g2/anynines/konnector:v1.6.0"
 )
 
 type NamespacedName = types.NamespacedName
@@ -53,7 +52,7 @@ type serviceExportRequest struct {
 
 func Bind() {
 	makeup.PrintWelcomeScreen(
-		demo.UnattendedMode,
+		makeup.UnattendedMode,
 		demoTitle,
 		"Let's bind an API from the App Cluster to the Control Plane Cluster...")
 
@@ -99,34 +98,14 @@ func (k *KlutchManager) bindResource() string {
 func (k *KlutchManager) startInteractiveBind(info ControlPlaneClusterInfo) (NamespacedName, *bytes.Buffer) {
 	url := getExportUrl(info)
 
-	cmd := k.appK8s.KubectlWithContextCommand(
-		"bind",
-		url,
-		"--konnector-image",
-		konnectorImage,
-	)
-
-	// Print the non- dry-run command to avoid confusion.
-	// We use --dry-run for automation purposes.
-	makeup.PrintCommandBox(cmd.String())
-	makeup.PrintBright("This process will open a browser window for you. Authenticate with \"admin@example.com\" and \"password\", then select the API you wish to bind.")
-	makeup.WaitForUser(demo.UnattendedMode)
-
-	cmd.Args = append(cmd.Args, "--dry-run", "-o", "yaml")
-
 	// Stdout will print the yaml manifest that needs to be applied in the next phase.
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		makeup.ExitDueToFatalError(err, "Could not set up the bind command.")
-	}
-
 	// Stderr outputs the following information to be extracted:
 	// - the authorization URL that needs to be opened in a browser.
 	// - after authorization has been executed in the browser, the name of the secret and its namespace.
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		makeup.ExitDueToFatalError(err, "Could not set up the bind command.")
-	}
+	stdout, stderr, Start, Wait := k.appK8s.Bind(url, konnectorImage)
+
+	makeup.PrintBright("This process will open a browser window for you. Authenticate with \"admin@example.com\" and \"password\", then select the API you wish to bind.")
+	makeup.WaitForUser()
 
 	secretChan := make(chan NamespacedName, 1)
 	stderrErrChan := make(chan error, 1)
@@ -137,11 +116,11 @@ func (k *KlutchManager) startInteractiveBind(info ControlPlaneClusterInfo) (Name
 	go scanInteractiveBindStderr(stderr, info, secretChan, stderrErrChan)
 	go scanInteractiveBindStdout(stdout, yamlChan, stdoutErrChan)
 
-	if err := cmd.Start(); err != nil {
+	if err := Start(); err != nil {
 		makeup.ExitDueToFatalError(err, "Could not start the bind command.")
 	}
 
-	if err := cmd.Wait(); err != nil {
+	if err := Wait(); err != nil {
 		makeup.ExitDueToFatalError(err, "Error occured while executing the bind command.")
 	}
 
@@ -156,6 +135,7 @@ func (k *KlutchManager) startInteractiveBind(info ControlPlaneClusterInfo) (Name
 
 	var secret NamespacedName
 	var exportRequestYaml *bytes.Buffer
+	var err error
 
 	// At this point, the channels should have data written to them. If they don't, something went wrong.
 	select {
@@ -272,35 +252,7 @@ func (k *KlutchManager) finishInteractiveBinding(secret NamespacedName, exportRe
 		makeup.ExitDueToFatalError(err, "Error occured while setting up the bind command.")
 	}
 
-	cmd := k.appK8s.KubectlWithContextCommand(
-		"bind",
-		"apiservice",
-		"--remote-kubeconfig-namespace",
-		secretNamespace,
-		"--remote-kubeconfig-name",
-		secretName,
-		"--konnector-image",
-		konnectorImage,
-		"-f",
-		yamlTempFile.Name(),
-	)
-
-	// We have to write "Yes" to "Yes/No" questions via stdin.
-	stdin, err := cmd.StdinPipe()
-	if err != nil {
-		makeup.ExitDueToFatalError(err, "Could not set up the bind command.")
-	}
-
-	// Stdout will print the [Yes/No] prompts we want to answer.
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		makeup.ExitDueToFatalError(err, "Could not set up the bind command.")
-	}
-
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		makeup.ExitDueToFatalError(err, "Could not set up the bind command.")
-	}
+	stdin, stdout, stderr, Start, Wait := k.appK8s.BindApiService(secretNamespace, secretName, konnectorImage, yamlTempFile.Name())
 
 	// Print stderr to show progress to the user.
 	go printCommandOutput(stderr)
@@ -324,11 +276,11 @@ func (k *KlutchManager) finishInteractiveBinding(secret NamespacedName, exportRe
 		}
 	}()
 
-	if err := cmd.Start(); err != nil {
+	if err := Start(); err != nil {
 		makeup.ExitDueToFatalError(err, "Could not execute the bind command.")
 	}
 
-	if err := cmd.Wait(); err != nil {
+	if err := Wait(); err != nil {
 		makeup.ExitDueToFatalError(err, "Could not execute the bind command.")
 	}
 
@@ -362,7 +314,7 @@ func printResourceSuggestion(resource string) {
 	var file string
 
 	switch strings.ToLower(resource) {
-	case "postgresqlinstances":
+	case "postgresqlinstances", "postgresqls":
 		file = postgresqlExample
 	case "servicebindings":
 		file = servicebindingExample
@@ -398,7 +350,9 @@ func openURL(url string) error {
 	}
 
 	args = append(args, url)
-	return exec.Command(cmd, args...).Run()
+
+	_, err := makeup.NewCommand(cmd, args...).NoPrompt().Run()
+	return err
 }
 
 // Loads the Control Plane Cluster information from the workspace. If it doesn't exists, prints a suggestion to the user to run the
@@ -454,7 +408,7 @@ func checkBackendEndpoint(info ControlPlaneClusterInfo) {
 
 	resp, err := http.Get(url)
 	if err != nil {
-		makeup.ExitDueToFatalError(err, "Got unexpected error trying to reach the backend. Please verify or wait for the Control Plane Cluster to be fully ready.")
+		makeup.ExitDueToFatalError(err, fmt.Sprintf("Got unexpected error trying to reach the backend at %s. Please verify or wait for the Control Plane Cluster to be fully ready:\n%s", url, resp.Body))
 	}
 	defer resp.Body.Close()
 

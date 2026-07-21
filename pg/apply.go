@@ -5,7 +5,6 @@ a8s PG specific apply functions
 */
 import (
 	"fmt"
-	"os/exec"
 	"path/filepath"
 
 	"github.com/anynines/a9s-cli-v2/makeup"
@@ -49,48 +48,19 @@ Example:
 kubectl exec -n default clustered-0 -c postgres -- psql -U postgres -d a9s_apps_default_db -f demo_data.sql
 */
 func (pgm *PgManager) ExecuteSQLFileWithinPod(unattendedMode bool, namespace, serviceInstanceName, remoteSQLFilePath string) error {
+	output, err := pgm.K8s.Exec(serviceInstanceName, namespace,
+		RemoteUploadContainerName, "psql", []string{
+			"-U", a8sPGDefaultDatabaseUser,
+			"-d", a8sPGDefaultDatabaseName,
+			"-f", remoteSQLFilePath,
+		}...,
+	)
 
-	commandElements := make([]string, 0)
-	commandElements = append(commandElements, "exec")
-	commandElements = append(commandElements, "-n")
-	commandElements = append(commandElements, namespace)
-	commandElements = append(commandElements, serviceInstanceName)
-	commandElements = append(commandElements, "-c")
-	commandElements = append(commandElements, RemoteUploadContainerName)
-	commandElements = append(commandElements, "--")
-	commandElements = append(commandElements, "psql")
-	commandElements = append(commandElements, "-U")
-	commandElements = append(commandElements, a8sPGDefaultDatabaseUser)
-	commandElements = append(commandElements, "-d")
-	commandElements = append(commandElements, a8sPGDefaultDatabaseName)
-	commandElements = append(commandElements, "-f")
-	commandElements = append(commandElements, remoteSQLFilePath)
-
-	pgm.K8s.Kubectl(unattendedMode, commandElements...)
+	if err != nil {
+		makeup.ExitDueToFatalError(err, fmt.Sprintf("Could not execute SQL file within pod %s/%s:\n%s", namespace, serviceInstanceName, output))
+	}
 
 	return nil
-}
-
-// TODO Remove code duplication with ExecuteSQLFileWithinPod
-func (pgm *PgManager) ExecuteSQLStatementWithinPod(unattendedMode bool, namespace, serviceInstanceName, sqlStatement string) (*exec.Cmd, []byte, error) {
-
-	commandElements := make([]string, 0)
-	commandElements = append(commandElements, "exec")
-	commandElements = append(commandElements, "-n")
-	commandElements = append(commandElements, namespace)
-	commandElements = append(commandElements, serviceInstanceName)
-	commandElements = append(commandElements, "-c")
-	commandElements = append(commandElements, RemoteUploadContainerName)
-	commandElements = append(commandElements, "--")
-	commandElements = append(commandElements, "psql")
-	commandElements = append(commandElements, "-U")
-	commandElements = append(commandElements, a8sPGDefaultDatabaseUser)
-	commandElements = append(commandElements, "-d")
-	commandElements = append(commandElements, a8sPGDefaultDatabaseName)
-	commandElements = append(commandElements, "-c")
-	commandElements = append(commandElements, sqlStatement)
-
-	return pgm.K8s.Kubectl(unattendedMode, commandElements...)
 }
 
 /*
@@ -114,7 +84,7 @@ func (pgm *PgManager) ApplySQLFileToPGServiceInstance(unattendedMode bool, names
 	}
 
 	// Upload
-	err := k8s.KubectlUploadFileToPod(unattendedMode, namespace, podName, RemoteUploadContainerName, sqlFileToUpload, RemoteUploadDir)
+	err := k8s.KubectlUploadFileToPod(namespace, podName, RemoteUploadContainerName, sqlFileToUpload, RemoteUploadDir)
 
 	if err != nil {
 		makeup.ExitDueToFatalError(err, fmt.Sprintf("Can't upload file %s to service instance %s", sqlFileToUpload, serviceInstanceName))
@@ -134,7 +104,7 @@ func (pgm *PgManager) ApplySQLFileToPGServiceInstance(unattendedMode bool, names
 	if !noDelete {
 
 		// Delete file
-		err = k8s.KubectlDeleteFileFromPod(unattendedMode, namespace, podName, RemoteUploadContainerName, remoteSQLFilePath)
+		err = k8s.KubectlDeleteFileFromPod(namespace, podName, RemoteUploadContainerName, remoteSQLFilePath)
 
 		if err != nil {
 			makeup.ExitDueToFatalError(err, "Couldn't delete uploaded SQL file from pod "+podName)
@@ -157,16 +127,21 @@ func (pgm *PgManager) ApplySQLStatementToPGServiceInstance(unattendedMode bool, 
 	}
 
 	// Apply SQL file using psql
-	_, output, err := pgm.ExecuteSQLStatementWithinPod(unattendedMode, namespace, podName, sqlStatement)
-
+	output, err := pgm.K8s.Exec(
+		serviceInstanceName,
+		namespace,
+		RemoteUploadContainerName,
+		"psql",
+		[]string{"-U", a8sPGDefaultDatabaseUser, "-d", a8sPGDefaultDatabaseName, "-c", sqlStatement}...,
+	)
 	if err != nil {
-		makeup.ExitDueToFatalError(err, "Couldn't execute provided SQL file to pod "+podName)
+		makeup.ExitDueToFatalError(err, fmt.Sprintf("Couldn't execute provided SQL file to pod %s/%s:\n%s", namespace, podName, output))
 	}
 
 	makeup.PrintCheckmark("Successfully executed SQL statement in pod " + podName + "")
 
 	makeup.Print("Output from the Pod:")
 
-	makeup.PrintBright(string(output))
+	makeup.PrintBright(output)
 
 }

@@ -3,10 +3,8 @@ package k8s
 import (
 	"flag"
 	"os"
-	"os/exec"
 	"path/filepath"
 
-	"github.com/anynines/a9s-cli-v2/creator"
 	"github.com/anynines/a9s-cli-v2/makeup"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -14,27 +12,12 @@ import (
 	"k8s.io/client-go/util/homedir"
 )
 
-var Creator creator.KubernetesCreator
-
-func CheckIfDockerIsRunning() bool {
-	cmd := exec.Command("docker", "info")
-	err := cmd.Run()
-	if err != nil {
-		makeup.PrintFail("Docker is not running.")
-		makeup.PrintInfo("Please start the Docker daemon. In case you are using Docker Desktop, start Docker Desktop.")
-		return false
-	}
-	makeup.PrintCheckmark("Docker is running.")
-	return true
-}
-
 /*
 Verifies if there's a Kubernetes cluster.
 Does not verify whether it is the intended Kubernetes cluster.
 */
 func CheckIfAnyKubernetesIsRunning() bool {
-	cmd := exec.Command("kubectl", "api-versions")
-	err := cmd.Run()
+	_, err := makeup.NewCommand("kubectl", "api-versions").NoPrompt().Run()
 	if err != nil {
 		makeup.PrintFail("Kubernetes is not running.")
 		makeup.PrintInfo("Please try to restart it or recreate it (delete and re-run the creation).")
@@ -46,22 +29,24 @@ func CheckIfAnyKubernetesIsRunning() bool {
 }
 
 func GetKubernetesConfigPath() string {
-	var kubeconfig string
-	if kubeconfig = os.Getenv("KUBECONFIG"); kubeconfig != "" {
-		makeup.PrintVerbose("Kubernetes configuration is set by the $KUBECONFIG env variable.")
-	} else if home := homedir.HomeDir(); home != "" {
-		makeup.PrintVerbose("Kubernetes configuration is set by $HOME/.kube/config.")
-		flag.CommandLine = flag.NewFlagSet("kubeconfig", flag.ExitOnError)
-		kubeconfig = *flag.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
-	} else {
+	// check if the kubeconfig flag is set, if so, use that value
+	if flag.Lookup("kubeconfig") != nil {
 		makeup.PrintVerbose("Kubernetes configuration is set by config flag.")
-		kubeconfig = *flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
+		return flag.Lookup("kubeconfig").Value.String()
 	}
 
-	// Set the bool variable based on the flags passed in by the user
-	flag.Parse()
+	if kubeconfig := os.Getenv("KUBECONFIG"); kubeconfig != "" {
+		makeup.PrintVerbose("Kubernetes configuration is set by the $KUBECONFIG env variable.")
+		return kubeconfig
+	}
 
-	return kubeconfig
+	home := homedir.HomeDir()
+	if home == "" {
+		makeup.ExitDueToFatalError(nil, "Unable to find Kubernetes configuration.")
+	}
+
+	makeup.PrintVerbose("Kubernetes configuration not set by flag or $KUBECONFIG, falling back to $HOME/.kube/config.")
+	return filepath.Join(home, ".kube", "config")
 }
 
 func (k *KubeClient) GetKubernetesConfig() *rest.Config {

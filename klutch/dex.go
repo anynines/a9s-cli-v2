@@ -2,9 +2,11 @@ package klutch
 
 import (
 	"context"
+	"crypto/sha256"
 	_ "embed"
+	"encoding/hex"
+	"fmt"
 
-	"github.com/anynines/a9s-cli-v2/demo"
 	"github.com/anynines/a9s-cli-v2/makeup"
 	"k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -14,13 +16,27 @@ import (
 //go:embed templates/dex.tmpl
 var dexManifestsTemplate string
 
+//go:embed manifests/gatewayNetworkingResourcesDex.yaml
+var dexNetworkingResourcesGatewayManifest string
+
+//go:embed templates/ingressNetworkingResourcesDex.tmpl
+var dexNetworkingResourcesIngressTemplate string
+
 type dexTemplateVars struct {
 	Host                string
+	HostPort            string
 	BackendExposurePort string
 	DexClientSecret     string
+	IngressClass        string
+	Scheme              string
+	ServiceType         string
+	NodePort            int
+	ACMCertificateARN   string
+	EnableTLS           bool
+	ConfigChecksum      string
 }
 
-func (k *KlutchManager) DeployDex(hostIP string, backendExposurePort string) {
+func (k *KlutchManager) DeployDex(hostIP string, backendExposurePort string, ingressClass string, scheme string, acmCertificateARN string) {
 	makeup.PrintH1("Deploying Dex Idp...")
 
 	client := k.cpK8s.GetKubernetesClientSet()
@@ -29,8 +45,28 @@ func (k *KlutchManager) DeployDex(hostIP string, backendExposurePort string) {
 
 	templateVars := &dexTemplateVars{
 		Host:                hostIP,
+		HostPort:            formatHostWithPort(scheme, hostIP, backendExposurePort),
 		BackendExposurePort: backendExposurePort,
 		DexClientSecret:     dexClientSecret,
+		IngressClass:        ingressClass,
+		Scheme:              scheme,
+		ACMCertificateARN:   acmCertificateARN,
+		EnableTLS:           acmCertificateARN != "" && ingressClass == "alb",
+		ConfigChecksum:      dexConfigChecksum(hostIP, scheme, backendExposurePort, acmCertificateARN),
+		ServiceType:         "ClusterIP",
+	}
+
+	networkingResourcesManifests := []byte(dexNetworkingResourcesGatewayManifest)
+
+	// ALB requires NodePort when using instance targets; keep ClusterIP for local/demo (nginx).
+	if ingressClass == "alb" {
+		templateVars.ServiceType = "NodePort"
+		templateVars.NodePort = 32556
+		manifests, err := renderTemplate(dexNetworkingResourcesIngressTemplate, templateVars)
+		if err != nil {
+			makeup.ExitDueToFatalError(err, "Could not render the dex ingress networking resources manifests.")
+		}
+		networkingResourcesManifests = manifests.Bytes()
 	}
 
 	manifests, err := renderTemplate(dexManifestsTemplate, templateVars)
@@ -38,13 +74,23 @@ func (k *KlutchManager) DeployDex(hostIP string, backendExposurePort string) {
 		makeup.ExitDueToFatalError(err, "Could not render the dex manifests.")
 	}
 
-	makeup.PrintH2("Applying the following manifests: ")
-	makeup.PrintYAML(manifests.Bytes(), false)
-	makeup.WaitForUser(demo.UnattendedMode)
+	// Note: Manifest display and waiting are handled by KubectlApplyWithPrompt
+	if _, err := k.cpK8s.ApplyWithPrompt(manifests.Bytes(), "dex manifests"); err != nil {
+		makeup.ExitDueToFatalError(err, "Failed to apply dex manifests")
+	}
 
-	k.cpK8s.KubectlApplyStdin(manifests)
+	if _, err := k.cpK8s.ApplyWithPrompt(networkingResourcesManifests, "dex networking resources"); err != nil {
+		makeup.ExitDueToFatalError(err, "Failed to apply dex networking resources")
+	}
 
 	makeup.Print("Done applying the dex manifests.")
+}
+
+// dexConfigChecksum produces a hash so changes trigger a rollout via pod annotations.
+func dexConfigChecksum(host, scheme, port, certARN string) string {
+	src := fmt.Sprintf("%s|%s|%s|%s", host, scheme, port, certARN)
+	sum := sha256.Sum256([]byte(src))
+	return hex.EncodeToString(sum[:])
 }
 
 // Waits for the dex deployment to be ready.
@@ -54,7 +100,7 @@ func (k *KlutchManager) WaitForDex() {
 	k.cpK8s.KubectlWaitForRollout("deployment", "dex", "default")
 
 	makeup.PrintCheckmark("Dex appears to be ready.")
-	makeup.WaitForUser(demo.UnattendedMode)
+	makeup.WaitForUser()
 }
 
 // getOIDCIssuerClientSecret checks if the dex oidc-config secret exists and returns the oidc-issuer-client-secret if set.

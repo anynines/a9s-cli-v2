@@ -1,7 +1,7 @@
 // @ts-check
 // Note: type annotations allow type checking and IDEs autocompletion
 
-const {themes} = require('prism-react-renderer');
+const { themes } = require('prism-react-renderer');
 const lightTheme = themes.github;
 const darkTheme = themes.dracula;
 
@@ -30,8 +30,12 @@ const config = {
   url: "https://docs.a9s-cli.anynines.com",
   baseUrl: "/",
   trailingSlash: true,
-  onBrokenLinks: "warn",
-  onBrokenMarkdownLinks: "warn",
+  onBrokenLinks: "throw",
+  markdown: {
+    hooks: {
+      onBrokenMarkdownLinks: "throw",
+    },
+  },
   favicon: "/img/favicon.ico",
   organizationName: "anynines", // Usually your GitHub org/user name.
   projectName: "a9s-cli-v2", // Usually your repo name.
@@ -76,7 +80,7 @@ const config = {
         },
         googleTagManager: {
           containerId: 'GTM-NZZ5ZVC',
-        },   
+        },
         blog: {
           showReadingTime: true,
           blogTitle: "Changelog",
@@ -105,7 +109,7 @@ const config = {
         items: [
           {
             type: "doc",
-            docId: "a9s-cli",
+            docId: "a9s-cli-reference/a9s-cli-reference-index",
             position: "left",
             label: "a9s CLI Docs"
           },
@@ -134,7 +138,7 @@ const config = {
             items: [
               {
                 label: "a9s CLI",
-                to: "/docs/develop/a9s-cli"
+                to: "/docs/a9s-cli-reference"
               },
               {
                 label: "a9s Data Services",

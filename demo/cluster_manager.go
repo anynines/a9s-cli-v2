@@ -1,11 +1,12 @@
-package k8s
+package demo
 
 import (
 	"fmt"
-	"os/exec"
+	"slices"
 	"strings"
 
 	"github.com/anynines/a9s-cli-v2/creator"
+	"github.com/anynines/a9s-cli-v2/k8s"
 	"github.com/anynines/a9s-cli-v2/makeup"
 )
 
@@ -45,7 +46,15 @@ func BuildClusterManager(workDir, name, creatorName string, unattendedMode bool)
 }
 
 func (m *ClusterManager) CreateKubernetesClusterIfNotExists(spec creator.KubernetesClusterSpec) {
-	if !m.Creator.Exists(m.ClusterName) {
+	contexts, err := k8s.Contexts("kind-" + m.ClusterName)
+	if err != nil {
+		makeup.ExitDueToFatalError(err, "could not retrieve contexts")
+	}
+	clusters, err := k8s.Clusters("kind-" + m.ClusterName)
+	if err != nil {
+		makeup.ExitDueToFatalError(err, "could not retrieve contexts")
+	}
+	if !slices.Contains(append(contexts, clusters...), "kind-"+m.ClusterName) {
 		m.Creator.Create(spec, m.UnattendedMode)
 	}
 }
@@ -69,12 +78,10 @@ This ensures that subsequent actions are applied to the correct Kubernetes clust
 */
 func (m *ClusterManager) IsClusterSelectedAsCurrentContext(clusterName string) bool {
 	makeup.Print("Checking whether the " + clusterName + " cluster is selected...")
-	cmd := exec.Command("kubectl", "config", "current-context")
 
-	output, err := cmd.CombinedOutput()
-
+	output, err := k8s.CurrentContext()
 	if err != nil {
-		makeup.ExitDueToFatalError(err, "Can't retrieve the currently selected cluster using the command: "+cmd.String())
+		makeup.ExitDueToFatalError(err, "Can't retrieve the currently selected cluster using the command:\n"+output)
 	}
 
 	current_context := strings.TrimSpace(string(output))

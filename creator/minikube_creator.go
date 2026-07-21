@@ -3,10 +3,9 @@ package creator
 import (
 	"encoding/json"
 	"fmt"
-	"os"
-	"os/exec"
 	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/anynines/a9s-cli-v2/makeup"
 )
@@ -43,19 +42,19 @@ func (s *minikubeClusterStatus) String() string {
 func (c MinikubeCreator) Exists(name string) bool {
 	ret := false
 
-	// Output example: https://gist.github.com/fischerjulian/ae095c2848c5c9cd668a5c25bbd83a94s
-	cmd := exec.Command("minikube", "profile", "list", "-o", "json")
-
 	// Capture the command output
-	output, err := cmd.CombinedOutput()
+	// Output example: https://gist.github.com/fischerjulian/ae095c2848c5c9cd668a5c25bbd83a94s
+	output, err := makeup.NewCommand("minikube", "profile", "list", "-o", "json").NoPrompt().Run()
 	if err != nil {
-		makeup.ExitDueToFatalError(err, "Couldn't capture output of 'minikube profile list -o json' command.")
+		makeup.ExitDueToFatalError(err, "Couldn't capture output of 'minikube profile list -o json' command:\n"+string(output))
 	}
 
 	var clusterStatus minikubeClusterStatus
 
-	json.Unmarshal(output, &clusterStatus)
-	// fmt.Printf("Status: %+v", clusterStatus.Valid)
+	err = json.Unmarshal(output, &clusterStatus)
+	if err != nil {
+		makeup.ExitDueToFatalError(err, "Couldn't unmarshal the output of 'minikube profile list -o json' command.")
+	}
 
 	makeup.PrintListFromMultilineString("Minikube Clusters:", clusterStatus.String())
 
@@ -77,13 +76,12 @@ func (c MinikubeCreator) Exists(name string) bool {
 
 func (c MinikubeCreator) Running(name string) bool {
 	ret := false
-	// Output example: https://gist.github.com/fischerjulian/ae095c2848c5c9cd668a5c25bbd83a94s
-	cmd := exec.Command("minikube", "profile", "list", "-o", "json")
 
 	// Capture the command output
-	output, err := cmd.CombinedOutput()
+	// Output example: https://gist.github.com/fischerjulian/ae095c2848c5c9cd668a5c25bbd83a94s
+	output, err := makeup.NewCommand("minikube", "profile", "list", "-o", "json").NoPrompt().Run()
 	if err != nil {
-		makeup.ExitDueToFatalError(err, "Couldn't capture output of 'minikube profile list -o json' command.")
+		makeup.ExitDueToFatalError(err, "Couldn't capture output of 'minikube profile list -o json' command:\n"+string(output))
 	}
 
 	// strOutput := string(output)
@@ -91,17 +89,16 @@ func (c MinikubeCreator) Running(name string) bool {
 
 	var clusterStatus minikubeClusterStatus
 
-	desired_a8sDemoClusterStatus := minikubeClusterStatusItem{
-		Name:   name,
-		Status: "Running",
+	if err := json.Unmarshal(output, &clusterStatus); err != nil {
+		makeup.ExitDueToFatalError(err, "Couldn't parse output of 'minikube profile list -o json'.")
 	}
-
-	json.Unmarshal(output, &clusterStatus)
 	// fmt.Printf("Status: %+v", clusterStatus.Valid)
 
 	makeup.PrintListFromMultilineString("Minikube Clusters:", clusterStatus.String())
 
-	if slices.Contains(clusterStatus.Valid, desired_a8sDemoClusterStatus) {
+	if slices.ContainsFunc(clusterStatus.Valid, func(item minikubeClusterStatusItem) bool {
+		return item.Name == name && isRunningStatus(item.Status)
+	}) {
 		ret = true
 		makeup.PrintCheckmark("There is a suitable Minikube cluster with the name " + name + " running.")
 	} else {
@@ -116,21 +113,11 @@ func (c MinikubeCreator) Create(spec KubernetesClusterSpec, unattended bool) {
 
 	makeup.PrintFlexedBiceps("Let's create a Kubernetes cluster named " + spec.Name + " using minikube...")
 
-	cmd := exec.Command("minikube", "start", "--nodes", strconv.Itoa(spec.NrOfNodes), "--memory", spec.NodeMemory, "--profile", spec.Name)
-
-	makeup.PrintCommandBox(cmd.String())
-	makeup.WaitForUser(unattended)
-
-	output, err := cmd.CombinedOutput()
+	output, err := makeup.NewCommand("minikube", "start", "--nodes", strconv.Itoa(spec.NrOfNodes), "--memory", spec.NodeMemory, "--profile", spec.Name).WithPrompt().Run()
 
 	if err != nil {
-		makeup.PrintFail("Failed to execute the command: " + err.Error())
-		fmt.Println(string(output))
-		os.Exit(1)
-		return
-	} else {
-		fmt.Println(string(output))
-		return
+		makeup.ExitDueToFatalError(err, fmt.Sprintf("Failed to execute the command 'minikube start --nodes %s --memory %s --profile %s':\n%s",
+			strconv.Itoa(spec.NrOfNodes), spec.NodeMemory, spec.Name, output))
 	}
 }
 
@@ -140,24 +127,17 @@ Deletes the given demo Kubernetes cluster.
 func (c MinikubeCreator) Delete(name string, unattended bool) {
 	makeup.PrintWarning("Deleting the Demo Kubernetes Cluster " + name + "...")
 
-	cmd := exec.Command("minikube", "delete", "--profile", name)
-
-	makeup.PrintCommandBox(cmd.String())
-	makeup.WaitForUser(unattended)
-
-	output, err := cmd.CombinedOutput()
+	output, err := makeup.NewCommand("minikube", "delete", "--profile", name).WithPrompt().Run()
 
 	if err != nil {
-		makeup.PrintFail("Failed to execute the command: " + err.Error())
-		fmt.Println(string(output))
-		os.Exit(1)
-		return
-	} else {
-		fmt.Println(string(output))
-		return
+		makeup.ExitDueToFatalError(err, fmt.Sprintf("Failed to execute the command 'minikube delete --profile %s':\n%s", name, output))
 	}
 }
 
 func (c MinikubeCreator) GetContext(name string) string {
 	return name
+}
+
+func isRunningStatus(status string) bool {
+	return strings.EqualFold(status, "running") || strings.EqualFold(status, "ok")
 }

@@ -35,18 +35,20 @@ func (m *MinioManager) ApplyMinioManifests(workingDir string) {
 	makeup.PrintH1("Applying Minio manifest...")
 
 	minioManifestPath := filepath.Join(workingDir, "minio")
-	m.K8s.KubectlApplyF(minioManifestPath, m.UnattendedMode)
+	if _, err := m.K8s.ApplyFromFile(minioManifestPath); err != nil {
+		makeup.ExitDueToFatalError(err, "Failed to apply MinIO manifests")
+	}
 
 	makeup.PrintCheckmark("Done applying Minio manifest.")
 }
 
 func (m *MinioManager) WaitForMinioToBecomeReady() {
 	expectedPods := []k8s.PodExpectationState{
-		{Name: "minio", Running: false},
+		{Name: "minio", Running: false, Labels: map[string]string{"app": "minio"}},
 	}
 
 	m.K8s.WaitForSystemToBecomeReady(MinioNamespace, MinioSystemName, expectedPods)
-	makeup.WaitForUser(m.UnattendedMode)
+	makeup.WaitForUser()
 }
 
 func SetupMinioRepository(workingDir string) {
