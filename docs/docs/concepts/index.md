@@ -79,13 +79,32 @@ For Klutch resources in a **Workload** cluster — PostgreSQL instances, Service
 
 An object can show `READY` while the thing it asked for is still being created, or has failed.
 
-To check the true state, read the `.status.managed` field of the object in the Workload cluster:
+Here is the trap in practice. Seconds after creating a PostgreSQL instance, `kubectl get` already reports it ready:
+
+```
+NAME                    SYNCED   READY   CONNECTION-SECRET   AGE
+my-klutch-pg-instance   True     True                        10s
+```
+
+But the database does not exist yet:
 
 ```bash
 kubectl get postgresqlinstances.anynines.com "${PG}" -n "${NS}" \
   -o jsonpath='{.status.managed}'
 ```
 
-The same applies to `servicebindings.anynines.com`, `backups.anynines.com`, and `restores.anynines.com`.
+```json
+{"clusterStatus":"Pending"}
+```
+
+Roughly two minutes later, the same command returns a healthy instance — one running replica:
+
+```json
+{"clusterStatus":"Running","readyReplicas":1}
+```
+
+`READY` never changed. Only `.status.managed` did.
+
+Wait for `clusterStatus` to reach `Running` before using the instance. The same field applies to `servicebindings.anynines.com`, `backups.anynines.com`, and `restores.anynines.com`, though the keys inside it differ by resource kind.
 
 Anywhere the tutorials tell you to wait for something, `.status.managed` is the field that answers the question.
