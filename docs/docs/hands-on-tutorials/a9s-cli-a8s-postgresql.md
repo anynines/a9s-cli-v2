@@ -45,7 +45,9 @@ In this tutorial you will learn how to **create a local Kubernetes cluster**, fu
 * [a9s CLI](https://github.com/anynines/a9s-cli-v2)
 * [Kubectl](https://kubernetes.io/docs/reference/kubectl/)
 
-Backup and restore work out of the box: the `a9s` CLI installs a Minio object store into the cluster and points the a8s Backup Manager at it. No AWS account or S3 bucket is required for this tutorial. To use a real S3-compatible store instead, see the `--backup-*` options in the [Local a8s Stack reference](../a9s-cli-reference/a9s-cli-local-a8s.md).
+Backup and restore work out of the box: the `a9s` CLI installs a Minio object store into the cluster and points the a8s Backup Manager at it. No AWS account or S3 bucket is required for this tutorial.
+
+To use a real S3-compatible store instead, pass `--backup-provider`, `--backup-store-endpoint`, `--backup-bucket`, `--backup-region`, `--backup-store-accesskey` and `--backup-store-secretkey` to `a9s create cluster a8s`. Run `a9s create cluster a8s --help` for the defaults of your CLI version.
 
 ## Implementation
 

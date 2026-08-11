@@ -73,10 +73,11 @@ wall-clock time.
 You will provision two EKS clusters, their VPCs and NAT gateways, two load balancers, KMS keys, an
 ACM certificate and a Route53 hosted zone, and leave them running for 60-90 minutes.
 
-Estimate the cluster cost before you start:
+Estimate the control plane cluster before you start. This prices one cluster, so the workload
+cluster roughly doubles it, and load balancers and data transfer are not included:
 
 ```bash
-a9s estimate-cost cluster klutch -p aws --region "${REGION}" --desired-nodes 3
+a9s estimate-cost cluster klutch -p aws --region eu-central-1 --desired-nodes 3
 ```
 
 Complete Steps 10 to 12 to tear everything down. Skipping teardown leaves running EKS clusters, NAT
