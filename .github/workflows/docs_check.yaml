@@ -1,0 +1,29 @@
+name: Check docs build
+on:
+  pull_request:
+    paths:
+      - 'docs/**'
+      - '.github/workflows/docs_check.yaml'
+
+permissions:
+  contents: read # read-only: this job builds untrusted PR content and needs nothing more
+
+jobs:
+  build_docs:
+      runs-on: ubuntu-22.04
+      steps:
+        - name: Checkout
+          uses: actions/checkout@v4
+        - name: Set up Node
+          uses: actions/setup-node@v4
+          with:
+            node-version: 20
+        # onBrokenLinks and onBrokenAnchors are both "throw" in docusaurus.config.js,
+        # so a broken internal link or a link to a heading that no longer exists
+        # fails this build. Keep this job free of a Go toolchain: a docs-only pull
+        # request should not pay for one.
+        - name: Build docs
+          run: |
+            cd docs
+            yarn
+            yarn run docusaurus build
