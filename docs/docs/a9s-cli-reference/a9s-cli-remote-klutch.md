@@ -1,5 +1,5 @@
 ---
-id: a9s-cli-remote-klutch
+id: a9s-cli-klutch-on-aws
 title: Remote Klutch Stack (AWS)
 tags:
   - a9s cli

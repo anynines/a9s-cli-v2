@@ -31,7 +31,6 @@ const config = {
   baseUrl: "/",
   trailingSlash: true,
   onBrokenLinks: "throw",
-  onBrokenAnchors: "throw",
   markdown: {
     hooks: {
       onBrokenMarkdownLinks: "throw",

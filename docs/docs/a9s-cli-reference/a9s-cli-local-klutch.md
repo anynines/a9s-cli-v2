@@ -1,5 +1,5 @@
 ---
-id: a9s-cli-local-klutch
+id: local-klutch-stack-stack-kind
 title: Local Klutch Stack (kind)
 tags:
   - a9s cli

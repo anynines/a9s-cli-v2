@@ -1,5 +1,5 @@
 ---
-id: a9s-cli-local-a8s
+id: local-a8s-stack-kind-minikube
 title: Local a8s Stack (kind/minikube)
 tags:
   - a9s cli

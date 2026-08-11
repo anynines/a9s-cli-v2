@@ -1,5 +1,5 @@
 ---
-id: a9s-cli-a8s-postgresql
+id: hands-on-tutorial-a8s-pg-a9s-cli
 title: "Deploying a Demo App using a8s PostgreSQL"
 tags:
   - a9s cli

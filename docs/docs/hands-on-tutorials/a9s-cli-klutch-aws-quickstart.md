@@ -1,5 +1,5 @@
 ---
-id: a9s-cli-klutch-aws-quickstart
+id: hands-on-tutorial-klutch-aws-quickstart
 title: "Klutch on AWS - Quick-Start Tutorial"
 tags:
   - a9s cli
