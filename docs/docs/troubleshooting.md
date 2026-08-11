@@ -20,7 +20,7 @@ Known hazards you can hit while following the tutorials, and what each one looks
 
 **Symptom.** `a9s create cluster klutch control-plane` sits without visible progress during the Cognito step. The step is documented as taking about 20 minutes; it runs well past that.
 
-**Cause.** The IPv6 endpoint for AWS Cognito is sometimes very slow to respond — minutes per call — while the IPv4 endpoint answers immediately. The Cognito setup can add up to **35 minutes** to control plane creation as a result.
+**Cause.** The IPv6 endpoint for AWS Cognito is sometimes very slow to respond, taking minutes per call, while the IPv4 endpoint answers immediately. The Cognito setup can add up to **35 minutes** to control plane creation as a result.
 
 **What to do.** Temporarily disable IPv6 resolution before running the step. On macOS:
 
@@ -34,7 +34,7 @@ Re-enable it afterwards:
 networksetup -setv6automatic Wi-Fi
 ```
 
-The command is not stuck and does not need interrupting — it is waiting on Cognito.
+The command is not stuck and does not need interrupting. It is waiting on Cognito.
 
 ## Hosted zone never becomes resolvable
 
@@ -44,7 +44,7 @@ The command is not stuck and does not need interrupting — it is waiting on Cog
 
 **What to do.** Add an `NS` record to the parent zone, in the account that holds it, with the child zone's name as the record name and the printed name servers as the value. The CLI polls for up to 30 minutes and continues on its own once the delegation resolves.
 
-Deleting such a zone later is also manual — see the warning on the teardown step of the AWS tutorial.
+Deleting such a zone later is also manual. See the warning on the teardown step of the AWS tutorial.
 
 ## Commands act on the wrong cluster
 
@@ -79,6 +79,6 @@ Remember that Klutch resource kinds only exist in a **Workload** cluster after i
 
 **Symptom.** A PostgreSQL instance, Service Binding, Backup, or Restore in the Workload cluster reports `READY`, but connecting or using it fails.
 
-**Cause.** `READY` on these objects reflects whether the konnector propagated them to the Control Plane — not whether the underlying resource is usable.
+**Cause.** `READY` on these objects reflects whether the konnector propagated them to the Control Plane, not whether the underlying resource is usable.
 
 **What to do.** Read `.status.managed` instead. See [`READY` versus `.status.managed`](./concepts/index.md) in Concepts for the full explanation and the exact command.

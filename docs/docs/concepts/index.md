@@ -16,7 +16,7 @@ keywords:
   - crossplane claim
 ---
 
-The rest of this documentation uses these terms as command arguments and object kinds. Read this page first if any of them are new — the tutorials assume them.
+The rest of this documentation uses these terms as command arguments and object kinds. Read this page first if any of them are new. The tutorials assume them.
 
 ## Control Plane cluster and Workload cluster
 
@@ -24,7 +24,7 @@ Klutch splits responsibilities across two Kubernetes clusters.
 
 The **Control Plane cluster** runs the machinery: Crossplane, the a8s PostgreSQL operator, the Klutch-Bind backend, and the Tenant operator. Data service instances are actually provisioned here.
 
-A **Workload cluster** is where application teams work. It runs no operators of its own. Once bound to a Control Plane, it gains the Klutch resource kinds — `postgresqlinstances.anynines.com` and friends — and a developer submits requests there without needing access to the Control Plane.
+A **Workload cluster** is where application teams work. It runs no operators of its own. Once bound to a Control Plane, it gains the Klutch resource kinds (`postgresqlinstances.anynines.com` and friends), and a developer submits requests there without needing access to the Control Plane.
 
 A single Control Plane serves many Workload clusters. The `a9s` CLI creates each with a different command: `a9s create cluster klutch control-plane` and `a9s create cluster klutch workload`.
 
@@ -36,7 +36,7 @@ The Klutch project's own documentation calls a Workload cluster an **app cluster
 
 ## Tenant
 
-A **Tenant** represents an entity — a team, a project, an environment — that will bind Workload clusters to a Control Plane.
+A **Tenant** represents an entity that will bind Workload clusters to a Control Plane: a team, a project, or an environment.
 
 Creating one with `a9s create klutch tenant` makes the Tenant operator:
 
@@ -55,7 +55,7 @@ The sync is always initiated by the Workload cluster. The Control Plane does not
 
 ## Crossplane Claim
 
-A **Claim** is the namespace-scoped resource a developer submits to ask for a data service instance — a `PostgresqlInstance`, a `ServiceBinding`, a `Backup`, a `Restore`.
+A **Claim** is the namespace-scoped resource a developer submits to ask for a data service instance: a `PostgresqlInstance`, a `ServiceBinding`, a `Backup`, a `Restore`.
 
 Crossplane reconciles each Claim into a cluster-scoped **Composite Resource (XR)** on the Control Plane, and a provider turns that into a real instance. You normally interact only with Claims.
 
@@ -65,9 +65,9 @@ When you run `a9s create klutch pg instance`, you are creating a Claim.
 
 Both tutorials provision PostgreSQL, but through different mechanisms, and the object kinds differ.
 
-The **local a8s tutorial** talks to the a8s PostgreSQL operator directly. Objects are the operator's own kinds — `postgresqls.postgresql.anynines.com`, `servicebindings.anynines.com` — and they live in the one cluster you created.
+The **local a8s tutorial** talks to the a8s PostgreSQL operator directly. Objects are the operator's own kinds (`postgresqls.postgresql.anynines.com`, `servicebindings.anynines.com`), and they live in the one cluster you created.
 
-The **Klutch AWS tutorial** goes through Crossplane. Objects are Claims — `postgresqlinstances.anynines.com` — submitted in the Workload cluster and reconciled on the Control Plane.
+The **Klutch AWS tutorial** goes through Crossplane. Objects are Claims (`postgresqlinstances.anynines.com`) submitted in the Workload cluster and reconciled on the Control Plane.
 
 Similar names, different mechanisms. A command from one tutorial will not work in the other's cluster.
 
@@ -75,7 +75,7 @@ Similar names, different mechanisms. A command from one tutorial will not work i
 
 This distinction decides whether you can tell success from failure, and it catches people out.
 
-For Klutch resources in a **Workload** cluster — PostgreSQL instances, Service Bindings, Backups, Restores — the `READY` condition reflects **propagation status**: whether the konnector has synced the object to the Control Plane. It does **not** report whether the underlying database, binding, backup, or restore is actually ready.
+For Klutch resources in a **Workload** cluster (PostgreSQL instances, Service Bindings, Backups, Restores), the `READY` condition reflects **propagation status**: whether the konnector has synced the object to the Control Plane. It does **not** report whether the underlying database, binding, backup, or restore is actually ready.
 
 An object can show `READY` while the thing it asked for is still being created, or has failed.
 
@@ -97,7 +97,7 @@ kubectl get postgresqlinstances.anynines.com "${PG}" -n "${NS}" \
 {"clusterStatus":"Pending"}
 ```
 
-Roughly two minutes later, the same command returns a healthy instance — one running replica:
+Roughly two minutes later, the same command returns a healthy instance with one running replica:
 
 ```json
 {"clusterStatus":"Running","readyReplicas":1}
