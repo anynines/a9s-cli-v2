@@ -1,32 +1,17 @@
 ---
-id: local-klutch-stack-stack-kind
+id: a9s-cli-local-klutch
 title: Local Klutch Stack (kind)
 tags:
   - a9s cli
-  - a9s hub
-  - a9s data services
-  - a8s data services
-  - a9s postgres
-  - a8s postgres
-  - data service
-  - introduction
-  - kubernetes
-  - kind
+  - reference
   - klutch
+  - kind
 keywords:
   - a9s cli
-  - a9s hub
-  - a9s platform
-  - a9s data services
-  - a8s data services
-  - a9s postgres
-  - a8s postgres
-  - data service
-  - introduction
-  - postgresql
-  - kubernetes
-  - kind
   - klutch
+  - kind
+  - local
+  - bind
 ---
 Create a local Klutch Control Plane Cluster using `Kind`, including the `a8s` stack. Deploy an App Cluster and **bind** resources to the Control Plane Cluster.
 This will allow you to use `a8s` resource instances such as `postgresql` on the App Cluster, which will run on the Control Plane Cluster.

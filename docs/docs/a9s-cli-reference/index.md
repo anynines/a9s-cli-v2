@@ -3,32 +3,13 @@ id: a9s-cli-reference-index
 title: a9s CLI Reference
 tags:
   - a9s cli
-  - a9s hub
-  - a9s data services
-  - a8s data services
-  - a9s postgres
-  - a8s postgres
-  - data service
+  - reference
   - introduction
-  - kubernetes
-  - minikube
-  - kind
-  - klutch
 keywords:
   - a9s cli
-  - a9s hub
-  - a9s platform
-  - a9s data services
-  - a8s data services
-  - a9s postgres
-  - a8s postgres
-  - data service
-  - introduction
-  - postgresql
+  - reference
+  - installation
   - kubernetes
-  - minikube
-  - kind
-  - klutch
 ---
 
 anynines provides a command line tool called `a9s` to facilitate application development, devops tasks and interact with selected anynines products.

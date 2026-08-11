@@ -1,22 +1,19 @@
 ---
-id: hands-on-tutorial-klutch-aws-quickstart
+id: a9s-cli-klutch-aws-quickstart
+title: "Klutch on AWS - Quick-Start Tutorial"
 tags:
-  - a9s CLI
+  - a9s cli
   - klutch
   - aws
   - tutorial
-
 keywords:
   - a9s cli
   - klutch
   - aws
   - eks
-  - postgresql
   - control plane
   - workload cluster
 ---
-
-# Klutch on AWS - Quick-Start Tutorial
 
 ## Overview
 
@@ -63,13 +60,29 @@ wall-clock time.
 
 | Tool | Minimum version | Install guide |
 |------|-----------------|---------------|
-| [a9s CLI](https://github.com/anynines/a9s-cli-v2) | v0.16.0 (currently only available as pre-release) | [Releases](https://github.com/anynines/a9s-cli-v2/releases) |
+| [a9s CLI](https://github.com/anynines/a9s-cli-v2) | v0.16.0 or later | [Releases](https://github.com/anynines/a9s-cli-v2/releases) |
 | [aws](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) | v2.24.20 | AWS docs |
 | [docker](https://docs.docker.com/get-started/get-docker/) | - | Docker docs |
 | [kubectl](https://kubernetes.io/docs/tasks/tools/#kubectl) | v1.27.0 | Kubernetes docs |
 | [helm](https://helm.sh/docs/intro/install/) | - | Helm docs |
 | [eksctl](https://docs.aws.amazon.com/eks/latest/eksctl/installation.html) | - | AWS docs |
 | [jq](https://jqlang.org/download/) | - | jqlang.org |
+
+:::warning This tutorial creates billable AWS resources
+
+You will provision two EKS clusters, their VPCs and NAT gateways, two load balancers, KMS keys, an
+ACM certificate and a Route53 hosted zone, and leave them running for 60-90 minutes.
+
+Estimate the cluster cost before you start:
+
+```bash
+a9s estimate-cost cluster klutch -p aws --region "${REGION}" --desired-nodes 3
+```
+
+Complete Steps 10 to 12 to tear everything down. Skipping teardown leaves running EKS clusters, NAT
+gateways, and Elastic IPs accruing charges indefinitely.
+
+:::
 
 ### Optional: log all terminal output
 
@@ -142,28 +155,33 @@ export RS="${PG}-rs"
 | `NS` | Kubernetes namespace for PostgreSQL resources in the Workload cluster. |
 | `PG` / `SB` / `BU` / `RS` | Names for the PostgreSQL instance, Service Binding, Backup, and Restore. |
 
-> [!Note]Hosted zone creation
-> If a Route53 hosted zone matching `HOSTED_ZONE` does not exist, the
-> `a9s` CLI creates one automatically and attempts to add the required NS records in the parent
-> zone. If the parent zone is in a different AWS account, the CLI prints the NS records for you to
-> add manually - see the callout in Step 3.
+:::note Hosted zone creation
+
+If a Route53 hosted zone matching `HOSTED_ZONE` does not exist, the `a9s` CLI creates one
+automatically and attempts to add the required NS records in the parent zone. If the parent zone is
+in a different AWS account, the CLI prints the NS records for you to add manually - see the callout
+in Step 3.
+
+:::
 
 ## Step 3 - Create the control plane cluster
 
-> [!Note] Note
->
-> This step queries the AWS Cognito API to create and configure a user pool for the control plane
-> cluster.
->
-> The IPv6 endpoint for AWS Cognito can be very slow to react sometimes, in certain cases taking
-> multiple minutes to respond while the IPv4 endpoint responds immediately. Because of this issue,
-> the Cognito setup can add up to **35 minutes** to the Control Plane cluster creation.
->
-> It is therefore advised to temporarily switch off IPv6 resolution (e.g. via `networksetup
-> -setv6off Wi-Fi` on MacOs, this can be reversed by running `networksetup -setv6automatic Wi-Fi`)
-> before executing this step.
->
-> After this step it can be safely enabled again.
+:::warning Cognito IPv6 resolution can add 35 minutes to this step
+
+This step queries the AWS Cognito API to create and configure a user pool for the control plane
+cluster.
+
+The IPv6 endpoint for AWS Cognito can be very slow to react sometimes, in certain cases taking
+multiple minutes to respond while the IPv4 endpoint responds immediately. Because of this issue,
+the Cognito setup can add up to **35 minutes** to the Control Plane cluster creation.
+
+It is therefore advised to temporarily switch off IPv6 resolution (e.g. via `networksetup
+-setv6off Wi-Fi` on macOS, which can be reversed by running `networksetup -setv6automatic Wi-Fi`)
+before executing this step.
+
+After this step it can be safely enabled again.
+
+:::
 
 This command provisions an EKS cluster and installs the a8s PostgreSQL operator, Crossplane, the
 Klutch-Bind backend, and the Tenant operator:
@@ -185,22 +203,24 @@ a9s create cluster klutch control-plane --provider aws \
   another 5–10 minutes.
 * The command exits when all pods in the cluster are ready.
 
-> [!WARNING] Parent hosted zone in a different AWS account
->
-> If the CLI cannot find a parent hosted zone in the current AWS account for the newly created child
-> zone, it prints a set of NS records similar to:
->
-> ```
-> ns-xxxx.awsdns-xx.net.
-> ns-xxxx.awsdns-xx.co.uk.
-> ns-xxxx.awsdns-xx.com.
-> ns-xxxx.awsdns-xx.org.
-> ```
->
-> To make the child zone resolvable you must add an `NS` record to the parent zone (in the other
-> account's Route53 console) with the child zone's name as the record name and these name servers as
-> the value. The CLI will poll until the delegation is resolvable (up to 30 minutes) before
-> continuing.
+:::warning Parent hosted zone in a different AWS account
+
+If the CLI cannot find a parent hosted zone in the current AWS account for the newly created child
+zone, it prints a set of NS records similar to:
+
+```
+ns-xxxx.awsdns-xx.net.
+ns-xxxx.awsdns-xx.co.uk.
+ns-xxxx.awsdns-xx.com.
+ns-xxxx.awsdns-xx.org.
+```
+
+To make the child zone resolvable you must add an `NS` record to the parent zone (in the other
+account's Route53 console) with the child zone's name as the record name and these name servers as
+the value. The CLI will poll until the delegation is resolvable (up to 30 minutes) before
+continuing.
+
+:::
 
 ## Step 4 - Create a tenant
 
@@ -295,11 +315,13 @@ Output from the Pod:
 (1 row)
 ```
 
-> [!NOTE]
->
-> The `pg apply` commands execute as the privileged `postgres` user. Schemas created this way may
-> not be accessible by roles provisioned through Service Bindings - you will need to `GRANT`
-> privileges explicitly.
+:::note
+
+The `pg apply` commands execute as the privileged `postgres` user. Schemas created this way may
+not be accessible by roles provisioned through Service Bindings - you will need to `GRANT`
+privileges explicitly.
+
+:::
 
 ## Step 8 - Create a service binding
 
@@ -339,9 +361,13 @@ kubectl get secret "${SB}-service-binding" -n "${NS}" \
   -o jsonpath='{.data.password}' | base64 -d; echo
 ```
 
-> [!NOTE] The `a9s` CLI does not yet deploy a network routing solution between Workload and Control
-> Plane clusters. An Envoy Gateway integration is planned for a future release to expose PostgreSQL
-> instances via AWS load balancers.
+:::note
+
+The `a9s` CLI does not yet deploy a network routing solution between Workload and Control Plane
+clusters. An Envoy Gateway integration is planned for a future release to expose PostgreSQL
+instances via AWS load balancers.
+
+:::
 
 ## Step 9 - Back up and restore (Workload cluster)
 
@@ -406,10 +432,12 @@ kubectl get backups.anynines.com "${BU}" -n "${NS}" --ignore-not-found
 kubectl get postgresqlinstances.anynines.com "${PG}" -n "${NS}" --ignore-not-found
 ```
 
-> [!NOTE]
->
-> There is a known issue where the a8s Backup Manager does not delete backup data from the
-> Minio instance on the Control Plane cluster. A fix is in progress.
+:::note Known issue
+
+The a8s Backup Manager does not delete backup data from the Minio instance on the Control Plane
+cluster. A fix is in progress.
+
+:::
 
 ## Step 11 - Delete the workload cluster
 
@@ -446,11 +474,13 @@ a9s delete cluster klutch control-plane -p aws \
 
 **Cleanup that deletes the Hosted Zone and its HTTPS Certificate:**
 
-> [!WARNING] Deleting the Hosted Zone
->
-> If the Hosted Zone used by you Control Plane cluster does not have a parent Hosted Zone in the
-> same AWS account, then deleting a Hosted Zone by setting
-> `--delete-dns-zone` might require you to perform manual steps to recreate the Hosted Zone in the future.
+:::warning Deleting the Hosted Zone
+
+If the Hosted Zone used by your Control Plane cluster does not have a parent Hosted Zone in the
+same AWS account, then deleting a Hosted Zone by setting `--delete-dns-zone` might require you to
+perform manual steps to recreate the Hosted Zone in the future.
+
+:::
 
 ```bash
 a9s delete cluster klutch control-plane -p aws \
@@ -471,6 +501,21 @@ You have completed the full Klutch-on-AWS lifecycle:
 * **Provisioned** a PostgreSQL instance, created a Service Binding, and performed
   backup/restore - all from the Workload cluster via Klutch remote claims.
 * **Cleaned up** all resources in the correct dependency order.
+
+### What may still exist in your AWS account
+
+Teardown does not remove everything. Check for:
+
+* **KMS keys** scheduled for deletion, if you used `--schedule-kms-deletion`. They remain until
+  their 7-day window elapses, and they are not billable while pending deletion. Without that flag
+  they are left disabled and do continue to accrue charges.
+* **The Route53 hosted zone and the ACM certificate**, if you chose the teardown that preserves
+  them.
+* **Backup data in the Minio instance** on the Control Plane cluster, per the known issue noted in
+  Step 10.
+
+Confirm in the AWS console that no EKS cluster, NAT gateway, or Elastic IP from this tutorial is
+still running.
 
 ### Further reading
 

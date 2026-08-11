@@ -1,20 +1,18 @@
 ---
-id: a9s-cli-klutch-on-aws
+id: a9s-cli-remote-klutch
 title: Remote Klutch Stack (AWS)
 tags:
   - a9s cli
+  - reference
   - klutch
   - aws
-  - eks
 keywords:
   - a9s cli
   - klutch
   - aws
   - eks
   - control plane
-  - workload
-  - tenant
-  - postgresql
+  - workload cluster
 ---
 
 Create and manage a Klutch Control Plane and Workload clusters on AWS EKS. The Remote Klutch Stack
