@@ -431,7 +431,6 @@ Be aware that these commands are executed by the privileged `postgres` user. Sch
 
 ### Step 6: Creating and Restoring a Backup
 
-The backup store is already configured — `a9s create cluster a8s` installed a Minio object store into the cluster and pointed the a8s Backup Manager at it during Step 1. Nothing further is needed to create and restore a backup for your application.
 
 #### Creating a Backup
 
