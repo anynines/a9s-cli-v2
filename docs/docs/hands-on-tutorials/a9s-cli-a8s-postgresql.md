@@ -497,7 +497,7 @@ Did you ever think that running a production database as an application develope
 
 Wait, there's more to it! This hands-on tutorial merely scratched the surface. Did you see that the `a9s CLI` has created many YAML manifests stored in the `usermanifests` folder of your working directory? This is a good place to start tweaking your manifests and start your own experiments.
 
-If you want to learn more about the `a9s` CLI commands used here, have a look at the [Local a8s Stack reference](../a9s-cli-reference/a9s-cli-local-a8s.md).
+If you want to learn more about a8s PostgreSQL feel free to have a look at our [GitHub repo](https://github.com/anynines/a8s-deployment/).
 
 For more about the `a9s CLI` have a look at [our GitHub repository](https://github.com/anynines/a9s-cli-v2).
 
