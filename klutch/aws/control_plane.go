@@ -263,6 +263,9 @@ func ControlPlaneDefaultRegion() string {
 }
 
 func newConfig(clusterName string, clusterRole ClusterRole) Config {
+	if clusterName == "" {
+		makeup.ExitDueToFatalError(nil, "Cannot create config for cluster with empty name")
+	}
 	clusterName = strings.TrimSpace(clusterName)
 	cfg := defaultConfig()
 	cfg.KlutchTagValue = klutchTagValueWorkload
@@ -270,15 +273,9 @@ func newConfig(clusterName string, clusterRole ClusterRole) Config {
 
 	switch clusterRole {
 	case clusterRoleControlPlane:
-		if clusterName == "" {
-			clusterName = "klutch-control-plane"
-		}
 		cfg.KlutchTagValue = klutchTagValueControlPlane
 
 	case clusterRoleWorkload:
-		if clusterName == "" {
-			clusterName = RandomWorkloadClusterName()
-		}
 		cfg.KlutchTagValue = klutchTagValueWorkload
 
 	default:

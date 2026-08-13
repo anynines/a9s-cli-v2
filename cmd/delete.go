@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/anynines/a9s-cli-v2/demo"
+	"github.com/anynines/a9s-cli-v2/k8s"
 	"github.com/anynines/a9s-cli-v2/klutch"
 	klutchaws "github.com/anynines/a9s-cli-v2/klutch/aws"
 	"github.com/anynines/a9s-cli-v2/makeup"
@@ -172,6 +173,7 @@ var cmdDeleteClusterKlutchControlPlane = &cobra.Command{
 			ScheduleKmsDeletion:   deleteKlutchScheduleKmsDeletion,
 		}
 
+		opts.ClusterName = "klutch-control-plane"
 		if cmd.Flags().Changed("cluster-name") {
 			opts.ClusterName = strings.TrimSpace(demo.DemoClusterName)
 		}
@@ -197,7 +199,15 @@ var cmdDeleteClusterKlutchWorkload = &cobra.Command{
 		if cmd.Flags().Changed("cluster-name") {
 			opts.ClusterName = strings.TrimSpace(demo.DemoClusterName)
 		} else if envName := strings.TrimSpace(os.Getenv("WORKLOAD_CLUSTER_NAME")); envName != "" {
+			makeup.PrintWarning("Cluster name not set in flag, falling back to environment variable WORKLOAD_CLUSTER_NAME: " + envName)
 			opts.ClusterName = envName
+		} else {
+			var err error
+			opts.ClusterName, err = k8s.CurrentContext()
+			if err != nil {
+				makeup.ExitDueToFatalError(err, "Can't retrieve the currently selected cluster:\n"+opts.ClusterName)
+			}
+			makeup.PrintWarning("Cluster name neither set in flag nor in environment variable, falling back to current context " + opts.ClusterName)
 		}
 
 		if strings.TrimSpace(opts.ClusterName) == "" {
