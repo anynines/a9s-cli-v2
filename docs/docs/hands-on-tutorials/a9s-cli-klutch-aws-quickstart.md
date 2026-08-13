@@ -42,6 +42,23 @@ By the end of this tutorial you will have:
 Allow **60–90 minutes**. The two EKS cluster creations (~20 minutes each) account for most of the
 wall-clock time.
 
+:::warning This tutorial creates billable AWS resources
+
+You will provision two EKS clusters, their VPCs and NAT gateways, two load balancers, KMS keys, an
+ACM certificate and a Route53 hosted zone, and leave them running for 60-90 minutes.
+
+Estimate the control plane cluster before you start. This prices one cluster, so the workload
+cluster roughly doubles it, and load balancers and data transfer are not included:
+
+```bash
+a9s estimate-cost cluster klutch -p aws --region eu-central-1 --desired-nodes 3
+```
+
+Complete Steps 10 to 12 to tear everything down. Skipping teardown leaves running EKS clusters, NAT
+gateways, and Elastic IPs accruing charges indefinitely.
+
+:::
+
 ## Prerequisites
 
 ### Operating system
@@ -67,23 +84,6 @@ wall-clock time.
 | [helm](https://helm.sh/docs/intro/install/) | - | Helm docs |
 | [eksctl](https://docs.aws.amazon.com/eks/latest/eksctl/installation.html) | - | AWS docs |
 | [jq](https://jqlang.org/download/) | - | jqlang.org |
-
-:::warning This tutorial creates billable AWS resources
-
-You will provision two EKS clusters, their VPCs and NAT gateways, two load balancers, KMS keys, an
-ACM certificate and a Route53 hosted zone, and leave them running for 60-90 minutes.
-
-Estimate the control plane cluster before you start. This prices one cluster, so the workload
-cluster roughly doubles it, and load balancers and data transfer are not included:
-
-```bash
-a9s estimate-cost cluster klutch -p aws --region eu-central-1 --desired-nodes 3
-```
-
-Complete Steps 10 to 12 to tear everything down. Skipping teardown leaves running EKS clusters, NAT
-gateways, and Elastic IPs accruing charges indefinitely.
-
-:::
 
 ### Optional: log all terminal output
 
