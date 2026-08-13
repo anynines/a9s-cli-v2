@@ -65,7 +65,7 @@ When you run `a9s create klutch pg instance`, you are creating a Claim.
 
 Both tutorials provision PostgreSQL, but through different mechanisms, and the object kinds differ.
 
-The **local a8s tutorial** talks to the a8s PostgreSQL operator directly. Objects are the operator's own kinds (`postgresqls.postgresql.anynines.com`, `servicebindings.anynines.com`), and they live in the one cluster you created.
+The **local a8s tutorial** talks to the a8s PostgreSQL operator directly. Objects are the operator's own kinds (`postgresqls.postgresql.anynines.com`, `servicebindings.servicebindings.anynines.com`), and they live in the one cluster you created.
 
 The **Klutch AWS tutorial** goes through Crossplane. Objects are Claims (`postgresqlinstances.anynines.com`) submitted in the Workload cluster and reconciled on the Control Plane.
 
