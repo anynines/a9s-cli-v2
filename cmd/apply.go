@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/anynines/a9s-cli-v2/demo"
+	"github.com/anynines/a9s-cli-v2/k8s"
 	"github.com/anynines/a9s-cli-v2/klutch"
 	klutchaws "github.com/anynines/a9s-cli-v2/klutch/aws"
 	"github.com/anynines/a9s-cli-v2/makeup"
@@ -87,6 +88,13 @@ var cmdApplyKlutchControlPlane = &cobra.Command{
 		})
 
 		if strings.EqualFold(strings.TrimSpace(demo.KubernetesTool), "aws") {
+			if applyKlutchClusterName == "" {
+				var err error
+				applyKlutchClusterName, err = k8s.CurrentContext()
+				if err != nil {
+					makeup.ExitDueToFatalError(err, "Can't retrieve the currently selected cluster:\n"+applyKlutchClusterName)
+				}
+			}
 			cfgOpts := klutchaws.CreateOptions{
 				ClusterName:                strings.TrimSpace(applyKlutchClusterName),
 				Region:                     strings.TrimSpace(applyKlutchRegion),
@@ -120,7 +128,7 @@ func initFlagsApplyKlutchControlPlane(cmd *cobra.Command) {
 	initSharedFlagsKlutchControlPlaneStack(cmd)
 
 	cmd.Flags().StringVarP(&demo.KubernetesTool, "provider", "p", "", "provider for the Kubernetes cluster. Valid options are \"minikube\", \"kind\", and \"aws\" (for Klutch).")
-	cmd.Flags().StringVarP(&applyKlutchClusterName, "cluster-name", "", "", "Existing AWS control-plane cluster name (defaults to klutch-control-plane).")
+	cmd.Flags().StringVarP(&applyKlutchClusterName, "cluster-name", "", "", "Existing control-plane cluster name (defaults to current context).")
 	cmd.Flags().StringVar(&applyKlutchRegion, "region", "", "AWS region for the EKS cluster (defaults to eu-central-1).")
 }
 
