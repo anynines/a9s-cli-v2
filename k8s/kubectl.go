@@ -539,7 +539,7 @@ func trimAndFilter(input []byte, filter string) []string {
 	var res []string
 	for _, l := range lines {
 		if s := strings.TrimSpace(l); s != "" &&
-			strings.Contains(strings.ToLower(s), filter) {
+			strings.Contains(strings.ToLower(s), strings.ToLower(filter)) {
 			res = append(res, s)
 		}
 	}

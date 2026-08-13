@@ -102,7 +102,9 @@ var cmdApplyKlutchControlPlane = &cobra.Command{
 			klutchaws.ApplyControlPlaneAddons(context.Background(), cfgOpts)
 		}
 
-		klutch.ApplyKlutchControlPlane(sharedKlutchControlPlaneHost, sharedKlutchControlPlanePort, sharedKlutchControlPlaneACMCertARN, sharedKlutchControlPlaneHostedZone, applyKlutchClusterName)
+		klutch.ApplyKlutchControlPlane(sharedKlutchControlPlaneHost, sharedKlutchControlPlanePort,
+			sharedKlutchControlPlaneACMCertARN, sharedKlutchControlPlaneHostedZone,
+			applyKlutchClusterName)
 	},
 }
 
@@ -118,7 +120,7 @@ func initFlagsApplyKlutchControlPlane(cmd *cobra.Command) {
 	initSharedFlagsKlutchControlPlaneStack(cmd)
 
 	cmd.Flags().StringVarP(&demo.KubernetesTool, "provider", "p", "", "provider for the Kubernetes cluster. Valid options are \"minikube\", \"kind\", and \"aws\" (for Klutch).")
-	cmd.Flags().StringVarP(&demo.DemoClusterName, "cluster-name", "", "", "Existing AWS control-plane cluster name (defaults to klutch-control-plane).")
+	cmd.Flags().StringVarP(&applyKlutchClusterName, "cluster-name", "", "", "Existing AWS control-plane cluster name (defaults to klutch-control-plane).")
 	cmd.Flags().StringVar(&applyKlutchRegion, "region", "", "AWS region for the EKS cluster (defaults to eu-central-1).")
 }
 

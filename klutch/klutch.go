@@ -104,6 +104,28 @@ func DeployKlutchClusters() {
 
 // ApplyKlutchControlPlane installs the Klutch control plane components into the current kube context.
 func ApplyKlutchControlPlane(host string, ingressPort int, acmCertificateARN string, hostedZoneName string, clusterName string) {
+	var cpCtx string
+
+	if clusterName == "" {
+		var err error
+		cpCtx, err = k8s.CurrentContext()
+		if err != nil {
+			makeup.ExitDueToFatalError(err, "Can't retrieve the currently selected cluster:\n"+cpCtx)
+		}
+	} else {
+		ctxs, err := k8s.Contexts(clusterName)
+		if err != nil {
+			makeup.ExitDueToFatalError(err, "Can't retrieve the kube contexts for cluster name:\n"+clusterName)
+		}
+		if len(ctxs) == 0 {
+			makeup.ExitDueToFatalError(nil, fmt.Sprintf("No kube context found for cluster name %s. Please ensure the cluster exists and is accessible.", clusterName))
+		}
+		if len(ctxs) > 1 {
+			makeup.PrintWarning(fmt.Sprintf("Multiple kube contexts found for cluster name %s. Using the first one: %s", clusterName, ctxs[0]))
+		}
+		cpCtx = ctxs[0]
+	}
+
 	makeup.PrintWelcomeScreen(
 		makeup.UnattendedMode,
 		applyControlPlaneTitle,
@@ -174,11 +196,6 @@ func ApplyKlutchControlPlane(host string, ingressPort int, acmCertificateARN str
 		}
 		acmCertificateARN = arn
 		makeup.PrintInfo(fmt.Sprintf("Using ACM certificate ARN: %s", acmCertificateARN))
-	}
-
-	cpCtx, err := k8s.CurrentContext()
-	if err != nil {
-		makeup.ExitDueToFatalError(err, "Can't retrieve the currently selected cluster:\n"+cpCtx)
 	}
 
 	manager := NewKlutchManagerWithContexts(cpCtx, "")

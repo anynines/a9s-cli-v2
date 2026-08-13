@@ -29,9 +29,6 @@ var createKlutchWorkload = klutchaws.CreateWorkloadCluster
 var createClusterKlutchControlPlaneSkipApply bool
 var createKlutchTenantName string
 var createKlutchTenantRegion string
-var createKlutchTenantStoreSecret bool = true
-var createKlutchTenantSecretName string
-var createKlutchTenantForce bool
 var createKlutchTenantBindRequestFile string
 var createKlutchWorkloadAutobindControlPlaneName string
 
@@ -279,6 +276,7 @@ var cmdCreateClusterKlutchControlPlane = &cobra.Command{
 Use --no-apply to only provision the cluster. Currently only AWS is supported.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		options := klutchaws.CreateOptions{DryRun: createClusterKlutchDryRun}
+		options.ClusterName = "klutch-control-plane"
 		if cmd.Flags().Changed("cluster-name") {
 			options.ClusterName = strings.TrimSpace(demo.DemoClusterName)
 		}
@@ -418,6 +416,7 @@ var cmdCreateClusterKlutchWorkload = &cobra.Command{
 			NodeInstanceTypes:    strings.TrimSpace(createKlutchNodeType),
 			NodeCount:            createKlutchNodes,
 			ControlPlaneToBindTo: createKlutchWorkloadAutobindControlPlaneName,
+			ClusterName:          klutchaws.RandomWorkloadClusterName(),
 		}
 		var tenantConn *klutchaws.OIDCConnection
 		var tenantBindRequest []byte
@@ -632,9 +631,6 @@ func initFlagsCreateClusterKlutchWorkload(cmd *cobra.Command) {
 func initFlagsCreateKlutchTenant(cmd *cobra.Command) {
 	initRequiredStringFlag(cmd, &createKlutchTenantName, "tenant-name", "", "Name/prefix for the tenant (used to name the Cognito app client).")
 	cmd.Flags().StringVar(&createKlutchTenantRegion, "region", "", "AWS region for Cognito (defaults to CONTROL_PLANE_CLUSTER_REGION or eu-central-1).")
-	cmd.Flags().BoolVar(&createKlutchTenantStoreSecret, "store-secret", true, "Store the tenant credentials in AWS Secrets Manager.")
-	cmd.Flags().StringVar(&createKlutchTenantSecretName, "secret-name", "", "Secrets Manager name to store the tenant credentials (defaults to klutch/<tenant>/oidc-client).")
-	cmd.Flags().BoolVar(&createKlutchTenantForce, "force", false, "Overwrite an existing tenant secret if it already exists.")
 	cmd.Flags().StringVar(&createKlutchTenantBindRequestFile, "bind-request-file", "", "Path to bind request JSON to store with the tenant (defaults to all exported services).")
 }
 
