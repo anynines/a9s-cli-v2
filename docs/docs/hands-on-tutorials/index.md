@@ -2,15 +2,12 @@
 id: hands-on-tutorials-index
 title: Hands-On Tutorials
 tags:
-  - a9s CLI
-  - tutorials
-  - a9s Hub
-
+  - a9s cli
+  - tutorial
 keywords:
-  - a9s CLI
-  - tutorials
-  - a9s Hub
-
+  - a9s cli
+  - tutorial
+  - getting started
 ---
 The hands-on tutorials guide you through practical experiments using the `a9s` CLI to learn about Kubernetes, data services and application development.
 

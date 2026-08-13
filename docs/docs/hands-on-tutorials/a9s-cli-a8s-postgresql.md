@@ -2,27 +2,18 @@
 id: hands-on-tutorial-a8s-pg-a9s-cli
 title: "Deploying a Demo App using a8s PostgreSQL"
 tags:
-  - a9s hub
   - a9s cli
-  - a8s data services
-  - a8s postgres
-  - data service
   - tutorial
-  - kubernetes
-  - minikube
+  - a8s postgres
   - kind
+  - minikube
 keywords:
-  - a9s hub
   - a9s cli
-  - a8s data services
   - a8s postgres
-  - data service
-  - tutorial
-  - kubernetes
-  - minikube
-  - kind
   - postgresql
-  - web app
+  - tutorial
+  - kind
+  - minikube
 ---
 
 ## Overview
@@ -53,7 +44,8 @@ In this tutorial you will learn how to **create a local Kubernetes cluster**, fu
 * [Minikube](https://minikube.sigs.k8s.io/docs/start/) or [Kind](https://kind.sigs.k8s.io/)
 * [a9s CLI](https://github.com/anynines/a9s-cli-v2)
 * [Kubectl](https://kubernetes.io/docs/reference/kubectl/)
-* Optional for backup/restore: AWS S3 Bucket with credentials
+
+By default the `a9s` CLI installs a Minio object store into the cluster and points the a8s Backup Manager at it, but if you want to use an existing S3 bucket instead, you can pass `--backup-provider AWS`, `--backup-bucket <bucket-name>`, `--backup-region <aws-region>`, `--backup-store-accesskey <aws-access-key>` and `--backup-store-secretkey <aws-secret-key>` to `a9s create cluster a8s`.
 
 ## Implementation
 
@@ -200,7 +192,7 @@ Labels:           a8s.a9s/dsi-group=postgresql.anynines.com
                 statefulset.kubernetes.io/pod-name=clustered-instance-0
 ```
 
-The label `a8s.a9s/replication-role=master` indicates that the Pod `clustered-instance-0` is the **primary** PostgreSQL server for the asynchronous streaming replication within the cluster. Don't worry if you are not familiar with this terminology. Just bare in mind that **all data altering SQL statements always need to go to the primary Pod**. There's a mechanism in place that will help with this.
+The label `a8s.a9s/replication-role=master` indicates that the Pod `clustered-instance-0` is the **primary** PostgreSQL server for the asynchronous streaming replication within the cluster. Don't worry if you are not familiar with this terminology. Just bear in mind that **all data altering SQL statements always need to go to the primary Pod**. There's a mechanism in place that will help with this.
 
 By executing:
 
@@ -439,7 +431,6 @@ Be aware that these commands are executed by the privileged `postgres` user. Sch
 
 ### Step 6: Creating and Restoring a Backup
 
-Assuming you have configured the backup store and provided access credentials to an AWS S3 compatible object store, try creating and restoring a backup for your application.
 
 #### Creating a Backup
 
@@ -468,7 +459,7 @@ The a8s Backup Manager is the responsible for making the backup happen. It does 
 
 #### Restoring a Backup
 
-In order to experience the value of a backup, simulate a data loss by issueing the following `DELETE` statement:
+In order to experience the value of a backup, simulate a data loss by issuing the following `DELETE` statement:
 
 ```bash
 a9s pg apply -i clustered-instance -n tutorial --sql "DELETE FROM posts"
@@ -500,13 +491,13 @@ Some engineers say that a convenient backup/restore functionality at your dispos
 
 With just a few commands, you have created a local Kubernetes cluster, installed the a8s PostgreSQL Control Plane including all its dependencies. Furthermore, you have provisioned an PostgreSQL cluster consisting of three Pods providing you with an asynchronous streaming cluster supporting automatic failure detection, lead-election and failover. Deploying the demo application you've also experienced the convenience of Service Bindings and their automatic creation of Kubernetes Secrets. The backup and restore experiment then illustrated how effortless handling a production database can be.
 
-Did you every think that running a production database as an application developer with full self-service could be so easy?
+Did you ever think that running a production database as an application developer with full self-service could be so easy?
 
 ### What to do next?
 
 Wait, there's more to it! This hands-on tutorial merely scratched the surface. Did you see that the `a9s CLI` has created many YAML manifests stored in the `usermanifests` folder of your working directory? This is a good place to start tweaking your manifests and start your own experiments.
 
-If you want to learn more about a8s PostgreSQL feel free to have a look at the documentation at TODO.
+If you want to learn more about a8s PostgreSQL feel free to have a look at our [GitHub repo](https://github.com/anynines/a8s-deployment/).
 
 For more about the `a9s CLI` have a look at [our GitHub repository](https://github.com/anynines/a9s-cli-v2).
 
